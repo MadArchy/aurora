@@ -1,0 +1,7 @@
+Rol	Correo	Contraseña
+Brand Manager
+manager@postura.internal
+Postura2026!
+Cliente
+juan.vasquez@lexfirm.com
+Postura2026!

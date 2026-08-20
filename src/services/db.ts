@@ -1,0 +1,2080 @@
+import { 
+  Client, 
+  PositioningThesis, 
+  ClientProfile, 
+  Source,
+  SourceRunOutcome,
+  Signal, 
+  Recommendation, 
+  Task, 
+  ContentItem, 
+  Opportunity,
+  Campaign,
+  EvidenceVaultItem,
+  AIRunRecord,
+  OrganizationSubscription,
+  Invitation,
+  ResultRecord,
+  ManagerDecision,
+  CurationEntry,
+  CurationDestination,
+  DeliveryPackage,
+  DeliveryItem,
+  PositioningAdvice,
+  MasterDossier,
+  AttachedFile,
+  ClientPortfolioSummary,
+  StrategicScoreResult,
+  CampaignMilestone,
+  ContentPipelineStatus,
+  FeedbackEvent,
+  ProofWallItem,
+  ProfileFact,
+  ProfileFactSection,
+} from '../types';
+import { createId } from '../lib/id';
+import { renderDiffHtml, diffLines, hasDiffChanges, summarizeDiff } from '../domain/textDiff';
+import { buildFactsFromProfile } from '../domain/profileFacts';
+import { extractCandidateFactsFromCv } from '../domain/cvExtract';
+import { computeProfileCoverage } from '../domain/profileCoverage';
+import { buildDefaultProofWallItems } from '../data/proofWallChecklist';
+import {
+  defaultOpportunityChecklist,
+  mapOpportunityLifecycle,
+} from '../domain/opportunityLifecycle';
+import { assertTransition, DELIVERY_TRANSITIONS, SIGNAL_TRANSITIONS, TASK_TRANSITIONS } from '../domain/stateMachine';
+import {
+  assertContentPipelineTransition,
+  mapLegacyContentStatus,
+  syncLegacyStatusFromPipeline,
+} from '../domain/contentPipeline';
+import {
+  buildJuanCampaigns,
+  buildJuanContentQueue,
+  buildJuanKpiSeeds,
+  buildJuanMilestones,
+  buildJuanProofWallExtras,
+  buildJuanSecondThesis,
+  isJuanCampaignSeedApplied,
+  JUAN_ID,
+  THESIS_PATENTS,
+} from '../data/juanCampaignSeed';
+import { quotasFor, assertClientQuota, assertSourceQuota, assertThesisQuota } from './entitlements';
+import { buildJuanMasterDossier } from '../data/juanMasterDossier';
+import { FIREBASE_ENABLED } from '../firebase/config';
+import type { LocalV5Snapshot } from './firestore/types';
+
+export type { LocalV5Snapshot } from './firestore/types';
+
+class DataService {
+  private clients: Client[] = [];
+  private theses: PositioningThesis[] = [];
+  private profiles: Record<string, ClientProfile> = {};
+  private sources: Source[] = [];
+  private signals: Signal[] = [];
+  private recommendations: Recommendation[] = [];
+  private tasks: Task[] = [];
+  private contents: ContentItem[] = [];
+  private opportunities: Opportunity[] = [];
+  private campaigns: Campaign[] = [];
+  private campaignMilestones: CampaignMilestone[] = [];
+  private evidenceVault: EvidenceVaultItem[] = [];
+  private aiRuns: AIRunRecord[] = [];
+  private subscription: OrganizationSubscription | null = null;
+  private invitations: Invitation[] = [];
+  private results: ResultRecord[] = [];
+  private curation: CurationEntry[] = [];
+  private deliveries: DeliveryPackage[] = [];
+  private advices: PositioningAdvice[] = [];
+  private files: AttachedFile[] = [];
+  private topicPins: string[] = [];
+  private dossiers: Record<string, MasterDossier> = {};
+  private feedbackEvents: FeedbackEvent[] = [];
+  private proofWallItems: ProofWallItem[] = [];
+
+  constructor() {
+    this.loadInitialData();
+  }
+
+  private loadInitialData() {
+    const savedClients = localStorage.getItem('postura_clients_v5');
+    if (savedClients) {
+      try {
+        this.clients = JSON.parse(savedClients);
+        this.theses = JSON.parse(localStorage.getItem('postura_theses_v5') || '[]');
+        this.profiles = JSON.parse(localStorage.getItem('postura_profiles_v5') || '{}');
+        this.sources = JSON.parse(localStorage.getItem('postura_sources_v5') || '[]');
+        this.signals = JSON.parse(localStorage.getItem('postura_signals_v5') || '[]');
+        this.recommendations = JSON.parse(localStorage.getItem('postura_recommendations_v5') || '[]');
+        this.tasks = JSON.parse(localStorage.getItem('postura_tasks_v5') || '[]');
+        this.contents = JSON.parse(localStorage.getItem('postura_contents_v5') || '[]');
+        this.opportunities = JSON.parse(localStorage.getItem('postura_opportunities_v5') || '[]');
+        this.campaigns = JSON.parse(localStorage.getItem('postura_campaigns_v5') || '[]');
+        this.campaignMilestones = JSON.parse(localStorage.getItem('postura_milestones_v5') || '[]');
+        this.evidenceVault = JSON.parse(localStorage.getItem('postura_evidence_v5') || '[]');
+        this.aiRuns = JSON.parse(localStorage.getItem('postura_ai_runs_v5') || '[]');
+        this.subscription = JSON.parse(localStorage.getItem('postura_subscription_v5') || 'null');
+        this.invitations = JSON.parse(localStorage.getItem('postura_invitations_v5') || '[]');
+        this.results = JSON.parse(localStorage.getItem('postura_results_v5') || '[]');
+        this.curation = JSON.parse(localStorage.getItem('postura_curation_v5') || '[]');
+        this.deliveries = JSON.parse(localStorage.getItem('postura_deliveries_v5') || '[]');
+        this.advices = JSON.parse(localStorage.getItem('postura_advices_v5') || '[]');
+        this.files = JSON.parse(localStorage.getItem('postura_files_v5') || '[]');
+        this.topicPins = JSON.parse(localStorage.getItem('postura_topic_pins_v5') || '[]');
+        this.dossiers = JSON.parse(localStorage.getItem('postura_dossiers_v5') || '{}');
+        this.feedbackEvents = JSON.parse(localStorage.getItem('postura_feedback_v1') || '[]');
+        this.proofWallItems = JSON.parse(localStorage.getItem('postura_proof_wall_v1') || '[]');
+        this.ensureSeedDossiers();
+        this.ensureJuanCampaignSeed();
+        this.repairKnownBrokenSources();
+        this.migrateOrphanSignals();
+        this.migrateContentPipelineFields();
+        this.migrateClientReviewBaselines();
+        this.migrateProfileFacts();
+        this.migrateProofWallItems();
+        this.migrateOpportunityLifecycle();
+        return;
+      } catch (e) {
+        console.error('Error loading stored data, resetting to seed', e);
+      }
+    }
+
+    const orgId = 'org_aurora_01';
+    const juanId = 'client_juan_001';
+    
+    this.clients = [
+      {
+        id: juanId,
+        organizationId: orgId,
+        primaryManagerId: 'user_admin_01',
+        userId: 'user_client_juan_01',
+        firstName: 'Juan',
+        lastName: 'Vasquez',
+        displayName: 'Juan J. Vasquez',
+        primaryEmail: 'juan.vasquez@lexfirm.com',
+        profession: 'Intellectual Property & AI Adoption Attorney',
+        company: 'Whitaker Chalk Swindle & Schwartz PLLC',
+        country: 'Estados Unidos (Fort Worth, Texas)',
+        targetMarket: 'General Counsel, IP Counsel, startups tecnológicas y equipos legales adoptando IA',
+        onboardingStatus: 'COMPLETED',
+        profileCompleteness: 100,
+        status: 'ACTIVE',
+        internalNotes: 'VERIFICADO: Member Whitaker Chalk (may 2022), BSEE UT Austin, JD St. Mary\'s, DoD/USAF cyber, Chair State Bar TX Emerging Technology Committee, President of Board 3ITAL, coautor libro IA+Patentes 2024. NO USAR sin confirmar: "Fundador 3ITAL", "Director 3i BAIRD Lab", Best Lawyers 2026. Posicionamiento: IP + AI Adoption (People/Tools/Rules), no "AI lawyer" genérico ni solo "Patent Attorney".',
+        createdAt: '2026-08-01T10:00:00Z',
+        createdBy: 'user_admin_01',
+        updatedAt: '2026-08-18T14:30:00Z',
+        updatedBy: 'user_admin_01',
+        activeThesesCount: 2,
+        completedTasksCount: 14,
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'
+      },
+      {
+        id: 'client_elena_002',
+        organizationId: orgId,
+        primaryManagerId: 'user_admin_01',
+        firstName: 'Elena',
+        lastName: 'Rostova',
+        displayName: 'Dra. Elena Rostova',
+        primaryEmail: 'elena.rostova@biomed.org',
+        profession: 'Cirujana Oncológica & Investigadora Genómica',
+        company: 'Instituto Biomédico Avanzado',
+        country: 'España',
+        targetMarket: 'Comités de Bioética, Hospitales de Alta Complejidad, Farmacéuticas',
+        onboardingStatus: 'IN_PROGRESS',
+        profileCompleteness: 65,
+        status: 'ACTIVE',
+        internalNotes: 'Posicionamiento en terapias génicas de precisión.',
+        createdAt: '2026-08-10T12:00:00Z',
+        createdBy: 'user_admin_01',
+        updatedAt: '2026-08-18T16:00:00Z',
+        updatedBy: 'user_admin_01',
+        activeThesesCount: 1,
+        completedTasksCount: 3,
+        avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=250&q=80'
+      }
+    ];
+
+    const thesisId1 = 'thesis_juan_ip_ai_adoption';
+    this.theses = [
+      {
+        id: thesisId1,
+        organizationId: orgId,
+        clientId: juanId,
+        title: 'Propiedad Intelectual y Adopción Responsable de IA',
+        expertIdentity: 'Intellectual Property and AI Adoption Attorney — ayuda a organizaciones a proteger innovación, evaluar preparación para IA y adoptar IA de forma controlada y defendible',
+        targetAudience: 'General Counsel, IP Counsel, CTOs/CIOs, líderes de innovación y startups que desarrollan o adoptan IA',
+        secondaryAudience: 'State Bar committees, equipos de compliance, patent prosecution y audiencias legales en EE.UU. y México',
+        domain: 'Patentes e IP, adopción de IA (People + Tools + Rules), AI Posture & Readiness, gobernanza (NIST AI RMF, ISO/IEC 42001) y ciberseguridad aplicada',
+        objective: 'Consolidar práctica IP + AI Adoption (assessments, governance, patent strategy); liderazgo institucional; conferencias US/México',
+        proofPoints: [
+          'Member, Whitaker Chalk Swindle & Schwartz PLLC — patent strategy, prosecution, FTO, litigio IP (desde may 2022)',
+          'B.S. Electrical Engineering (UT Austin) + J.D. (St. Mary\'s University School of Law) + Registered Patent Attorney',
+          'Experiencia DoD (ingeniero eléctrico/ciberseguridad) y oficial de ciberseguridad U.S. Air Force',
+          'Chair, Emerging Technology Committee — State Bar of Texas (2025–2027)',
+          'President of the Board, 3ITAL — International Institute for Intelligent Technology Adoption in the Law',
+          'Coautor: Artificial Intelligence (AI) in Patent Practice (2024); edición española presentada en STJ Jalisco, México',
+          'Fort Worth Magazine Top Attorneys — IP (2022–2025); Best Lawyers Ones to Watch IP Law (2024, 2025)',
+        ],
+        differentiator: 'Intersección LAW × ENGINEERING × IP × AI × CYBERSECURITY × BUSINESS: comprende el problema legal y técnico al mismo tiempo.',
+        voiceAndTone: 'Preciso, sobrio, sin hype de "experto en IA". Usa noticias como materia prima para analizar impacto en adopción empresarial, IP, patentes, gobernanza y riesgo.',
+        complianceRules: 'State Bar of Texas + USPTO: confidencialidad; no prometer resultados de patentes; no afirmar "Fundador 3ITAL" ni cargos no verificados (3i BAIRD Lab, Best Lawyers 2026).',
+        status: 'ACTIVE',
+        clientApprovalStatus: 'APPROVED',
+        createdAt: '2026-08-02T10:00:00Z',
+        createdBy: 'user_admin_01',
+        updatedAt: '2026-08-18T10:00:00Z',
+        updatedBy: 'user_admin_01'
+      }
+    ];
+
+    this.profiles[juanId] = {
+      organizationId: orgId,
+      clientId: juanId,
+      identity: {
+        professionalHeadline: 'Member @ Whitaker Chalk | Intellectual Property & AI Adoption Attorney',
+        shortBio: 'Abogado de patentes e ingeniero eléctrico. Ayuda a organizaciones a proteger innovación y adoptar IA de forma responsable.',
+        longBio: 'Juan J. Vasquez es abogado de propiedad intelectual en Whitaker Chalk (Fort Worth, Texas), con formación en ingeniería eléctrica (UT Austin), experiencia en ciberseguridad (DoD y U.S. Air Force) y práctica centrada en patentes, FTO y adopción de IA. Chair del Emerging Technology Committee del State Bar of Texas y President of the Board de 3ITAL. Coautor de Artificial Intelligence (AI) in Patent Practice (2024).',
+        location: 'Fort Worth, Texas · EE.UU. / México',
+        languages: ['Inglés', 'Español'],
+        selfDescription: 'Helping organizations protect innovation and responsibly adopt artificial intelligence.',
+      },
+      goals: {
+        primaryGoal: 'Desarrollar la línea AI Adoption + Intellectual Property (AI Posture Assessment, governance, patent strategy)',
+        secondaryGoals: [
+          'Consolidar liderazgo institucional (State Bar TX, 3ITAL)',
+          'Expandir conferencias y presencia en México',
+          'Posicionar el marco People + Tools + Rules como diferenciador',
+        ],
+      },
+      audience: {
+        targetAudienceDescription: 'General Counsel, IP counsel, CTOs/CIOs, equipos legales adoptando IA y startups con portafolios de innovación.',
+        targetIndustries: ['Tecnología', 'Semiconductores', 'Dispositivos médicos', 'Telecomunicaciones', 'LegalTech', 'Startups de IA'],
+        targetCountries: ['Estados Unidos', 'México'],
+      },
+      career: {
+        profession: 'Intellectual Property & AI Adoption Attorney',
+        currentRole: 'Member',
+        currentCompany: 'Whitaker Chalk Swindle & Schwartz PLLC',
+        yearsExperience: 12,
+        industries: ['Propiedad intelectual', 'Patentes', 'Adopción de IA', 'Ciberseguridad'],
+      },
+      education: [
+        { institution: 'The University of Texas at Austin', degree: 'B.S. Electrical Engineering', year: '2009' },
+        { institution: 'St. Mary\'s University School of Law', degree: 'Juris Doctor (J.D.)', year: '2013' },
+      ],
+      careerHistory: [
+        {
+          role: 'Member — Intellectual Property Practice',
+          organization: 'Whitaker Chalk Swindle & Schwartz PLLC',
+          period: 'May 2022 — Presente',
+          highlight: 'Patent strategy, prosecution, FTO, opinions, portafolios internacionales y asuntos transaccionales de tecnología.',
+        },
+        {
+          role: 'Cybersecurity Officer',
+          organization: 'U.S. Air Force',
+          period: 'Anterior a carrera legal',
+          highlight: 'Autoridad para hablar de controles tecnológicos, riesgo y funcionamiento real de sistemas.',
+        },
+        {
+          role: 'Electrical Engineer / Cybersecurity Specialist',
+          organization: 'U.S. Department of Defense',
+          period: 'Anterior a carrera legal',
+          highlight: 'Ingeniería eléctrica y ciberseguridad antes de convertirse en patent attorney.',
+        },
+      ],
+      ventures: [
+        'President of the Board, 3ITAL — International Institute for Intelligent Technology Adoption in the Law',
+        'Chair, Emerging Technology Committee — State Bar of Texas',
+      ],
+      keyPublications: [
+        {
+          title: 'Artificial Intelligence (AI) in Patent Practice: No Patent Attorneys Were Harmed in the Making of this AI Revolution',
+          outlet: 'Coautor con Roberto Rosas (2024; edición en español)',
+        },
+        {
+          title: 'The Pillars of AI Adoption: The Rules, the Tools, and the People',
+          outlet: '3ITAL (abril 2026)',
+        },
+      ],
+      socialLinks: {
+        linkedin: 'https://www.linkedin.com/in/juanjvasquez',
+        website: 'https://www.whitakerchalk.com',
+      },
+      voicePreferences: {
+        tone: 'authoritative',
+        preferredPhrases: [
+          'People + Tools + Rules',
+          'AI Adoption (not just AI law)',
+          'AI Posture and Readiness',
+          'Protect innovation, adopt AI responsibly',
+          'Freedom to Operate',
+        ],
+        topicsToAvoid: [
+          'Posicionarse solo como "experto en inteligencia artificial" (demasiado genérico)',
+          'Reducir la marca a "Patent Attorney" sin el ángulo de adopción de IA',
+          'Etiquetarse únicamente como "abogado de gobernanza de IA" (demasiado estrecho)',
+          'Afirmar "Fundador de 3ITAL" o cargo en 3i BAIRD Lab sin documentación primaria',
+          'Best Lawyers 2026 sin confirmación adicional',
+          'Comentar noticias de IA sin analizar impacto en adopción, IP o riesgo empresarial',
+        ],
+        complianceGuidelines: 'State Bar of Texas y USPTO: confidencialidad de clientes; no prometer resultados de patentes; verificar cargos antes de publicar.',
+      },
+      onboardingCompleted: true,
+      updatedAt: '2026-08-19T16:00:00Z',
+    };
+
+    this.sources = [
+      {
+        id: 'src_uspto_01',
+        organizationId: orgId,
+        clientId: juanId,
+        thesisId: thesisId1,
+        name: 'USPTO — Patent Public Search / noticias de propiedad intelectual',
+        type: 'REGULATORY',
+        url: 'https://www.uspto.gov/rss.xml',
+        fetchIntervalMinutes: 720,
+        status: 'ACTIVE',
+        itemCount: 0,
+        createdAt: '2026-08-01T00:00:00Z',
+        createdBy: 'user_admin_01',
+      },
+      {
+        id: 'src_nist_ai_02',
+        organizationId: orgId,
+        clientId: juanId,
+        thesisId: thesisId1,
+        name: 'NIST — noticias (IA, estándares y ciberseguridad)',
+        type: 'REGULATORY',
+        url: 'https://www.nist.gov/news-events/news/rss.xml',
+        fetchIntervalMinutes: 720,
+        status: 'ACTIVE',
+        itemCount: 0,
+        createdAt: '2026-08-05T00:00:00Z',
+        createdBy: 'user_admin_01',
+      },
+      {
+        id: 'src_ipwatchdog_03',
+        organizationId: orgId,
+        clientId: juanId,
+        thesisId: thesisId1,
+        name: 'IPWatchdog — patentes e IA en práctica legal',
+        type: 'MEDIA',
+        url: 'https://ipwatchdog.com/feed/',
+        fetchIntervalMinutes: 360,
+        status: 'ACTIVE',
+        itemCount: 0,
+        createdAt: '2026-08-10T00:00:00Z',
+        createdBy: 'user_admin_01',
+      },
+    ];
+
+    this.signals = [
+      {
+        id: 'sig_001',
+        organizationId: orgId,
+        clientId: juanId,
+        sourceId: 'src_nist_ai_02',
+        title: 'NIST actualiza guía de gestión de riesgos para sistemas de IA en entornos corporativos',
+        sourceType: 'REGULATORY',
+        sourceName: 'NIST AI RMF Updates',
+        sourceUrl: 'https://www.nist.gov/artificial-intelligence',
+        contentSnippet: 'El marco enfatiza gobernanza, trazabilidad y evaluación de riesgo antes del despliegue — alineado con AI Posture Assessment.',
+        fingerprint: 'fp_ea8923a19b88',
+        detectedAt: '2026-08-18T08:15:00Z',
+        status: 'NEW',
+        targetDomain: 'AI Adoption & Governance (People + Tools + Rules)',
+        relevanceScore: 94,
+        aiStatus: 'PENDING_AI',
+        managerDecision: 'UNREVIEWED',
+        sourceQuality: 'HIGH',
+      },
+      {
+        id: 'sig_002',
+        organizationId: orgId,
+        clientId: juanId,
+        sourceId: 'src_ipwatchdog_03',
+        title: 'Tribunal federal: outputs generados por IA en procesos de patentes requieren trazabilidad de inventores humanos',
+        sourceType: 'NEWS_API',
+        sourceName: 'IPWatchdog',
+        sourceUrl: 'https://www.ipwatchdog.com/',
+        contentSnippet: 'Decisión relevante para patent prosecution y portafolios de startups que usan herramientas de IA en I+D.',
+        fingerprint: 'fp_901c22ff71b2',
+        detectedAt: '2026-08-18T11:30:00Z',
+        status: 'ANALYZED',
+        targetDomain: 'Patentes + AI Adoption en IP',
+        relevanceScore: 91,
+        aiStatus: 'ANALYZED',
+        managerDecision: 'UNREVIEWED',
+        sourceQuality: 'HIGH',
+        recommendedAction: 'VIDEO',
+        priorityBand: 'CRITICAL',
+      },
+    ];
+
+    this.recommendations = [
+      {
+        id: 'rec_001',
+        signalId: 'sig_001',
+        thesisId: thesisId1,
+        clientId: juanId,
+        type: 'VIDEO_SHORT',
+        proposedAngle: '¿Quién usa ChatGPT en tu empresa sin que Legal lo sepa? Los 3 pilares de AI Adoption: People, Tools y Rules.',
+        strategicRationale: 'Conecta una noticia de gobernanza con el marco diferenciador de Juan — no comenta IA, diagnostica adopción empresarial.',
+        urgency: 'HIGH',
+        impactScore: 95,
+        status: 'MANAGER_APPROVED',
+        createdAt: '2026-08-18T09:00:00Z'
+      }
+    ];
+
+    const contentId1 = 'cnt_video_script_001';
+    this.contents = [
+      {
+        id: contentId1,
+        organizationId: orgId,
+        clientId: juanId,
+        thesisId: thesisId1,
+        type: 'VIDEO_SCRIPT',
+        title: 'Guion Teleprompter: People, Tools & Rules — diagnóstico de adopción de IA',
+        body: `[GANCHO - 0 a 8 seg]\nSi tu empresa ya usa IA pero nadie en Legal puede decirte qué herramientas usan los empleados, tienes un problema de adopción — no de tecnología.\n\n[NÚCLEO - 8 a 35 seg]\nLa adopción de IA casi siempre empieza de forma informal: ChatGPT, Copilot, proveedores con acceso a datos. Antes de hablar de regulación, necesitas tres cosas:\n1. People — ¿quién usa qué y con qué formación?\n2. Tools — inventario de herramientas, vendors y acceso a información sensible.\n3. Rules — políticas que realmente se cumplen, no solo en papel.\n\n[CIERRE - 35 a 55 seg]\nEso es AI Posture: proteger innovación y adoptar IA de forma defendible. Como abogado de patentes e ingeniero, veo el riesgo desde IP y desde sistemas reales. En mi perfil dejo la checklist para General Counsel.`,
+        teleprompterScript: `Si tu empresa ya usa IA pero nadie en Legal puede decirte qué herramientas usan los empleados, tienes un problema de adopción — no de tecnología.\n\nLa adopción de IA casi siempre empieza de forma informal: ChatGPT, Copilot, proveedores con acceso a datos. Antes de hablar de regulación, necesitas tres cosas:\n\n1. People — ¿quién usa qué y con qué formación?\n2. Tools — inventario de herramientas, vendors y acceso a información sensible.\n3. Rules — políticas que realmente se cumplen, no solo en papel.\n\nEso es AI Posture: proteger innovación y adoptar IA de forma defendible. Como abogado de patentes e ingeniero, veo el riesgo desde IP y desde sistemas reales. En mi perfil dejo la checklist para General Counsel.`,
+        targetPlatform: 'LinkedIn',
+        status: 'CLIENT_REVIEW',
+        managerNotes: 'Guion adaptado a 60 segundos exactos en tono autoritativo y directo. Listo para grabación en teleprompter.',
+        createdAt: '2026-08-18T09:30:00Z',
+        updatedAt: '2026-08-18T09:45:00Z'
+      }
+    ];
+
+    this.tasks = [
+      {
+        id: 'task_001',
+        organizationId: orgId,
+        clientId: juanId,
+        thesisId: thesisId1,
+        type: 'RECORD_VIDEO',
+        title: 'Grabar video de 60s: People, Tools & Rules en adopción de IA',
+        description: 'Lee el guion sobre AI Adoption (People + Tools + Rules). Enfoque IP + adopción empresarial, no comentario genérico de IA.',
+        estimatedMinutes: 15,
+        deadline: '2026-08-19T18:00:00Z',
+        status: 'ASSIGNED',
+        contentItemId: contentId1,
+        scriptPayload: this.contents[0].teleprompterScript,
+        createdAt: '2026-08-18T10:00:00Z'
+      }
+    ];
+
+    this.opportunities = [
+      {
+        id: 'opp_001',
+        organizationId: orgId,
+        clientId: juanId,
+        thesisId: thesisId1,
+        title: 'Panel: AI Adoption en firmas legales y departamentos de IP',
+        organization: 'State Bar of Texas — Emerging Technology Committee / 3ITAL',
+        type: 'CONFERENCE_KEYNOTE',
+        deadline: '2026-09-15T23:59:00Z',
+        description: 'Invitación a panel sobre adopción responsable de IA en la profesión legal: People + Tools + Rules, confidencialidad y evaluación de herramientas.',
+        fitRationale: 'Juan es Chair del comité anfitrión y President of the Board de 3ITAL — alineación institucional directa.',
+        status: 'SENT_TO_CLIENT',
+        lifecycleStage: 'proposed',
+        createdAt: '2026-08-18T12:00:00Z'
+      }
+    ];
+
+    this.campaigns = [
+      {
+        id: 'camp_001',
+        organizationId: orgId,
+        clientId: juanId,
+        thesisId: thesisId1,
+        name: 'Campaña Q3: IP + AI Adoption (People, Tools, Rules)',
+        description: 'Posicionar a Juan como IP & AI Adoption Attorney — assessments, patent strategy y gobernanza práctica (NIST AI RMF, ISO/IEC 42001).',
+        status: 'ACTIVE',
+        startDate: '2026-08-01',
+        endDate: '2026-10-31',
+        targetDeliverables: 12,
+        completedDeliverables: 5,
+        tags: ['AI Adoption', 'Patentes', 'AI Posture', '3ITAL'],
+        createdAt: '2026-08-01T10:00:00Z',
+        createdBy: 'user_admin_01',
+        updatedAt: '2026-08-18T14:00:00Z'
+      }
+    ];
+
+    this.evidenceVault = [
+      {
+        id: 'ev_001',
+        organizationId: orgId,
+        clientId: juanId,
+        title: 'Member — Whitaker Chalk Swindle & Schwartz PLLC',
+        type: 'CERTIFICATION',
+        sourceUrl: 'https://www.whitakerchalk.com',
+        snippet: 'Member desde mayo 2022. Práctica en patentes, FTO, prosecution, opinions y asuntos transaccionales de tecnología.',
+        confidenceScore: 100,
+        verified: true,
+        verifiedAt: '2026-08-01T12:00:00Z',
+        associatedThesesIds: [thesisId1],
+        createdAt: '2026-08-01T11:00:00Z',
+      },
+      {
+        id: 'ev_002',
+        organizationId: orgId,
+        clientId: juanId,
+        title: 'Chair — Emerging Technology Committee, State Bar of Texas',
+        type: 'CERTIFICATION',
+        sourceUrl: 'https://www.texasbar.com',
+        snippet: 'Nombramiento oficial 2025–2027. Comité sobre IA, automatización, ciberseguridad y uso responsable de tecnología por abogados.',
+        confidenceScore: 100,
+        verified: true,
+        verifiedAt: '2026-08-05T09:00:00Z',
+        associatedThesesIds: [thesisId1],
+        createdAt: '2026-08-05T09:00:00Z',
+      },
+      {
+        id: 'ev_003',
+        organizationId: orgId,
+        clientId: juanId,
+        title: 'Libro: Artificial Intelligence (AI) in Patent Practice (2024)',
+        type: 'ACADEMIC_PAPER',
+        sourceUrl: 'https://www.whitakerchalk.com',
+        snippet: 'Coautor con Roberto Rosas. Tesis: IA aumenta capacidades del profesional, no sustituye al patent attorney. Edición español presentada en México.',
+        confidenceScore: 98,
+        verified: true,
+        verifiedAt: '2026-08-10T09:00:00Z',
+        associatedThesesIds: [thesisId1],
+        createdAt: '2026-08-10T09:00:00Z',
+      },
+      {
+        id: 'ev_004',
+        organizationId: orgId,
+        clientId: juanId,
+        title: 'Best Lawyers: Ones to Watch in America — Intellectual Property Law (2024, 2025)',
+        type: 'AWARD',
+        snippet: 'Reconocimiento público en propiedad intelectual. No incluir edición 2026 sin confirmación adicional.',
+        confidenceScore: 95,
+        verified: true,
+        verifiedAt: '2026-08-12T09:00:00Z',
+        associatedThesesIds: [thesisId1],
+        createdAt: '2026-08-12T09:00:00Z',
+      },
+      {
+        id: 'ev_005',
+        organizationId: orgId,
+        clientId: juanId,
+        title: 'President of the Board — 3ITAL',
+        type: 'CERTIFICATION',
+        snippet: 'International Institute for Intelligent Technology Adoption in the Law. Usar "President of the Board" — no "Fundador" hasta confirmación documental.',
+        confidenceScore: 95,
+        verified: true,
+        verifiedAt: '2026-08-14T09:00:00Z',
+        associatedThesesIds: [thesisId1],
+        createdAt: '2026-08-14T09:00:00Z',
+      },
+    ];
+
+    this.aiRuns = [
+      {
+        id: 'run_seed_001',
+        organizationId: orgId,
+        clientId: juanId,
+        agent: 'POSITIONING_STRATEGIST',
+        provider: 'OPENAI',
+        modelName: 'gpt-4o',
+        promptTemplateId: 'tmpl_signal_analysis_v1',
+        inputContextSummary: 'Señal: NIST AI RMF / adopción de IA en entornos corporativos',
+        outputPayload: 'Ángulo propuesto: People + Tools + Rules — diagnóstico de adopción, no comentario genérico de IA',
+        promptTokens: 820,
+        completionTokens: 310,
+        totalCostUsd: 0.0075,
+        latencyMs: 1150,
+        validationPassed: true,
+        hallucinationCheckScore: 99,
+        securityCheckPassed: true,
+        status: 'SUCCESS',
+        createdAt: '2026-08-18T09:00:00Z'
+      }
+    ];
+
+    this.subscription = {
+      organizationId: orgId,
+      tier: 'PROFESSIONAL',
+      status: 'ACTIVE',
+      quotas: quotasFor('PROFESSIONAL'),
+      monthlyUsage: {
+        aiRuns: 28,
+        tokensUsed: 42350,
+        activeClientsCount: 2,
+        sourcesCount: 3
+      },
+      currentPeriodStart: '2026-08-01T00:00:00Z',
+      currentPeriodEnd: '2026-08-31T23:59:59Z'
+    };
+
+    this.invitations = [];
+    this.results = [];
+    this.curation = [];
+    this.deliveries = [];
+    this.advices = [];
+    this.files = [];
+    this.topicPins = [];
+
+    this.dossiers = {
+      [juanId]: buildJuanMasterDossier(),
+    };
+
+    this.saveAll();
+    this.ensureJuanCampaignSeed();
+  }
+
+  /**
+   * Corrige URLs de fuentes que se comprobó que no devuelven items (feed vacío,
+   * redirección o 404). Se hace en sitio para no perder señales ya capturadas.
+   */
+  private repairKnownBrokenSources() {
+    const replacements: Record<string, string | null> = {
+      'https://www.nist.gov/news-events/cybersecurity/rss.xml': 'https://www.nist.gov/news-events/news/rss.xml',
+      'https://www.ipwatchdog.com/feed/': 'https://ipwatchdog.com/feed/',
+      'https://europa.eu/ai-act/feed.xml': null,
+    };
+
+    let changed = false;
+    for (const source of this.sources) {
+      if (!source.url || !(source.url in replacements)) continue;
+      const replacement = replacements[source.url];
+      if (replacement) {
+        source.url = replacement;
+        source.status = 'ACTIVE';
+        source.lastError = undefined;
+      } else {
+        source.status = 'ARCHIVED';
+        source.lastError = 'Feed retirado por el proveedor';
+      }
+      changed = true;
+    }
+    if (changed) this.saveAll();
+  }
+
+  /**
+   * Asigna clientId a señales huérfanas usando sourceId; las que no puedan
+   * resolverse se descartan para evitar fuga entre clientes.
+   */
+  private migrateOrphanSignals() {
+    let changed = false;
+    for (const signal of this.signals) {
+      if (signal.clientId) continue;
+      const source = signal.sourceId ? this.sources.find((s) => s.id === signal.sourceId) : undefined;
+      if (source?.clientId) {
+        signal.clientId = source.clientId;
+        changed = true;
+        continue;
+      }
+      if (signal.status !== 'DISCARDED') {
+        signal.status = 'DISCARDED';
+        signal.discardReason = 'Migración: señal huérfana sin clientId';
+        changed = true;
+      }
+    }
+    if (changed) this.saveAll();
+  }
+
+  /** Inserta dossiers de demo si faltan (migración sin resetear datos). */
+  private ensureSeedDossiers() {
+    if (!this.dossiers['client_juan_001']) {
+      this.dossiers['client_juan_001'] = buildJuanMasterDossier();
+      this.saveAll();
+    }
+  }
+
+  /** Seed Oleada 0: dual campaña, plan 30 días, cola de contenido Juan. */
+  private ensureJuanCampaignSeed() {
+    if (isJuanCampaignSeedApplied(this.campaignMilestones)) return;
+
+    let changed = false;
+
+    if (!this.theses.some((t) => t.id === THESIS_PATENTS)) {
+      this.theses.push(buildJuanSecondThesis());
+      changed = true;
+    }
+
+    const juan = this.clients.find((c) => c.id === JUAN_ID);
+    if (juan && juan.activeThesesCount < 2) {
+      juan.activeThesesCount = 2;
+      changed = true;
+    }
+
+    for (const camp of buildJuanCampaigns()) {
+      if (!this.campaigns.some((c) => c.id === camp.id)) {
+        this.campaigns.push(camp);
+        changed = true;
+      }
+    }
+
+    const milestones = buildJuanMilestones();
+    for (const ms of milestones) {
+      if (!this.campaignMilestones.some((m) => m.id === ms.id)) {
+        if (ms.dayNumber === 16) ms.linkedTaskId = 'task_001';
+        this.campaignMilestones.push(ms);
+        changed = true;
+      }
+    }
+
+    for (const ev of buildJuanProofWallExtras()) {
+      if (!this.evidenceVault.some((e) => e.id === ev.id)) {
+        this.evidenceVault.push(ev);
+        changed = true;
+      }
+    }
+
+    for (const res of buildJuanKpiSeeds()) {
+      if (!this.results.some((r) => r.id === res.id)) {
+        this.results.push(res);
+        changed = true;
+      }
+    }
+
+    const queue = buildJuanContentQueue();
+    for (const content of queue.contents) {
+      if (!this.contents.some((c) => c.id === content.id)) {
+        this.contents.push(content);
+        changed = true;
+      }
+    }
+    for (const task of queue.tasks) {
+      if (!this.tasks.some((t) => t.id === task.id)) {
+        this.tasks.push(task);
+        changed = true;
+      }
+    }
+
+    if (changed) this.saveAll();
+  }
+
+  /** Backfill pipelineStatus y stateHistory en contenidos legacy. */
+  private migrateContentPipelineFields() {
+    let changed = false;
+    for (const content of this.contents) {
+      if (!content.pipelineStatus) {
+        content.pipelineStatus = mapLegacyContentStatus(content.status);
+        changed = true;
+      }
+      if (!content.stateHistory?.length) {
+        content.stateHistory = [
+          {
+            state: content.pipelineStatus,
+            actorUid: 'system',
+            actorRole: 'SYSTEM',
+            at: content.updatedAt || content.createdAt,
+            comment: 'Migración pipeline v1',
+          },
+        ];
+        changed = true;
+      }
+    }
+    if (changed) this.saveAll();
+  }
+
+  private migrateClientReviewBaselines() {
+    let changed = false;
+    for (const content of this.contents) {
+      const pipeline = content.pipelineStatus || mapLegacyContentStatus(content.status);
+      if (
+        !content.clientReviewBaseline &&
+        (pipeline === 'sent_to_client' ||
+          pipeline === 'client_in_progress' ||
+          pipeline === 'client_submitted' ||
+          pipeline === 'manager_finalizing')
+      ) {
+        content.clientReviewBaseline = content.body;
+        changed = true;
+      }
+    }
+    if (changed) this.saveAll();
+  }
+
+  private migrateProfileFacts() {
+    let changed = false;
+    for (const clientId of Object.keys(this.profiles)) {
+      const profile = this.profiles[clientId];
+      if (!profile.facts?.length) {
+        profile.facts = buildFactsFromProfile(profile);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.refreshProfileCompleteness();
+      this.saveAll();
+    }
+  }
+
+  private migrateProofWallItems() {
+    let changed = false;
+    for (const client of this.clients) {
+      if (client.status === 'ARCHIVED') continue;
+      const existing = this.proofWallItems.filter((item) => item.clientId === client.id);
+      if (!existing.length) {
+        for (const template of buildDefaultProofWallItems(client.id, client.organizationId)) {
+          this.proofWallItems.push({ ...template, id: createId('pw') });
+        }
+        changed = true;
+      }
+    }
+    if (changed) this.saveAll();
+  }
+
+  private migrateOpportunityLifecycle() {
+    let changed = false;
+    for (const opp of this.opportunities) {
+      if (!opp.lifecycleStage) {
+        opp.lifecycleStage = mapOpportunityLifecycle(opp);
+        changed = true;
+      }
+      if (
+        (opp.lifecycleStage === 'checklist' || opp.status === 'IN_PROGRESS') &&
+        !opp.submissionChecklist?.length
+      ) {
+        opp.submissionChecklist = defaultOpportunityChecklist(opp.type);
+        changed = true;
+      }
+    }
+    if (changed) this.saveAll();
+  }
+
+  private refreshProfileCompleteness(clientId?: string) {
+    const targets = clientId ? [clientId] : Object.keys(this.profiles);
+    for (const id of targets) {
+      const profile = this.profiles[id];
+      const client = this.getClientById(id);
+      if (!profile || !client) continue;
+      const coverage = computeProfileCoverage(profile);
+      const completeness = Math.min(
+        100,
+        Math.round((coverage.totalConfirmed / 20) * 70 + (coverage.sectionsWithFacts / 5) * 30)
+      );
+      if (client.profileCompleteness !== completeness) {
+        this.updateClient(id, { profileCompleteness: completeness });
+      }
+    }
+  }
+
+  private saveAll(options?: { skipRemote?: boolean }) {
+    localStorage.setItem('postura_clients_v5', JSON.stringify(this.clients));
+    localStorage.setItem('postura_theses_v5', JSON.stringify(this.theses));
+    localStorage.setItem('postura_profiles_v5', JSON.stringify(this.profiles));
+    localStorage.setItem('postura_sources_v5', JSON.stringify(this.sources));
+    localStorage.setItem('postura_signals_v5', JSON.stringify(this.signals));
+    localStorage.setItem('postura_recommendations_v5', JSON.stringify(this.recommendations));
+    localStorage.setItem('postura_tasks_v5', JSON.stringify(this.tasks));
+    localStorage.setItem('postura_contents_v5', JSON.stringify(this.contents));
+    localStorage.setItem('postura_opportunities_v5', JSON.stringify(this.opportunities));
+    localStorage.setItem('postura_campaigns_v5', JSON.stringify(this.campaigns));
+    localStorage.setItem('postura_milestones_v5', JSON.stringify(this.campaignMilestones));
+    localStorage.setItem('postura_evidence_v5', JSON.stringify(this.evidenceVault));
+    localStorage.setItem('postura_ai_runs_v5', JSON.stringify(this.aiRuns));
+    localStorage.setItem('postura_subscription_v5', JSON.stringify(this.subscription));
+    localStorage.setItem('postura_invitations_v5', JSON.stringify(this.invitations));
+    localStorage.setItem('postura_results_v5', JSON.stringify(this.results));
+    localStorage.setItem('postura_curation_v5', JSON.stringify(this.curation));
+    localStorage.setItem('postura_deliveries_v5', JSON.stringify(this.deliveries));
+    localStorage.setItem('postura_advices_v5', JSON.stringify(this.advices));
+    localStorage.setItem('postura_files_v5', JSON.stringify(this.files));
+    localStorage.setItem('postura_topic_pins_v5', JSON.stringify(this.topicPins));
+    localStorage.setItem('postura_dossiers_v5', JSON.stringify(this.dossiers));
+    localStorage.setItem('postura_feedback_v1', JSON.stringify(this.feedbackEvents));
+    localStorage.setItem('postura_proof_wall_v1', JSON.stringify(this.proofWallItems));
+
+    if (!options?.skipRemote && FIREBASE_ENABLED) {
+      void import('./firestore/sync').then(({ isFirestoreAuthoritative, scheduleFirestorePush }) => {
+        if (isFirestoreAuthoritative()) {
+          scheduleFirestorePush(this.exportSnapshot());
+        }
+      });
+    }
+  }
+
+  public exportSnapshot(): LocalV5Snapshot {
+    return {
+      clients: this.clients,
+      theses: this.theses,
+      profiles: this.profiles,
+      sources: this.sources,
+      signals: this.signals,
+      recommendations: this.recommendations,
+      tasks: this.tasks,
+      contents: this.contents,
+      opportunities: this.opportunities,
+      campaigns: this.campaigns,
+      campaignMilestones: this.campaignMilestones,
+      evidenceVault: this.evidenceVault,
+      aiRuns: this.aiRuns,
+      subscription: this.subscription,
+      invitations: this.invitations,
+      results: this.results,
+      curation: this.curation,
+      deliveries: this.deliveries,
+      advices: this.advices,
+      files: this.files,
+      topicPins: this.topicPins,
+      dossiers: this.dossiers,
+      feedbackEvents: this.feedbackEvents,
+      proofWallItems: this.proofWallItems,
+    };
+  }
+
+  public importSnapshot(partial: Partial<LocalV5Snapshot>, options?: { merge?: boolean; skipRemote?: boolean }) {
+    const merge = options?.merge !== false;
+    const assign = <K extends keyof LocalV5Snapshot>(key: K, value: LocalV5Snapshot[K] | undefined) => {
+      if (value === undefined) return;
+      if (merge && Array.isArray(this[key]) && Array.isArray(value)) {
+        const existing = this[key] as Array<{ id?: string }>;
+        const map = new Map(existing.map((row) => [row.id, row]));
+        for (const row of value as Array<{ id?: string }>) {
+          if (row.id) map.set(row.id, row as never);
+        }
+        (this[key] as unknown) = Array.from(map.values());
+        return;
+      }
+      (this[key] as unknown) = value;
+    };
+
+    assign('clients', partial.clients);
+    assign('theses', partial.theses);
+    assign('signals', partial.signals);
+    assign('tasks', partial.tasks);
+    assign('curation', partial.curation);
+    assign('deliveries', partial.deliveries);
+    assign('contents', partial.contents);
+    assign('opportunities', partial.opportunities);
+    assign('results', partial.results);
+    assign('campaigns', partial.campaigns);
+    assign('evidenceVault', partial.evidenceVault);
+    assign('advices', partial.advices);
+    assign('feedbackEvents', partial.feedbackEvents);
+    assign('proofWallItems', partial.proofWallItems);
+
+    if (partial.profiles) this.profiles = merge ? { ...this.profiles, ...partial.profiles } : partial.profiles;
+    if (partial.dossiers) this.dossiers = merge ? { ...this.dossiers, ...partial.dossiers } : partial.dossiers;
+    if (partial.topicPins) this.topicPins = partial.topicPins;
+    if (partial.aiRuns) this.aiRuns = partial.aiRuns;
+    if (partial.sources) this.sources = partial.sources;
+    if (partial.recommendations) this.recommendations = partial.recommendations;
+    if (partial.campaignMilestones) this.campaignMilestones = partial.campaignMilestones;
+    if (partial.subscription !== undefined) this.subscription = partial.subscription;
+    if (partial.invitations) this.invitations = partial.invitations;
+    if (partial.files) this.files = partial.files;
+
+    this.saveAll({ skipRemote: options?.skipRemote });
+  }
+
+  /** Hidrata desde Firestore tras login Firebase (backend autoritativo). */
+  public async hydrateFromRemote(clientIds: string[]): Promise<boolean> {
+    const { hydrateFromFirestore } = await import('./firestore/sync');
+    const partial = await hydrateFromFirestore(clientIds);
+    if (!Object.keys(partial).length) return false;
+    this.importSnapshot(partial, { merge: true, skipRemote: true });
+    return true;
+  }
+
+  // Client CRUD
+  public getClients(): Client[] {
+    return this.clients.filter(c => c.status !== 'ARCHIVED');
+  }
+
+  public getClientById(id: string): Client | undefined {
+    return this.clients.find(c => c.id === id);
+  }
+
+  public createClient(clientData: Omit<Client, 'id' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy' | 'activeThesesCount' | 'completedTasksCount'>): Client {
+    const quota = assertClientQuota(this.getSubscription(), this.getClients().length);
+    if (!quota.ok) throw new Error(quota.message);
+    const now = new Date().toISOString();
+    const newClient: Client = {
+      ...clientData,
+      id: createId('client'),
+      createdAt: now,
+      createdBy: 'user_admin_01',
+      updatedAt: now,
+      updatedBy: 'user_admin_01',
+      activeThesesCount: 0,
+      completedTasksCount: 0,
+    };
+    this.clients.unshift(newClient);
+    this.saveAll();
+    return newClient;
+  }
+
+  public updateClient(id: string, updates: Partial<Client>): Client | null {
+    const idx = this.clients.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    this.clients[idx] = { ...this.clients[idx], ...updates, updatedAt: new Date().toISOString() };
+    this.saveAll();
+    return this.clients[idx];
+  }
+
+  // Master Profile & Onboarding (F7-D07)
+  public getMasterProfile(clientId: string): ClientProfile | null {
+    return this.profiles[clientId] || null;
+  }
+
+  public saveMasterProfile(profile: ClientProfile): void {
+    this.profiles[profile.clientId] = { ...profile, updatedAt: new Date().toISOString() };
+    this.refreshProfileCompleteness(profile.clientId);
+    this.saveAll();
+  }
+
+  public addProfileFact(
+    clientId: string,
+    input: { section: ProfileFactSection; label: string; value: string; status?: ProfileFact['status']; source?: ProfileFact['source'] }
+  ): ProfileFact | null {
+    const profile = this.getMasterProfile(clientId);
+    if (!profile) return null;
+    const now = new Date().toISOString();
+    const fact: ProfileFact = {
+      id: createId('fact'),
+      section: input.section,
+      label: input.label.trim(),
+      value: input.value.trim(),
+      status: input.status || 'confirmed',
+      source: input.source || 'manual',
+      createdAt: now,
+      updatedAt: now,
+    };
+    profile.facts = [...(profile.facts || []), fact];
+    this.saveMasterProfile(profile);
+    return fact;
+  }
+
+  public updateProfileFact(clientId: string, factId: string, updates: Partial<Pick<ProfileFact, 'label' | 'value' | 'status'>>): boolean {
+    const profile = this.getMasterProfile(clientId);
+    if (!profile?.facts) return false;
+    const idx = profile.facts.findIndex((f) => f.id === factId);
+    if (idx < 0) return false;
+    profile.facts[idx] = {
+      ...profile.facts[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    this.saveMasterProfile(profile);
+    return true;
+  }
+
+  public confirmProfileFact(clientId: string, factId: string): boolean {
+    return this.updateProfileFact(clientId, factId, { status: 'confirmed' });
+  }
+
+  public rejectProfileFact(clientId: string, factId: string): boolean {
+    return this.updateProfileFact(clientId, factId, { status: 'rejected' });
+  }
+
+  public importCandidateFactsFromCv(clientId: string, cvText: string): number {
+    const profile = this.getMasterProfile(clientId);
+    if (!profile) return 0;
+    const candidates = extractCandidateFactsFromCv(cvText);
+    const existingValues = new Set((profile.facts || []).map((f) => f.value.toLowerCase()));
+    const novel = candidates.filter((c) => !existingValues.has(c.value.toLowerCase()));
+    profile.cvExtractedText = cvText.slice(0, 12000);
+    profile.facts = [...(profile.facts || []), ...novel];
+    this.saveMasterProfile(profile);
+    return novel.length;
+  }
+
+  public getProofWallByClient(clientId: string): ProofWallItem[] {
+    return this.proofWallItems
+      .filter((item) => item.clientId === clientId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  public updateProofWallItem(itemId: string, status: ProofWallItem['status']): boolean {
+    const item = this.proofWallItems.find((i) => i.id === itemId);
+    if (!item) return false;
+    item.status = status;
+    this.saveAll();
+    return true;
+  }
+
+  public getEvidenceById(id: string): EvidenceVaultItem | undefined {
+    return this.evidenceVault.find((item) => item.id === id);
+  }
+
+  // Theses (F8-D08)
+  public getThesesByClient(clientId: string): PositioningThesis[] {
+    return this.theses.filter(t => t.clientId === clientId && t.status !== 'ARCHIVED');
+  }
+
+  public saveThesis(thesis: PositioningThesis): void {
+    const idx = this.theses.findIndex(t => t.id === thesis.id);
+    if (idx >= 0) {
+      this.theses[idx] = { ...thesis, updatedAt: new Date().toISOString() };
+    } else {
+      const quota = assertThesisQuota(this.getSubscription(), this.getThesesByClient(thesis.clientId).length);
+      if (!quota.ok) throw new Error(quota.message);
+      this.theses.push(thesis);
+      const client = this.clients.find(c => c.id === thesis.clientId);
+      if (client) client.activeThesesCount += 1;
+    }
+    this.saveAll();
+  }
+
+  // Sources (F9-D09)
+  public getSources(): Source[] {
+    return this.sources.filter(s => s.status !== 'ARCHIVED');
+  }
+
+  /** Fuentes registradas para un cliente concreto (ingesta por perfil). */
+  public getSourcesByClient(clientId: string): Source[] {
+    return this.sources.filter((s) => s.status !== 'ARCHIVED' && s.clientId === clientId);
+  }
+
+  public addSource(sourceData: Omit<Source, 'id' | 'createdAt' | 'itemCount'>): Source {
+    const quota = assertSourceQuota(this.getSubscription(), this.getSources().length);
+    if (!quota.ok) throw new Error(quota.message);
+    const newSource: Source = {
+      ...sourceData,
+      id: createId('src'),
+      itemCount: 0,
+      createdAt: new Date().toISOString()
+    };
+    this.sources.unshift(newSource);
+    this.saveAll();
+    return newSource;
+  }
+
+  /** Registra el resultado de una corrida de ingesta para diagnosticar la fuente. */
+  public recordSourceRun(sourceId: string, outcome: SourceRunOutcome): void {
+    const source = this.sources.find((s) => s.id === sourceId);
+    if (!source) return;
+    source.lastFetchedAt = new Date().toISOString();
+    source.lastRunFetched = outcome.fetched;
+    source.lastRunAccepted = outcome.accepted;
+    source.lastRunRejected = outcome.rejected;
+    source.itemCount += outcome.accepted;
+    if (outcome.error) {
+      source.lastError = outcome.error;
+      source.status = 'ERROR';
+    } else {
+      source.lastError = undefined;
+      if (source.status === 'ERROR') source.status = 'ACTIVE';
+    }
+    this.saveAll();
+  }
+
+  // Signals with Fingerprint Deduplication (F9-D09)
+  public getSignals(): Signal[] {
+    return this.signals;
+  }
+
+  public addSignal(signal: Omit<Signal, 'id' | 'detectedAt' | 'fingerprint' | 'aiStatus' | 'managerDecision'> & Partial<Pick<Signal, 'aiStatus' | 'managerDecision' | 'sourceQuality'>>): { signal: Signal; isDuplicate: boolean } {
+    if (!signal.clientId) {
+      throw new Error('SIGNAL_CLIENT_REQUIRED');
+    }
+    const canonical = `${(signal.sourceUrl || '').toLowerCase().split(/[?#]/)[0]}|${signal.title.toLowerCase().replace(/[^a-z0-9]+/g, '')}`;
+    const rawFingerprint = `fp_${canonical.substring(0, 64)}`;
+    const existing = this.signals.find(s => s.fingerprint === rawFingerprint);
+
+    if (existing) {
+      return { signal: existing, isDuplicate: true };
+    }
+
+    const newSig: Signal = {
+      aiStatus: 'PENDING_AI',
+      managerDecision: 'UNREVIEWED',
+      sourceQuality: 'UNASSESSED',
+      ...signal,
+      id: createId('sig'),
+      fingerprint: rawFingerprint,
+      detectedAt: new Date().toISOString()
+    };
+    this.signals.unshift(newSig);
+    this.saveAll();
+    return { signal: newSig, isDuplicate: false };
+  }
+
+  public updateSignalStatus(id: string, status: Signal['status'], reason?: string): void {
+    const sig = this.signals.find(s => s.id === id);
+    if (sig) {
+      assertTransition(sig.status, status, SIGNAL_TRANSITIONS, 'SIGNAL');
+      sig.status = status;
+      if (reason) sig.discardReason = reason;
+      this.saveAll();
+    }
+  }
+
+  // Recommendations
+  public getRecommendations(): Recommendation[] {
+    return this.recommendations;
+  }
+
+  public addRecommendation(rec: Omit<Recommendation, 'id' | 'createdAt'>): Recommendation {
+    const newRec: Recommendation = {
+      ...rec,
+      id: createId('rec'),
+      createdAt: new Date().toISOString()
+    };
+    this.recommendations.unshift(newRec);
+    this.saveAll();
+    return newRec;
+  }
+
+  public updateRecommendationStatus(id: string, status: Recommendation['status']): void {
+    const rec = this.recommendations.find(r => r.id === id);
+    if (rec) {
+      rec.status = status;
+      this.saveAll();
+    }
+  }
+
+  // Tasks
+  public getTasksByClient(clientId: string): Task[] {
+    return this.tasks.filter(t => t.clientId === clientId);
+  }
+
+  public getAllTasks(): Task[] {
+    return this.tasks;
+  }
+
+  public addTask(task: Omit<Task, 'id' | 'createdAt'>): Task {
+    const newTask: Task = {
+      ...task,
+      id: createId('task'),
+      createdAt: new Date().toISOString()
+    };
+    this.tasks.unshift(newTask);
+    this.saveAll();
+    return newTask;
+  }
+
+  public updateTaskStatus(id: string, status: Task['status'], evidenceUrl?: string, clientNotes?: string): void {
+    const task = this.tasks.find(t => t.id === id);
+    if (task) {
+      assertTransition(task.status, status, TASK_TRANSITIONS, 'TASK');
+      task.status = status;
+      if (evidenceUrl) task.evidenceUrl = evidenceUrl;
+      if (clientNotes) task.clientNotes = clientNotes;
+      if (status === 'COMPLETED') {
+        task.completedAt = new Date().toISOString();
+        const client = this.clients.find(c => c.id === task.clientId);
+        if (client) client.completedTasksCount += 1;
+      }
+      this.saveAll();
+    }
+  }
+
+  public updateTaskEvidence(id: string, evidenceUrl: string, clientNotes?: string): void {
+    const task = this.tasks.find(t => t.id === id);
+    if (!task) return;
+    task.evidenceUrl = evidenceUrl;
+    if (clientNotes) task.clientNotes = clientNotes;
+    this.saveAll();
+  }
+
+  // Content Items
+  public getContentByClient(clientId: string): ContentItem[] {
+    return this.contents.filter(c => c.clientId === clientId);
+  }
+
+  public getAllContent(): ContentItem[] {
+    return this.contents;
+  }
+
+  public getContentById(id: string): ContentItem | undefined {
+    return this.contents.find(c => c.id === id);
+  }
+
+  public saveContent(content: ContentItem): void {
+    const idx = this.contents.findIndex(c => c.id === content.id);
+    if (idx >= 0) {
+      this.contents[idx] = { ...content, updatedAt: new Date().toISOString() };
+    } else {
+      this.contents.unshift(content);
+    }
+    this.saveAll();
+  }
+
+  public transitionContentPipeline(
+    contentId: string,
+    next: ContentPipelineStatus,
+    actor: { uid: string; role: 'ADMIN' | 'CLIENT' | 'SYSTEM' },
+    comment?: string
+  ): ContentItem | null {
+    const content = this.contents.find((c) => c.id === contentId);
+    if (!content) return null;
+    const current = content.pipelineStatus || mapLegacyContentStatus(content.status);
+    assertContentPipelineTransition(current, next, actor.role);
+    content.pipelineStatus = next;
+    content.status = syncLegacyStatusFromPipeline(next);
+    if (next === 'sent_to_client' && !content.clientReviewBaseline) {
+      content.clientReviewBaseline = content.body;
+    }
+    content.stateHistory = [
+      ...(content.stateHistory || []),
+      { state: next, actorUid: actor.uid, actorRole: actor.role, at: new Date().toISOString(), comment },
+    ];
+    content.updatedAt = new Date().toISOString();
+    if (next === 'published') content.readyAt = new Date().toISOString();
+    this.saveAll();
+    return content;
+  }
+
+  public getFeedbackEventsForContent(contentId: string): FeedbackEvent[] {
+    return this.feedbackEvents
+      .filter((event) => event.contentId === contentId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  public getLatestClientEdit(contentId: string): FeedbackEvent | undefined {
+    return this.getFeedbackEventsForContent(contentId).find((event) => event.kind === 'CLIENT_EDIT');
+  }
+
+  public addFeedbackEvent(input: Omit<FeedbackEvent, 'id' | 'createdAt'>): FeedbackEvent {
+    const event: FeedbackEvent = {
+      ...input,
+      id: createId('fbk'),
+      createdAt: new Date().toISOString(),
+    };
+    this.feedbackEvents.unshift(event);
+    this.saveAll();
+    return event;
+  }
+
+  public saveClientArticleRevision(
+    contentId: string,
+    input: {
+      title: string;
+      body: string;
+      actorUid: string;
+      taskId?: string;
+    }
+  ): FeedbackEvent | null {
+    const content = this.getContentById(contentId);
+    if (!content) return null;
+
+    const baseline = content.clientReviewBaseline || content.body;
+    const lines = diffLines(baseline, input.body);
+    if (!hasDiffChanges(lines)) {
+      this.saveContent({
+        ...content,
+        title: input.title,
+        updatedAt: new Date().toISOString(),
+      });
+      return null;
+    }
+
+    const summary = summarizeDiff(lines);
+    const event = this.addFeedbackEvent({
+      organizationId: content.organizationId,
+      clientId: content.clientId,
+      contentId,
+      taskId: input.taskId,
+      kind: 'CLIENT_EDIT',
+      actorUid: input.actorUid,
+      actorRole: 'CLIENT',
+      beforeText: baseline,
+      afterText: input.body,
+      diffHtml: renderDiffHtml(lines),
+      diffSummary: summary,
+    });
+
+    this.saveContent({
+      ...content,
+      title: input.title,
+      body: input.body,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return event;
+  }
+
+  public getTasksForClient(clientId: string, campaignId?: string): Task[] {
+    return this.tasks.filter(
+      (t) => t.clientId === clientId && (!campaignId || t.campaignId === campaignId)
+    );
+  }
+
+  public getContentForClient(clientId: string, campaignId?: string): ContentItem[] {
+    return this.contents.filter(
+      (c) => c.clientId === clientId && (!campaignId || c.campaignId === campaignId)
+    );
+  }
+
+  // Opportunities
+  public getOpportunitiesByClient(clientId: string): Opportunity[] {
+    return this.opportunities.filter(o => o.clientId === clientId);
+  }
+
+  public getOpportunityById(id: string): Opportunity | undefined {
+    return this.opportunities.find((opp) => opp.id === id);
+  }
+
+  public updateOpportunityDecision(id: string, decision: 'ACCEPTED' | 'REJECTED', notes?: string): void {
+    const opp = this.opportunities.find(o => o.id === id);
+    if (!opp) return;
+    opp.clientDecision = decision;
+    if (notes) opp.clientNotes = notes;
+    if (decision === 'ACCEPTED') {
+      opp.status = 'IN_PROGRESS';
+      opp.lifecycleStage = 'checklist';
+      opp.submissionChecklist = defaultOpportunityChecklist(opp.type);
+    } else {
+      opp.status = 'REJECTED';
+      opp.lifecycleStage = 'declined';
+    }
+    this.saveAll();
+  }
+
+  public toggleOpportunityChecklistItem(oppId: string, itemId: string, done: boolean): boolean {
+    const opp = this.getOpportunityById(oppId);
+    if (!opp?.submissionChecklist) return false;
+    const item = opp.submissionChecklist.find((entry) => entry.id === itemId);
+    if (!item) return false;
+    item.done = done;
+    opp.lifecycleStage = 'checklist';
+    opp.status = 'IN_PROGRESS';
+    this.saveAll();
+    return true;
+  }
+
+  public submitOpportunity(oppId: string): boolean {
+    const opp = this.getOpportunityById(oppId);
+    if (!opp?.submissionChecklist?.every((item) => item.done)) return false;
+    opp.lifecycleStage = 'submitted';
+    opp.status = 'COMPLETED';
+    opp.submittedAt = new Date().toISOString();
+    this.saveAll();
+    return true;
+  }
+
+  // Campaigns (F8-D08)
+  public getCampaignsByClient(clientId: string): Campaign[] {
+    return this.campaigns.filter(c => c.clientId === clientId && c.status !== 'ARCHIVED');
+  }
+
+  public addCampaign(campaign: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>): Campaign {
+    const now = new Date().toISOString();
+    const newCamp: Campaign = {
+      ...campaign,
+      id: createId('camp'),
+      createdAt: now,
+      updatedAt: now,
+      createdBy: 'user_admin_01'
+    };
+    this.campaigns.unshift(newCamp);
+    this.saveAll();
+    return newCamp;
+  }
+
+  public getCampaignById(id: string): Campaign | undefined {
+    return this.campaigns.find((c) => c.id === id);
+  }
+
+  public getCampaignMilestones(campaignId: string): CampaignMilestone[] {
+    return this.campaignMilestones
+      .filter((m) => m.campaignId === campaignId)
+      .sort((a, b) => a.dayNumber - b.dayNumber);
+  }
+
+  public getCampaignMilestonesByClient(clientId: string, campaignId?: string): CampaignMilestone[] {
+    return this.campaignMilestones
+      .filter((m) => m.clientId === clientId && (!campaignId || m.campaignId === campaignId))
+      .sort((a, b) => a.dayNumber - b.dayNumber);
+  }
+
+  public getCurrentPlanDay(campaignId: string): number {
+    const camp = this.getCampaignById(campaignId);
+    if (!camp?.startDate || !camp.planDays) return 1;
+    const start = new Date(camp.startDate);
+    const today = new Date();
+    const diff = Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
+    return Math.max(1, Math.min(camp.planDays, diff));
+  }
+
+  // Evidence Vault (F7-D07 / F8-D08)
+  public getEvidenceVaultByClient(clientId: string): EvidenceVaultItem[] {
+    return this.evidenceVault.filter(e => e.clientId === clientId);
+  }
+
+  public addEvidenceItem(item: Omit<EvidenceVaultItem, 'id' | 'createdAt'>): EvidenceVaultItem {
+    const newItem: EvidenceVaultItem = {
+      ...item,
+      id: createId('ev'),
+      createdAt: new Date().toISOString()
+    };
+    this.evidenceVault.unshift(newItem);
+    this.saveAll();
+    return newItem;
+  }
+
+  // AI Run Logging & Observability (F10-D10)
+  public getAiRuns(limit: number = 20): AIRunRecord[] {
+    return this.aiRuns.slice(0, limit);
+  }
+
+  public recordAiRun(run: Omit<AIRunRecord, 'id' | 'createdAt'>): AIRunRecord {
+    const newRun: AIRunRecord = {
+      ...run,
+      id: createId('run'),
+      createdAt: new Date().toISOString()
+    };
+    this.aiRuns.unshift(newRun);
+    if (this.subscription) {
+      this.subscription.monthlyUsage.aiRuns += 1;
+      this.subscription.monthlyUsage.tokensUsed += (run.promptTokens + run.completionTokens);
+    }
+    this.saveAll();
+    return newRun;
+  }
+
+  // Subscription & Pricing Quotas (F17-D17)
+  public getSubscription(): OrganizationSubscription {
+    if (!this.subscription) {
+      this.subscription = {
+        organizationId: 'org_aurora_01',
+        tier: 'PROFESSIONAL',
+        status: 'ACTIVE',
+        quotas: quotasFor('PROFESSIONAL'),
+        monthlyUsage: {
+          aiRuns: 0,
+          tokensUsed: 0,
+          activeClientsCount: this.clients.length,
+          sourcesCount: this.sources.length
+        },
+        currentPeriodStart: new Date().toISOString(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
+      };
+    }
+    return this.subscription;
+  }
+
+  public applyOnboardingStep(clientId: string, step: number, fields: Record<string, string>): ClientProfile {
+    const client = this.getClientById(clientId);
+    const existing = this.profiles[clientId] || {
+      organizationId: client?.organizationId || 'org_aurora_01',
+      clientId,
+      identity: {},
+      goals: {},
+      audience: {},
+      career: {},
+      education: [],
+      careerHistory: [],
+      ventures: [],
+      keyPublications: [],
+      socialLinks: {},
+      voicePreferences: {
+        tone: 'authoritative' as const,
+        preferredPhrases: [],
+        topicsToAvoid: [],
+        complianceGuidelines: '',
+      },
+      onboardingCompleted: false,
+      onboardingCurrentStep: step,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (step === 1) {
+      existing.identity = {
+        ...existing.identity,
+        selfDescription: fields.selfDescription,
+        professionalHeadline: fields.profession,
+      };
+      existing.career = {
+        ...existing.career,
+        profession: fields.profession,
+        currentRole: fields.role,
+        currentCompany: fields.company,
+      };
+      if (client) {
+        if (fields.displayName?.trim()) {
+          const parts = fields.displayName.trim().split(/\s+/);
+          this.updateClient(clientId, {
+            displayName: fields.displayName.trim(),
+            firstName: parts[0],
+            lastName: parts.slice(1).join(' ') || parts[0],
+            profession: fields.profession,
+            company: fields.company,
+            onboardingStatus: 'IN_PROGRESS',
+          });
+        } else {
+          this.updateClient(clientId, { profession: fields.profession, company: fields.company, onboardingStatus: 'IN_PROGRESS' });
+        }
+      }
+    }
+    if (step === 2) {
+      existing.goals = {
+        primaryGoal: fields.primaryGoal,
+        secondaryGoals: fields.secondaryGoals ? fields.secondaryGoals.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      };
+    }
+    if (step === 3) {
+      existing.audience = {
+        targetAudienceDescription: fields.targetAudience,
+        targetIndustries: fields.industries ? fields.industries.split(',').map((s) => s.trim()).filter(Boolean) : [],
+        targetCountries: fields.countries ? fields.countries.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      };
+      if (client) this.updateClient(clientId, { targetMarket: fields.targetAudience });
+    }
+    if (step === 4) {
+      existing.education = (fields.education || '')
+        .split('\n')
+        .filter((l) => l.trim())
+        .map((line) => {
+          const [degree, rest] = line.split(' - ');
+          return { degree: degree?.trim() || line, institution: rest?.trim() || '', year: '' };
+        });
+      existing.careerHistory = (fields.highlights || '')
+        .split('\n')
+        .filter((l) => l.trim())
+        .map((line) => ({ role: line, organization: '', period: '', highlight: line }));
+    }
+    if (step === 5) {
+      existing.socialLinks = { ...existing.socialLinks, linkedin: fields.linkedin, website: fields.website };
+    }
+    if (step === 6) {
+      existing.voicePreferences = {
+        tone: (fields.tone as ClientProfile['voicePreferences']['tone']) || 'authoritative',
+        preferredPhrases: existing.voicePreferences.preferredPhrases,
+        topicsToAvoid: fields.avoid ? fields.avoid.split(',').map((s) => s.trim()).filter(Boolean) : [],
+        complianceGuidelines: fields.compliance || '',
+      };
+      existing.onboardingCompleted = true;
+      this.updateClient(clientId, { onboardingStatus: 'COMPLETED', profileCompleteness: 85, status: 'ACTIVE' });
+    }
+
+    existing.onboardingCurrentStep = step;
+    this.syncStructuredProfileFacts(clientId);
+    this.saveMasterProfile(existing);
+    return existing;
+  }
+
+  private syncStructuredProfileFacts(clientId: string) {
+    const profile = this.getMasterProfile(clientId);
+    if (!profile) return;
+    const preserved = (profile.facts || []).filter(
+      (fact) => fact.status === 'candidate' || (fact.source === 'manual' && fact.status === 'confirmed')
+    );
+    const structured = buildFactsFromProfile(profile);
+    const seen = new Set<string>();
+    profile.facts = [...structured, ...preserved].filter((fact) => {
+      const key = `${fact.section}:${fact.value.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  public decideSignal(id: string, decision: ManagerDecision, reason?: string): void {
+    const sig = this.signals.find((s) => s.id === id);
+    if (!sig) return;
+    sig.managerDecision = decision;
+    if (decision === 'DISCARDED') {
+      sig.status = 'DISCARDED';
+      sig.discardReason = reason;
+    }
+    if (decision === 'CONVERTED') sig.status = 'CONVERTED';
+    this.saveAll();
+  }
+
+  public createInvitation(clientId: string, email: string): Invitation {
+    const invite: Invitation = {
+      id: createId('inv'),
+      organizationId: 'org_aurora_01',
+      clientId,
+      email,
+      token: createId('tok').replace('tok_', ''),
+      status: 'PENDING',
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    this.invitations.unshift(invite);
+    this.saveAll();
+    return invite;
+  }
+
+  public getInvitationByToken(token: string): Invitation | undefined {
+    return this.invitations.find((i) => i.token === token);
+  }
+
+  public markInvitationAccepted(id: string): void {
+    const inv = this.invitations.find((i) => i.id === id);
+    if (inv) {
+      inv.status = 'ACCEPTED';
+      this.saveAll();
+    }
+  }
+
+  public addOpportunity(opp: Omit<Opportunity, 'id' | 'createdAt'>): Opportunity {
+    const item: Opportunity = {
+      ...opp,
+      id: createId('opp'),
+      createdAt: new Date().toISOString(),
+      lifecycleStage: opp.lifecycleStage || (opp.status === 'SENT_TO_CLIENT' ? 'proposed' : mapOpportunityLifecycle(opp as Opportunity)),
+    };
+    this.opportunities.unshift(item);
+    this.saveAll();
+    return item;
+  }
+
+  public addResult(result: Omit<ResultRecord, 'id' | 'createdAt'>): ResultRecord {
+    const item: ResultRecord = { ...result, id: createId('res'), createdAt: new Date().toISOString() };
+    this.results.unshift(item);
+    this.saveAll();
+    return item;
+  }
+
+  public getResultsByClient(clientId: string): ResultRecord[] {
+    return this.results.filter((r) => r.clientId === clientId);
+  }
+
+  public getAllOpportunities(): Opportunity[] {
+    return this.opportunities;
+  }
+
+  // ==========================================
+  // Señales por cliente + scoring persistido
+  // ==========================================
+
+  public getSignalsByClient(clientId: string): Signal[] {
+    return this.signals.filter((s) => s.clientId === clientId);
+  }
+
+  public getSignalById(id: string): Signal | undefined {
+    return this.signals.find((s) => s.id === id);
+  }
+
+  /** Guarda el resultado del scoring en la señal para no recalcularlo en cada render. */
+  public applyScoreToSignal(signalId: string, score: StrategicScoreResult): void {
+    const sig = this.signals.find((s) => s.id === signalId);
+    if (!sig) return;
+    sig.relevanceScore = score.totalScore;
+    sig.priorityBand = score.priorityBand;
+    sig.recommendedAction = score.recommendedAction;
+    this.saveAll();
+  }
+
+  // ==========================================
+  // Mesa de curación
+  // ==========================================
+
+  public getCurationByClient(clientId: string): CurationEntry[] {
+    return this.curation.filter((c) => c.clientId === clientId);
+  }
+
+  public getPendingCurationByClient(clientId: string): CurationEntry[] {
+    return this.curation.filter((c) => c.clientId === clientId && c.destination === null);
+  }
+
+  /** Curación lista para entregar: decidida, no descartada y aún sin paquete. */
+  public getReadyCurationByClient(clientId: string): CurationEntry[] {
+    return this.curation.filter(
+      (c) =>
+        c.clientId === clientId &&
+        c.destination !== null &&
+        c.destination !== 'DISCARD' &&
+        !c.deliveryPackageId
+    );
+  }
+
+  public getCurationById(id: string): CurationEntry | undefined {
+    return this.curation.find((c) => c.id === id);
+  }
+
+  public isSignalInCuration(clientId: string, signalId: string): boolean {
+    return this.curation.some((c) => c.clientId === clientId && c.signalId === signalId);
+  }
+
+  public addToCuration(
+    entry: Omit<CurationEntry, 'id' | 'createdAt' | 'destination' | 'managerRationale' | 'deliveryPackageId'> &
+      Partial<Pick<CurationEntry, 'destination' | 'managerRationale' | 'aiAngle'>>
+  ): CurationEntry {
+    const item: CurationEntry = {
+      destination: null,
+      managerRationale: '',
+      deliveryPackageId: null,
+      ...entry,
+      id: createId('cur'),
+      createdAt: new Date().toISOString(),
+    };
+    this.curation.unshift(item);
+    this.saveAll();
+    return item;
+  }
+
+  public decideCuration(
+    id: string,
+    destination: CurationDestination,
+    managerRationale: string,
+    decidedBy: string
+  ): CurationEntry | null {
+    const item = this.curation.find((c) => c.id === id);
+    if (!item) return null;
+    item.destination = destination;
+    item.managerRationale = managerRationale;
+    item.decidedAt = new Date().toISOString();
+    item.decidedBy = decidedBy;
+    this.saveAll();
+    return item;
+  }
+
+  public reopenCuration(id: string): void {
+    const item = this.curation.find((c) => c.id === id);
+    if (!item) return;
+    item.destination = null;
+    item.managerRationale = '';
+    item.decidedAt = undefined;
+    item.decidedBy = undefined;
+    this.saveAll();
+  }
+
+  public setCurationAngle(id: string, aiAngle: string): void {
+    const item = this.curation.find((c) => c.id === id);
+    if (!item) return;
+    item.aiAngle = aiAngle;
+    this.saveAll();
+  }
+
+  public removeCuration(id: string): void {
+    this.curation = this.curation.filter((c) => c.id !== id);
+    this.saveAll();
+  }
+
+  // ==========================================
+  // Paquetes de entrega
+  // ==========================================
+
+  public getDeliveriesByClient(clientId: string): DeliveryPackage[] {
+    return this.deliveries.filter((d) => d.clientId === clientId);
+  }
+
+  public getSentDeliveriesByClient(clientId: string): DeliveryPackage[] {
+    return this.deliveries.filter((d) => d.clientId === clientId && d.status !== 'DRAFT');
+  }
+
+  public getDeliveryById(id: string): DeliveryPackage | undefined {
+    return this.deliveries.find((d) => d.id === id);
+  }
+
+  public getDraftDelivery(clientId: string): DeliveryPackage | undefined {
+    return this.deliveries.find((d) => d.clientId === clientId && d.status === 'DRAFT');
+  }
+
+  /** Devuelve el borrador abierto del cliente o crea uno nuevo. */
+  public ensureDraftDelivery(clientId: string, createdBy: string): DeliveryPackage {
+    const existing = this.getDraftDelivery(clientId);
+    if (existing) return existing;
+    const now = new Date();
+    const pkg: DeliveryPackage = {
+      id: createId('pkg'),
+      organizationId: 'org_aurora_01',
+      clientId,
+      title: `Briefing ${now.toLocaleDateString('es', { day: '2-digit', month: 'long' })}`,
+      strategicNote: '',
+      periodLabel: now.toLocaleDateString('es', { month: 'long', year: 'numeric' }),
+      items: [],
+      status: 'DRAFT',
+      createdAt: now.toISOString(),
+      createdBy,
+    };
+    this.deliveries.unshift(pkg);
+    this.saveAll();
+    return pkg;
+  }
+
+  public addDeliveryItem(packageId: string, item: Omit<DeliveryItem, 'id'>): DeliveryPackage | null {
+    const pkg = this.deliveries.find((d) => d.id === packageId);
+    if (!pkg) return null;
+    pkg.items.push({ ...item, id: createId('ditem') });
+    this.saveAll();
+    return pkg;
+  }
+
+  public removeDeliveryItem(packageId: string, itemId: string): void {
+    const pkg = this.deliveries.find((d) => d.id === packageId);
+    if (!pkg) return;
+    pkg.items = pkg.items.filter((i) => i.id !== itemId);
+    this.saveAll();
+  }
+
+  public updateDelivery(packageId: string, updates: Partial<Pick<DeliveryPackage, 'title' | 'strategicNote'>>): void {
+    const pkg = this.deliveries.find((d) => d.id === packageId);
+    if (!pkg) return;
+    Object.assign(pkg, updates);
+    this.saveAll();
+  }
+
+  public markDeliverySent(packageId: string): DeliveryPackage | null {
+    const pkg = this.deliveries.find((d) => d.id === packageId);
+    if (!pkg) return null;
+    assertTransition(pkg.status, 'SENT', DELIVERY_TRANSITIONS, 'DELIVERY');
+    if (!pkg.items.length) throw new Error('DELIVERY_EMPTY');
+    pkg.status = 'SENT';
+    pkg.sentAt = new Date().toISOString();
+    this.curation
+      .filter((c) => c.deliveryPackageId === packageId)
+      .forEach((c) => {
+        if (c.signalId) this.decideSignal(c.signalId, 'CONVERTED');
+      });
+    this.saveAll();
+    return pkg;
+  }
+
+  public attachCurationToDelivery(curationId: string, packageId: string): void {
+    const item = this.curation.find((c) => c.id === curationId);
+    if (!item) return;
+    item.deliveryPackageId = packageId;
+    this.saveAll();
+  }
+
+  public acknowledgeDelivery(packageId: string): void {
+    const pkg = this.deliveries.find((d) => d.id === packageId);
+    if (!pkg) return;
+    pkg.status = 'ACKNOWLEDGED';
+    pkg.acknowledgedAt = new Date().toISOString();
+    this.saveAll();
+  }
+
+  // ==========================================
+  // Dossier maestro
+  // ==========================================
+
+  public getMasterDossier(clientId: string): MasterDossier | null {
+    return this.dossiers[clientId] || null;
+  }
+
+  public saveMasterDossier(dossier: MasterDossier): void {
+    this.dossiers[dossier.clientId] = { ...dossier, updatedAt: new Date().toISOString() };
+    this.saveAll();
+  }
+
+  // ==========================================
+  // Asesor de posicionamiento
+  // ==========================================
+
+  public getLatestAdvice(clientId: string): PositioningAdvice | undefined {
+    return this.advices.find((a) => a.clientId === clientId);
+  }
+
+  public saveAdvice(advice: PositioningAdvice): void {
+    this.advices = this.advices.filter((a) => a.clientId !== advice.clientId);
+    this.advices.unshift(advice);
+    this.saveAll();
+  }
+
+  // ==========================================
+  // Archivos adjuntos (metadatos; el blob vive en IndexedDB)
+  // ==========================================
+
+  public getFilesByClient(clientId: string): AttachedFile[] {
+    return this.files.filter((f) => f.clientId === clientId);
+  }
+
+  public addFileMeta(meta: Omit<AttachedFile, 'id' | 'createdAt'>): AttachedFile {
+    const item: AttachedFile = { ...meta, id: createId('file'), createdAt: new Date().toISOString() };
+    this.files.unshift(item);
+    this.saveAll();
+    return item;
+  }
+
+  // ==========================================
+  // Temas fijados
+  // ==========================================
+
+  public getTopicPins(): string[] {
+    return this.topicPins;
+  }
+
+  public toggleTopicPin(key: string): boolean {
+    const idx = this.topicPins.indexOf(key);
+    if (idx >= 0) {
+      this.topicPins.splice(idx, 1);
+      this.saveAll();
+      return false;
+    }
+    this.topicPins.push(key);
+    this.saveAll();
+    return true;
+  }
+
+  // ==========================================
+  // Agregados de cartera (dashboard nivel 1)
+  // ==========================================
+
+  public getPortfolioSummary(): ClientPortfolioSummary[] {
+    const now = Date.now();
+
+    return this.getClients()
+      .map((client) => {
+        const signals = this.getSignalsByClient(client.id);
+        const tasks = this.getTasksByClient(client.id);
+        const contents = this.getContentByClient(client.id);
+        const theses = this.getThesesByClient(client.id);
+        const opportunities = this.getOpportunitiesByClient(client.id);
+        const deliveries = this.getDeliveriesByClient(client.id);
+        const sent = deliveries.filter((d) => d.sentAt);
+
+        const openTasks = tasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+        const overdueTasks = openTasks.filter((t) => t.deadline && new Date(t.deadline).getTime() < now);
+
+        const summary: ClientPortfolioSummary = {
+          client,
+          unreviewedSignals: signals.filter((s) => s.managerDecision === 'UNREVIEWED' && s.status !== 'DISCARDED').length,
+          savedSignals: signals.filter((s) => s.managerDecision === 'SAVED').length,
+          openTasks: openTasks.length,
+          overdueTasks: overdueTasks.length,
+          contentAwaitingClient: contents.filter((c) => c.status === 'CLIENT_REVIEW').length,
+          contentAwaitingManager: contents.filter(
+            (c) => c.status === 'MANAGER_REVIEW' || c.status === 'CHANGES_REQUESTED' || c.status === 'AI_GENERATED'
+          ).length,
+          thesisPendingApproval: theses.filter((t) => t.clientApprovalStatus === 'PENDING').length,
+          opportunitiesPending: opportunities.filter((o) => !o.clientDecision && o.status !== 'ARCHIVED').length,
+          pendingCuration: this.getPendingCurationByClient(client.id).length,
+          draftDeliveries: deliveries.filter((d) => d.status === 'DRAFT').length,
+          lastDeliveryAt: sent.length ? sent[0].sentAt : undefined,
+          attentionScore: 0,
+          attentionReasons: [],
+        };
+
+        const reasons: string[] = [];
+        let score = 0;
+
+        if (summary.overdueTasks > 0) {
+          score += summary.overdueTasks * 12;
+          reasons.push(`${summary.overdueTasks} tarea(s) vencida(s)`);
+        }
+        if (summary.contentAwaitingManager > 0) {
+          score += summary.contentAwaitingManager * 8;
+          reasons.push(`${summary.contentAwaitingManager} contenido(s) esperándote`);
+        }
+        if (summary.thesisPendingApproval > 0) {
+          score += summary.thesisPendingApproval * 10;
+          reasons.push('tesis sin aprobación del cliente');
+        }
+        if (summary.pendingCuration > 0) {
+          score += summary.pendingCuration * 6;
+          reasons.push(`${summary.pendingCuration} ítem(s) en curación sin decidir`);
+        }
+        if (summary.unreviewedSignals > 0) {
+          score += Math.min(20, summary.unreviewedSignals * 2);
+          reasons.push(`${summary.unreviewedSignals} señal(es) sin revisar`);
+        }
+        if (client.onboardingStatus !== 'COMPLETED') {
+          score += 15;
+          reasons.push('onboarding incompleto');
+        }
+        if (!summary.lastDeliveryAt) {
+          score += 10;
+          reasons.push('sin entregas registradas');
+        } else {
+          const days = Math.floor((now - new Date(summary.lastDeliveryAt).getTime()) / 86400000);
+          if (days > 14) {
+            score += 14;
+            reasons.push(`${days} días sin entrega`);
+          }
+        }
+
+        summary.attentionScore = Math.min(100, score);
+        summary.attentionReasons = reasons;
+        return summary;
+      })
+      .sort((a, b) => b.attentionScore - a.attentionScore);
+  }
+}
+
+export const dbService = new DataService();
