@@ -202,17 +202,19 @@ class AuthService {
       const { firebaseSignIn } = await import('../firebase/authBridge');
       const { setFirestoreAuthoritative } = await import('./firestore/sync');
       const result = await firebaseSignIn(email, password);
-      if (!result.ok) return result;
-      this.persistImpersonation(null);
-      auditService.log(result.user, 'LOGIN', 'User', result.user.uid);
-      this.currentUser = result.user;
-      setFirestoreAuthoritative(true);
-      const clientIds = result.user.role === 'ADMIN'
-        ? dbService.getClients().map((c) => c.id)
-        : result.user.clientId ? [result.user.clientId] : [];
-      if (clientIds.length) await dbService.hydrateFromRemote(clientIds);
-      this.notify();
-      return { ok: true };
+      if (result.ok) {
+        this.persistImpersonation(null);
+        auditService.log(result.user, 'LOGIN', 'User', result.user.uid);
+        this.currentUser = result.user;
+        setFirestoreAuthoritative(true);
+        const clientIds = result.user.role === 'ADMIN'
+          ? dbService.getClients().map((c) => c.id)
+          : result.user.clientId ? [result.user.clientId] : [];
+        if (clientIds.length) await dbService.hydrateFromRemote(clientIds);
+        this.notify();
+        return { ok: true };
+      }
+      // Fallback a cuentas locales si aún no está provisionado en Firebase
     }
 
     const account = this.accounts.find((a) => a.email.toLowerCase() === email.trim().toLowerCase());
