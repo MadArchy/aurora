@@ -1,4 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
+import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { posturaApiPlugin } from './server/postura-api';
 
 export default defineConfig(({ mode }) => {
@@ -10,8 +12,25 @@ export default defineConfig(({ mode }) => {
     process.env.YOUTUBE_API_KEY = env.YOUTUBE_API_KEY;
   }
 
+  const pagesBase = process.env.GITHUB_PAGES === 'true' ? '/aurora/' : '/';
+
   return {
-    plugins: [posturaApiPlugin()],
+    base: pagesBase,
+    plugins: [
+      posturaApiPlugin(),
+      {
+        name: 'github-pages-spa-fallback',
+        closeBundle() {
+          if (process.env.GITHUB_PAGES !== 'true') return;
+            const dist = resolve(process.cwd(), 'dist');
+            const index = resolve(dist, 'index.html');
+            if (existsSync(index)) {
+              copyFileSync(index, resolve(dist, '404.html'));
+              writeFileSync(resolve(dist, '.nojekyll'), '');
+            }
+        },
+      },
+    ],
     server: {
       host: '127.0.0.1',
       port: 3000,
