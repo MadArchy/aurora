@@ -20,7 +20,8 @@
     "firebase:provision": "node scripts/provision-firebase.mjs",
     "validate:juan-tavily": "node scripts/validate-juan-tavily-flow.mjs",
     "probe:feeds": "node scripts/probe-source-feeds.mjs",
-    "checklist:functions": "node scripts/deploy-functions-checklist.mjs"
+    "checklist:functions": "node scripts/deploy-functions-checklist.mjs",
+    "checklist:pilot": "node scripts/pilot-juan-walkthrough.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
