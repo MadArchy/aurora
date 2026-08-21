@@ -19,7 +19,7 @@ import { esc } from '../lib/escape';
 import { icon } from '../lib/icons';
 import { deriveWorkStage, WORK_STAGE_BADGE, WORK_STAGE_LABELS } from '../domain/workPipeline';
 import { renderPage, normalizeTab } from './PageHeader';
-import { renderContentPipeline } from './ManagerCockpit';
+import { renderContentPipeline, renderScientificFocusPanel } from './ManagerCockpit';
 import { buildProfileKeywords, normalizeSourceUrl } from '../services/sourceDiscovery';
 import {
   buildCuratedPresetsForProfile,
@@ -28,6 +28,7 @@ import {
   getRecommendedStackForClient,
 } from '../services/industryPresets';
 import { runSourceDiscoveryAgent, isAgentRunCurrent, loadLastAgentRun } from '../services/sourceDiscoveryAgent';
+import { ingestProxyReady } from '../services/sourceApi';
 import { pendingExtendedSources } from '../services/extendedSourceDiscovery';
 import { signalsNeedingResearch } from '../services/researchSignalsAgent';
 import { groupSignalsForTriage } from '../domain/radarTriageCore';
@@ -43,11 +44,12 @@ import {
   sourceHealthTip,
   sourceRemediationActions,
 } from '../domain/sourceHealthActionsCore';
+import { labelSourceRunError } from '../domain/sourceIngestCore';
+import { deliveryItemKindLabel, deliveryStatusLabel } from '../domain/deliveryCore';
 import { isPlayableRecordingRef } from '../services/recordings';
 import { signalsAwaitingOutcome, computeConversionStats } from '../domain/radarFeedbackCore';
 import { renderMasterDossierPanel } from './MasterDossierPanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
-import { renderManagerOpportunities } from './OpportunityPanel';
 import { renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
 import { getLatestTopicAgentRun } from '../services/topicAgent';
 
@@ -134,8 +136,9 @@ export function renderClientWorkspace(
       return renderPage(
         'ws-radar',
         renderRadar(client, thesis, filters),
-        `<button id="btn-poll-all-sources" class="btn btn-secondary">Buscar novedades</button>
-         <button id="btn-add-manual-signal" class="btn btn-secondary" data-client-id="${esc(clientId)}">+ Señal manual</button>`
+        `<button class="btn btn-ghost" data-tab="ws-sources">Gestionar fuentes</button>
+         <button id="btn-add-manual-signal" class="btn btn-secondary" data-client-id="${esc(clientId)}">+ Señal manual</button>
+         <button id="btn-poll-all-sources" class="btn btn-primary">Buscar novedades</button>`
       );
     case 'ws-deliver':
       return renderPage('ws-deliver', renderDeliver(client, thesis));
@@ -150,7 +153,13 @@ export function renderClientWorkspace(
     case 'ws-production':
       return renderPage(
         'ws-production',
-        renderContentPipeline(dbService.getContentByClient(clientId), filters, { showCreate: true, clientId })
+        `<div class="content-stack content-stack-lg">
+           ${renderProductionOverview(client)}
+           ${renderContentPipeline(dbService.getContentByClient(clientId), filters, { showCreate: true, clientId })}
+           ${renderScientificFocusPanel(client, thesis)}
+           ${renderTasks(client)}
+         </div>`,
+        `<button id="btn-open-add-task" class="btn btn-secondary" data-client-id="${esc(clientId)}">+ Asignar tarea</button>`
       );
     case 'ws-results':
       return renderPage('ws-results', renderResults(client));
@@ -161,143 +170,273 @@ export function renderClientWorkspace(
 }
 
 // ==========================================
-// Resumen del día
+// Resumen (briefing)
 // ==========================================
 
-function renderTopicAgentPanel(clientId: string): string {
-  const latest = getLatestTopicAgentRun(clientId);
+type BriefingAction = { title: string; detail: string; tab: string; label: string };
+
+function buildBriefingActions(input: {
+  thesis: PositioningThesis | undefined;
+  portfolio: ReturnType<typeof dbService.getPortfolioSummary>[number] | undefined;
+  unreviewed: number;
+  pendingCuration: number;
+  readyToDeliver: number;
+  contentAwaiting: number;
+  overdueTasks: number;
+  openTasks: number;
+}): BriefingAction[] {
+  const actions: BriefingAction[] = [];
+  const {
+    thesis,
+    portfolio,
+    unreviewed,
+    pendingCuration,
+    readyToDeliver,
+    contentAwaiting,
+    overdueTasks,
+    openTasks,
+  } = input;
+
+  if (!thesis) {
+    actions.push({
+      title: 'Definir la tesis activa',
+      detail: 'Sin tesis el radar no puede puntuar ni filtrar señales.',
+      tab: 'ws-positioning',
+      label: 'Abrir Identidad',
+    });
+  }
+  if (portfolio?.sourcesInError) {
+    actions.push({
+      title: `Revisar ${portfolio.sourcesInError} fuente${portfolio.sourcesInError === 1 ? '' : 's'} con error`,
+      detail: 'La ingesta está fallando y puede dejar huecos en el radar.',
+      tab: 'ws-sources',
+      label: 'Revisar fuentes',
+    });
+  }
+  if (unreviewed > 0) {
+    actions.push({
+      title: `Decidir ${unreviewed} señal${unreviewed === 1 ? '' : 'es'}`,
+      detail: 'Prioriza por score y banda de urgencia en el radar.',
+      tab: 'ws-radar',
+      label: 'Abrir Radar',
+    });
+  }
+  if (pendingCuration > 0 || readyToDeliver > 0) {
+    actions.push({
+      title: 'Preparar la próxima entrega',
+      detail: `${pendingCuration} por decidir · ${readyToDeliver} listas para el briefing.`,
+      tab: 'ws-deliver',
+      label: 'Continuar entrega',
+    });
+  }
+  if (contentAwaiting > 0) {
+    actions.push({
+      title: `Revisar ${contentAwaiting} contenido${contentAwaiting === 1 ? '' : 's'}`,
+      detail: 'Material esperando tu visto bueno antes de llegar al cliente.',
+      tab: 'ws-production',
+      label: 'Ver Producción',
+    });
+  }
+  if (overdueTasks > 0) {
+    actions.push({
+      title: `${overdueTasks} tarea${overdueTasks === 1 ? '' : 's'} vencida${overdueTasks === 1 ? '' : 's'}`,
+      detail: 'Comprueba bloqueos y material pendiente de grabación o revisión.',
+      tab: 'ws-production',
+      label: 'Ver tareas',
+    });
+  } else if (openTasks > 0) {
+    actions.push({
+      title: `Dar seguimiento a ${openTasks} tarea${openTasks === 1 ? '' : 's'}`,
+      detail: 'Trabajo editorial en curso sin vencimiento crítico.',
+      tab: 'ws-production',
+      label: 'Ver Producción',
+    });
+  }
+
+  return actions;
+}
+
+function renderAdviceCompact(advice: PositioningAdvice): string {
+  const { diagnosis } = advice;
+  const dims: Array<[string, number]> = [
+    ['Autoridad', diagnosis.authorityScore],
+    ['Evidencia', diagnosis.evidenceScore],
+    ['Visibilidad', diagnosis.visibilityScore],
+  ];
 
   return `
-    <section class="card topic-agent-panel">
-      <div class="card-header">
-        <div>
-          <h3>Topic Agent — ranking diario</h3>
-          <p class="muted small">Lista priorizada con rationale. Disparo manual (v1 heurística).</p>
+    <p class="briefing-aside-summary">${esc(advice.summary.slice(0, 140))}${advice.summary.length > 140 ? '…' : ''}</p>
+    <div class="briefing-mini-dims">
+      ${dims.map(([label, value]) => `
+        <div class="briefing-mini-dim">
+          <div class="briefing-mini-dim-head"><span>${esc(label)}</span><strong>${value}</strong></div>
+          <div class="progress-track progress-track-sm">
+            <div class="progress-fill ${value >= 70 ? 'progress-green' : value >= 45 ? '' : 'progress-red'}" style="width: ${value}%"></div>
+          </div>
         </div>
-        <button type="button" id="btn-run-topic-agent" class="btn btn-secondary btn-sm" data-client-id="${esc(clientId)}">
-          Generar ranking
-        </button>
-      </div>
-      ${latest
-        ? `<p class="muted small">Última ejecución: ${new Date(latest.run.createdAt).toLocaleString('es')}</p>
-           <ol class="topic-agent-list">
-             ${latest.items.map((item) => `
-               <li class="topic-agent-item">
-                 <div class="topic-agent-item-head">
-                   <strong>#${item.rank} ${esc(item.label)}</strong>
-                   <span class="badge badge-progress">${esc(momentumLabel(item.momentum))}</span>
-                 </div>
-                 <p class="muted small">${esc(item.rationale)}</p>
-               </li>
-             `).join('')}
-           </ol>`
-        : '<p class="empty-state">Aún no hay ranking. Pulsa «Generar ranking» para analizar señales actuales.</p>'}
-    </section>
+      `).join('')}
+    </div>
   `;
 }
 
 function renderBriefing(client: Client, thesis: PositioningThesis | undefined, _filters: WorkspaceFilters): string {
   const clientId = client.id;
+  const portfolio = dbService.getPortfolioSummary().find((s) => s.client.id === clientId);
   const signals = dbService.getSignalsByClient(clientId);
   const topics = buildTopics(clientId, signals);
   const unreviewed = signals.filter((s) => s.managerDecision === 'UNREVIEWED' && s.status !== 'DISCARDED');
   const pendingCuration = dbService.getPendingCurationByClient(clientId);
   const readyToDeliver = dbService.getReadyCurationByClient(clientId);
   const tasks = dbService.getTasksByClient(clientId).filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+  const overdueTasks = tasks.filter((t) => t.deadline && new Date(t.deadline).getTime() < Date.now());
+  const contentAwaiting = dbService.getContentByClient(clientId).filter(
+    (c) => c.status === 'MANAGER_REVIEW' || c.status === 'CHANGES_REQUESTED' || c.status === 'AI_GENERATED'
+  );
   const advice = dbService.getLatestAdvice(clientId);
   const lastDelivery = dbService.getSentDeliveriesByClient(clientId)[0];
+  const opportunities = dbService.getOpportunitiesByClient(clientId);
+  const topicRun = getLatestTopicAgentRun(clientId);
 
-  const hotTopics = topics.filter((t) => t.momentum === 'RISING' || t.momentum === 'EMERGING').slice(0, 3);
+  const hotTopics = topics.filter((t) => t.momentum === 'RISING' || t.momentum === 'EMERGING').slice(0, 2);
+  const nextActions = buildBriefingActions({
+    thesis,
+    portfolio,
+    unreviewed: unreviewed.length,
+    pendingCuration: pendingCuration.length,
+    readyToDeliver: readyToDeliver.length,
+    contentAwaiting: contentAwaiting.length,
+    overdueTasks: overdueTasks.length,
+    openTasks: tasks.length,
+  });
+  const focus = nextActions[0];
+  const queue = nextActions.slice(1, 4);
+
+  const statusChips: Array<{ label: string; value: number; hot?: boolean }> = [
+    { label: 'Señales', value: unreviewed.length, hot: unreviewed.length > 0 },
+    { label: 'En entrega', value: pendingCuration.length, hot: pendingCuration.length > 0 },
+    { label: 'Listas', value: readyToDeliver.length, hot: readyToDeliver.length > 0 },
+    { label: 'Tareas', value: tasks.length, hot: overdueTasks.length > 0 },
+    { label: 'Fuentes', value: portfolio?.activeSources ?? 0 },
+  ];
+  if (portfolio?.sourcesInError) {
+    statusChips.push({ label: 'Errores', value: portfolio.sourcesInError, hot: true });
+  }
 
   return `
-    ${!thesis
-      ? `<div class="info-strip warn">
-           <span><strong>Este cliente no tiene tesis activa.</strong> Sin tesis el radar no puede puntuar señales ni filtrar temas.</span>
-           <button class="btn btn-primary btn-sm btn-open-thesis-editor" data-client-id="${esc(clientId)}">Definir tesis</button>
-         </div>`
-      : ''}
-
-    <section class="grid-4">
-      <div class="card stat-card">
-        <p class="form-label">Señales nuevas</p>
-        <h2>${unreviewed.length}</h2>
-        <button class="link-btn" data-tab="ws-radar">Ver radar</button>
-      </div>
-      <div class="card stat-card">
-        <p class="form-label">Por decidir</p>
-        <h2>${pendingCuration.length}</h2>
-        <button class="link-btn" data-tab="ws-curation">Ir a curación</button>
-      </div>
-      <div class="card stat-card">
-        <p class="form-label">Listo para entregar</p>
-        <h2>${readyToDeliver.length}</h2>
-        <button class="link-btn" data-tab="ws-delivery">Armar briefing</button>
-      </div>
-      <div class="card stat-card">
-        <p class="form-label">Tareas abiertas</p>
-        <h2>${tasks.length}</h2>
-        <button class="link-btn" data-tab="ws-tasks">Gestionar tareas</button>
-      </div>
-    </section>
-
-    ${renderTopicAgentPanel(clientId)}
-
-    <section class="workspace-split">
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3>Qué se mueve en su dominio</h3>
-            <p style="font-size: 0.9rem;">Temas agrupados a partir de las señales capturadas.</p>
+    <div class="briefing-cockpit">
+      <div class="briefing-status-rail" aria-label="Estado operativo">
+        ${statusChips.map((chip) => `
+          <div class="status-chip${chip.hot ? ' status-chip-hot' : ''}">
+            <span class="status-chip-value">${chip.value}</span>
+            <span class="status-chip-label">${esc(chip.label)}</span>
           </div>
-        </div>
-
-        ${hotTopics.length
-          ? hotTopics.map((topic) => renderTopicRow(topic, true)).join('')
-          : '<p class="empty-state">Sin temas emergentes. Ingiere fuentes para alimentar el radar.</p>'}
+        `).join('')}
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3>Diagnóstico de imagen</h3>
-            <p style="font-size: 0.9rem;">Qué tan sólida es su autoridad y dónde están las brechas.</p>
+      <div class="briefing-main-grid">
+        <section class="briefing-focus-panel">
+          ${focus
+            ? `<p class="briefing-focus-kicker">Siguiente paso</p>
+               <h2 class="briefing-focus-title">${esc(focus.title)}</h2>
+               <p class="briefing-focus-detail">${esc(focus.detail)}</p>
+               <button type="button" class="btn btn-primary briefing-focus-cta" data-tab="${esc(focus.tab)}">${esc(focus.label)}</button>`
+            : `<p class="briefing-focus-kicker">Estado</p>
+               <h2 class="briefing-focus-title">Cartera al día</h2>
+               <p class="briefing-focus-detail">No hay bloqueos urgentes. Puedes revisar temas emergentes o preparar la próxima entrega cuando quieras.</p>
+               <button type="button" class="btn btn-secondary briefing-focus-cta" data-tab="ws-radar">Explorar radar</button>`}
+
+          ${queue.length
+            ? `<ol class="briefing-queue">
+                 ${queue.map((action, index) => `
+                   <li class="briefing-queue-item">
+                     <span class="briefing-queue-num">${index + 2}</span>
+                     <div class="briefing-queue-copy">
+                       <strong>${esc(action.title)}</strong>
+                       <span>${esc(action.detail)}</span>
+                     </div>
+                     <button type="button" class="btn btn-ghost btn-sm" data-tab="${esc(action.tab)}">${esc(action.label)}</button>
+                   </li>
+                 `).join('')}
+               </ol>`
+            : ''}
+        </section>
+
+        <aside class="briefing-aside">
+          <div class="briefing-aside-block">
+            <h3 class="briefing-aside-title">Última entrega</h3>
+            ${lastDelivery
+              ? `<p class="briefing-aside-lead">${esc(lastDelivery.title)}</p>
+                 <p class="muted small">${lastDelivery.items.length} ítem(s) · ${new Date(lastDelivery.sentAt || lastDelivery.createdAt).toLocaleDateString('es')}</p>
+                 <span class="badge ${lastDelivery.status === 'ACKNOWLEDGED' ? 'badge-ready' : 'badge-progress'}">
+                   ${lastDelivery.status === 'ACKNOWLEDGED' ? 'Visto' : 'Enviado'}
+                 </span>`
+              : `<p class="muted small">Aún no hay entregas enviadas.</p>`}
           </div>
-          <button id="btn-generate-advice" class="btn btn-primary btn-sm" data-client-id="${esc(clientId)}">
-            ${advice ? 'Recalcular' : 'Generar'}
-          </button>
-        </div>
 
-        ${advice ? renderAdviceSummary(advice) : `
-          <p class="empty-state">
-            Aún no hay diagnóstico. Genera el análisis para ver fortalezas, brechas y acciones de mejora.
-          </p>
-        `}
+          <div class="briefing-aside-block">
+            <div class="briefing-aside-head">
+              <h3 class="briefing-aside-title">Posicionamiento</h3>
+              <button type="button" id="btn-generate-advice" class="btn btn-ghost btn-sm" data-client-id="${esc(clientId)}">
+                ${advice ? 'Recalcular' : 'Generar'}
+              </button>
+            </div>
+            ${advice
+              ? `${renderAdviceCompact(advice)}
+                 <details class="briefing-inline-expand">
+                   <summary>Ver diagnóstico completo</summary>
+                   <div class="briefing-inline-body">${renderAdviceSummary(advice)}${renderAdviceActions(advice, true)}</div>
+                 </details>`
+              : `<p class="muted small">Genera el diagnóstico para ver autoridad, brechas y plan de mejora.</p>`}
+          </div>
+        </aside>
       </div>
-    </section>
 
-    ${advice ? renderAdviceActions(advice) : ''}
+      <section class="briefing-context-grid" aria-label="Contexto del dominio">
+        <article class="context-tile">
+          <header class="context-tile-head">
+            <h3>Temas en movimiento</h3>
+            <button type="button" class="link-btn" data-tab="ws-radar">Radar</button>
+          </header>
+          ${hotTopics.length
+            ? `<ul class="context-tile-list">
+                 ${hotTopics.map((topic) => `
+                   <li>
+                     <strong>${esc(topic.label)}</strong>
+                     <span class="muted small">${esc(momentumLabel(topic.momentum))} · ${topic.signalCount} señal${topic.signalCount === 1 ? '' : 'es'}</span>
+                   </li>
+                 `).join('')}
+               </ul>`
+            : '<p class="muted small">Sin temas emergentes todavía.</p>'}
+        </article>
 
-    ${renderManagerOpportunities(clientId)}
+        <article class="context-tile">
+          <header class="context-tile-head">
+            <h3>Oportunidades</h3>
+            <span class="muted small">${opportunities.length} activa${opportunities.length === 1 ? '' : 's'}</span>
+          </header>
+          ${opportunities.length
+            ? `<ul class="context-tile-list">
+                 ${opportunities.slice(0, 2).map((opp) => `<li><strong>${esc(opp.title)}</strong></li>`).join('')}
+               </ul>`
+            : '<p class="muted small">Sin convocatorias registradas.</p>'}
+        </article>
 
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h3>Última entrega</h3>
-          <p style="font-size: 0.9rem;">Lo que el cliente recibió y cuándo.</p>
-        </div>
-      </div>
-      ${lastDelivery
-        ? `<div class="delivery-summary">
-             <div>
-               <strong>${esc(lastDelivery.title)}</strong>
-               <p class="muted">${lastDelivery.items.length} ítem(s) · enviado ${new Date(lastDelivery.sentAt || lastDelivery.createdAt).toLocaleDateString('es')}</p>
-             </div>
-             <span class="badge ${lastDelivery.status === 'ACKNOWLEDGED' ? 'badge-ready' : 'badge-progress'}">
-               ${lastDelivery.status === 'ACKNOWLEDGED' ? 'Visto por el cliente' : 'Enviado'}
-             </span>
-           </div>`
-        : '<p class="empty-state">Este cliente todavía no ha recibido ningún briefing.</p>'}
-    </section>
+        <article class="context-tile">
+          <header class="context-tile-head">
+            <h3>Topic Agent</h3>
+            <button type="button" id="btn-run-topic-agent" class="btn btn-ghost btn-sm" data-client-id="${esc(clientId)}">Actualizar</button>
+          </header>
+          ${topicRun
+            ? `<ul class="context-tile-list">
+                 ${topicRun.items.slice(0, 2).map((item) => `
+                   <li><strong>#${item.rank} ${esc(item.label)}</strong></li>
+                 `).join('')}
+               </ul>
+               <p class="muted small">Actualizado ${new Date(topicRun.run.createdAt).toLocaleDateString('es')}</p>`
+            : '<p class="muted small">Sin ranking. Pulsa Actualizar para generar uno.</p>'}
+        </article>
+      </section>
+    </div>
   `;
 }
 
@@ -349,12 +488,52 @@ function renderAdviceSummary(advice: PositioningAdvice): string {
   `;
 }
 
-function renderAdviceActions(advice: PositioningAdvice): string {
+function renderAdviceActions(advice: PositioningAdvice, embedded = false): string {
   const byHorizon: Array<[AdviceAction['horizon'], AdviceAction[]]> = [
     ['DAYS_30', advice.actions.filter((a) => a.horizon === 'DAYS_30')],
     ['DAYS_60', advice.actions.filter((a) => a.horizon === 'DAYS_60')],
     ['DAYS_90', advice.actions.filter((a) => a.horizon === 'DAYS_90')],
   ];
+
+  const body = `
+    <div class="horizon-grid">
+      ${byHorizon.map(([horizon, actions]) => `
+        <div class="horizon-column">
+          <h5 class="horizon-title">${HORIZON_LABELS[horizon]}</h5>
+          ${actions.length
+            ? actions.map((action) => `
+              <article class="advice-card">
+                <header>
+                  <span class="badge badge-progress">${CATEGORY_LABELS[action.category]}</span>
+                  <span class="impact-tag">Impacto ${action.impact}</span>
+                </header>
+                <h6>${esc(action.title)}</h6>
+                <p class="advice-why"><strong>Por qué:</strong> ${esc(action.why)}</p>
+                <p class="advice-how"><strong>Cómo:</strong> ${esc(action.how)}</p>
+                <footer>
+                  <span class="muted">~${action.effortMinutes} min</span>
+                  <button class="btn btn-secondary btn-sm btn-advice-to-curation"
+                          data-client-id="${esc(advice.clientId)}"
+                          data-action-id="${esc(action.id)}">
+                    Preparar entrega
+                  </button>
+                </footer>
+              </article>
+            `).join('')
+            : '<p class="empty-state small">Sin acciones en este horizonte.</p>'}
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  if (embedded) {
+    return `
+      <div class="advice-actions-embedded">
+        <h4 class="disclosure-subtitle">Plan de mejora propuesto</h4>
+        ${body}
+      </div>
+    `;
+  }
 
   return `
     <section class="card">
@@ -364,35 +543,7 @@ function renderAdviceActions(advice: PositioningAdvice): string {
           <p style="font-size: 0.9rem;">Acciones para elevar su imagen profesional, ordenadas por horizonte.</p>
         </div>
       </div>
-
-      <div class="horizon-grid">
-        ${byHorizon.map(([horizon, actions]) => `
-          <div class="horizon-column">
-            <h5 class="horizon-title">${HORIZON_LABELS[horizon]}</h5>
-            ${actions.length
-              ? actions.map((action) => `
-                <article class="advice-card">
-                  <header>
-                    <span class="badge badge-progress">${CATEGORY_LABELS[action.category]}</span>
-                    <span class="impact-tag">Impacto ${action.impact}</span>
-                  </header>
-                  <h6>${esc(action.title)}</h6>
-                  <p class="advice-why"><strong>Por qué:</strong> ${esc(action.why)}</p>
-                  <p class="advice-how"><strong>Cómo:</strong> ${esc(action.how)}</p>
-                  <footer>
-                    <span class="muted">~${action.effortMinutes} min</span>
-                    <button class="btn btn-secondary btn-sm btn-advice-to-curation"
-                            data-client-id="${esc(advice.clientId)}"
-                            data-action-id="${esc(action.id)}">
-                      Llevar a curación
-                    </button>
-                  </footer>
-                </article>
-              `).join('')
-              : '<p class="empty-state small">Sin acciones en este horizonte.</p>'}
-          </div>
-        `).join('')}
-      </div>
+      ${body}
     </section>
   `;
 }
@@ -546,8 +697,8 @@ function renderSignalCard(
           <button class="btn btn-secondary btn-sm btn-discard-signal" data-signal-id="${esc(signal.id)}">Descartar</button>
           ${thesis && !compact ? `<button class="btn btn-secondary btn-sm btn-analyze-signal" data-signal-id="${esc(signal.id)}">Puntuar</button>` : ''}
           ${inCuration
-            ? '<span class="badge badge-ready">En curación</span>'
-            : `<button class="btn btn-primary btn-sm btn-send-to-curation" data-signal-id="${esc(signal.id)}">A curación</button>`}
+            ? '<span class="badge badge-ready">En preparación</span>'
+            : `<button class="btn btn-primary btn-sm btn-send-to-curation" data-signal-id="${esc(signal.id)}">Añadir a entrega</button>`}
         </div>
       </footer>
       ${renderSignalOutcomeControls(signal)}
@@ -688,23 +839,34 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
                </div>`
             : ''}
 
-    <section class="card">
-      <div class="card-header">
+    <details class="card topic-trends-panel"${activeTopic ? ' open' : ''}>
+      <summary class="topic-trends-summary">
         <div>
           <h3>Tendencias del dominio</h3>
-          <p style="font-size: 0.9rem;">${topics.length} tema(s) detectado(s) agrupando ${allSignals.length} señal(es).</p>
+          <p>
+            ${topics.length} tema(s) · ${allSignals.length} señal(es)
+            ${topics.length ? ' — pulsa para desplegar' : ''}
+          </p>
         </div>
+      </summary>
+      <div class="topic-trends-body">
+        ${topics.length
+          ? `${topics.slice(0, 4).map((t) => renderTopicRow(t)).join('')}
+             ${topics.length > 4
+               ? `<details class="topic-trends-more">
+                    <summary class="muted small">Ver ${topics.length - 4} tema(s) más</summary>
+                    ${topics.slice(4).map((t) => renderTopicRow(t)).join('')}
+                  </details>`
+               : ''}`
+          : '<p class="empty-state">Todavía no hay suficientes señales para detectar temas.</p>'}
       </div>
-      ${topics.length
-        ? topics.slice(0, 6).map((t) => renderTopicRow(t)).join('')
-        : '<p class="empty-state">Todavía no hay suficientes señales para detectar temas.</p>'}
-    </section>
+    </details>
 
     <section class="card">
       <div class="card-header">
         <div>
           <h3>Señales${activeTopic ? `: ${esc(activeTopic.label)}` : ''}</h3>
-          <p style="font-size: 0.9rem;">
+          <p>
             ${radarView === 'triage'
               ? 'Modo triage: decide primero lo crítico, luego revisa y monitorea. Historias repetidas se agrupan.'
               : 'Una tarjeta por historia (medios duplicados agrupados). Expande el score para ver el desglose.'}
@@ -713,10 +875,10 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
               : ''}
           </p>
         </div>
-        <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+        <div class="row-actions">
           <div class="filter-pills">
-            <span class="filter-pill ${radarView === 'triage' ? 'active' : ''}" data-radar-view="triage">Triage</span>
-            <span class="filter-pill ${radarView === 'list' ? 'active' : ''}" data-radar-view="list">Lista</span>
+            <button type="button" class="filter-pill ${radarView === 'triage' ? 'active' : ''}" data-radar-view="triage">Triage</button>
+            <button type="button" class="filter-pill ${radarView === 'list' ? 'active' : ''}" data-radar-view="list">Lista</button>
           </div>
           ${activeTopic
             ? '<button class="btn btn-secondary btn-sm btn-clear-topic-filter">Quitar filtro de tema</button>'
@@ -729,26 +891,26 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
           <input type="text" id="input-search-signals" placeholder="Buscar en titulares o resúmenes..." value="${esc(filters.searchQuery || '')}" />
         </div>
         <div class="filter-pills">
-          <span class="filter-pill ${bandFilter === 'ALL' ? 'active' : ''}" data-band-filter="ALL">Historias (${canonical.length})</span>
-          <span class="filter-pill ${bandFilter === 'CRITICAL' ? 'active' : ''}" data-band-filter="CRITICAL">Críticas</span>
-          <span class="filter-pill ${bandFilter === 'HIGH' ? 'active' : ''}" data-band-filter="HIGH">Altas</span>
-          <span class="filter-pill ${bandFilter === 'MEDIUM' ? 'active' : ''}" data-band-filter="MEDIUM">Medias</span>
+          <button type="button" class="filter-pill ${bandFilter === 'ALL' ? 'active' : ''}" data-band-filter="ALL">Historias (${canonical.length})</button>
+          <button type="button" class="filter-pill ${bandFilter === 'CRITICAL' ? 'active' : ''}" data-band-filter="CRITICAL">Críticas</button>
+          <button type="button" class="filter-pill ${bandFilter === 'HIGH' ? 'active' : ''}" data-band-filter="HIGH">Altas</button>
+          <button type="button" class="filter-pill ${bandFilter === 'MEDIUM' ? 'active' : ''}" data-band-filter="MEDIUM">Medias</button>
         </div>
         <div class="filter-pills">
-          <span class="filter-pill ${sourceFilter === 'ALL' ? 'active' : ''}" data-source-filter="ALL">Toda fuente</span>
-          <span class="filter-pill ${sourceFilter === 'REGULATORY' ? 'active' : ''}" data-source-filter="REGULATORY">Regulatorio</span>
-          <span class="filter-pill ${sourceFilter === 'RSS' ? 'active' : ''}" data-source-filter="RSS">RSS</span>
-          <span class="filter-pill ${sourceFilter === 'VIDEO' ? 'active' : ''}" data-source-filter="VIDEO">YouTube</span>
-          <span class="filter-pill ${sourceFilter === 'SOCIAL' ? 'active' : ''}" data-source-filter="SOCIAL">Social</span>
-          <span class="filter-pill ${sourceFilter === 'ACADEMIC' ? 'active' : ''}" data-source-filter="ACADEMIC">Académico</span>
-          <span class="filter-pill ${sourceFilter === 'MANUAL' ? 'active' : ''}" data-source-filter="MANUAL">Manual</span>
+          <button type="button" class="filter-pill ${sourceFilter === 'ALL' ? 'active' : ''}" data-source-filter="ALL">Toda fuente</button>
+          <button type="button" class="filter-pill ${sourceFilter === 'REGULATORY' ? 'active' : ''}" data-source-filter="REGULATORY">Regulatorio</button>
+          <button type="button" class="filter-pill ${sourceFilter === 'RSS' ? 'active' : ''}" data-source-filter="RSS">RSS</button>
+          <button type="button" class="filter-pill ${sourceFilter === 'VIDEO' ? 'active' : ''}" data-source-filter="VIDEO">YouTube</button>
+          <button type="button" class="filter-pill ${sourceFilter === 'SOCIAL' ? 'active' : ''}" data-source-filter="SOCIAL">Social</button>
+          <button type="button" class="filter-pill ${sourceFilter === 'ACADEMIC' ? 'active' : ''}" data-source-filter="ACADEMIC">Académico</button>
+          <button type="button" class="filter-pill ${sourceFilter === 'MANUAL' ? 'active' : ''}" data-source-filter="MANUAL">Manual</button>
         </div>
       </div>
 
       ${radarView === 'triage'
         ? `<div class="radar-triage-grid">
              ${renderTriageColumn('Decidir ahora', 'Críticas, altas o con investigación pendiente', triage.decideNow, thesis, clientId, 'critical', clusters)}
-             ${renderTriageColumn('Revisar', 'Buenas candidatas a curación o contenido', triage.review, thesis, clientId, 'review', clusters)}
+             ${renderTriageColumn('Revisar', 'Buenas candidatas para una entrega o contenido', triage.review, thesis, clientId, 'review', clusters)}
              ${renderTriageColumn('Monitorear', 'Baja prioridad — no bloquean el flujo', triage.monitor, thesis, clientId, 'monitor', clusters)}
            </div>`
         : `<div class="signal-grid">
@@ -767,6 +929,11 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
                : '<p class="empty-state">No hay señales con estos filtros.</p>'}
            </div>`}
     </section>
+
+    <details class="card disclosure">
+      <summary>Orígenes y fuentes recomendadas</summary>
+      <div class="disclosure-body">${renderRecommendedSources(client, thesis, dbService.getMasterProfile(clientId))}</div>
+    </details>
   `;
 }
 
@@ -830,7 +997,7 @@ function renderDeliveryItems(pkg: DeliveryPackage): string {
   return pkg.items.map((item) => `
     <div class="delivery-item">
       <div>
-        <span class="badge badge-progress">${esc(item.kind)}</span>
+        <span class="badge badge-progress">${esc(deliveryItemKindLabel(item.kind))}</span>
         <strong>${esc(item.title)}</strong>
         ${item.rationale
           ? `<details class="briefing-rationale"><summary>Por qué se incluyó</summary><p class="muted small">${esc(item.rationale)}</p></details>`
@@ -905,12 +1072,19 @@ function renderBriefingPanel(clientId: string, draft: DeliveryPackage | undefine
             : ''}
 
           <div class="delivery-send">
+            <button id="btn-preview-delivery" class="btn btn-secondary btn-block" data-package-id="${esc(draft.id)}"
+                    ${draft.items.length ? '' : 'disabled'}>
+              ${icon('fileText', 16)} Vista previa
+            </button>
             <button id="btn-send-delivery" class="btn btn-gradient btn-block" data-package-id="${esc(draft.id)}"
                     ${draft.items.length ? '' : 'disabled'}>
               ${icon('send', 16)} Enviar al cliente
             </button>
+            <button type="button" class="btn btn-ghost btn-sm btn-discard-delivery" data-package-id="${esc(draft.id)}">
+              Descartar borrador
+            </button>
             <span class="muted small">
-              Al enviar se crean las tareas en su portal y recibe una notificación.
+              La vista previa muestra el briefing como lo verá el cliente. Al enviar se crean tareas, lecturas y notificaciones.
             </span>
           </div>
         `
@@ -967,7 +1141,7 @@ function renderDeliver(client: Client, thesis: PositioningThesis | undefined): s
             ? pending.map((e) => renderCurationEntry(e)).join('')
             : `<p class="empty-state">
                  ${icon('check', 22)}
-                 <span>Bandeja vacía. Ve al radar y envía a curación las señales que valgan la pena.</span>
+                 <span>Bandeja vacía. Ve al Radar y añade a la entrega las señales que valgan la pena.</span>
                </p>`}
         </div>
       </div>
@@ -985,18 +1159,37 @@ function renderDeliver(client: Client, thesis: PositioningThesis | undefined): s
 
       ${sent.length
         ? sent.map((pkg) => `
-          <div class="delivery-summary">
-            <div>
-              <strong>${esc(pkg.title)}</strong>
-              <p class="muted small">
-                ${pkg.items.length} ítem(s) · ${new Date(pkg.sentAt || pkg.createdAt).toLocaleString('es')}
-              </p>
+          <details class="delivery-summary">
+            <summary class="delivery-summary-head">
+              <div>
+                <strong>${esc(pkg.title)}</strong>
+                <p class="muted small">
+                  ${pkg.items.length} ítem(s) · ${new Date(pkg.sentAt || pkg.createdAt).toLocaleString('es')}
+                  ${pkg.acknowledgedAt ? ` · visto ${new Date(pkg.acknowledgedAt).toLocaleDateString('es')}` : ''}
+                </p>
+              </div>
+              <span class="badge ${pkg.status === 'ACKNOWLEDGED' ? 'badge-ready' : 'badge-progress'}">
+                ${esc(deliveryStatusLabel(pkg.status))}
+              </span>
+            </summary>
+            <div class="delivery-summary-body">
               ${pkg.strategicNote ? `<p class="muted small">"${esc(pkg.strategicNote)}"</p>` : ''}
+              <ul class="briefing-items">
+                ${pkg.items
+                  .map(
+                    (item) => `
+                  <li>
+                    <span class="badge badge-progress">${esc(deliveryItemKindLabel(item.kind))}</span>
+                    <strong>${esc(item.title)}</strong>
+                  </li>`
+                  )
+                  .join('')}
+              </ul>
+              ${pkg.clientAckNote
+                ? `<p class="muted small"><em>Nota del cliente: ${esc(pkg.clientAckNote)}</em></p>`
+                : ''}
             </div>
-            <span class="badge ${pkg.status === 'ACKNOWLEDGED' ? 'badge-ready' : 'badge-progress'}">
-              ${pkg.status === 'ACKNOWLEDGED' ? 'Visto' : 'Enviado'}
-            </span>
-          </div>
+          </details>
         `).join('')
         : '<p class="empty-state">Sin entregas enviadas todavía.</p>'}
     </section>
@@ -1016,13 +1209,11 @@ function renderPositioning(client: Client, theses: PositioningThesis[]): string 
   const dossier = dbService.getMasterDossier(clientId);
 
   return `
-    ${dossier ? renderMasterDossierPanel(dossier, client) : ''}
-
     <section class="card">
       <div class="card-header">
         <div>
           <h3>Tesis de posicionamiento</h3>
-          <p style="font-size: 0.9rem;">El filtro maestro que define qué temas se publican y ante quién.</p>
+          <p>El filtro maestro que define qué temas se publican y ante quién.</p>
         </div>
         ${thesis
           ? `<span class="badge ${thesis.clientApprovalStatus === 'APPROVED' ? 'badge-ready' : 'badge-pending'}">
@@ -1078,17 +1269,27 @@ function renderPositioning(client: Client, theses: PositioningThesis[]): string 
         : '<p class="empty-state">Sin tesis registrada. Créala para activar el radar y el scoring.</p>'}
     </section>
 
-    ${renderRecommendedSources(client, thesis, profile)}
+    ${dossier
+      ? `<details class="card disclosure" id="dossier-maestro">
+           <summary>Dossier maestro</summary>
+           <div class="disclosure-body">${renderMasterDossierPanel(dossier, client)}</div>
+         </details>`
+      : ''}
 
-    ${renderProofWall(clientId, { editable: true })}
-    ${renderServiceLinesReadOnly(clientId)}
+    <details class="card disclosure">
+      <summary>Pruebas y líneas de servicio</summary>
+      <div class="disclosure-body content-stack">
+        ${renderProofWall(clientId, { editable: true })}
+        ${renderServiceLinesReadOnly(clientId)}
+      </div>
+    </details>
 
     <section class="workspace-split">
       <div class="card">
         <div class="card-header">
           <div>
             <h3>Perfil maestro</h3>
-            <p style="font-size: 0.9rem;">Contexto que alimenta la voz de todo el contenido.</p>
+            <p>Contexto que alimenta la voz de todo el contenido.</p>
           </div>
           <button class="btn btn-secondary btn-sm" id="btn-open-onboarding" data-client-id="${esc(clientId)}">
             Abrir asistente
@@ -1125,7 +1326,7 @@ function renderPositioning(client: Client, theses: PositioningThesis[]): string 
         <div class="card-header">
           <div>
             <h3>Evidence vault</h3>
-            <p style="font-size: 0.9rem;">Respaldo verificable de cada afirmación pública.</p>
+            <p>Respaldo verificable de cada afirmación pública.</p>
           </div>
           <button class="btn btn-secondary btn-sm" id="btn-add-evidence-vault" data-client-id="${esc(clientId)}">
             + Evidencia
@@ -1154,7 +1355,7 @@ function renderPositioning(client: Client, theses: PositioningThesis[]): string 
            <div class="card-header">
              <div>
                <h3>Campañas</h3>
-               <p style="font-size: 0.9rem;">Progreso de entregables comprometidos.</p>
+               <p>Progreso de entregables comprometidos.</p>
              </div>
            </div>
            ${campaigns.map((c) => {
@@ -1259,6 +1460,15 @@ function renderSources(client: Client, thesis?: PositioningThesis): string {
         <button class="link-btn" data-tab="ws-positioning">Posicionamiento</button>.
       </span>
     </div>
+
+    ${!ingestProxyReady()
+      ? `<div class="info-strip warn" style="margin-bottom: 1rem;">
+           <span>
+             La ingesta RSS/YouTube no está disponible en este hosting (no hay proxy).
+             Usa <strong>npm run dev</strong> en local, o configura Cloud Functions.
+           </span>
+         </div>`
+      : ''}
 
     ${healthCounts.errors || healthCounts.degraded || healthCounts.paused
       ? `<div class="info-strip warn" style="margin-bottom: 1rem;">
@@ -1394,7 +1604,7 @@ function renderSourceRow(source: Source, clientId: string): string {
                ${source.lastRunRejected || 0} filtrada(s) por ruido
              </p>`
           : ''}
-        ${source.lastError ? `<p class="source-error-text">Fallo: ${esc(source.lastError)}</p>` : ''}
+        ${source.lastError ? `<p class="source-error-text">Fallo: ${esc(labelSourceRunError(source.lastError))}</p>` : ''}
         ${tip ? `<p class="muted small source-health-tip">${esc(tip)}</p>` : ''}
       </div>
       <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: flex-start;">
@@ -1539,6 +1749,24 @@ function renderDiscoveryPanel(client: Client, thesis?: PositioningThesis): strin
 // Tareas asignadas al cliente
 // ==========================================
 
+function renderProductionOverview(client: Client): string {
+  const contents = dbService.getContentByClient(client.id);
+  const tasks = dbService.getTasksByClient(client.id);
+  const openTasks = tasks.filter((task) => task.status !== 'COMPLETED' && task.status !== 'CANCELLED');
+  const managerReview = contents.filter((item) => item.status === 'AI_GENERATED' || item.status === 'DRAFT');
+  const clientReview = contents.filter((item) => item.status === 'CLIENT_REVIEW' || item.status === 'CHANGES_REQUESTED');
+  const ready = contents.filter((item) => item.status === 'READY' || item.status === 'PUBLISHED');
+
+  return `
+    <section class="metric-band" aria-label="Estado de producción">
+      <div class="metric-band-item"><span class="metric-band-label">Por hacer</span><strong class="metric-band-value">${openTasks.length}</strong><span class="metric-band-hint">tareas activas</span></div>
+      <div class="metric-band-item"><span class="metric-band-label">Revisión manager</span><strong class="metric-band-value">${managerReview.length}</strong><span class="metric-band-hint">borradores internos</span></div>
+      <div class="metric-band-item"><span class="metric-band-label">Con el cliente</span><strong class="metric-band-value">${clientReview.length}</strong><span class="metric-band-hint">aprobación o ajustes</span></div>
+      <div class="metric-band-item"><span class="metric-band-label">Listo / archivo</span><strong class="metric-band-value">${ready.length}</strong><span class="metric-band-hint">contenido utilizable</span></div>
+    </section>
+  `;
+}
+
 function renderTasks(client: Client): string {
   const clientId = client.id;
   const allTasks = dbService.getTasksByClient(clientId);
@@ -1546,35 +1774,13 @@ function renderTasks(client: Client): string {
   const doneTasks = allTasks.filter((t) => t.status === 'COMPLETED');
 
   return `
-    <div class="info-strip">
-      <span>
-        Las tareas que asignes aquí aparecen de inmediato en el portal de <strong>${esc(client.displayName)}</strong>
-        (Mis tareas). Las que nacen de un briefing muestran su procedencia y el motivo original.
-      </span>
-      <button class="btn btn-ghost btn-sm" data-tab="ws-deliver">Ir a Entregar</button>
-    </div>
-
-    <section class="grid-3">
-      <div class="card stat-card">
-        <p class="form-label">Abiertas</p>
-        <h2>${openTasks.length}</h2>
-      </div>
-      <div class="card stat-card">
-        <p class="form-label">Completadas</p>
-        <h2>${doneTasks.length}</h2>
-      </div>
-      <div class="card stat-card">
-        <p class="form-label">Total histórico</p>
-        <h2>${allTasks.length}</h2>
-      </div>
-    </section>
-
     <section class="card">
       <div class="card-header">
         <div>
-          <h3>Pendientes del cliente</h3>
-          <p style="font-size: 0.9rem;">Lo que debe hacer ahora mismo.</p>
+          <h3>Tareas activas</h3>
+          <p>Acciones que aparecen de inmediato en “Esta semana” para ${esc(client.displayName)}.</p>
         </div>
+        <button class="btn btn-ghost btn-sm" data-tab="ws-deliver">Ver origen en Entregar</button>
       </div>
 
       ${openTasks.length
@@ -1585,14 +1791,10 @@ function renderTasks(client: Client): string {
     </section>
 
     ${doneTasks.length
-      ? `<section class="card">
-           <div class="card-header">
-             <div>
-               <h3>Completadas recientemente</h3>
-             </div>
-           </div>
-           ${doneTasks.slice(0, 8).map((task) => renderTaskRow(task, false)).join('')}
-         </section>`
+      ? `<details class="card disclosure">
+           <summary>Archivo de tareas completadas (${doneTasks.length})</summary>
+           <div class="disclosure-body">${doneTasks.slice(0, 8).map((task) => renderTaskRow(task, false)).join('')}</div>
+         </details>`
       : ''}
   `;
 }
@@ -1654,11 +1856,26 @@ function renderTaskRecording(task: Task): string {
   `;
 }
 
+function taskPrimaryActionLabel(type: TaskType): string {
+  switch (type) {
+    case 'RECORD_VIDEO':
+      return 'Abrir teleprompter';
+    case 'REVIEW_ARTICLE':
+      return 'Revisar artículo';
+    case 'APPROVE_OPPORTUNITY':
+      return 'Ver oportunidad';
+    case 'SUBMIT_INFO':
+      return 'Abrir lectura';
+    default:
+      return 'Abrir';
+  }
+}
+
 function renderTaskRow(task: Task, showActions: boolean): string {
   const overdue = task.deadline && new Date(task.deadline).getTime() < Date.now();
   return `
     <div class="task-row ${overdue ? 'task-overdue' : ''}">
-      <div class="task-row-main">
+      <div class="task-row-main btn-open-task-action" data-task-id="${esc(task.id)}" role="button" tabindex="0">
         <div class="task-row-title">
           <span class="badge badge-progress">${TASK_TYPE_LABELS[task.type]}</span>
           <strong>${esc(task.title)}</strong>
@@ -1677,9 +1894,16 @@ function renderTaskRow(task: Task, showActions: boolean): string {
       </div>
       ${showActions
         ? `<div class="task-row-actions">
-             <button class="btn btn-secondary btn-sm btn-cancel-task" data-task-id="${esc(task.id)}">Cancelar</button>
+             <button type="button" class="btn btn-primary btn-sm btn-open-task-action" data-task-id="${esc(task.id)}">
+               ${esc(taskPrimaryActionLabel(task.type))}
+             </button>
+             <button type="button" class="btn btn-secondary btn-sm btn-cancel-task" data-task-id="${esc(task.id)}">Cancelar</button>
            </div>`
-        : ''}
+        : `<div class="task-row-actions">
+             <button type="button" class="btn btn-secondary btn-sm btn-open-task-action" data-task-id="${esc(task.id)}">
+               ${esc(taskPrimaryActionLabel(task.type))}
+             </button>
+           </div>`}
     </div>
   `;
 }

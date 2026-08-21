@@ -1,5 +1,6 @@
 import { dbService } from '../services/db';
 import { esc, escAttr, nl2br } from '../lib/escape';
+import { renderDeliveryBriefingCard } from './ClientPortal';
 
 export function renderTeleprompterModal(taskId: string): string {
   const task = dbService.getAllTasks().find(t => t.id === taskId);
@@ -72,9 +73,9 @@ export function renderCreateClientModal(): string {
   return `
     <div id="create-client-modal" class="modal-overlay">
       <div class="modal-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <h3>Crear Nuevo Cliente (Módulo B)</h3>
-          <button id="btn-close-create-client" class="btn btn-secondary btn-sm" style="border-radius: 50%; width: 32px; height: 32px; padding: 0;">✕</button>
+        <div class="modal-header">
+          <div class="modal-header-copy"><h3>Crear nuevo cliente</h3><p>Datos iniciales para abrir su espacio de trabajo y enviar la invitación.</p></div>
+          <button id="btn-close-create-client" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
         <form id="form-create-client">
@@ -109,7 +110,7 @@ export function renderCreateClientModal(): string {
             <input type="text" id="new-client-target" class="form-input" required placeholder="Fondos de Private Equity y Directores Financieros" />
           </div>
 
-          <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+          <div class="modal-footer">
             <button type="button" id="btn-cancel-create-client" class="btn btn-secondary">Cancelar</button>
             <button type="submit" class="btn btn-primary">Crear e Invitar Cliente</button>
           </div>
@@ -123,12 +124,12 @@ export function renderComparativeModal(result: any): string {
   return `
     <div id="comparative-modal" class="modal-overlay">
       <div class="modal-content" style="max-width: 850px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <div>
-            <h3>⚖️ Síntesis Dual y Análisis Comparativo (Doc 10)</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Consenso entre OpenAI GPT-4o y Claude 3.7 Sonnet con mitigación de alucinaciones.</p>
+        <div class="modal-header">
+          <div class="modal-header-copy">
+            <h3>Análisis comparativo</h3>
+            <p>Consenso entre dos modelos con contraste de divergencias.</p>
           </div>
-          <button id="btn-close-comparative" class="btn btn-secondary btn-sm" style="border-radius: 50%; width: 32px; height: 32px; padding: 0;">✕</button>
+          <button id="btn-close-comparative" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
         <div class="grid-2" style="margin-bottom: 1.25rem;">
@@ -170,12 +171,12 @@ export function renderChallengeModal(thesisTitle: string, challenge: any): strin
   return `
     <div id="challenge-modal" class="modal-overlay">
       <div class="modal-content" style="max-width: 650px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <div>
-            <h3>⚔️ The Thesis Challenger Agent (Doc 10)</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">${esc(thesisTitle)}</p>
+        <div class="modal-header">
+          <div class="modal-header-copy">
+            <h3>Stress-test de la tesis</h3>
+            <p>${esc(thesisTitle)}</p>
           </div>
-          <button id="btn-close-challenge" class="btn btn-secondary btn-sm" style="border-radius: 50%; width: 32px; height: 32px; padding: 0;">✕</button>
+          <button id="btn-close-challenge" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
         <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.25rem;">
@@ -200,9 +201,9 @@ export function renderAddEvidenceModal(clientId: string): string {
   return `
     <div id="add-evidence-modal" class="modal-overlay">
       <div class="modal-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <h3>Añadir Evidencia al Vault (F7-D07 / F8-D08)</h3>
-          <button id="btn-close-evidence" class="btn btn-secondary btn-sm" style="border-radius: 50%; width: 32px; height: 32px; padding: 0;">✕</button>
+        <div class="modal-header">
+          <div class="modal-header-copy"><h3>Añadir evidencia</h3><p>Registra una prueba verificable que pueda respaldar afirmaciones públicas.</p></div>
+          <button id="btn-close-evidence" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
         <form id="form-add-evidence" data-client-id="${clientId}">
@@ -363,12 +364,12 @@ export function renderContentEditorModal(contentId: string): string {
   return `
     <div id="content-editor-modal" class="modal-overlay">
       <div class="modal-content" style="max-width: 800px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <div>
-            <h3>📝 Editor y Validador de Contenido (Doc 13 & 14)</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Revisa, pule el tono y ajusta el estado del entregable de autoridad.</p>
+        <div class="modal-header">
+          <div class="modal-header-copy">
+            <h3>Editor de contenido</h3>
+            <p>Revisa, pule el tono y ajusta el estado del entregable.</p>
           </div>
-          <button id="btn-close-content-editor" class="btn btn-secondary btn-sm" style="border-radius: 50%; width: 32px; height: 32px; padding: 0;">✕</button>
+          <button id="btn-close-content-editor" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
         <form id="form-edit-content" data-content-id="${content.id}">
@@ -394,6 +395,7 @@ export function renderContentEditorModal(contentId: string): string {
                 <option value="VIDEO_SCRIPT" ${content.type === 'VIDEO_SCRIPT' ? 'selected' : ''}>Guion de Video (Teleprompter)</option>
                 <option value="LINKEDIN_ARTICLE" ${content.type === 'LINKEDIN_ARTICLE' ? 'selected' : ''}>Artículo de Fondo</option>
                 <option value="THOUGHT_LEADERSHIP" ${content.type === 'THOUGHT_LEADERSHIP' ? 'selected' : ''}>Columna de Opinión</option>
+                <option value="ACADEMIC_PAPER" ${content.type === 'ACADEMIC_PAPER' ? 'selected' : ''}>Artículo científico / working paper</option>
               </select>
             </div>
 
@@ -419,13 +421,13 @@ export function renderContentEditorModal(contentId: string): string {
             <input type="text" id="edit-content-notes" class="form-input" value="${escAttr(content.managerNotes || '')}" placeholder="Ej. Grabar con energía en los primeros 8 segundos..." />
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem;">
-            <span style="font-size: 0.8rem; color: var(--text-muted);">
+          <div class="modal-footer">
+            <span class="muted small">
               Última edición: ${new Date(content.updatedAt).toLocaleTimeString()}
             </span>
-            <div style="display: flex; gap: 0.75rem;">
+            <div class="row-actions">
               <button type="button" id="btn-cancel-content-editor" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-primary">💾 Guardar Cambios</button>
+              <button type="submit" class="btn btn-primary">Guardar cambios</button>
             </div>
           </div>
         </form>
@@ -445,12 +447,12 @@ export function renderFeedbackModal(targetId: string, itemType: 'TASK' | 'OPPORT
   return `
     <div id="feedback-modal" class="modal-overlay">
       <div class="modal-content" style="max-width: 550px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-          <div>
+        <div class="modal-header">
+          <div class="modal-header-copy">
             <h3>${title}</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">${subtitle}</p>
+            <p>${subtitle}</p>
           </div>
-          <button id="btn-close-feedback" class="btn btn-secondary btn-sm" style="border-radius: 50%; width: 32px; height: 32px; padding: 0;">✕</button>
+          <button id="btn-close-feedback" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
         <form id="form-submit-feedback" data-target-id="${targetId}" data-type="${itemType}" data-task-id="${escAttr(taskId || '')}">
@@ -459,7 +461,7 @@ export function renderFeedbackModal(targetId: string, itemType: 'TASK' | 'OPPORT
             <textarea id="feedback-notes" class="form-textarea" rows="4" required placeholder="${itemType === 'CONTENT' ? 'Ej. El tono es demasiado comercial; prefiero un enfoque más técnico en la sección 2…' : 'Ej. Me gustaría enfatizar más el aspecto de la inversión de la carga de la prueba…'}"></textarea>
           </div>
 
-          <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem;">
+          <div class="modal-footer">
             <button type="button" id="btn-cancel-feedback" class="btn btn-secondary">Cancelar</button>
             <button type="submit" class="btn btn-primary">${itemType === 'CONTENT' ? 'Enviar rechazo' : 'Enviar observaciones'}</button>
           </div>
@@ -476,12 +478,12 @@ export function renderContentPreviewModal(contentId: string): string {
   return `
     <div id="content-preview-modal" class="modal-overlay">
       <div class="modal-content" style="max-width: 720px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-          <div>
+        <div class="modal-header">
+          <div class="modal-header-copy">
             <h3>Vista previa del contenido</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Solo lectura. Para editar, tu Brand Manager usa el editor de producción.</p>
+            <p>Solo lectura. El editor de Producción conserva la versión de trabajo.</p>
           </div>
-          <button id="btn-close-content-preview" class="btn btn-secondary btn-sm" style="border-radius: 50%; width: 32px; height: 32px; padding: 0;">✕</button>
+          <button id="btn-close-content-preview" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
         <div class="field-block">
@@ -512,7 +514,7 @@ export function renderContentPreviewModal(contentId: string): string {
           ? `<div class="field-block"><label class="form-label">Notas del manager</label><p class="muted small">${esc(content.managerNotes)}</p></div>`
           : ''}
 
-        <div style="display: flex; justify-content: flex-end; margin-top: 1.25rem;">
+        <div class="modal-footer">
           <button type="button" id="btn-close-content-preview-bottom" class="btn btn-primary">Cerrar</button>
         </div>
       </div>
@@ -528,14 +530,14 @@ export function renderAddTaskModal(clientId: string): string {
   return `
     <div id="add-task-modal" class="modal-overlay">
       <div class="modal-content" style="max-width: 560px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-          <div>
+        <div class="modal-header">
+          <div class="modal-header-copy">
             <h3>Asignar tarea al cliente</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">
+            <p>
               ${client ? esc(client.displayName) : 'Cliente'} verá esta tarea en su portal de inmediato.
             </p>
           </div>
-          <button id="btn-close-add-task" class="btn btn-secondary btn-sm" style="border-radius: 50%; width: 32px; height: 32px; padding: 0;">✕</button>
+          <button id="btn-close-add-task" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
         <form id="form-add-task" data-client-id="${esc(clientId)}" data-thesis-id="${esc(thesis?.id || '')}">
@@ -570,7 +572,7 @@ export function renderAddTaskModal(clientId: string): string {
             <input type="date" id="task-deadline" class="form-input" />
           </div>
 
-          <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem;">
+          <div class="modal-footer">
             <button type="button" id="btn-cancel-add-task" class="btn btn-secondary">Cancelar</button>
             <button type="submit" class="btn btn-primary">Asignar al cliente</button>
           </div>
@@ -580,4 +582,40 @@ export function renderAddTaskModal(clientId: string): string {
   `;
 }
 
+/** Vista previa del briefing tal como lo verá el cliente, antes de enviar. */
+export function renderDeliveryPreviewModal(packageId: string): string {
+  const pkg = dbService.getDeliveryById(packageId);
+  if (!pkg) {
+    return `
+      <div class="modal-overlay">
+        <div class="modal-content">
+          <p>Briefing no encontrado.</p>
+          <button type="button" class="btn btn-secondary btn-close-delivery-preview">Cerrar</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="modal-overlay" id="delivery-preview-modal">
+      <div class="modal-content" style="max-width: 640px;">
+        <div class="card-header" style="margin-bottom: 1rem;">
+          <div>
+            <h3>Vista previa del briefing</h3>
+            <p class="muted small">Así lo verá el cliente en su portal. Confirma para materializar tareas y notificar.</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm btn-close-delivery-preview" aria-label="Cerrar">✕</button>
+        </div>
+        ${renderDeliveryBriefingCard(pkg, { preview: true })}
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; flex-wrap: wrap;">
+          <button type="button" class="btn btn-secondary btn-close-delivery-preview">Seguir editando</button>
+          <button type="button" class="btn btn-primary btn-confirm-send-delivery" data-package-id="${esc(pkg.id)}"
+                  ${pkg.items.length ? '' : 'disabled'}>
+            Confirmar y enviar
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
 

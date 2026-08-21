@@ -16,6 +16,7 @@ import { authService } from './auth';
 import { dbService } from './db';
 import { calculateStrategicScore } from './scoring';
 import { assertAiQuota, assertComparativeAllowed } from './entitlements';
+import { academicDraftSkeleton } from '../domain/scientificFocusCore';
 
 class AIService {
   private sessionId: string | null = null;
@@ -313,13 +314,18 @@ class AIService {
   public async generateContentDraft(
     thesis: PositioningThesis,
     topicTitle: string,
-    format: 'VIDEO_SCRIPT' | 'LINKEDIN_ARTICLE'
+    format: 'VIDEO_SCRIPT' | 'LINKEDIN_ARTICLE' | 'ACADEMIC_PAPER',
+    extras?: { roleAngle?: string; venueLabel?: string; why?: string }
   ): Promise<Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>> {
     let body = '';
+    const academicHint =
+      format === 'ACADEMIC_PAPER'
+        ? `\nFormato: artículo científico / working paper (${extras?.venueLabel || 'working paper'}).\nÁngulo de rol: ${extras?.roleAngle || thesis.expertIdentity}.\nPor qué centrarnos aquí: ${extras?.why || 'inteligencia del radar + tesis'}.\nEstructura: abstract, problema, marco, evidencia verificable, implicaciones, límites, referencias. No inventes citas.`
+        : '';
     try {
       const live = await this.complete(
         'CONTENT_TASKS',
-        `Redacta ${format} en voz ${thesis.voiceAndTone}. No inventes credenciales fuera de: ${thesis.proofPoints.join(' | ')}.\nTema: ${topicTitle}\nIdentidad: ${thesis.expertIdentity}\nJSON { "title": string, "body": string }`
+        `Redacta ${format} en voz ${thesis.voiceAndTone}. No inventes credenciales fuera de: ${thesis.proofPoints.join(' | ')}.\nTema: ${topicTitle}\nIdentidad: ${thesis.expertIdentity}${academicHint}\nJSON { "title": string, "body": string }`
       );
       if (live) {
         const parsed = JSON.parse(live.text);
@@ -349,7 +355,7 @@ class AIService {
           title: parsed.title || topicTitle,
           body,
           teleprompterScript: format === 'VIDEO_SCRIPT' ? body : undefined,
-          targetPlatform: 'LinkedIn',
+          targetPlatform: format === 'ACADEMIC_PAPER' ? 'LegalJournal' : 'LinkedIn',
           status: 'AI_GENERATED',
           managerNotes: 'Generado con modelo conectado. Revisión humana obligatoria.',
         };
@@ -361,6 +367,15 @@ class AIService {
     body =
       format === 'VIDEO_SCRIPT'
         ? `[GANCHO]\n${topicTitle}\n\n[NÚCLEO]\nDesde la práctica en ${thesis.domain}, tres puntos no negociables para ${thesis.targetAudience}.\n\n[CIERRE]\n${thesis.expertIdentity}.`
+        : format === 'ACADEMIC_PAPER'
+          ? academicDraftSkeleton({
+              title: topicTitle,
+              roleAngle: extras?.roleAngle || thesis.expertIdentity,
+              venueLabel: extras?.venueLabel || 'Working paper',
+              why: extras?.why || thesis.objective,
+              proofPoints: thesis.proofPoints,
+              voice: thesis.voiceAndTone,
+            })
         : `# ${topicTitle}\n\nPor ${thesis.expertIdentity}\n\nBorrador manual (IA no conectada). Completa con evidencia confirmada de la tesis.`;
 
     return {
@@ -371,9 +386,11 @@ class AIService {
       title: topicTitle,
       body,
       teleprompterScript: format === 'VIDEO_SCRIPT' ? body : undefined,
-      targetPlatform: 'LinkedIn',
+      targetPlatform: format === 'ACADEMIC_PAPER' ? 'LegalJournal' : 'LinkedIn',
       status: 'DRAFT',
-      managerNotes: 'Borrador en modo degradado. Conecta IA para generación real.',
+      managerNotes: format === 'ACADEMIC_PAPER'
+        ? `Borrador científico (${extras?.venueLabel || 'working paper'}). Revisión humana; no cites fuentes no verificadas.`
+        : 'Borrador en modo degradado. Conecta IA para generación real.',
     };
   }
 }

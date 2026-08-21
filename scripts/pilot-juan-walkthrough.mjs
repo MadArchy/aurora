@@ -1,5 +1,5 @@
 /**
- * Recorrido piloto Juan — DoD §7 (PLAN_UNIFICADO_POSTURA.md).
+ * Recorrido piloto Juan — DoD §7 (docs/product/plan-unificado.md).
  * Uso: node scripts/pilot-juan-walkthrough.mjs
  *      npm run checklist:pilot
  */

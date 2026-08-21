@@ -6,7 +6,7 @@ import { mapOpportunityLifecycle } from '../domain/opportunityLifecycle';
 import { notificationService } from '../services/notifications';
 import { esc } from '../lib/escape';
 import { icon } from '../lib/icons';
-import { TAB_META, isWorkspaceTab, normalizeTab } from './PageHeader';
+import { isWorkspaceTab, normalizeTab } from './PageHeader';
 
 type NavItem = { id: string; label: string; icon: string; badge?: number };
 
@@ -32,11 +32,11 @@ function portfolioNav(activeTab: string): string {
   const pendingClients = dbService.getPortfolioSummary().filter((s) => s.attentionScore > 0).length;
   return `
     ${renderNavGroup('Cartera', [
-      { id: 'dashboard', label: 'Inicio', icon: 'home', badge: pendingClients },
+      { id: 'dashboard', label: 'Hoy', icon: 'home', badge: pendingClients },
       { id: 'clients', label: 'Clientes', icon: 'users' },
     ], activeTab)}
-    ${renderNavGroup('Configuración', [
-      { id: 'ai-center', label: 'Centro de IA', icon: 'sparkles' },
+    ${renderNavGroup('Sistema', [
+      { id: 'ai-center', label: 'IA y operación', icon: 'sparkles' },
     ], activeTab)}
   `;
 }
@@ -47,7 +47,7 @@ function workspaceNav(activeTab: string, clientId: string): string {
   const unreviewed = dbService
     .getSignalsByClient(clientId)
     .filter((s) => s.managerDecision === 'UNREVIEWED' && s.status !== 'DISCARDED').length;
-  const sourceCount = dbService.getSourcesByClient(clientId).length;
+  const sourceErrors = dbService.getSourcesByClient(clientId).filter((source) => source.status === 'ERROR').length;
   const openTasks = dbService.getTasksByClient(clientId).filter(
     (t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
   ).length;
@@ -56,16 +56,15 @@ function workspaceNav(activeTab: string, clientId: string): string {
   ).length;
 
   return `
-    ${renderNavGroup('Trabajo del día', [
+    ${renderNavGroup('Flujo de trabajo', [
       { id: 'ws-briefing', label: 'Resumen', icon: 'clipboard' },
-      { id: 'ws-sources', label: 'Fuentes', icon: 'rss', badge: sourceCount || undefined },
       { id: 'ws-radar', label: 'Radar', icon: 'radar', badge: unreviewed },
       { id: 'ws-deliver', label: 'Entregar', icon: 'send', badge: pendingCuration + draftItems || undefined },
-      { id: 'ws-production', label: 'Producción', icon: 'film', badge: inProduction || undefined },
-      { id: 'ws-tasks', label: 'Tareas', icon: 'checkSquare', badge: openTasks || undefined },
+      { id: 'ws-production', label: 'Producción', icon: 'film', badge: inProduction + openTasks || undefined },
     ], activeTab)}
-    ${renderNavGroup('Cliente', [
-      { id: 'ws-positioning', label: 'Posicionamiento', icon: 'target' },
+    ${renderNavGroup('Contexto', [
+      { id: 'ws-positioning', label: 'Identidad', icon: 'target' },
+      ...(sourceErrors ? [{ id: 'ws-sources', label: 'Fuentes con alerta', icon: 'rss', badge: sourceErrors }] : []),
     ], activeTab)}
   `;
 }
@@ -86,17 +85,14 @@ function clientNav(activeTab: string, clientId?: string | null): string {
     : 0;
 
   return `
-    ${renderNavGroup('Mi espacio', [
-      { id: 'client-home', label: 'Inicio', icon: 'home' },
-      { id: 'client-feed', label: 'Mis tareas', icon: 'checkSquare', badge: openTasks || undefined },
-      { id: 'client-content', label: 'Contenido', icon: 'fileText', badge: pendingContent || undefined },
+    ${renderNavGroup('Mi semana', [
+      { id: 'client-home', label: 'Esta semana', icon: 'home', badge: openTasks || undefined },
+      { id: 'client-content', label: 'Revisar', icon: 'fileText', badge: pendingContent || undefined },
       { id: 'client-opps', label: 'Oportunidades', icon: 'briefcase', badge: openOpps || undefined },
     ], activeTab)}
-    ${renderNavGroup('Mi perfil', [
-      { id: 'client-profile', label: 'Mi perfil', icon: 'users' },
-      { id: 'client-thesis', label: 'Posicionamiento', icon: 'target' },
+    ${renderNavGroup('Mi trayectoria', [
+      { id: 'client-thesis', label: 'Mi posicionamiento', icon: 'target' },
       { id: 'client-results', label: 'Resultados', icon: 'chart' },
-      { id: 'client-library', label: 'Biblioteca', icon: 'book' },
     ], activeTab)}
   `;
 }
@@ -139,7 +135,6 @@ export function renderAppShell(
   const aiConfig = aiService.getConfig();
   const isAdmin = user.role === 'ADMIN';
   const unread = notificationService.unreadCount(user.uid, user.clientId);
-  const pageTitle = TAB_META[activeTab]?.title || 'POSTURA';
   const clientIdForCampaign = !isAdmin ? user.clientId : (activeClientId !== 'all' ? activeClientId : null);
   const clientCampaigns = clientIdForCampaign ? dbService.getCampaignsByClient(clientIdForCampaign) : [];
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
@@ -153,18 +148,12 @@ export function renderAppShell(
   else sidebarNav = portfolioNav(activeTab);
 
   const breadcrumb = !isAdmin
-    ? `<span class="breadcrumb-root">Mi espacio</span>
-       <span class="breadcrumb-sep">/</span>
-       <span class="breadcrumb-current">${esc(pageTitle)}</span>`
+    ? `<span class="breadcrumb-root">Mi espacio</span>`
     : inWorkspace && workspaceClient
       ? `<button type="button" class="breadcrumb-link" data-go-portfolio="1">Cartera</button>
          <span class="breadcrumb-sep">/</span>
-         <span class="breadcrumb-root">${esc(workspaceClient.displayName)}</span>
-         <span class="breadcrumb-sep">/</span>
-         <span class="breadcrumb-current">${esc(pageTitle)}</span>`
-      : `<span class="breadcrumb-root">Cartera</span>
-         <span class="breadcrumb-sep">/</span>
-         <span class="breadcrumb-current">${esc(pageTitle)}</span>`;
+         <span class="breadcrumb-current">${esc(workspaceClient.displayName)}</span>`
+      : `<span class="breadcrumb-root">Cartera</span>`;
 
   const firebaseCfg = FIREBASE_ENABLED ? readFirebaseConfig() : null;
   const firebaseBadge = firebaseCfg

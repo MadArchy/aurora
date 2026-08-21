@@ -2,10 +2,11 @@ import type { DiscoveredSource } from './sourceDiscovery';
 import type { ProfileKeywords } from './sourceDiscovery';
 import type { ExtendedDiscoveryProfile } from '../domain/extendedSourceDiscoveryCore';
 import { youtubeFeedUrlFromProfileUrl, youtubeSearchSourceUrl } from '../domain/youtubeUrlCore';
-import { youtubeChannelsUrl, youtubeResolveUrl, youtubeSearchUrl, youtubeStatusUrl, isProductionSourceApi } from './sourceApi';
+import { youtubeChannelsUrl, youtubeResolveUrl, youtubeSearchUrl, youtubeStatusUrl, isProductionSourceApi, sourceApiAuthHeaders } from './sourceApi';
 
 export async function isYoutubeApiAvailable(): Promise<boolean> {
-  try {    const response = await fetch(youtubeStatusUrl());
+  try {
+    const response = await fetch(youtubeStatusUrl(), { headers: await sourceApiAuthHeaders() });
     if (!response.ok) return false;
     const data = (await response.json()) as { available?: boolean };
     return Boolean(data.available);
@@ -24,9 +25,10 @@ async function postYoutube<T>(action: 'resolve' | 'search' | 'channels', body: R
   const payload = isProductionSourceApi() ? { action, ...body } : body;
   const response = await fetch(youtubeActionUrl(action), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await sourceApiAuthHeaders(true),
     body: JSON.stringify(payload),
-  });  const data = (await response.json()) as T & { error?: string };
+  });
+  const data = (await response.json()) as T & { error?: string };
   if (!response.ok) {
     return { ok: false, error: data.error || 'YOUTUBE_API_FAILED' };
   }

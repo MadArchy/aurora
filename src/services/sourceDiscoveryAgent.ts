@@ -11,6 +11,7 @@ import { enrichYoutubeDiscoverySources } from './youtubeDiscovery';
 import { buildCuratedPresetsForProfile } from './industryPresets';
 import { discoverViaTavily, getCachedTavilySources } from './tavilyDiscovery';
 import type { Client, PositioningThesis } from '../types';
+import { isSourceEligibleForIngest } from '../domain/sourceIngestCore';
 
 export type SourceAgentPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 
@@ -275,14 +276,5 @@ export function profileChangedSinceLastRun(
 }
 
 export function sourcesDueForIngest(clientId: string, now = Date.now()): import('../types').Source[] {
-  return dbService
-    .getSourcesByClient(clientId)
-    .filter((source) => {
-      if (!source.url || source.status === 'ARCHIVED' || source.status === 'PAUSED' || source.status === 'ERROR') {
-        return false;
-      }
-      if (!source.lastFetchedAt) return true;
-      const elapsedMs = now - new Date(source.lastFetchedAt).getTime();
-      return elapsedMs >= source.fetchIntervalMinutes * 60_000;
-    });
+  return dbService.getSourcesByClient(clientId).filter((source) => isSourceEligibleForIngest(source, now));
 }

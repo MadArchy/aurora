@@ -9,11 +9,19 @@ service cloud.firestore {
       return signedIn() && request.auth.token.role == 'ADMIN';
     }
 
+    function isClient() {
+      return signedIn() && request.auth.token.role == 'CLIENT';
+    }
+
     function ownsClient(clientId) {
       return signedIn() && (
         request.auth.token.role == 'ADMIN' ||
         request.auth.token.clientId == clientId
       );
+    }
+
+    function sameOrg() {
+      return signedIn() && request.auth.token.organizationId != null;
     }
 
     match /organizations/{orgId} {
@@ -26,13 +34,115 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /clients/{clientId}/{collection=**}/{docId} {
-      allow read, write: if ownsClient(clientId);
+    // --- Manager-only (radar, curación, fuentes) ---
+    match /clients/{clientId}/sources/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
+    match /clients/{clientId}/signals/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
+    match /clients/{clientId}/curation/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
+    match /clients/{clientId}/theses/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
+    match /clients/{clientId}/campaigns/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
+    match /clients/{clientId}/campaignMilestones/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
+    match /clients/{clientId}/advices/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
+
+    // --- Entregas: manager envía; cliente puede marcar leído ---
+    match /clients/{clientId}/deliveries/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isClient()
+        && request.auth.token.clientId == clientId
+        && resource.data.status == 'SENT'
+        && request.resource.data.status == 'ACKNOWLEDGED'
+      );
+    }
+
+    // --- Notificaciones: lectura compartida; escritura desde app (callable en prod ideal) ---
+    match /clients/{clientId}/notifications/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create: if ownsClient(clientId);
+      allow update, delete: if isAdmin();
+    }
+
+    // --- Tareas: manager crea; cliente actualiza progreso ---
+    match /clients/{clientId}/tasks/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create, delete: if isAdmin();
+      allow update: if ownsClient(clientId);
+    }
+
+    // --- Contenido: manager produce; cliente revisa ---
+    match /clients/{clientId}/contents/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create, delete: if isAdmin();
+      allow update: if ownsClient(clientId);
+    }
+
+    // --- Oportunidades: manager envía; cliente decide ---
+    match /clients/{clientId}/opportunities/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create, delete: if isAdmin();
+      allow update: if ownsClient(clientId);
+    }
+
+    // --- Perfil / dossier ---
+    match /clients/{clientId}/profile/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if ownsClient(clientId);
+    }
+    match /clients/{clientId}/dossier/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
+
+    // --- Evidencia, resultados, feedback (cliente puede aportar) ---
+    match /clients/{clientId}/evidence/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create: if ownsClient(clientId);
+      allow update, delete: if isAdmin();
+    }
+    match /clients/{clientId}/results/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create: if ownsClient(clientId);
+      allow update, delete: if isAdmin();
+    }
+    match /clients/{clientId}/feedbackEvents/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create: if ownsClient(clientId);
+      allow update, delete: if isAdmin();
+    }
+    match /clients/{clientId}/signalOutcomes/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create, update: if ownsClient(clientId);
+      allow delete: if isAdmin();
+    }
+    match /clients/{clientId}/proofWallItems/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
     }
 
     match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if signedIn();
+      allow create: if isAdmin();
       allow update, delete: if false;
     }
   }

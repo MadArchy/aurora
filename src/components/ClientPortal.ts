@@ -5,37 +5,41 @@ import { renderTaskMetaBadges, KPI_LABELS, kpiLabel } from '../lib/campaignLabel
 import { icon } from '../lib/icons';
 import { renderClientProfileBody } from './ClientProfilePanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
-import { renderClientOpportunitiesBody, renderOpportunityCard, renderOpportunitySpotlight } from './OpportunityPanel';
+import { renderClientOpportunitiesBody, renderOpportunityCard } from './OpportunityPanel';
 import { renderKpiHomeDashboard, renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
 import { CAMP_ADOPTION } from '../data/juanCampaignSeed';
-import { pickWeeklyLinkedInPostTask } from '../domain/clientHomeCore';
+import { deliveryItemKindLabel, deliveryStatusLabel } from '../domain/deliveryCore';
+import type { DeliveryPackage } from '../types';
 
 function clientPage(tab: string, body: string): string {
   return renderPage(tab, body);
 }
 
-/** Briefings que el manager ya envió a este cliente. */
-function renderReceivedBriefings(clientId: string, limit = 3): string {
-  const deliveries = dbService.getSentDeliveriesByClient(clientId).slice(0, limit);
-  if (!deliveries.length) {
-    return '<p class="empty-state">Tu Brand Manager aún no te ha enviado un briefing.</p>';
-  }
-
-  return deliveries.map((pkg) => `
-    <article class="briefing-card">
+/** Tarjeta de briefing (cliente y preview del manager). */
+export function renderDeliveryBriefingCard(
+  pkg: DeliveryPackage,
+  options: { showAckControls?: boolean; preview?: boolean } = {}
+): string {
+  const { showAckControls = false, preview = false } = options;
+  return `
+    <article class="briefing-card ${preview ? 'briefing-card-preview' : ''}">
       <header class="briefing-head">
         <div>
           <h4>${esc(pkg.title)}</h4>
           <p class="muted small">
-            ${new Date(pkg.sentAt || pkg.createdAt).toLocaleDateString('es', { day: '2-digit', month: 'long' })}
-            · ${pkg.items.length} ítem(s)
+            ${pkg.periodLabel ? `${esc(pkg.periodLabel)} · ` : ''}
+            ${pkg.items.length} ítem(s)
+            ${preview ? ' · <span class="badge badge-progress">Vista previa</span>' : ''}
+            ${!preview ? ` · ${esc(deliveryStatusLabel(pkg.status))}` : ''}
           </p>
         </div>
-        ${pkg.status === 'SENT'
+        ${showAckControls && pkg.status === 'SENT'
           ? `<button class="btn btn-secondary btn-sm btn-acknowledge-delivery" data-package-id="${esc(pkg.id)}">
                Marcar como leído
              </button>`
-          : '<span class="badge badge-ready">Leído</span>'}
+          : !preview && pkg.status === 'ACKNOWLEDGED'
+            ? '<span class="badge badge-ready">Leído</span>'
+            : ''}
       </header>
 
       ${pkg.strategicNote
@@ -43,19 +47,43 @@ function renderReceivedBriefings(clientId: string, limit = 3): string {
         : ''}
 
       <ul class="briefing-items">
-        ${pkg.items.map((item) => `
+        ${pkg.items
+          .map(
+            (item) => `
           <li>
-            <span class="badge badge-progress">${esc(item.kind)}</span>
+            <span class="badge badge-progress">${esc(deliveryItemKindLabel(item.kind))}</span>
             <strong>${esc(item.title)}</strong>
             ${item.rationale
               ? `<details class="briefing-rationale"><summary>Por qué se incluyó</summary><p class="muted small">${esc(item.rationale)}</p></details>`
               : ''}
-            ${item.url ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Ver fuente</a>` : ''}
-          </li>
-        `).join('')}
+            ${item.url ? `<a href="${safeHref(item.url)}" target="_blank" rel="noopener noreferrer">Ver fuente</a>` : ''}
+          </li>`
+          )
+          .join('')}
       </ul>
+
+      ${showAckControls && pkg.status === 'SENT'
+        ? `<div class="briefing-ack-note">
+             <label class="form-label" for="ack-note-${esc(pkg.id)}">Nota para tu Brand Manager (opcional)</label>
+             <textarea id="ack-note-${esc(pkg.id)}" class="form-textarea input-ack-note" data-package-id="${esc(pkg.id)}" rows="2"
+                       placeholder="Ej. Lo reviso el jueves / necesito más contexto en el punto 2"></textarea>
+           </div>`
+        : ''}
+      ${pkg.clientAckNote
+        ? `<p class="muted small"><em>Tu nota: ${esc(pkg.clientAckNote)}</em></p>`
+        : ''}
     </article>
-  `).join('');
+  `;
+}
+
+/** Briefings que el manager ya envió a este cliente. */
+function renderReceivedBriefings(clientId: string, limit = 5): string {
+  const deliveries = dbService.getSentDeliveriesByClient(clientId).slice(0, limit);
+  if (!deliveries.length) {
+    return '<p class="empty-state">Tu Brand Manager aún no te ha enviado un briefing.</p>';
+  }
+
+  return deliveries.map((pkg) => renderDeliveryBriefingCard(pkg, { showAckControls: true })).join('');
 }
 
 export function renderClientPortal(
@@ -170,68 +198,12 @@ function renderCampaignContext(campaignId: string): string {
   const camp = dbService.getCampaignById(campaignId);
   if (!camp) return '';
   return `
-    <div class="info-strip" style="margin-bottom: 1rem;">
+    <div class="info-strip">
       <span>
         Campaña activa: <strong>${esc(camp.name)}</strong> — tareas y contenido filtrados.
         Cambia arriba entre Adopción IA y PI/Patentes.
       </span>
     </div>
-  `;
-}
-
-function renderWeeklyLinkedInSpotlight(
-  clientId: string,
-  tasks: ReturnType<typeof dbService.getTasksForClient>,
-  campaignId: string
-): string {
-  const contents = dbService.getContentForClient(clientId, campaignId);
-  const currentDay = dbService.getCurrentPlanDay(campaignId);
-  const pick = pickWeeklyLinkedInPostTask(tasks, contents, currentDay);
-  if (!pick) return '';
-
-  const { task, content } = pick;
-  const isChecklist = content.format === 'checklist';
-  const preview = content.body.length > 320 ? `${content.body.slice(0, 317)}…` : content.body;
-
-  return `
-    <section class="card linkedin-spotlight">
-      <div class="card-header">
-        <div>
-          <h3>${icon('checkSquare', 16)} Post LinkedIn de la semana</h3>
-          <p>Aprueba o edita el borrador preparado en tu voz — sin ir a la bandeja de tareas.</p>
-        </div>
-        <span class="badge ${isChecklist ? 'badge-ready' : 'badge-progress'}">
-          ${isChecklist ? 'Checklist' : 'Post'}
-        </span>
-      </div>
-      <article class="linkedin-spotlight-body">
-        <h4>${esc(content.title.replace(/^Post:\s*/i, ''))}</h4>
-        <p class="muted small">
-          ${icon('clock', 13)} ${esc(formatDeadline(task.deadline))}
-          · ~${task.estimatedMinutes} min
-          ${content.pillar ? ` · ${esc(content.pillar.replace(/_/g, ' '))}` : ''}
-        </p>
-        <div class="linkedin-spotlight-preview">${esc(preview)}</div>
-        <div class="linkedin-spotlight-actions">
-          <button
-            type="button"
-            class="btn btn-secondary btn-sm btn-open-article-review"
-            data-content-id="${esc(content.id)}"
-            data-task-id="${esc(task.id)}"
-          >
-            Editar borrador
-          </button>
-          <button
-            type="button"
-            class="btn btn-success btn-sm btn-approve-article-task"
-            data-content-id="${esc(content.id)}"
-            data-task-id="${esc(task.id)}"
-          >
-            Aprobar sin cambios
-          </button>
-        </div>
-      </article>
-    </section>
   `;
 }
 
@@ -276,66 +248,77 @@ function renderClientHomeBody(
   campaignId: string
 ): string {
   const open = tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
-  const urgent = open.slice(0, 3);
+  const priorities = open.slice(0, 3);
   const clientId = client?.id || '';
 
   return `
-      <div class="card hero-card">
+      <div class="card hero-card client-week-hero">
         <div class="hero-card-inner">
           <div>
             <h2>Hola, ${esc(client?.firstName)}</h2>
             <p>${open.length
-              ? `Tienes <strong>${open.length} acción${open.length === 1 ? '' : 'es'}</strong> pendiente${open.length === 1 ? '' : 's'} en esta campaña.`
-              : 'No tienes acciones pendientes. Tu Brand Manager está preparando el siguiente lote.'}</p>
+              ? `Esta semana tienes <strong>${open.length} acción${open.length === 1 ? '' : 'es'}</strong>. Empieza por la primera prioridad.`
+              : 'Tu semana está al día. Aquí aparecerá el siguiente briefing cuando esté listo.'}</p>
           </div>
           <div class="hero-card-meta">
-            <button type="button" class="btn btn-secondary btn-sm" data-tab="client-profile">
-              ${icon('users', 15)} Mi perfil
+            <button type="button" class="btn btn-secondary btn-sm" data-tab="client-thesis">
+              ${icon('target', 15)} Mi posicionamiento
             </button>
-            <button type="button" class="btn btn-primary btn-sm" data-tab="client-feed">
-              ${icon('checkSquare', 15)} Ver mis tareas
+            <button type="button" class="btn btn-primary btn-sm" data-tab="client-content">
+              ${icon('fileText', 15)} Revisar contenido
             </button>
           </div>
         </div>
       </div>
 
       ${renderCampaignContext(campaignId)}
-      ${renderWeeklyLinkedInSpotlight(clientId, tasks, campaignId)}
-      ${renderOpportunitySpotlight(clientId)}
-      ${renderKpiHomeDashboard(clientId)}
-      ${renderClientStats(campaignId, tasks, clientId)}
-      ${renderPlanProgress(campaignId)}
-      ${renderWeeklyStrip(campaignId, tasks)}
 
-      ${urgent.length ? `
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3>Acciones urgentes</h3>
-            <p>Lo primero que conviene resolver.</p>
-          </div>
-          <button type="button" class="btn btn-ghost btn-sm" data-tab="client-feed">Ver todas</button>
-        </div>
-        <ul class="urgent-task-list">
-          ${urgent.map((t) => `
-            <li>
-              <strong>${esc(t.title)}</strong>
-              ${renderTaskMetaBadges(t)}
-              <span class="muted small">${icon('clock', 13)} ${esc(formatDeadline(t.deadline))}</span>
-            </li>
-          `).join('')}
-        </ul>
-      </div>` : ''}
-
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3>Briefings de tu Brand Manager</h3>
-            <p>Selección curada con el motivo de cada ítem.</p>
+      <section class="card">
+        <div class="section-heading">
+          <div class="section-heading-copy">
+            <p class="section-kicker">Tu foco</p>
+            <h2>Lo siguiente que debes hacer</h2>
+            <p>Una sola cola, ordenada para que puedas avanzar sin buscar entre varias vistas.</p>
           </div>
         </div>
-        ${renderReceivedBriefings(clientId)}
-      </div>
+        ${priorities.length
+          ? `<div class="priority-list">
+               ${priorities.map((task) => `
+                 <div class="priority-item">
+                   <div class="priority-copy">
+                     <strong>${esc(task.title)}</strong>
+                     <span>${esc(formatDeadline(task.deadline))} · ~${task.estimatedMinutes} min</span>
+                     ${renderTaskMetaBadges(task)}
+                   </div>
+                   <button type="button" class="btn btn-primary btn-sm btn-open-task-action" data-task-id="${esc(task.id)}">
+                     ${task.type === 'RECORD_VIDEO' ? 'Abrir teleprompter' : task.type === 'REVIEW_ARTICLE' ? 'Revisar artículo' : task.type === 'APPROVE_OPPORTUNITY' ? 'Ver oportunidad' : 'Abrir acción'}
+                   </button>
+                 </div>
+               `).join('')}
+             </div>`
+          : '<p class="empty-state">No tienes acciones pendientes por ahora.</p>'}
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div class="section-heading-copy">
+            <p class="section-kicker">Contexto</p>
+            <h2>Último briefing</h2>
+            <p>La selección más reciente de tu Brand Manager y por qué importa.</p>
+          </div>
+        </div>
+        ${renderReceivedBriefings(clientId, 1)}
+      </section>
+
+      <details class="card disclosure">
+        <summary>Progreso, semana y métricas</summary>
+        <div class="disclosure-body content-stack content-stack-lg">
+          ${renderClientStats(campaignId, tasks, clientId)}
+          ${renderPlanProgress(campaignId)}
+          ${renderWeeklyStrip(campaignId, tasks)}
+          ${renderKpiHomeDashboard(clientId)}
+        </div>
+      </details>
   `;
 }
 
@@ -440,27 +423,27 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
   const evidenceList = dbService.getEvidenceVaultByClient(clientId);
 
   return `
-    <div style="display: flex; flex-direction: column; gap: 2rem; width: 100%;">
+    <div class="content-stack content-stack-lg">
       <!-- Campaigns Tracker (F8-D08) -->
       ${campaigns.length > 0 ? `
-        <div class="card" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%); border: 1px solid var(--border-accent);">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+        <div class="card">
+          <div class="row-between">
             <div>
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <div class="cluster">
                 <span class="badge badge-progress">${campaigns[0].status}</span>
-                <h3 style="color: var(--text-primary); font-size: 1.1rem;">${campaigns[0].name}</h3>
+                <h3>${campaigns[0].name}</h3>
               </div>
-              <p style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 0.25rem;">
+              <p class="small">
                 ${campaigns[0].description}
               </p>
             </div>
-            <div style="text-align: right;">
-              <span style="font-size: 0.8rem; color: var(--text-muted);">Entregables Completados:</span>
-              <p style="font-size: 1.25rem; font-weight: 700; color: #06b6d4;">${campaigns[0].completedDeliverables} / ${campaigns[0].targetDeliverables}</p>
+            <div>
+              <span class="metric-band-label">Entregables completados</span>
+              <p class="metric-band-value">${campaigns[0].completedDeliverables} / ${campaigns[0].targetDeliverables}</p>
             </div>
           </div>
-          <div style="width: 100%; height: 6px; background: var(--bg-surface-raised); border-radius: 3px; margin-top: 0.75rem; overflow: hidden;">
-            <div style="width: ${(campaigns[0].completedDeliverables / campaigns[0].targetDeliverables) * 100}%; height: 100%; background: #06b6d4;"></div>
+          <div class="progress-track">
+            <div class="progress-fill progress-cyan" style="width: ${(campaigns[0].completedDeliverables / campaigns[0].targetDeliverables) * 100}%;"></div>
           </div>
         </div>
       ` : ''}
@@ -470,7 +453,7 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
         <div class="card-header">
           <div>
             <h3>Tu Tesis de Posicionamiento Activa</h3>
-            <p style="font-size: 0.9rem;">El filtro maestro que define qué temas se publican y ante qué público objetivo.</p>
+            <p>El filtro maestro que define qué temas se publican y ante qué público objetivo.</p>
           </div>
           ${activeThesis
             ? `<span class="badge badge-ready">${esc(activeThesis.status)} · ${esc(activeThesis.clientApprovalStatus)}</span>`
@@ -478,40 +461,37 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
         </div>
 
         ${activeThesis ? `
-          <div style="display: flex; flex-direction: column; gap: 1.25rem;">
-            <div class="grid-2">
-              <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: var(--radius-md);">
+          <div class="content-stack">
+            <div class="identity-grid">
+              <div class="identity-field">
                 <label class="form-label">Identidad Experta</label>
-                <p style="color: var(--text-primary); font-size: 0.95rem; font-weight: 500; margin-top: 0.25rem;">
+                <p>
                   ${esc(activeThesis.expertIdentity)}
                 </p>
               </div>
-              <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: var(--radius-md);">
+              <div class="identity-field">
                 <label class="form-label">Audiencia Objetivo</label>
-                <p style="color: var(--text-primary); font-size: 0.95rem; font-weight: 500; margin-top: 0.25rem;">
+                <p>
                   ${esc(activeThesis.targetAudience)}
                 </p>
               </div>
-            </div>
-
-            <div class="grid-2">
-              <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: var(--radius-md);">
+              <div class="identity-field">
                 <label class="form-label">Dominio / Disciplina</label>
-                <p style="color: var(--text-primary); font-size: 0.95rem; font-weight: 500; margin-top: 0.25rem;">
+                <p>
                   ${esc(activeThesis.domain)}
                 </p>
               </div>
-              <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: var(--radius-md);">
+              <div class="identity-field">
                 <label class="form-label">Objetivo de Posicionamiento</label>
-                <p style="color: var(--text-primary); font-size: 0.95rem; font-weight: 500; margin-top: 0.25rem;">
+                <p>
                   ${esc(activeThesis.objective)}
                 </p>
               </div>
             </div>
 
-            <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: var(--radius-md);">
+            <div class="identity-field">
               <label class="form-label">Evidencias & Proof Points Registrados</label>
-              <ul style="margin-top: 0.5rem; padding-left: 1.25rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8;">
+              <ul class="policy-list">
                 ${activeThesis.proofPoints.map(p => `<li>${esc(p)}</li>`).join('')}
               </ul>
             </div>
@@ -520,7 +500,7 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
           <p style="color: var(--text-muted);">Sin tesis configurada. Tu Brand Manager aún no ha publicado una tesis para tu aprobación.</p>
         `}
         ${activeThesis && activeThesis.clientApprovalStatus !== 'APPROVED' ? `
-          <div style="margin-top: 1rem; display:flex; gap:0.5rem;">
+          <div class="row-actions">
             <button class="btn btn-success btn-approve-thesis" data-thesis-id="${activeThesis.id}">Aprobar tesis</button>
             <button class="btn btn-secondary btn-request-thesis-changes" data-thesis-id="${activeThesis.id}">Pedir cambios</button>
           </div>
@@ -535,28 +515,28 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
         <div class="card-header">
           <div>
             <h3>Evidence Vault & Verificación de Credenciales (Módulo C)</h3>
-            <p style="font-size: 0.9rem;">Pruebas verificables, papers y acreditaciones que respaldan el rigor de los contenidos.</p>
+            <p>Pruebas verificables, papers y acreditaciones que respaldan el rigor de los contenidos.</p>
           </div>
           <button id="btn-add-evidence-vault" class="btn btn-secondary btn-sm" data-client-id="${clientId}">
             + Añadir Evidencia al Vault
           </button>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div class="content-stack">
           ${evidenceList.map(item => `
-            <div class="card" style="background: var(--bg-surface); padding: 1rem; border-left: 3px solid #10b981;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <h4 style="font-size: 0.95rem;">${esc(item.title)}</h4>
+            <div class="task-surface">
+              <div class="row-between">
+                <div class="cluster">
+                  <h4>${esc(item.title)}</h4>
                   <span class="badge badge-ready">Verificada (${item.confidenceScore}%)</span>
                 </div>
                 <span class="badge badge-progress">${esc(item.type)}</span>
               </div>
-              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.35rem;">
+              <p class="small">
                 ${esc(item.snippet)}
               </p>
               ${item.sourceUrl ? `
-                <a href="${safeHref(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" style="font-size: 0.8rem; color: #a5b4fc; text-decoration: underline;">
+                <a href="${safeHref(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="small">
                   Ver fuente original / Acreditación
                 </a>
               ` : ''}
@@ -570,34 +550,34 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
         <div class="card-header">
           <div>
             <h3>Perfil maestro</h3>
-            <p style="font-size: 0.9rem;">Tus credenciales, publicaciones y estilo de voz que alimentan a los agentes de redacción.</p>
+            <p>Tus credenciales, publicaciones y estilo de voz que alimentan a los agentes de redacción.</p>
           </div>
         </div>
 
         ${profile ? `
-          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+          <div class="content-stack">
             <div>
               <h4>${esc(client?.displayName || 'Perfil Profesional')}</h4>
-              <p style="color: var(--text-secondary); margin-top: 0.2rem;">${esc(profile.identity?.professionalHeadline || profile.career?.currentRole || '')}</p>
-              <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.5rem;">${esc(profile.identity?.shortBio || '')}</p>
+              <p>${esc(profile.identity?.professionalHeadline || profile.career?.currentRole || '')}</p>
+              <p class="muted small">${esc(profile.identity?.shortBio || '')}</p>
             </div>
 
             <div class="grid-2">
-              <div style="background: var(--bg-surface); padding: 1rem; border-radius: var(--radius-md);">
-                <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem;">🎓 Formación Académica</h4>
+              <div class="identity-field">
+                <h4>Formación académica</h4>
                 ${(profile.education || []).map(e => `
-                  <p style="font-size: 0.85rem; margin-bottom: 0.35rem;">
+                  <p class="small">
                     <strong>${esc(e.degree)}</strong> — ${esc(e.institution)} (${esc(e.year || '')})
                   </p>
                 `).join('')}
               </div>
 
-              <div style="background: var(--bg-surface); padding: 1rem; border-radius: var(--radius-md);">
-                <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem;">🎙️ Preferencias de Voz</h4>
-                <p style="font-size: 0.85rem; margin-bottom: 0.25rem;">
+              <div class="identity-field">
+                <h4>Preferencias de voz</h4>
+                <p class="small">
                   <strong>Tono:</strong> ${(profile.voicePreferences?.tone || 'authoritative').toUpperCase()}
                 </p>
-                <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                <p class="small">
                   <strong>Frases preferidas:</strong> ${esc((profile.voicePreferences?.preferredPhrases || []).join(', '))}
                 </p>
               </div>
@@ -616,44 +596,53 @@ function renderClientContentReviewBody(
   campaignId?: string
 ): string {
   const clientId = client ? client.id : 'client_juan_001';
-  const contents = dbService
-    .getContentForClient(clientId, campaignId)
-    .filter((item) => item.status === 'CLIENT_REVIEW' || item.status === 'CHANGES_REQUESTED');
+  const allContents = dbService.getContentForClient(clientId, campaignId);
+  const contents = allContents.filter((item) => item.status === 'CLIENT_REVIEW' || item.status === 'CHANGES_REQUESTED');
+  const approved = allContents.filter((item) => item.status === 'READY' || item.status === 'PUBLISHED');
   const camp = campaignId ? dbService.getCampaignById(campaignId) : null;
 
   return `
     <div class="card">
       <div class="card-header">
         <div>
-          <h3>Contenido pendiente de tu revisión</h3>
-          <p style="font-size: 0.9rem;">
+          <h3>Pendiente de tu revisión</h3>
+          <p>
             ${camp ? `Filtrado por campaña: <strong>${esc(camp.name)}</strong>.` : 'Edita el borrador en tu voz, aprueba o rechaza con un motivo claro.'}
           </p>
         </div>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 1rem;">
+      <div class="content-stack">
         ${contents.length
           ? contents.map((item) => renderContentRow(item, true)).join('')
           : '<p class="empty-state">No hay contenido esperando tu revisión.</p>'}
       </div>
     </div>
+
+    <details class="card disclosure"${contents.length ? '' : ' open'}>
+      <summary>Contenido aprobado y publicado (${approved.length})</summary>
+      <div class="disclosure-body content-stack">
+        ${approved.length
+          ? approved.map((item) => renderContentRow(item, false)).join('')
+          : '<p class="empty-state">Tu archivo aparecerá aquí cuando haya contenido aprobado.</p>'}
+      </div>
+    </details>
   `;
 }
 
 function renderContentRow(item: ReturnType<typeof dbService.getContentByClient>[number], showReviewActions: boolean): string {
   return `
-    <div class="card" style="background: var(--bg-surface); padding: 1.25rem;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+    <div class="task-surface">
+      <div class="row-between">
         <div>
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div class="cluster">
             <h4>${esc(item.title)}</h4>
             <span class="badge ${item.status === 'READY' || item.status === 'PUBLISHED' ? 'badge-ready' : 'badge-progress'}">${esc(item.status)}</span>
           </div>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">
+          <p class="operational-row-meta">
             Plataforma: <strong>${esc(item.targetPlatform)}</strong> · Formato: ${esc(item.type)}
           </p>
         </div>
-        <div style="display:flex; gap:0.5rem; flex-wrap: wrap;">
+        <div class="row-actions">
           ${showReviewActions && item.status === 'CLIENT_REVIEW' ? `
             <button class="btn btn-primary btn-sm btn-open-article-review" data-content-id="${esc(item.id)}">Editar</button>
             <button class="btn btn-success btn-sm btn-client-approve-content" data-content-id="${esc(item.id)}">Aprobar</button>

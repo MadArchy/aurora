@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertTransition, canTransition, curationLifecycle, SIGNAL_TRANSITIONS } from '../src/domain/stateMachine';
+import { assertTransition, canTransition, curationLifecycle, DELIVERY_TRANSITIONS, SIGNAL_TRANSITIONS } from '../src/domain/stateMachine';
 
 describe('stateMachine', () => {
   it('allows valid signal transitions', () => {
@@ -10,6 +10,15 @@ describe('stateMachine', () => {
   it('throws on invalid signal transition', () => {
     expect(() => assertTransition('CONVERTED', 'NEW', SIGNAL_TRANSITIONS, 'SIGNAL')).toThrow(
       'SIGNAL_INVALID_TRANSITION'
+    );
+  });
+
+  it('enforces delivery DRAFT → SENT → ACKNOWLEDGED', () => {
+    expect(canTransition('DRAFT', 'SENT', DELIVERY_TRANSITIONS)).toBe(true);
+    expect(canTransition('SENT', 'ACKNOWLEDGED', DELIVERY_TRANSITIONS)).toBe(true);
+    expect(canTransition('DRAFT', 'ACKNOWLEDGED', DELIVERY_TRANSITIONS)).toBe(false);
+    expect(() => assertTransition('SENT', 'DRAFT', DELIVERY_TRANSITIONS, 'DELIVERY')).toThrow(
+      'DELIVERY_INVALID_TRANSITION'
     );
   });
 

@@ -1,7 +1,8 @@
 import { dbService } from '../services/db';
 import { aiService } from '../services/ai';
 import { FIREBASE_ENABLED } from '../firebase/config';
-import { ClientPortfolioSummary, ContentItem } from '../types';
+import { Client, ClientPortfolioSummary, ContentItem, PositioningThesis } from '../types';
+import { suggestScientificFoci } from '../domain/scientificFocusCore';
 import { esc } from '../lib/escape';
 import { renderPage } from './PageHeader';
 import { aggregatePortfolioRadarMetrics } from '../services/portfolioMetrics';
@@ -15,7 +16,7 @@ export function renderManagerCockpit(
     case 'clients':
       return renderPage(
         'clients',
-        renderClientsBody(),
+        renderClientsBody(filters),
         `${FIREBASE_ENABLED ? '<button id="btn-firebase-push-local" class="btn btn-secondary">Subir local → Firestore</button>' : ''}
          <button id="btn-open-create-client" class="btn btn-primary">+ Nuevo cliente</button>`
       );
@@ -38,55 +39,38 @@ function attentionLevel(score: number): { label: string; cls: string } {
   return { label: 'Al día', cls: 'attention-ok' };
 }
 
-function renderClientTriageCard(summary: ClientPortfolioSummary): string {
+function portfolioPrimaryAction(summary: ClientPortfolioSummary): { tab: string; label: string } {
+  if (summary.unreviewedSignals > 0) return { tab: 'ws-radar', label: 'Abrir radar' };
+  if (summary.pendingCuration > 0 || summary.draftDeliveries > 0) return { tab: 'ws-deliver', label: 'Continuar entrega' };
+  if (summary.contentAwaitingManager > 0) return { tab: 'ws-production', label: 'Revisar producción' };
+  if (summary.sourcesInError > 0) return { tab: 'ws-sources', label: 'Revisar fuentes' };
+  return { tab: 'ws-briefing', label: 'Ver resumen' };
+}
+
+/** Fila compacta para la cola de Hoy — sin métricas ni cards anidadas. */
+function renderPortfolioQueueRow(summary: ClientPortfolioSummary): string {
   const { client } = summary;
   const level = attentionLevel(summary.attentionScore);
-  const lastDelivery = summary.lastDeliveryAt
-    ? new Date(summary.lastDeliveryAt).toLocaleDateString('es', { day: '2-digit', month: 'short' })
-    : 'nunca';
+  const action = portfolioPrimaryAction(summary);
+  const reason = summary.attentionReasons[0] || 'Revisar estado general del cliente';
+  const signals = summary.unreviewedSignals;
+  const delivery = summary.pendingCuration + summary.draftDeliveries;
 
   return `
-    <article class="triage-card ${level.cls}">
-      <header class="triage-head">
-        <div class="triage-identity">
-          <div class="user-avatar" aria-hidden="true">${esc(client.displayName.slice(0, 2).toUpperCase())}</div>
-          <div>
-            <h3 class="triage-name">${esc(client.displayName)}</h3>
-            <p class="triage-role">${esc(client.profession || 'Sin profesión registrada')}</p>
-          </div>
+    <article class="portfolio-queue-row ${level.cls}">
+      <div class="portfolio-queue-copy">
+        <div class="portfolio-queue-title">
+          <strong>${esc(client.displayName)}</strong>
+          <span class="attention-tag">${level.label}</span>
         </div>
-        <span class="attention-tag">${level.label}</span>
-        ${summary.industryPresetLabel ? `<span class="badge badge-progress">${esc(summary.industryPresetLabel.split('·')[0]?.trim() || summary.industryPresetLabel)}</span>` : ''}
-      </header>
-
-      <div class="triage-metrics">
-        <div><span class="triage-metric-value">${summary.unreviewedSignals}</span><span class="triage-metric-label">señales sin revisar</span></div>
-        <div><span class="triage-metric-value">${summary.pendingCuration}</span><span class="triage-metric-label">en curación</span></div>
-        <div><span class="triage-metric-value">${summary.activeSources}</span><span class="triage-metric-label">fuentes activas</span></div>
-        <div><span class="triage-metric-value">${summary.signalsLast7Days}</span><span class="triage-metric-label">señales (7 d)</span></div>
+        <p class="portfolio-queue-reason">${esc(reason)}</p>
+        <p class="muted small portfolio-queue-meta">
+          ${signals ? `${signals} señal${signals === 1 ? '' : 'es'} · ` : ''}${delivery ? `${delivery} en entrega · ` : ''}${esc(client.profession || 'Sin profesión')}
+        </p>
       </div>
-
-        ${summary.sourcesInError || summary.researchPending || summary.outcomePending
-        ? `<p class="muted small">${summary.sourcesInError ? `${summary.sourcesInError} fuente(s) en error · ` : ''}${summary.researchPending ? `${summary.researchPending} pendiente(s) de investigación · ` : ''}${summary.outcomePending ? `${summary.outcomePending} sin feedback` : ''}</p>`
-        : ''}
-
-      ${summary.attentionReasons.length
-        ? `<ul class="triage-reasons">${summary.attentionReasons.slice(0, 3).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`
-        : '<p class="triage-clear">Sin pendientes abiertos.</p>'}
-
-      <footer class="triage-foot">
-        <span class="triage-last">Última entrega: ${esc(lastDelivery)}</span>
-        <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-          ${summary.sourcesInError
-            ? `<button class="btn btn-secondary btn-sm btn-enter-client" data-client-id="${esc(client.id)}" data-tab="ws-sources">
-                 Revisar fuentes (${summary.sourcesInError})
-               </button>`
-            : ''}
-          <button class="btn btn-primary btn-sm btn-enter-client" data-client-id="${esc(client.id)}">
-            Entrar al cliente
-          </button>
-        </div>
-      </footer>
+      <button type="button" class="btn btn-primary btn-sm btn-enter-client" data-client-id="${esc(client.id)}" data-tab="${esc(action.tab)}">
+        ${esc(action.label)}
+      </button>
     </article>
   `;
 }
@@ -113,255 +97,266 @@ function renderPortfolioBody(filters: { searchQuery?: string } = {}): string {
     { signals: 0, curation: 0, content: 0, overdue: 0, drafts: 0 }
   );
 
-  const needsAttention = summaries.filter((s) => s.attentionScore >= 20);
+  const queue = (query ? filtered : summaries.filter((s) => s.attentionScore > 0))
+    .slice()
+    .sort((a, b) => b.attentionScore - a.attentionScore);
   const radar = aggregatePortfolioRadarMetrics();
   const digest = buildPortfolioDigest(
     summaries.map((s) => s.client),
     (clientId) => dbService.getSignalsByClient(clientId),
     dbService.getSignalOutcomes()
   );
+  const digestPreview = digest.topItems.slice(0, 3);
 
   return `
-    ${!aiService.getConfig().hasActiveSession
-      ? `<div class="info-strip">
-           <span><strong>IA desconectada.</strong> El scoring y el asesor funcionan con reglas locales. Conecta claves en Centro de IA para análisis con modelo.</span>
-           <button class="btn btn-secondary btn-sm" data-tab="ai-center">Conectar IA</button>
-         </div>`
+    <section class="today-hero editorial-panel">
+      <p class="section-kicker">Estado de la cartera</p>
+      <p class="today-hero-lead measure">
+        ${queue.length
+          ? `${queue.length} cliente${queue.length === 1 ? '' : 's'} requieren una decisión ahora.`
+          : 'Nada urgente en la cartera. Revisa el radar o prepara la próxima entrega cuando quieras.'}
+      </p>
+      <p class="today-hero-stats muted small">
+        ${totals.signals} señales por decidir · ${totals.curation} preparando entrega · ${totals.content} contenido por revisar
+        ${totals.overdue ? ` · ${totals.overdue} tarea(s) vencida(s)` : ''}
+      </p>
+      ${!aiService.getConfig().hasActiveSession
+        ? `<p class="today-note muted small">IA en modo local (scoring heurístico). <button type="button" class="link-btn" data-tab="ai-center">Conectar IA</button></p>`
+        : ''}
+    </section>
+
+    <section class="card today-queue">
+      <div class="section-heading">
+        <div class="section-heading-copy">
+          <h2>Cola de atención</h2>
+          <p>Entra directo al paso que desbloquea cada cliente.</p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" data-tab="clients">Ver cartera completa</button>
+      </div>
+
+      <div class="filter-bar today-search">
+        <div class="search-input-group">
+          <input type="text" id="input-search-portfolio" placeholder="Buscar cliente…" value="${esc(filters.searchQuery || '')}" />
+        </div>
+      </div>
+
+      <div class="portfolio-queue-list">
+        ${queue.length
+          ? queue.map(renderPortfolioQueueRow).join('')
+          : query
+            ? '<p class="empty-state">No hay clientes que coincidan con la búsqueda.</p>'
+            : '<p class="empty-state">Toda la cartera está al día. Usa Clientes para administración o entra a un cliente para avanzar trabajo.</p>'}
+      </div>
+    </section>
+
+    ${digestPreview.length
+      ? `<details class="card disclosure">
+           <summary>Señales destacadas del radar (${digestPreview.length})</summary>
+           <div class="disclosure-body">
+             <p class="muted small measure">${esc(digest.periodLabel)} · ${digest.decideNowTotal} por decidir ahora</p>
+             <div class="operational-list">
+               ${digestPreview
+                 .map(
+                   (item) => `
+                 <div class="operational-row">
+                   <div class="operational-row-main">
+                     <p class="operational-row-title">${esc(item.title)}</p>
+                     <p class="operational-row-meta">${esc(item.clientName)} · ${esc(item.sourceName)}${item.score !== undefined ? ` · score ${item.score}` : ''}</p>
+                   </div>
+                   <button type="button" class="btn btn-secondary btn-sm btn-enter-client" data-client-id="${esc(item.clientId)}" data-tab="ws-radar">Radar</button>
+                 </div>`
+                 )
+                 .join('')}
+             </div>
+           </div>
+         </details>`
       : ''}
 
-    <section class="grid-4">
-      <div class="card stat-card">
-        <p class="form-label">Señales sin revisar</p>
-        <h2>${totals.signals}</h2>
-        <span class="stat-hint">en toda la cartera</span>
+    <details class="card disclosure">
+      <summary>Métricas y salud del sistema</summary>
+      <div class="disclosure-body content-stack">
+        <div class="metric-band metric-band-compact">
+          <div class="metric-band-item"><span class="metric-band-label">Decidir ahora</span><strong class="metric-band-value">${digest.decideNowTotal}</strong></div>
+          <div class="metric-band-item"><span class="metric-band-label">Convertidas · 7 d</span><strong class="metric-band-value">${digest.converted7d}</strong></div>
+          <div class="metric-band-item"><span class="metric-band-label">Tasa útil</span><strong class="metric-band-value">${digest.usefulRate !== null ? `${digest.usefulRate}%` : '—'}</strong></div>
+          <div class="metric-band-item"><span class="metric-band-label">Fuentes en error</span><strong class="metric-band-value">${radar.sourcesInError}</strong></div>
+        </div>
+        <p class="muted small">Ingesta: ${radar.ingestAccepted7d} aceptadas · ${radar.signalsCreated7d} señales nuevas (7 d) · ${radar.researchPending} investigación pendiente</p>
       </div>
-      <div class="card stat-card">
-        <p class="form-label">Ítems en curación</p>
-        <h2>${totals.curation}</h2>
-        <span class="stat-hint">esperando tu decisión</span>
-      </div>
-      <div class="card stat-card">
-        <p class="form-label">Contenido para revisar</p>
-        <h2>${totals.content}</h2>
-        <span class="stat-hint">antes de pasar al cliente</span>
-      </div>
-      <div class="card stat-card ${totals.overdue > 0 ? 'stat-alert' : ''}">
-        <p class="form-label">Tareas vencidas</p>
-        <h2>${totals.overdue}</h2>
-        <span class="stat-hint">${totals.drafts} briefing(s) en borrador</span>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h3>Digest del radar · ${esc(digest.periodLabel)}</h3>
-          <p style="font-size: 0.9rem;">
-            Historias prioritarias por cliente. Generado ${esc(new Date(digest.generatedAt).toLocaleString('es'))}.
-          </p>
-        </div>
-      </div>
-      <div class="grid-4">
-        <div class="card stat-card">
-          <p class="form-label">Decidir ahora</p>
-          <h2>${digest.decideNowTotal}</h2>
-          <span class="stat-hint">${digest.criticalTotal} críticas</span>
-        </div>
-        <div class="card stat-card">
-          <p class="form-label">Convertidas (7 d)</p>
-          <h2>${digest.converted7d}</h2>
-          <span class="stat-hint">señal → briefing/contenido</span>
-        </div>
-        <div class="card stat-card">
-          <p class="form-label">Tasa “sirvió”</p>
-          <h2>${digest.usefulRate !== null ? `${digest.usefulRate}%` : '—'}</h2>
-          <span class="stat-hint">feedback del manager</span>
-        </div>
-        <div class="card stat-card">
-          <p class="form-label">Clientes con cola</p>
-          <h2>${digest.byClient.length}</h2>
-          <span class="stat-hint">con señales por decidir</span>
-        </div>
-      </div>
-      ${digest.topItems.length
-        ? `<div class="digest-list">
-             ${digest.topItems
-               .map(
-                 (item) => `
-               <div class="digest-row">
-                 <div>
-                   <strong>${esc(item.clientName)}</strong>
-                   <span class="badge ${item.priorityBand === 'CRITICAL' || item.priorityBand === 'HIGH' ? 'badge-ready' : 'badge-progress'}">
-                     ${item.score !== undefined ? `Score ${item.score}` : 'Sin score'}${item.priorityBand ? ` · ${esc(item.priorityBand)}` : ''}
-                   </span>
-                   ${item.alsoInCount ? `<span class="badge badge-pending">+${item.alsoInCount} medios</span>` : ''}
-                   <p class="digest-title">${esc(item.title)}</p>
-                   <p class="muted small">${esc(item.sourceName)}${item.recommendedAction ? ` · ${esc(item.recommendedAction)}` : ''}</p>
-                 </div>
-                 <button class="btn btn-secondary btn-sm btn-enter-client" data-client-id="${esc(item.clientId)}" data-tab="ws-radar">
-                   Abrir radar
-                 </button>
-               </div>`
-               )
-               .join('')}
-           </div>`
-        : '<p class="empty-state">Sin historias prioritarias en el periodo. El radar está tranquilo.</p>'}
-    </section>
-
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h3>Salud del radar (cartera)</h3>
-          <p style="font-size: 0.9rem;">Fuentes, ingesta e investigación Tavily — últimos 7 días.</p>
-        </div>
-      </div>
-      <div class="grid-4">
-        <div class="card stat-card">
-          <p class="form-label">Fuentes activas</p>
-          <h2>${radar.totalActiveSources}</h2>
-          <span class="stat-hint">${radar.sourcesHealthy} saludables · ${radar.sourcesDegraded} degradadas</span>
-        </div>
-        <div class="card stat-card ${radar.sourcesInError ? 'stat-alert' : ''}">
-          <p class="form-label">Fuentes en error</p>
-          <h2>${radar.sourcesInError}</h2>
-          <span class="stat-hint">${radar.clientsWithSourceErrors} cliente(s) afectado(s)</span>
-        </div>
-        <div class="card stat-card">
-          <p class="form-label">Señales aceptadas (ingesta)</p>
-          <h2>${radar.ingestAccepted7d}</h2>
-          <span class="stat-hint">${radar.signalsCreated7d} señales nuevas en 7 d</span>
-        </div>
-        <div class="card stat-card">
-          <p class="form-label">Investigación pendiente</p>
-          <h2>${radar.researchPending}</h2>
-          <span class="stat-hint">RESEARCH_REQUIRED sin Tavily</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h3>Clientes por prioridad</h3>
-          <p style="font-size: 0.9rem;">
-            ${needsAttention.length
-              ? `${needsAttention.length} cliente(s) requieren tu atención. Ordenados por urgencia.`
-              : 'Toda la cartera está al día.'}
-          </p>
-        </div>
-      </div>
-
-      <div class="filter-bar">
-        <div class="search-input-group">
-          <input type="text" id="input-search-portfolio" placeholder="Buscar cliente por nombre o profesión..." value="${esc(filters.searchQuery || '')}" />
-        </div>
-      </div>
-
-      <div class="triage-grid">
-        ${filtered.length
-          ? filtered.map(renderClientTriageCard).join('')
-          : '<p class="empty-state">No hay clientes que coincidan con la búsqueda.</p>'}
-      </div>
-    </section>
+    </details>
   `;
 }
 
-function renderClientsBody(): string {
-  const summaries = dbService.getPortfolioSummary();
-  const subscription = dbService.getSubscription();
+/** Fila del directorio Clientes — métricas reales del agregado de cartera. */
+function renderClientDirectoryRow(summary: ClientPortfolioSummary): string {
+  const { client } = summary;
+  const level = attentionLevel(summary.attentionScore);
+  const action = portfolioPrimaryAction(summary);
+  const lastDelivery = summary.lastDeliveryAt
+    ? new Date(summary.lastDeliveryAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'sin entregas';
+  const thesis = dbService.getThesesByClient(client.id).find((t) => t.status === 'ACTIVE');
+  const statusNote =
+    client.onboardingStatus !== 'COMPLETED'
+      ? 'Onboarding en curso'
+      : summary.attentionReasons[0] || 'Al día';
 
   return `
-    <section class="grid-4">
-      <div class="card stat-card">
-        <p class="form-label">Clientes activos</p>
-        <h2>${summaries.length} / ${subscription.quotas.maxClients}</h2>
-        <span class="stat-hint">Plan ${esc(subscription.tier)}</span>
+    <article class="portfolio-queue-row client-directory-row ${summary.attentionScore > 0 ? level.cls : 'attention-ok'}">
+      <div class="portfolio-queue-copy">
+        <div class="portfolio-queue-title">
+          <strong>${esc(client.displayName)}</strong>
+          <span class="badge ${client.status === 'ACTIVE' ? 'badge-ready' : 'badge-pending'}">${esc(client.status)}</span>
+          ${summary.attentionScore > 0 ? `<span class="attention-tag">${level.label}</span>` : ''}
+        </div>
+        <p class="portfolio-queue-reason">${esc(client.profession || 'Sin profesión')}${client.company ? ` · ${esc(client.company)}` : ''}</p>
+        <p class="muted small portfolio-queue-meta">
+          ${summary.unreviewedSignals} señal${summary.unreviewedSignals === 1 ? '' : 'es'} sin revisar ·
+          ${summary.openTasks} tarea${summary.openTasks === 1 ? '' : 's'} abierta${summary.openTasks === 1 ? '' : 's'} ·
+          ${summary.activeSources} fuente${summary.activeSources === 1 ? '' : 's'} ·
+          última entrega ${esc(lastDelivery)}
+        </p>
+        <p class="muted small client-directory-note">${esc(statusNote)}${thesis ? ` · Tesis: ${esc(thesis.title)}` : ' · Sin tesis activa'}</p>
       </div>
-      <div class="card stat-card">
-        <p class="form-label">Tesis en ejecución</p>
-        <h2>${summaries.reduce((acc, s) => acc + s.client.activeThesesCount, 0)}</h2>
-        <span class="stat-hint">filtros de posicionamiento activos</span>
+      <div class="client-directory-actions">
+        <button type="button" class="btn btn-ghost btn-sm btn-login-as-client" data-client-id="${esc(client.id)}">Ver como cliente</button>
+        <button type="button" class="btn btn-primary btn-sm btn-enter-client" data-client-id="${esc(client.id)}" data-tab="${esc(action.tab)}">
+          ${esc(action.label)}
+        </button>
       </div>
-      <div class="card stat-card">
-        <p class="form-label">Tareas completadas</p>
-        <h2>${summaries.reduce((acc, s) => acc + s.client.completedTasksCount, 0)}</h2>
-        <span class="stat-hint">histórico acumulado</span>
-      </div>
-      <div class="card stat-card">
-        <p class="form-label">Corridas de IA del mes</p>
-        <h2>${subscription.monthlyUsage.aiRuns} / ${subscription.quotas.maxMonthlyAiRuns}</h2>
-        <span class="stat-hint">límite del plan</span>
-      </div>
+    </article>
+  `;
+}
+
+function renderClientsBody(filters: { searchQuery?: string } = {}): string {
+  const summaries = dbService.getPortfolioSummary();
+  const subscription = dbService.getSubscription();
+  const query = (filters.searchQuery || '').toLowerCase();
+  const filtered = query
+    ? summaries.filter(
+        (s) =>
+          s.client.displayName.toLowerCase().includes(query) ||
+          (s.client.profession || '').toLowerCase().includes(query) ||
+          (s.client.company || '').toLowerCase().includes(query)
+      )
+    : summaries;
+
+  const activeTheses = summaries.reduce(
+    (acc, s) => acc + dbService.getThesesByClient(s.client.id).filter((t) => t.status === 'ACTIVE').length,
+    0
+  );
+  const completedTasks = summaries.reduce(
+    (acc, s) => acc + dbService.getTasksByClient(s.client.id).filter((t) => t.status === 'COMPLETED').length,
+    0
+  );
+  const openTasks = summaries.reduce((acc, s) => acc + s.openTasks, 0);
+  const needsAttention = summaries.filter((s) => s.attentionScore > 0).length;
+
+  return `
+    <section class="today-hero editorial-panel">
+      <p class="section-kicker">Directorio</p>
+      <p class="today-hero-lead measure">
+        ${summaries.length} cliente${summaries.length === 1 ? '' : 's'} en cartera
+        ${needsAttention ? ` · ${needsAttention} con pendientes abiertos` : ' · todos al día'}.
+      </p>
+      <p class="today-hero-stats muted small">
+        ${activeTheses} tesis activa${activeTheses === 1 ? '' : 's'} · ${openTasks} tarea${openTasks === 1 ? '' : 's'} abierta${openTasks === 1 ? '' : 's'} · ${completedTasks} completada${completedTasks === 1 ? '' : 's'}
+      </p>
     </section>
 
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h3>Cartera completa</h3>
-          <p style="font-size: 0.9rem;">Entra a un cliente para trabajar su radar, curación y entregas.</p>
+    <section class="card today-queue">
+      <div class="section-heading">
+        <div class="section-heading-copy">
+          <h2>Cartera</h2>
+          <p>Ordenada por urgencia operativa. Los números vienen de señales, tareas y entregas reales.</p>
         </div>
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 1rem;">
-        ${summaries.map(({ client }) => {
-          const theses = dbService.getThesesByClient(client.id);
-          const campaigns = dbService.getCampaignsByClient(client.id);
-          const evidence = dbService.getEvidenceVaultByClient(client.id);
-          const thesis = theses[0];
+      <div class="filter-bar today-search">
+        <div class="search-input-group">
+          <input type="text" id="input-search-portfolio" placeholder="Buscar por nombre, profesión o empresa…" value="${esc(filters.searchQuery || '')}" />
+        </div>
+      </div>
 
-          return `
-            <div class="card client-row">
-              <div class="client-row-head">
-                <div class="client-row-identity">
-                  <div class="user-avatar user-avatar-lg" aria-hidden="true">${esc(client.displayName.slice(0, 2).toUpperCase())}</div>
-                  <div>
-                    <div class="client-row-title">
-                      <h4>${esc(client.displayName)}</h4>
-                      <span class="badge ${client.status === 'ACTIVE' ? 'badge-ready' : 'badge-pending'}">
-                        <span class="badge-dot"></span>${esc(client.status)}
-                      </span>
-                      <span class="badge badge-progress">${evidence.length} evidencia(s)</span>
-                    </div>
-                    <p class="client-row-meta">
-                      <strong>${esc(client.profession || 'Sin profesión')}</strong>${client.company ? ` · ${esc(client.company)}` : ''}
-                    </p>
-                    <p class="client-row-audience">Audiencia: ${esc(client.targetMarket || 'sin definir')}</p>
-                  </div>
-                </div>
-
-                <div class="client-row-actions">
-                  <button class="btn btn-secondary btn-sm btn-open-thesis-editor" data-client-id="${esc(client.id)}">Nueva tesis</button>
-                  <button class="btn btn-secondary btn-sm btn-login-as-client" data-client-id="${esc(client.id)}">Ver como cliente</button>
-                  <button class="btn btn-primary btn-sm btn-enter-client" data-client-id="${esc(client.id)}">Entrar</button>
-                </div>
-              </div>
-
-              ${thesis
-                ? `<div class="thesis-strip">
-                     <div class="thesis-strip-head">
-                       <strong>Tesis activa: ${esc(thesis.title)}</strong>
-                       <div style="display: flex; gap: 0.4rem; align-items: center;">
-                         <span class="badge ${thesis.clientApprovalStatus === 'APPROVED' ? 'badge-ready' : 'badge-pending'}">
-                           ${thesis.clientApprovalStatus === 'APPROVED' ? 'Aprobada' : 'Pendiente cliente'}
-                         </span>
-                         <button class="btn btn-secondary btn-sm btn-edit-thesis" data-client-id="${esc(client.id)}" data-thesis-id="${esc(thesis.id)}">Editar</button>
-                       </div>
-                     </div>
-                     <p>${esc(thesis.expertIdentity)} ante ${esc(thesis.targetAudience)} en ${esc(thesis.domain)}.</p>
-                   </div>`
-                : '<p class="warn-strip">Sin tesis activa. El contenido no tiene filtro estratégico todavía.</p>'}
-
-              ${campaigns.length
-                ? `<div class="campaign-strip">
-                     <span>${esc(campaigns[0].name)}</span>
-                     <span>${campaigns[0].completedDeliverables}/${campaigns[0].targetDeliverables} entregables</span>
-                   </div>`
-                : ''}
-            </div>
-          `;
-        }).join('')}
+      <div class="portfolio-queue-list">
+        ${filtered.length
+          ? filtered.map(renderClientDirectoryRow).join('')
+          : '<p class="empty-state">No hay clientes que coincidan con la búsqueda.</p>'}
       </div>
     </section>
+
+    <details class="card disclosure">
+      <summary>Plan y uso (${esc(subscription.tier)})</summary>
+      <div class="disclosure-body content-stack">
+        <div class="metric-band metric-band-compact">
+          <div class="metric-band-item">
+            <span class="metric-band-label">Cupos de clientes</span>
+            <strong class="metric-band-value">${summaries.length} / ${subscription.quotas.maxClients}</strong>
+          </div>
+          <div class="metric-band-item">
+            <span class="metric-band-label">Corridas IA (mes)</span>
+            <strong class="metric-band-value">${subscription.monthlyUsage.aiRuns} / ${subscription.quotas.maxMonthlyAiRuns}</strong>
+          </div>
+          <div class="metric-band-item">
+            <span class="metric-band-label">Señales sin revisar</span>
+            <strong class="metric-band-value">${summaries.reduce((acc, s) => acc + s.unreviewedSignals, 0)}</strong>
+          </div>
+          <div class="metric-band-item">
+            <span class="metric-band-label">Fuentes en error</span>
+            <strong class="metric-band-value">${summaries.reduce((acc, s) => acc + s.sourcesInError, 0)}</strong>
+          </div>
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+export function renderScientificFocusPanel(client: Client, thesis?: PositioningThesis): string {
+  const foci = suggestScientificFoci({
+    client,
+    thesis,
+    signals: dbService.getSignalsByClient(client.id),
+    evidence: dbService.getEvidenceVaultByClient(client.id),
+    limit: 5,
+  });
+
+  return `
+    <details class="card disclosure sci-focus-panel">
+      <summary>Crear artículo científico desde inteligencia validada</summary>
+      <div class="disclosure-body">
+        <p class="muted small measure">Sugerencias según el rol (${esc(client.profession || thesis?.expertIdentity || 'profesional')}) y la información de mayor valor en Radar y Evidence Vault.</p>
+      ${
+        foci.length
+          ? `<div class="sci-focus-list">
+        ${foci
+          .map(
+            (f) => `
+          <article class="sci-focus-item">
+            <div>
+              <h4>${esc(f.title)}</h4>
+              <p class="muted small">${esc(f.why)}</p>
+              <div class="task-meta-badges">
+                <span class="badge badge-ready">${esc(f.venueLabel)}</span>
+                <span class="badge badge-neutral">score ${f.score}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm btn-generate-scientific-article"
+              data-client-id="${esc(client.id)}"
+              data-sci-title="${esc(f.title)}"
+              data-sci-why="${esc(f.why)}"
+              data-sci-venue="${esc(f.venueLabel)}"
+              data-sci-role="${esc(f.roleAngle)}"
+            >Redactar paper</button>
+          </article>`
+          )
+          .join('')}
+      </div>`
+          : '<p class="empty-state">Aún no hay señales o evidencia de suficiente peso. Ingesta radar o vault primero; luego el sistema propondrá ejes.</p>'
+      }
+      </div>
+    </details>
   `;
 }
 
@@ -399,7 +394,7 @@ export function renderContentPipeline(
       <div class="card-header">
         <div>
           <h3>Pipeline editorial</h3>
-          <p style="font-size: 0.9rem;">Revisa y edita antes de que el material llegue al portal del cliente.</p>
+          <p>Revisa y edita antes de que el material llegue al portal del cliente.</p>
         </div>
         ${options.showCreate
           ? `<button id="btn-generate-article" class="btn btn-primary" data-client-id="${esc(options.clientId || '')}">+ Nuevo contenido</button>`
@@ -411,15 +406,15 @@ export function renderContentPipeline(
           <input type="text" id="input-search-content" placeholder="Buscar por título o fragmento..." value="${esc(filters.searchQuery || '')}" />
         </div>
         <div class="filter-pills">
-          <span class="filter-pill ${currentStatusFilter === 'ALL' ? 'active' : ''}" data-content-filter="ALL">Todos (${contents.length})</span>
-          <span class="filter-pill ${currentStatusFilter === 'AI_GENERATED' ? 'active' : ''}" data-content-filter="AI_GENERATED">Por revisar</span>
-          <span class="filter-pill ${currentStatusFilter === 'CLIENT_REVIEW' ? 'active' : ''}" data-content-filter="CLIENT_REVIEW">Con el cliente</span>
-          <span class="filter-pill ${currentStatusFilter === 'CHANGES_REQUESTED' ? 'active' : ''}" data-content-filter="CHANGES_REQUESTED">Ajustes pedidos</span>
-          <span class="filter-pill ${currentStatusFilter === 'READY' ? 'active' : ''}" data-content-filter="READY">Listo</span>
+          <button type="button" class="filter-pill ${currentStatusFilter === 'ALL' ? 'active' : ''}" data-content-filter="ALL">Todos (${contents.length})</button>
+          <button type="button" class="filter-pill ${currentStatusFilter === 'AI_GENERATED' ? 'active' : ''}" data-content-filter="AI_GENERATED">Por revisar</button>
+          <button type="button" class="filter-pill ${currentStatusFilter === 'CLIENT_REVIEW' ? 'active' : ''}" data-content-filter="CLIENT_REVIEW">Con el cliente</button>
+          <button type="button" class="filter-pill ${currentStatusFilter === 'CHANGES_REQUESTED' ? 'active' : ''}" data-content-filter="CHANGES_REQUESTED">Ajustes pedidos</button>
+          <button type="button" class="filter-pill ${currentStatusFilter === 'READY' ? 'active' : ''}" data-content-filter="READY">Listo</button>
         </div>
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 1rem;">
+      <div class="content-stack">
         ${filtered.length
           ? filtered.map((item) => {
             const clientEdit = dbService.getLatestClientEdit(item.id);
@@ -440,7 +435,7 @@ export function renderContentPipeline(
                     ${esc(item.type)} · creado ${new Date(item.createdAt).toLocaleDateString('es')}
                   </p>
                 </div>
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <div class="row-actions">
                   ${showDiff ? `<button class="btn btn-primary btn-sm btn-view-content-diff" data-content-id="${esc(item.id)}">Ver diff</button>` : ''}
                   <button class="btn btn-secondary btn-sm btn-open-content-editor" data-content-id="${esc(item.id)}">Editar</button>
                   <button class="btn btn-secondary btn-sm btn-preview-content" data-content-id="${esc(item.id)}">Ver</button>

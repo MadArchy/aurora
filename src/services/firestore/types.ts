@@ -23,6 +23,7 @@ import type {
   SignalOutcome,
   Source,
   Task,
+  NotificationItem,
 } from '../../types';
 
 /** Snapshot completo localStorage v5 para import/export Firestore. */
@@ -52,6 +53,7 @@ export interface LocalV5Snapshot {
   feedbackEvents: FeedbackEvent[];
   signalOutcomes: SignalOutcome[];
   proofWallItems: ProofWallItem[];
+  notifications: NotificationItem[];
 }
 
 export const LOCAL_V5_KEYS = [
@@ -80,4 +82,5 @@ export const LOCAL_V5_KEYS = [
   'postura_feedback_v1',
   'postura_signal_outcomes_v1',
   'postura_proof_wall_v1',
+  'postura_notifications_db_v1',
 ] as const;

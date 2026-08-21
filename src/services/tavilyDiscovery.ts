@@ -248,10 +248,10 @@ export async function searchTavilyWeb(
   query: string,
   options?: { max_results?: number; time_range?: 'day' | 'week' | 'month' | 'year'; topic?: 'news' | 'general' | 'finance' }
 ): Promise<{ results: TavilySearchResult[]; error?: string }> {
-  const { tavilySearchUrl } = await import('./sourceApi');
+  const { tavilySearchUrl, sourceApiAuthHeaders } = await import('./sourceApi');
   const response = await fetch(tavilySearchUrl(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await sourceApiAuthHeaders(true),
     body: JSON.stringify({
       query: query.slice(0, 400),
       topic: options?.topic || 'news',
@@ -289,10 +289,10 @@ export async function discoverViaTavily(
   }
 
   const query = buildTavilySearchQuery(client, thesis, keywords);
-  const { tavilySearchUrl } = await import('./sourceApi');
+  const { tavilySearchUrl, sourceApiAuthHeaders } = await import('./sourceApi');
   const response = await fetch(tavilySearchUrl(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await sourceApiAuthHeaders(true),
     body: JSON.stringify({
       query,
       topic: 'news',

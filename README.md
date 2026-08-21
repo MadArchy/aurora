@@ -1,43 +1,54 @@
 # POSTURA
 
-Sistema de inteligencia y gestión de posicionamiento (primera versión operativa).
+**Positioning Intelligence** — sistema de operación para Brand Managers y clientes: radar de señales, curación, briefings, contenido y portal.
+
+Producto piloto (Juan / LexFirm). Código en TypeScript (Vite), persistencia local + Firebase Auth/Firestore, Cloud Functions para ingesta en producción.
 
 ## Arranque
 
 ```bash
 npm install
+cp .env.example .env.local   # opcional: Firebase, Tavily, YouTube
 npm run dev
 ```
 
-Abre la URL que imprima Vite (por defecto `http://localhost:3000`).
+Abre [http://127.0.0.1:3000/](http://127.0.0.1:3000/).
 
-## Cuentas iniciales
+Cuentas de piloto: ver [docs/ops/pilot.md](docs/ops/pilot.md).
 
-| Rol | Correo | Contraseña |
-|---|---|---|
-| Brand Manager | `manager@postura.internal` | `Postura2026!` |
-| Cliente (Juan Vásquez) | `juan.vasquez@lexfirm.com` | `Postura2026!` |
+## Calidad
 
-Al crear un cliente, la app genera un **token de invitación**. En la pantalla de login, el cliente lo usa para crear su cuenta.
+```bash
+npm run check    # typecheck + lint + tests
+npm run build
+```
 
-## Qué funciona en esta versión
+CI: `.github/workflows/ci.yml`  
+GitHub Pages: `.github/workflows/pages.yml` (ingesta RSS **no** corre en Pages; usar `npm run dev` o Functions).
 
-- Login / logout real (contraseñas con PBKDF2). Impersonar cliente es una acción de manager, no un “demo switch”.
-- Onboarding de 6 pasos **que persiste** el perfil.
-- Tesis con aprobación del cliente (no se auto-activa).
-- Señales manuales y **RSS real** vía proxy local (`/api/rss`) con bloqueo SSRF.
-- Scoring **v1.0** (8 factores + penalties del Doc 12).
-- Análisis de IA: si conectas API keys en **IA**, las llamadas salen del servidor de desarrollo (no se guardan en localStorage). Sin keys, el producto sigue usable en modo manual/heurístico.
-- Contenido con estados de aprobación, tareas, teleprompter con **grabación de cámara** (IndexedDB).
-- Resultados → Evidence Vault.
-- Cuotas de plan aplicadas al crear clientes/fuentes/tesis/IA.
+## Estructura
 
-Los datos viven en `localStorage` (versión v4) hasta migrar a Firestore. Limpia el almacenamiento del sitio si vienes de la demo anterior.
+| Ruta | Rol |
+|------|-----|
+| `src/` | Aplicación (UI, dominio, servicios) |
+| `server/` | Proxy Vite: RSS, Tavily, YouTube, IA (solo `npm run dev`) |
+| `functions/` | Cloud Functions (auth + secretos; requiere plan Blaze para deploy) |
+| `tests/` | Vitest |
+| `scripts/` | Provision Firebase, checklists de piloto |
+| `docs/` | Operación, producto y especificaciones |
 
-## IA (BYOK)
+Detalle: [docs/README.md](docs/README.md) · [docs/architecture.md](docs/architecture.md)
 
-1. Entra como manager → **IA**.
-2. Pega keys de OpenAI y/o Anthropic.
-3. Activar sesión. Las claves van a memoria del proceso `vite` (TTL 60 min) y se destruyen al salir.
+## Despliegue
 
-Sin `npm run dev` el proxy `/api/*` no existe.
+| Destino | Uso |
+|---------|-----|
+| Local Vite | Desarrollo y radar (proxy `/api/*`) |
+| [GitHub Pages](https://madarchy.github.io/aurora/) | Demo estática; **sin** proxy de fuentes |
+| Firebase Hosting | Sitio de producto (`npm run firebase:deploy:hosting`) |
+
+Firebase Auth, reglas e ingesta cloud: [docs/ops/firebase.md](docs/ops/firebase.md).
+
+## Licencia
+
+Repositorio privado de producto. Todos los derechos reservados salvo acuerdo contrario.

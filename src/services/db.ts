@@ -33,10 +33,10 @@ import {
   ProfileFact,
   ProfileFactSection,
   SignalOutcome,
+  NotificationItem,
 } from '../types';
-import {
-  computeConversionStats,
-} from '../domain/radarFeedbackCore';
+import { applyScopedCollectionMerge } from '../domain/firestoreMergeCore';
+import { computeConversionStats } from '../domain/radarFeedbackCore';
 import { detectIndustryPreset, getIndustryPresetMeta } from './industryPresets';
 import { createId } from '../lib/id';
 import { renderDiffHtml, diffLines, hasDiffChanges, summarizeDiff } from '../domain/textDiff';
@@ -49,6 +49,7 @@ import {
   mapOpportunityLifecycle,
 } from '../domain/opportunityLifecycle';
 import { assertTransition, DELIVERY_TRANSITIONS, SIGNAL_TRANSITIONS, TASK_TRANSITIONS } from '../domain/stateMachine';
+import { latestSentAt, sortDeliveriesBySentAt } from '../domain/deliveryCore';
 import {
   assertContentPipelineTransition,
   mapLegacyContentStatus,
@@ -99,7 +100,10 @@ class DataService {
   private feedbackEvents: FeedbackEvent[] = [];
   private signalOutcomes: SignalOutcome[] = [];
   private proofWallItems: ProofWallItem[] = [];
+  private notifications: NotificationItem[] = [];
   private changeListeners: Array<() => void> = [];
+  /** >0 mientras se aplique un lote de escrituras (p. ej. send briefing). */
+  private saveBatchDepth = 0;
 
   constructor() {
     this.loadInitialData();
@@ -136,6 +140,7 @@ class DataService {
         this.feedbackEvents = JSON.parse(localStorage.getItem('postura_feedback_v1') || '[]');
         this.signalOutcomes = JSON.parse(localStorage.getItem('postura_signal_outcomes_v1') || '[]');
         this.proofWallItems = JSON.parse(localStorage.getItem('postura_proof_wall_v1') || '[]');
+        this.notifications = JSON.parse(localStorage.getItem('postura_notifications_db_v1') || '[]');
         this.ensureSeedDossiers();
         this.ensureJuanCampaignSeed();
         this.repairKnownBrokenSources();
@@ -894,6 +899,8 @@ class DataService {
   }
 
   private saveAll(options?: { skipRemote?: boolean }) {
+    if (this.saveBatchDepth > 0) return;
+
     if (!FIREBASE_ENABLED) {
       localStorage.setItem('postura_clients_v5', JSON.stringify(this.clients));
       localStorage.setItem('postura_theses_v5', JSON.stringify(this.theses));
@@ -920,6 +927,7 @@ class DataService {
       localStorage.setItem('postura_feedback_v1', JSON.stringify(this.feedbackEvents));
       localStorage.setItem('postura_signal_outcomes_v1', JSON.stringify(this.signalOutcomes));
       localStorage.setItem('postura_proof_wall_v1', JSON.stringify(this.proofWallItems));
+      localStorage.setItem('postura_notifications_db_v1', JSON.stringify(this.notifications));
     }
 
     if (!options?.skipRemote && FIREBASE_ENABLED) {
@@ -932,7 +940,21 @@ class DataService {
     this.emitChange();
   }
 
-  /** Suscripción a cambios locales (p. ej. sync Firestore en tiempo real). */
+  /** Agrupa escrituras en un solo persist (p. ej. materialización de briefing). */
+  public runInSaveBatch<T>(fn: () => T): T {
+    this.saveBatchDepth += 1;
+    try {
+      return fn();
+    } finally {
+      this.saveBatchDepth -= 1;
+      if (this.saveBatchDepth === 0) this.saveAll();
+    }
+  }
+
+  public getTasksByDeliveryPackage(packageId: string): Task[] {
+    return this.tasks.filter((t) => t.deliveryPackageId === packageId);
+  }
+
   public onChange(listener: () => void): () => void {
     this.changeListeners.push(listener);
     return () => {
@@ -971,20 +993,23 @@ class DataService {
       feedbackEvents: this.feedbackEvents,
       signalOutcomes: this.signalOutcomes,
       proofWallItems: this.proofWallItems,
+      notifications: this.notifications,
     };
   }
 
-  public importSnapshot(partial: Partial<LocalV5Snapshot>, options?: { merge?: boolean; skipRemote?: boolean }) {
+  public importSnapshot(
+    partial: Partial<LocalV5Snapshot>,
+    options?: { merge?: boolean; skipRemote?: boolean; scopeClientId?: string }
+  ) {
     const merge = options?.merge !== false;
+    const scopeClientId = options?.scopeClientId;
     const assign = <K extends keyof LocalV5Snapshot>(key: K, value: LocalV5Snapshot[K] | undefined) => {
       if (value === undefined) return;
       if (merge && Array.isArray(this[key]) && Array.isArray(value)) {
-        const existing = this[key] as Array<{ id?: string }>;
-        const map = new Map(existing.map((row) => [row.id, row]));
-        for (const row of value as Array<{ id?: string }>) {
-          if (row.id) map.set(row.id, row as never);
-        }
-        (this[key] as unknown) = Array.from(map.values());
+        const existing = this[key] as Array<{ id?: string; clientId?: string | null }>;
+        const incoming = value as Array<{ id?: string; clientId?: string | null }>;
+        const next = applyScopedCollectionMerge(existing, incoming, { merge: true, scopeClientId });
+        if (next) (this[key] as unknown) = next;
         return;
       }
       (this[key] as unknown) = value;
@@ -1006,18 +1031,25 @@ class DataService {
     assign('signalOutcomes', partial.signalOutcomes);
     assign('proofWallItems', partial.proofWallItems);
     assign('campaignMilestones', partial.campaignMilestones);
+    assign('notifications', partial.notifications);
+    assign('sources', partial.sources);
 
     if (partial.profiles) this.profiles = merge ? { ...this.profiles, ...partial.profiles } : partial.profiles;
     if (partial.dossiers) this.dossiers = merge ? { ...this.dossiers, ...partial.dossiers } : partial.dossiers;
     if (partial.topicPins) this.topicPins = partial.topicPins;
     if (partial.aiRuns) this.aiRuns = partial.aiRuns;
-    if (partial.sources) this.sources = partial.sources;
     if (partial.recommendations) this.recommendations = partial.recommendations;
     if (partial.subscription !== undefined) this.subscription = partial.subscription;
     if (partial.invitations) this.invitations = partial.invitations;
     if (partial.files) this.files = partial.files;
 
     this.saveAll({ skipRemote: options?.skipRemote });
+
+    if (partial.notifications) {
+      void import('./notifications').then(({ notificationService }) => {
+        notificationService.mergeFromRemote(this.notifications);
+      });
+    }
   }
 
   /** Hidrata desde Firestore tras login Firebase (backend autoritativo). */
@@ -1081,6 +1113,41 @@ class DataService {
     this.clients[idx] = { ...this.clients[idx], ...updates, updatedAt: new Date().toISOString() };
     this.saveAll();
     return this.clients[idx];
+  }
+
+  /** Espejo de bandeja para sync Firestore (sin Cloud Functions). */
+  public getNotifications(): NotificationItem[] {
+    return [...this.notifications];
+  }
+
+  public replaceNotifications(items: NotificationItem[]): void {
+    const next = items.slice(0, 200);
+    if (JSON.stringify(this.notifications) === JSON.stringify(next)) return;
+    this.notifications = next;
+    this.saveAll();
+  }
+
+  /** Alinea primaryManagerId de la cartera al UID real del manager logueado. */
+  public bindPrimaryManagerUid(managerUid: string): void {
+    if (!managerUid) return;
+    let changed = false;
+    for (const client of this.clients) {
+      if (client.primaryManagerId !== managerUid) {
+        client.primaryManagerId = managerUid;
+        client.updatedAt = new Date().toISOString();
+        changed = true;
+      }
+    }
+    if (changed) this.saveAll();
+  }
+
+  /** Alinea client.userId al UID de Auth del cliente. */
+  public bindClientUserId(clientId: string, userId: string): void {
+    const client = this.getClientById(clientId);
+    if (!client || !userId || client.userId === userId) return;
+    client.userId = userId;
+    client.updatedAt = new Date().toISOString();
+    this.saveAll();
   }
 
   // Master Profile & Onboarding (F7-D07)
@@ -1977,7 +2044,9 @@ class DataService {
   }
 
   public getSentDeliveriesByClient(clientId: string): DeliveryPackage[] {
-    return this.deliveries.filter((d) => d.clientId === clientId && d.status !== 'DRAFT');
+    return sortDeliveriesBySentAt(
+      this.deliveries.filter((d) => d.clientId === clientId && d.status !== 'DRAFT')
+    );
   }
 
   public getDeliveryById(id: string): DeliveryPackage | undefined {
@@ -2012,7 +2081,7 @@ class DataService {
 
   public addDeliveryItem(packageId: string, item: Omit<DeliveryItem, 'id'>): DeliveryPackage | null {
     const pkg = this.deliveries.find((d) => d.id === packageId);
-    if (!pkg) return null;
+    if (!pkg || pkg.status !== 'DRAFT') return null;
     pkg.items.push({ ...item, id: createId('ditem') });
     this.saveAll();
     return pkg;
@@ -2020,16 +2089,34 @@ class DataService {
 
   public removeDeliveryItem(packageId: string, itemId: string): void {
     const pkg = this.deliveries.find((d) => d.id === packageId);
-    if (!pkg) return;
+    if (!pkg || pkg.status !== 'DRAFT') return;
     pkg.items = pkg.items.filter((i) => i.id !== itemId);
     this.saveAll();
   }
 
-  public updateDelivery(packageId: string, updates: Partial<Pick<DeliveryPackage, 'title' | 'strategicNote'>>): void {
+  public updateDelivery(
+    packageId: string,
+    updates: Partial<Pick<DeliveryPackage, 'title' | 'strategicNote' | 'periodLabel'>>
+  ): void {
     const pkg = this.deliveries.find((d) => d.id === packageId);
-    if (!pkg) return;
+    if (!pkg || pkg.status !== 'DRAFT') return;
     Object.assign(pkg, updates);
     this.saveAll();
+  }
+
+  /** Descarta un borrador vacío o con ítems (desvincula curación). */
+  public discardDraftDelivery(packageId: string): boolean {
+    const pkg = this.deliveries.find((d) => d.id === packageId);
+    if (!pkg || pkg.status !== 'DRAFT') return false;
+    for (const item of pkg.items) {
+      if (item.refId) {
+        const entry = this.curation.find((c) => c.id === item.refId);
+        if (entry) entry.deliveryPackageId = null;
+      }
+    }
+    this.deliveries = this.deliveries.filter((d) => d.id !== packageId);
+    this.saveAll();
+    return true;
   }
 
   public markDeliverySent(packageId: string): DeliveryPackage | null {
@@ -2048,19 +2135,22 @@ class DataService {
     return pkg;
   }
 
-  public attachCurationToDelivery(curationId: string, packageId: string): void {
+  public attachCurationToDelivery(curationId: string, packageId: string | null): void {
     const item = this.curation.find((c) => c.id === curationId);
     if (!item) return;
     item.deliveryPackageId = packageId;
     this.saveAll();
   }
 
-  public acknowledgeDelivery(packageId: string): void {
+  public acknowledgeDelivery(packageId: string, clientAckNote?: string): DeliveryPackage | null {
     const pkg = this.deliveries.find((d) => d.id === packageId);
-    if (!pkg) return;
+    if (!pkg) return null;
+    assertTransition(pkg.status, 'ACKNOWLEDGED', DELIVERY_TRANSITIONS, 'DELIVERY');
     pkg.status = 'ACKNOWLEDGED';
     pkg.acknowledgedAt = new Date().toISOString();
+    if (clientAckNote?.trim()) pkg.clientAckNote = clientAckNote.trim();
     this.saveAll();
+    return pkg;
   }
 
   // ==========================================
@@ -2165,7 +2255,7 @@ class DataService {
           opportunitiesPending: opportunities.filter((o) => !o.clientDecision && o.status !== 'ARCHIVED').length,
           pendingCuration: this.getPendingCurationByClient(client.id).length,
           draftDeliveries: deliveries.filter((d) => d.status === 'DRAFT').length,
-          lastDeliveryAt: sent.length ? sent[0].sentAt : undefined,
+          lastDeliveryAt: latestSentAt(sent),
           activeSources: activeSources.length,
           sourcesInError: sources.filter((s) => s.status === 'ERROR' || Boolean(s.lastError)).length,
           signalsLast7Days: signals.filter((s) => s.detectedAt >= since7 && s.status !== 'DISCARDED').length,

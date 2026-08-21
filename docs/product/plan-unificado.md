@@ -1,7 +1,7 @@
 # Plan unificado Postura — Piloto real con Juan Vásquez
 
 **Versión:** 1.0 · **Fecha:** 20 ago 2026  
-**Fuentes integradas:** docs Postura (técnico, plain-language, build-requirements), plan de marketing Juan (.docx), estado AURORA (`ESTADO_ACTUAL.md`), auditoría de código.
+**Fuentes integradas:** docs Postura (técnico, plain-language, build-requirements), plan de marketing Juan (.docx), estado AURORA (`docs/product/estado-2026-08-19.md`), auditoría de código.
 
 **Regla de oro:** Los agentes proponen; los humanos deciden. Nada llega a `published` sin acción explícita del manager o aprobación del cliente.
 
@@ -344,7 +344,7 @@ Calidad:   npm run check | npm run build | npm run dev
 | `Postura - System-overview-plain-language.md` | Promesa al cliente y manager |
 | `Postura - Build-requirements-for-coding-agent.md` | Fases 2–8 originales → mapeadas a oleadas 1–7 |
 | `Plan Marketing Juan (.docx)` | Seed contenido, cadencia, KPIs, oleada 0 |
-| `ESTADO_ACTUAL.md` | Inventario técnico post-hardening |
+| `docs/product/estado-2026-08-19.md` | Inventario técnico post-hardening (histórico) |
 | `juanMasterDossier.ts` | Fuente de verdad voz/posicionamiento Juan |
 
 ---

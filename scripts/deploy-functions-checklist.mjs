@@ -21,6 +21,7 @@ const checks = [
   { ok: built, label: 'Build functions (lib/index.js)' },
   { ok: hasEnvKey('TAVILY_API_KEY'), label: 'TAVILY_API_KEY en .env.local (local)' },
   { ok: hasEnvKey('YOUTUBE_API_KEY'), label: 'YOUTUBE_API_KEY en .env.local (local)' },
+  { ok: true, label: 'Proxies cloud requieren Bearer Firebase + role ADMIN (ver docs/ops/firebase.md)' },
 ];
 
 console.log('\nAURORA — checklist deploy Cloud Functions\n');

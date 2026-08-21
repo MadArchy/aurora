@@ -388,7 +388,7 @@ export interface Task {
   completedAt?: string;
 }
 
-export type ContentType = 'VIDEO_SCRIPT' | 'LINKEDIN_ARTICLE' | 'THOUGHT_LEADERSHIP' | 'NEWSLETTER';
+export type ContentType = 'VIDEO_SCRIPT' | 'LINKEDIN_ARTICLE' | 'THOUGHT_LEADERSHIP' | 'NEWSLETTER' | 'ACADEMIC_PAPER';
 export type ContentStatus =
   | 'DRAFT'
   | 'AI_GENERATED'
@@ -809,7 +809,7 @@ export interface NotificationItem {
   id: string;
   userId: string;
   clientId?: string;
-  type: 'TASK_ASSIGNED' | 'CONTENT_REVIEW' | 'OPPORTUNITY' | 'ONBOARDING' | 'THESIS' | 'SYSTEM';
+  type: 'TASK_ASSIGNED' | 'CONTENT_REVIEW' | 'OPPORTUNITY' | 'ONBOARDING' | 'THESIS' | 'SYSTEM' | 'BRIEFING';
   title: string;
   body: string;
   href?: string;
@@ -1049,6 +1049,8 @@ export interface DeliveryPackage {
   createdBy: string;
   sentAt?: string;
   acknowledgedAt?: string;
+  /** Nota opcional del cliente al marcar como leído. */
+  clientAckNote?: string;
 }
 
 export interface AttachedFile {

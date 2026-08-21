@@ -3,7 +3,7 @@ import { authService } from './services/auth';
 import { dbService } from './services/db';
 import { aiService } from './services/ai';
 import { auditService } from './services/audit';
-import { notificationService, notifyClient } from './services/notifications';
+import { notificationService, notifyClient, notifyManager } from './services/notifications';
 import { processDeadlineReminders } from './services/reminders';
 import {
   downloadRecording,
@@ -41,12 +41,13 @@ import {
   renderContentPreviewModal,
   renderFeedbackModal,
   renderAddTaskModal,
+  renderDeliveryPreviewModal,
 } from './components/Modals';
 import { renderOnboardingWizard } from './components/OnboardingWizard';
 import { renderThesisEditorModal } from './components/ThesisEditorModal';
 import { renderSourceRegistryModal } from './components/SourceRegistryModal';
 import { PORTFOLIO_TAB_IDS, WORKSPACE_TAB_IDS, CLIENT_TAB_IDS, isWorkspaceTab, normalizeTab } from './components/PageHeader';
-import { CurationDestination, DeliveryItemKind, Source, TaskType, ContentStatus, BusinessKpiType, ContentPipelineStatus } from './types';
+import { CurationDestination, DeliveryItemKind, Source, TaskType, ContentStatus, BusinessKpiType, ContentPipelineStatus, DeliveryItem } from './types';
 import { createId } from './lib/id';
 import { CAMP_ADOPTION } from './data/juanCampaignSeed';
 import { bindSessionUi } from './controllers/sessionController';
@@ -55,7 +56,9 @@ import { mapLegacyContentStatus, resolvePipelineStepsToTarget } from './domain/c
 import { nextIncompleteOnboardingStep } from './domain/profileCoverage';
 import type { ProfileFactSection } from './types';
 import { metricsService } from './services/metrics';
+import { readingTaskDescription, validateDeliveryForSend } from './domain/deliveryCore';
 import { fetchSourceItems } from './services/sourceApi';
+import { labelSourceRunError } from './domain/sourceIngestCore';
 import { esc } from './lib/escape';
 import {
   loadLastAgentRun,
@@ -128,6 +131,14 @@ class App {
 
   private async boot() {
     themeService.init();
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.activeModal) {
+        event.preventDefault();
+        this.closeModal();
+      }
+    });
+    const { onFirestorePushError } = await import('./services/firestore/sync');
+    onFirestorePushError((message) => this.showToast(message, 'warning'));
     await authService.ready;
     authService.subscribe((user) => {
       if (!user) {
@@ -268,6 +279,14 @@ class App {
 
     this.bindEvents();
     this.renderToasts();
+    if (this.activeModal) {
+      requestAnimationFrame(() => {
+        const firstControl = document.querySelector<HTMLElement>(
+          '.modal-overlay .modal-content button, .modal-overlay .modal-content input, .modal-overlay .modal-content select, .modal-overlay .modal-content textarea'
+        );
+        firstControl?.focus();
+      });
+    }
     if (user) processDeadlineReminders();
   }
 
@@ -296,7 +315,10 @@ class App {
     }
 
     return renderManagerCockpit(this.activeTab, {
-      searchQuery: this.activeTab === 'dashboard' ? this.filterState.portfolioSearch : this.filterState.searchQuery,
+      searchQuery:
+        this.activeTab === 'dashboard' || this.activeTab === 'clients'
+          ? this.filterState.portfolioSearch
+          : this.filterState.searchQuery,
       sourceType: this.filterState.sourceType,
       contentStatus: this.filterState.contentStatus,
     });
@@ -424,6 +446,9 @@ class App {
     if (this.activeModal === 'feedback' && this.modalData) {
       return renderFeedbackModal(this.modalData.targetId, this.modalData.type, this.modalData.taskId);
     }
+    if (this.activeModal === 'delivery-preview' && this.modalData?.packageId) {
+      return renderDeliveryPreviewModal(this.modalData.packageId);
+    }
     return '';
   }
 
@@ -455,7 +480,7 @@ class App {
           <div style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 420px; overflow-y: auto;">
             ${items.length
               ? items.map((item) => `
-                  <article class="notification-row ${item.read ? 'read' : 'unread'}" data-notification-id="${esc(item.id)}" data-tab-link="${item.type === 'TASK_ASSIGNED' ? 'client-feed' : item.type === 'OPPORTUNITY' ? 'client-opps' : item.type === 'THESIS' ? 'client-thesis' : 'client-home'}">
+                  <article class="notification-row ${item.read ? 'read' : 'unread'}" data-notification-id="${esc(item.id)}" data-tab-link="${item.type === 'TASK_ASSIGNED' ? 'client-feed' : item.type === 'BRIEFING' ? 'client-home' : item.type === 'OPPORTUNITY' ? 'client-opps' : item.type === 'THESIS' ? 'client-thesis' : 'client-home'}">
                     <strong>${esc(item.title)}</strong>
                     <p class="muted small">${esc(item.body)}</p>
                     <span class="muted small">${new Date(item.createdAt).toLocaleString('es')}</span>
@@ -809,7 +834,7 @@ class App {
       }
 
       auditService.log(authService.getCurrentUser(), 'COMPLETE_ONBOARDING', 'Client', clientId);
-      notifyClient(clientId, {
+      notifyManager(clientId, {
         type: 'ONBOARDING',
         title: 'Perfil listo para revisión',
         body: 'El cliente completó el onboarding.',
@@ -1142,7 +1167,7 @@ class App {
               duplicates: 0,
               error,
             });
-            this.showToast(`${source.name}: ${error}`, 'warning');
+            this.showToast(`${source.name}: ${labelSourceRunError(error)}`, 'warning');
           } else {
             if (source.status === 'ERROR' || source.lastError) {
               dbService.updateSourceStatus(source.id, 'ACTIVE', { clearError: true });
@@ -1561,6 +1586,7 @@ class App {
 
     document.querySelectorAll('.btn-cancel-task').forEach((btn) => {
       btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const taskId = (e.currentTarget as HTMLElement).getAttribute('data-task-id');
         if (!taskId) return;
         if (!confirm('¿Cancelar esta tarea? El cliente dejará de verla como pendiente.')) return;
@@ -1570,6 +1596,81 @@ class App {
         this.render();
       });
     });
+
+    document.querySelectorAll('.btn-open-task-action').forEach((btn) => {
+      const open = (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('a, video, .btn-download-recording, .btn-reupload-recording, .input-reupload-recording')) {
+          e.stopPropagation();
+          return;
+        }
+        const taskId = (e.currentTarget as HTMLElement).getAttribute('data-task-id');
+        if (taskId) this.openAssignedTask(taskId);
+      };
+      btn.addEventListener('click', open);
+      btn.addEventListener('keydown', (e) => {
+        const keyEvent = e as KeyboardEvent;
+        if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+          e.preventDefault();
+          open(e);
+        }
+      });
+    });
+  }
+
+  /** Abre la herramienta que corresponde al tipo de tarea. */
+  private openAssignedTask(taskId: string): void {
+    const task = dbService.getAllTasks().find((t) => t.id === taskId);
+    if (!task) {
+      this.showToast('Tarea no encontrada', 'warning');
+      return;
+    }
+
+    if (task.status === 'ASSIGNED' || task.status === 'DRAFT') {
+      try {
+        dbService.updateTaskStatus(taskId, 'VIEWED');
+      } catch {
+        /* transiciones ya avanzadas */
+      }
+    }
+
+    if (task.type === 'RECORD_VIDEO') {
+      this.activeModal = 'teleprompter';
+      this.modalData = { taskId };
+      this.render();
+      return;
+    }
+
+    if (task.type === 'REVIEW_ARTICLE') {
+      if (task.contentItemId) {
+        this.activeModal = 'content-preview';
+        this.modalData = { contentId: task.contentItemId, taskId };
+        this.render();
+        return;
+      }
+      this.setTab('ws-production');
+      this.showToast('No hay borrador vinculado. Revisa Producción.', 'info');
+      return;
+    }
+
+    if (task.type === 'APPROVE_OPPORTUNITY') {
+      this.setTab('ws-briefing');
+      return;
+    }
+
+    if (task.type === 'SUBMIT_INFO') {
+      const urlMatch = task.description.match(/https?:\/\/[^\s]+/);
+      if (urlMatch) {
+        window.open(urlMatch[0], '_blank', 'noopener,noreferrer');
+      }
+      this.showToast(
+        urlMatch ? 'Se abrió la lectura en una pestaña.' : 'Lectura asignada: revisa la descripción de la tarea.',
+        'info'
+      );
+      return;
+    }
+
+    this.showToast('Esta tarea no tiene una acción automática.', 'info');
   }
 
   // ==========================================
@@ -2024,22 +2125,48 @@ class App {
 
         const pkg = dbService.getDeliveryById(packageId);
         const item = pkg?.items.find((i) => i.id === itemId);
-        if (item?.refId) dbService.attachCurationToDelivery(item.refId, '');
+        if (item?.refId) dbService.attachCurationToDelivery(item.refId, null);
         dbService.removeDeliveryItem(packageId, itemId);
         this.showToast('Ítem retirado del briefing', 'info');
         this.render();
       });
     });
 
-    ['btn-send-delivery', 'btn-send-delivery-bar'].forEach((id) => {
-      const sendBtn = document.getElementById(id) as HTMLButtonElement | null;
-      sendBtn?.addEventListener('click', async () => {
-        const packageId = sendBtn.getAttribute('data-package-id');
+    document.getElementById('btn-preview-delivery')?.addEventListener('click', (e) => {
+      const packageId = (e.currentTarget as HTMLElement).getAttribute('data-package-id');
+      if (!packageId) return;
+      this.activeModal = 'delivery-preview';
+      this.modalData = { packageId };
+      this.render();
+    });
+
+    document.querySelectorAll('.btn-discard-delivery').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const packageId = (e.currentTarget as HTMLElement).getAttribute('data-package-id');
         if (!packageId) return;
-        sendBtn.disabled = true;
-        sendBtn.textContent = 'Enviando…';
+        const pkg = dbService.getDeliveryById(packageId);
+        if (!pkg) return;
+        if (!window.confirm(`¿Descartar el borrador «${pkg.title}»? Los ítems vuelven a la bandeja de listos.`)) return;
+        dbService.discardDraftDelivery(packageId);
+        this.showToast('Borrador descartado', 'info');
+        this.render();
+      });
+    });
+
+    document.querySelectorAll('.btn-close-delivery-preview').forEach((btn) => {
+      btn.addEventListener('click', () => this.closeModal());
+    });
+
+    document.querySelectorAll('.btn-confirm-send-delivery').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        const packageId = (e.currentTarget as HTMLElement).getAttribute('data-package-id');
+        if (!packageId) return;
+        const el = e.currentTarget as HTMLButtonElement;
+        el.disabled = true;
+        el.textContent = 'Enviando…';
         try {
           await this.sendDelivery(packageId);
+          this.closeModal();
         } catch (error) {
           this.showToast(error instanceof Error ? error.message : 'No se pudo enviar el briefing', 'warning');
           this.render();
@@ -2047,105 +2174,173 @@ class App {
       });
     });
 
+    ['btn-send-delivery', 'btn-send-delivery-bar'].forEach((id) => {
+      const sendBtn = document.getElementById(id) as HTMLButtonElement | null;
+      sendBtn?.addEventListener('click', () => {
+        const packageId = sendBtn.getAttribute('data-package-id');
+        if (!packageId) return;
+        this.activeModal = 'delivery-preview';
+        this.modalData = { packageId };
+        this.render();
+      });
+    });
+
     document.querySelectorAll('.btn-acknowledge-delivery').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const id = (e.currentTarget as HTMLElement).getAttribute('data-package-id');
         if (!id) return;
-        dbService.acknowledgeDelivery(id);
+        const noteEl = document.querySelector(`.input-ack-note[data-package-id="${id}"]`) as HTMLTextAreaElement | null;
+        const note = noteEl?.value.trim();
+        const pkg = dbService.acknowledgeDelivery(id, note);
+        if (!pkg) {
+          this.showToast('No se pudo marcar el briefing', 'warning');
+          return;
+        }
+        const client = dbService.getClientById(pkg.clientId);
+        notifyManager(pkg.clientId, {
+          type: 'BRIEFING',
+          title: 'Briefing visto por el cliente',
+          body: note
+            ? `«${pkg.title}» — ${client?.displayName || 'Cliente'}: ${note}`
+            : `«${pkg.title}» marcado como leído por ${client?.displayName || 'el cliente'}.`,
+          href: 'ws-deliver',
+        });
         this.showToast('Briefing marcado como visto', 'success');
         this.render();
       });
     });
   }
 
-  /** Materializa el briefing: crea tareas, oportunidades y evidencias, y notifica al cliente. */
+  /** Materializa el briefing: valida, genera borradores IA, persiste en un solo lote. */
   private async sendDelivery(packageId: string) {
     const pkg = dbService.getDeliveryById(packageId);
-    if (!pkg) return;
-
-    const clientId = pkg.clientId;
-    const client = dbService.getClientById(clientId);
-    const theses = dbService.getThesesByClient(clientId);
+    const clientId = pkg?.clientId;
+    const theses = clientId ? dbService.getThesesByClient(clientId) : [];
     const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
-    let createdTasks = 0;
 
-    for (const item of pkg.items) {
+    const validation = validateDeliveryForSend(
+      pkg,
+      (item) => (item.refId ? dbService.getCurationById(item.refId)?.destination : undefined),
+      thesis
+    );
+    if (!validation.ok) {
+      throw new Error(validation.message);
+    }
+
+    const client = dbService.getClientById(clientId!);
+    type CurationEntry = ReturnType<typeof dbService.getCurationById>;
+    type DraftPlan =
+      | { kind: 'task_content'; item: DeliveryItem; entry?: CurationEntry; destination: 'TASK_VIDEO' | 'TASK_ARTICLE'; draft: Awaited<ReturnType<typeof aiService.generateContentDraft>> }
+      | { kind: 'opportunity'; item: DeliveryItem; entry?: CurationEntry }
+      | { kind: 'evidence'; item: DeliveryItem; entry?: CurationEntry }
+      | { kind: 'reading'; item: DeliveryItem; entry?: CurationEntry };
+
+    const plans: DraftPlan[] = [];
+    const briefingItems = pkg!.items;
+
+    for (const item of briefingItems) {
       const entry = item.refId ? dbService.getCurationById(item.refId) : undefined;
       const destination = entry?.destination;
 
-      if ((destination === 'TASK_VIDEO' || destination === 'TASK_ARTICLE') && thesis) {
+      if (destination === 'TASK_VIDEO' || destination === 'TASK_ARTICLE') {
         const format = destination === 'TASK_VIDEO' ? 'VIDEO_SCRIPT' : 'LINKEDIN_ARTICLE';
-        const draft = await aiService.generateContentDraft(thesis, item.title, format);
-        const contentId = createId('cnt');
-        dbService.saveContent({
-          ...draft,
-          id: contentId,
-          status: 'CLIENT_REVIEW',
-          managerNotes: `${draft.managerNotes || ''} Justificación: ${item.rationale || 'sin nota'}`.trim(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        this.syncContentToPipelineStatus(contentId, 'CLIENT_REVIEW', 'Enviado con briefing');
-
-        dbService.addTask({
-          organizationId: thesis.organizationId,
-          clientId,
-          thesisId: thesis.id,
-          type: destination === 'TASK_VIDEO' ? 'RECORD_VIDEO' : 'REVIEW_ARTICLE',
-          title: item.title.slice(0, 90),
-          description: item.rationale || 'Preparado por tu Brand Manager.',
-          estimatedMinutes: destination === 'TASK_VIDEO' ? 15 : 20,
-          status: 'ASSIGNED',
-          contentItemId: contentId,
-          curationEntryId: entry?.id,
-          deliveryPackageId: packageId,
-          scriptPayload: draft.teleprompterScript,
-        });
-        createdTasks += 1;
-      }
-
-      if (destination === 'OPPORTUNITY' && thesis) {
-        dbService.addOpportunity({
-          organizationId: thesis.organizationId,
-          clientId,
-          thesisId: thesis.id,
-          title: item.title.slice(0, 120),
-          organization: entry?.sourceName || 'Por confirmar',
-          type: 'PANEL',
-          deadline: new Date(Date.now() + 21 * 86400000).toISOString(),
-          description: item.note || item.title,
-          fitRationale: item.rationale || 'Alineado con la tesis activa.',
-          status: 'SENT_TO_CLIENT',
-        });
-      }
-
-      if (destination === 'EVIDENCE') {
-        dbService.addEvidenceItem({
-          organizationId: client?.organizationId || 'org_aurora_01',
-          clientId,
-          title: item.title.slice(0, 120),
-          type: 'DOCUMENT',
-          sourceUrl: item.url,
-          snippet: item.note || item.title,
-          confidenceScore: 70,
-          verified: false,
-          associatedThesesIds: thesis ? [thesis.id] : [],
-        });
+        const draft = await aiService.generateContentDraft(thesis!, item.title, format);
+        plans.push({ kind: 'task_content', item, entry, destination, draft });
+      } else if (destination === 'OPPORTUNITY') {
+        plans.push({ kind: 'opportunity', item, entry });
+      } else if (destination === 'EVIDENCE') {
+        plans.push({ kind: 'evidence', item, entry });
+      } else if (destination === 'REFERENCE_READING' || item.kind === 'READING') {
+        plans.push({ kind: 'reading', item, entry });
       }
     }
 
-    dbService.markDeliverySent(packageId);
-    const notified = notifyClient(clientId, {
-      type: 'TASK_ASSIGNED',
+    let createdTasks = 0;
+    dbService.runInSaveBatch(() => {
+      for (const plan of plans) {
+        if (plan.kind === 'task_content') {
+          const contentId = createId('cnt');
+          dbService.saveContent({
+            ...plan.draft,
+            id: contentId,
+            status: 'CLIENT_REVIEW',
+            managerNotes: `${plan.draft.managerNotes || ''} Justificación: ${plan.item.rationale || 'sin nota'}`.trim(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          this.syncContentToPipelineStatus(contentId, 'CLIENT_REVIEW', 'Enviado con briefing');
+
+          dbService.addTask({
+            organizationId: thesis!.organizationId,
+            clientId: clientId!,
+            thesisId: thesis!.id,
+            type: plan.destination === 'TASK_VIDEO' ? 'RECORD_VIDEO' : 'REVIEW_ARTICLE',
+            title: plan.item.title.slice(0, 90),
+            description: plan.item.rationale || 'Preparado por tu Brand Manager.',
+            estimatedMinutes: plan.destination === 'TASK_VIDEO' ? 15 : 20,
+            status: 'ASSIGNED',
+            contentItemId: contentId,
+            curationEntryId: plan.entry?.id,
+            deliveryPackageId: packageId,
+            scriptPayload: plan.draft.teleprompterScript,
+          });
+          createdTasks += 1;
+        } else if (plan.kind === 'opportunity') {
+          dbService.addOpportunity({
+            organizationId: thesis!.organizationId,
+            clientId: clientId!,
+            thesisId: thesis!.id,
+            title: plan.item.title.slice(0, 120),
+            organization: plan.entry?.sourceName || 'Por confirmar',
+            type: 'PANEL',
+            deadline: new Date(Date.now() + 21 * 86400000).toISOString(),
+            description: plan.item.note || plan.item.title,
+            fitRationale: plan.item.rationale || 'Alineado con la tesis activa.',
+            status: 'SENT_TO_CLIENT',
+          });
+        } else if (plan.kind === 'evidence') {
+          dbService.addEvidenceItem({
+            organizationId: client?.organizationId || 'org_aurora_01',
+            clientId: clientId!,
+            title: plan.item.title.slice(0, 120),
+            type: 'DOCUMENT',
+            sourceUrl: plan.item.url,
+            snippet: plan.item.note || plan.item.title,
+            confidenceScore: 70,
+            verified: false,
+            associatedThesesIds: thesis ? [thesis.id] : [],
+          });
+        } else if (plan.kind === 'reading') {
+          dbService.addTask({
+            organizationId: thesis!.organizationId,
+            clientId: clientId!,
+            thesisId: thesis!.id,
+            type: 'SUBMIT_INFO',
+            title: `Leer: ${plan.item.title.slice(0, 80)}`,
+            description: readingTaskDescription(plan.item),
+            estimatedMinutes: 10,
+            status: 'ASSIGNED',
+            curationEntryId: plan.entry?.id,
+            deliveryPackageId: packageId,
+          });
+          createdTasks += 1;
+        }
+      }
+      dbService.markDeliverySent(packageId);
+    });
+
+    const notified = notifyClient(clientId!, {
+      type: 'BRIEFING',
       title: 'Nuevo briefing de tu Brand Manager',
-      body: `${pkg.title} · ${pkg.items.length} ítem(s)`,
+      body: `${pkg!.title} · ${pkg!.items.length} ítem(s)`,
+      href: 'client-home',
     });
     if (!notified) {
       this.showToast('Briefing enviado. El cliente no tiene cuenta vinculada para avisos.', 'info');
     }
     auditService.log(authService.getCurrentUser(), 'DELIVERY_SENT', 'DeliveryPackage', packageId, {
-      clientId,
-      items: pkg.items.length,
+      clientId: clientId!,
+      items: pkg!.items.length,
       createdTasks,
     });
 
@@ -2229,9 +2424,7 @@ class App {
 
     this.completeLinkedArticleTask(contentId, taskId);
 
-    notificationService.push({
-      userId: 'user_admin_01',
-      clientId: content.clientId,
+    notifyManager(content.clientId, {
       type: 'CONTENT_REVIEW',
       title: 'Artículo aprobado por el cliente',
       body: `«${content.title}» está listo para finalizar.`,
@@ -2269,9 +2462,7 @@ class App {
       updatedAt: new Date().toISOString(),
     });
 
-    notificationService.push({
-      userId: 'user_admin_01',
-      clientId: content.clientId,
+    notifyManager(content.clientId, {
       type: 'CONTENT_REVIEW',
       title: 'Artículo rechazado por el cliente',
       body: reason.trim(),
@@ -2326,6 +2517,45 @@ class App {
         this.showToast(error instanceof Error ? error.message : 'No se pudo generar el borrador', 'warning');
       }
       this.render();
+    });
+
+    document.querySelectorAll('.btn-generate-scientific-article').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        const target = e.currentTarget as HTMLButtonElement;
+        const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
+        const topic = target.getAttribute('data-sci-title') || '';
+        const why = target.getAttribute('data-sci-why') || '';
+        const venue = target.getAttribute('data-sci-venue') || 'Working paper';
+        const role = target.getAttribute('data-sci-role') || '';
+        const theses = dbService.getThesesByClient(clientId);
+        const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+        if (!thesis) {
+          this.showToast('Define una tesis antes de generar el artículo científico.', 'warning');
+          return;
+        }
+        if (!topic.trim()) return;
+        target.disabled = true;
+        target.textContent = 'Redactando…';
+        try {
+          const draft = await aiService.generateContentDraft(thesis, topic.trim(), 'ACADEMIC_PAPER', {
+            roleAngle: role,
+            venueLabel: venue,
+            why,
+          });
+          const contentId = createId('cnt');
+          dbService.saveContent({
+            ...draft,
+            id: contentId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          this.syncContentToPipelineStatus(contentId, draft.status);
+          this.showToast('Borrador científico creado. Revísalo: no publiques citas no verificadas.', 'success');
+        } catch (error) {
+          this.showToast(error instanceof Error ? error.message : 'No se pudo generar el paper', 'warning');
+        }
+        this.render();
+      });
     });
 
     document.querySelectorAll('.btn-open-content-editor').forEach((btn) => {
@@ -2744,14 +2974,14 @@ class App {
         if (!oppId) return;
         const opp = dbService.getOpportunityById(oppId);
         dbService.updateOpportunityDecision(oppId, 'ACCEPTED', 'Aceptado con disponibilidad completa.');
-        notificationService.push({
-          userId: 'user_admin_01',
-          clientId: opp?.clientId,
-          type: 'OPPORTUNITY',
-          title: 'Oportunidad aceptada',
-          body: opp ? `«${opp.title}» — el cliente completará el checklist de postulación.` : 'El cliente aceptó una oportunidad.',
-          href: 'ws-briefing',
-        });
+        if (opp?.clientId) {
+          notifyManager(opp.clientId, {
+            type: 'OPPORTUNITY',
+            title: 'Oportunidad aceptada',
+            body: `«${opp.title}» — el cliente completará el checklist de postulación.`,
+            href: 'ws-briefing',
+          });
+        }
         this.showToast('Oportunidad aceptada. Completa el checklist de postulación.', 'success');
         this.render();
       });
@@ -2777,14 +3007,14 @@ class App {
           this.showToast('Completa todos los ítems del checklist antes de enviar.', 'warning');
           return;
         }
-        notificationService.push({
-          userId: 'user_admin_01',
-          clientId: opp?.clientId,
-          type: 'OPPORTUNITY',
-          title: 'Postulación enviada',
-          body: opp ? `«${opp.title}» — el cliente marcó la postulación como enviada.` : 'Postulación de oportunidad completada.',
-          href: 'ws-briefing',
-        });
+        if (opp?.clientId) {
+          notifyManager(opp.clientId, {
+            type: 'OPPORTUNITY',
+            title: 'Postulación enviada',
+            body: `«${opp.title}» — el cliente marcó la postulación como enviada.`,
+            href: 'ws-briefing',
+          });
+        }
         this.showToast('Postulación marcada como enviada. Tu Brand Manager fue notificado.', 'success');
         this.render();
       });
@@ -3099,16 +3329,16 @@ class App {
       );
     }
 
-    notificationService.push({
-      userId: 'user_admin_01',
-      clientId: task?.clientId,
-      type: 'CONTENT_REVIEW',
-      title: 'Video recibido del cliente',
-      body: client
-        ? `${client.displayName} envió la grabación «${task?.title || 'sin título'}».`
-        : 'El cliente envió una nueva grabación de video.',
-      href: 'ws-tasks',
-    });
+    if (task?.clientId) {
+      notifyManager(task.clientId, {
+        type: 'CONTENT_REVIEW',
+        title: 'Video recibido del cliente',
+        body: client
+          ? `${client.displayName} envió la grabación «${task.title || 'sin título'}».`
+          : 'El cliente envió una nueva grabación de video.',
+        href: 'ws-tasks',
+      });
+    }
 
     this.showToast('Video enviado al manager', 'success');
   }
@@ -3274,7 +3504,7 @@ class App {
   private async pollSources(): Promise<{ created: number; failed: number; rejected: number }> {
     const clientId = this.currentClientId();
     const sources = (clientId ? dbService.getSourcesByClient(clientId) : dbService.getSources()).filter(
-      (s) => s.url && s.status !== 'ARCHIVED' && s.status !== 'PAUSED' && s.status !== 'ERROR'
+      (s) => s.url && s.status !== 'ARCHIVED' && s.status !== 'PAUSED'
     );
 
     let created = 0;

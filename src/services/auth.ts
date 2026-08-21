@@ -52,17 +52,25 @@ class AuthService {
     let clientIds: string[] = [];
     if (user.role === 'ADMIN') {
       const boot = await dbService.bootstrapFirestoreIfEmpty();
-      if (boot.bootstrapped) return;
-      await dbService.hydrateFromRemote();
+      if (!boot.bootstrapped) {
+        await dbService.hydrateFromRemote();
+      }
       clientIds = dbService.getClients().map((c) => c.id);
     } else if (user.clientId) {
       await dbService.hydrateFromRemote([user.clientId]);
       clientIds = [user.clientId];
     }
 
+    const { bindAuthNotificationIdentities } = await import('./notifications');
+    bindAuthNotificationIdentities(user);
+
     if (clientIds.length) {
-      await sync.startFirestoreRealtimeSync(clientIds, (partial) => {
-        dbService.importSnapshot(partial, { merge: true, skipRemote: true });
+      await sync.startFirestoreRealtimeSync(clientIds, (partial, meta) => {
+        dbService.importSnapshot(partial, {
+          merge: true,
+          skipRemote: true,
+          scopeClientId: meta.clientId,
+        });
       });
     }
   }
@@ -124,6 +132,9 @@ class AuthService {
 
       this.currentUser = this.toUser(account, {
         displayName: parsed.displayName,
+      });
+      void import('./notifications').then(({ bindAuthNotificationIdentities }) => {
+        if (this.currentUser) bindAuthNotificationIdentities(this.currentUser);
       });
     } catch {
       this.currentUser = null;
@@ -239,6 +250,8 @@ class AuthService {
     const user = this.toUser(account);
     auditService.log(user, 'LOGIN', 'User', user.uid);
     this.setSession(user);
+    const { bindAuthNotificationIdentities } = await import('./notifications');
+    bindAuthNotificationIdentities(user);
     return { ok: true };
   }
 

@@ -11,6 +11,7 @@ import {
   searchYoutubeVideos,
 } from './lib/youtubeCore';
 import { runScheduledIngest } from './lib/scheduledIngest';
+import { requirePosturaAuth } from './lib/httpAuth';
 
 initializeApp();
 
@@ -23,12 +24,6 @@ interface SetClaimsRequest {
   role: 'ADMIN' | 'CLIENT';
   organizationId?: string;
   clientId?: string | null;
-}
-
-function setCors(res: { set: (key: string, value: string) => void }) {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
 /** Provisiona custom claims POSTURA (solo ADMIN). Usar en Emulator / bootstrap piloto. */
@@ -54,25 +49,22 @@ export const setPosturaClaims = onCall(async (request) => {
 });
 
 /** Proxy IA autenticado: secretos en Secret Manager, nunca en Firestore ni frontend. */
-export const aiComplete = onRequest({ secrets: [openAiKey], cors: true }, async (req, res) => {
+export const aiComplete = onRequest({ secrets: [openAiKey], cors: false }, async (req, res) => {
+  const user = await requirePosturaAuth(req, res, { adminOnly: true, rateLimit: 'ai' });
+  if (!user) return;
+
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
     return;
   }
-  if (!req.headers.authorization?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'AUTH_REQUIRED' });
-    return;
-  }
-  res.status(501).json({ error: 'NOT_IMPLEMENTED', message: 'Wire Firebase Auth + App Check before pilot.' });
+  res.status(501).json({ error: 'NOT_IMPLEMENTED', message: 'Wire OpenAI via Secret Manager before pilot.' });
 });
 
-/** Ingesta RSS server-side con validación SSRF. GET ?url= */
-export const rssProxy = onRequest({ cors: true }, async (req, res) => {
-  setCors(res);
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+/** Ingesta RSS server-side con validación SSRF. GET ?url= — solo ADMIN autenticado. */
+export const rssProxy = onRequest({ cors: false }, async (req, res) => {
+  const user = await requirePosturaAuth(req, res, { adminOnly: true, rateLimit: 'rss' });
+  if (!user) return;
+
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
     return;
@@ -106,13 +98,10 @@ export const rssProxy = onRequest({ cors: true }, async (req, res) => {
   }
 });
 
-/** Búsqueda Tavily server-side. POST JSON { query, topic, max_results, ... } */
-export const tavilySearch = onRequest({ secrets: [tavilyKey], cors: true }, async (req, res) => {
-  setCors(res);
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+/** Búsqueda Tavily server-side. POST JSON { query, topic, max_results, ... } — solo ADMIN. */
+export const tavilySearch = onRequest({ secrets: [tavilyKey], cors: false }, async (req, res) => {
+  const user = await requirePosturaAuth(req, res, { adminOnly: true, rateLimit: 'tavily' });
+  if (!user) return;
 
   const apiKey = tavilyKey.value();
   if (!apiKey) {
@@ -153,13 +142,10 @@ export const tavilySearch = onRequest({ secrets: [tavilyKey], cors: true }, asyn
   }
 });
 
-/** YouTube Data API v3 — GET status · POST { action: resolve|search|channels, ... } */
-export const youtubeApi = onRequest({ secrets: [youtubeKey], cors: true }, async (req, res) => {
-  setCors(res);
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+/** YouTube Data API v3 — GET status · POST { action: resolve|search|channels, ... } — solo ADMIN. */
+export const youtubeApi = onRequest({ secrets: [youtubeKey], cors: false }, async (req, res) => {
+  const user = await requirePosturaAuth(req, res, { adminOnly: true, rateLimit: 'youtube' });
+  if (!user) return;
 
   const apiKey = youtubeKey.value();
   if (!apiKey) {

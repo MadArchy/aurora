@@ -129,9 +129,29 @@ export function renderClientOpportunitiesBody(clientId: string): string {
   `;
 }
 
-export function renderManagerOpportunities(clientId: string): string {
+export function renderManagerOpportunities(clientId: string, embedded = false): string {
   const opportunities = dbService.getOpportunitiesByClient(clientId);
   if (!opportunities.length) return '';
+
+  const body = `
+    <div class="opportunity-list compact">
+      ${opportunities.map((opp) => {
+        const stage = mapOpportunityLifecycle(opp);
+        const progress = checklistProgress(opp.submissionChecklist);
+        return `
+          <div class="opportunity-manager-row">
+            <div>
+              <strong>${esc(opp.title)}</strong>
+              <p class="muted small">${esc(OPPORTUNITY_LIFECYCLE_LABELS[stage])}${opp.submissionChecklist?.length ? ` · checklist ${progress.done}/${progress.total}` : ''}</p>
+            </div>
+            <span class="badge ${stage === 'submitted' ? 'badge-ready' : 'badge-progress'}">${esc(stage)}</span>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  if (embedded) return body;
 
   return `
     <section class="card">
@@ -141,21 +161,7 @@ export function renderManagerOpportunities(clientId: string): string {
           <p class="muted small">Estado de convocatorias enviadas al cliente.</p>
         </div>
       </div>
-      <div class="opportunity-list compact">
-        ${opportunities.map((opp) => {
-          const stage = mapOpportunityLifecycle(opp);
-          const progress = checklistProgress(opp.submissionChecklist);
-          return `
-            <div class="opportunity-manager-row">
-              <div>
-                <strong>${esc(opp.title)}</strong>
-                <p class="muted small">${esc(OPPORTUNITY_LIFECYCLE_LABELS[stage])}${opp.submissionChecklist?.length ? ` · checklist ${progress.done}/${progress.total}` : ''}</p>
-              </div>
-              <span class="badge ${stage === 'submitted' ? 'badge-ready' : 'badge-progress'}">${esc(stage)}</span>
-            </div>
-          `;
-        }).join('')}
-      </div>
+      ${body}
     </section>
   `;
 }

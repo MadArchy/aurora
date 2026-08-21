@@ -22,6 +22,7 @@ const COLLECTION_MAP: Partial<Record<CollectionKey, typeof CLIENT_SUBCOLLECTIONS
   signalOutcomes: 'signalOutcomes',
   proofWallItems: 'proofWallItems',
   sources: 'sources',
+  notifications: 'notifications',
 };
 
 function itemsForClient<T extends { clientId?: string | null; id?: string }>(
@@ -124,6 +125,7 @@ export async function pullClientDataFromFirestore(
     campaignMilestones: [],
     proofWallItems: [],
     sources: [],
+    notifications: [],
     profiles: {},
     dossiers: {},
   };
@@ -155,6 +157,12 @@ export async function pullClientDataFromFirestore(
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let authoritative = false;
+type FirestorePushErrorHandler = (message: string) => void;
+let pushErrorHandler: FirestorePushErrorHandler | null = null;
+
+export function onFirestorePushError(handler: FirestorePushErrorHandler | null) {
+  pushErrorHandler = handler;
+}
 
 export function setFirestoreAuthoritative(active: boolean) {
   authoritative = active;
@@ -168,7 +176,12 @@ export function scheduleFirestorePush(snapshot: LocalV5Snapshot) {
   if (!isFirestoreAuthoritative()) return;
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
-    void importSnapshotToFirestore(snapshot);
+    void importSnapshotToFirestore(snapshot).then((result) => {
+      if (!result.ok) pushErrorHandler?.(result.message);
+    }).catch((err) => {
+      const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
+      pushErrorHandler?.(message);
+    });
   }, 800);
 }
 
@@ -178,7 +191,10 @@ export async function hydrateFromFirestore(clientIds: string[]): Promise<Partial
   return pullClientDataFromFirestore(clientIds);
 }
 
-type RealtimePartialHandler = (partial: Partial<LocalV5Snapshot>) => void;
+type RealtimePartialHandler = (
+  partial: Partial<LocalV5Snapshot>,
+  meta: { clientId: string }
+) => void;
 
 let realtimeUnsubs: Array<() => void> = [];
 
@@ -188,9 +204,18 @@ export function stopFirestoreRealtimeSync() {
   realtimeUnsubs = [];
 }
 
+const REALTIME_SUBS = [
+  'sources',
+  'signals',
+  'notifications',
+  'deliveries',
+  'tasks',
+  'contents',
+] as const;
+
 /**
- * Escucha cambios en fuentes y señales (ingesta cloud u otro dispositivo).
- * Usa merge + skipRemote para no re-empujar al servidor.
+ * Escucha colecciones operativas por cliente.
+ * Cada snapshot reemplaza solo el alcance de ese clientId (delete-aware).
  */
 export async function startFirestoreRealtimeSync(
   clientIds: string[],
@@ -205,15 +230,18 @@ export async function startFirestoreRealtimeSync(
   const { collection, onSnapshot } = await import('firebase/firestore');
 
   for (const clientId of clientIds) {
-    for (const sub of ['sources', 'signals'] as const) {
+    for (const sub of REALTIME_SUBS) {
       const colRef = collection(db, `${clientDocPath(clientId)}/${sub}`);
       const unsub = onSnapshot(colRef, (snap: import('firebase/firestore').QuerySnapshot) => {
-        const rows = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        if (sub === 'sources') {
-          onPartial({ sources: rows as LocalV5Snapshot['sources'] });
-        } else {
-          onPartial({ signals: rows as LocalV5Snapshot['signals'] });
-        }
+        const rows = snap.docs.map((docSnap) => ({
+          ...docSnap.data(),
+          id: docSnap.id,
+          clientId,
+        }));
+        const partial: Partial<LocalV5Snapshot> = {
+          [sub]: rows,
+        } as Partial<LocalV5Snapshot>;
+        onPartial(partial, { clientId });
       });
       realtimeUnsubs.push(unsub);
     }
