@@ -986,6 +986,7 @@ class DataService {
     assign('feedbackEvents', partial.feedbackEvents);
     assign('signalOutcomes', partial.signalOutcomes);
     assign('proofWallItems', partial.proofWallItems);
+    assign('campaignMilestones', partial.campaignMilestones);
 
     if (partial.profiles) this.profiles = merge ? { ...this.profiles, ...partial.profiles } : partial.profiles;
     if (partial.dossiers) this.dossiers = merge ? { ...this.dossiers, ...partial.dossiers } : partial.dossiers;
@@ -993,7 +994,6 @@ class DataService {
     if (partial.aiRuns) this.aiRuns = partial.aiRuns;
     if (partial.sources) this.sources = partial.sources;
     if (partial.recommendations) this.recommendations = partial.recommendations;
-    if (partial.campaignMilestones) this.campaignMilestones = partial.campaignMilestones;
     if (partial.subscription !== undefined) this.subscription = partial.subscription;
     if (partial.invitations) this.invitations = partial.invitations;
     if (partial.files) this.files = partial.files;

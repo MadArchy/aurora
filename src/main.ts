@@ -7,6 +7,7 @@ import { notificationService, notifyClient } from './services/notifications';
 import { processDeadlineReminders } from './services/reminders';
 import {
   downloadRecording,
+  downloadRecordingFromEvidence,
   persistRecording,
   resolveRecordingUrl,
   RECORDING_REF_PREFIX,
@@ -1683,7 +1684,17 @@ class App {
         });
         auditService.log(authService.getCurrentUser(), 'SIGNAL_OUTCOME', 'Signal', signalId, { kind });
         metricsService.track('signal_outcome', { kind }, clientId);
-        this.showToast(kind === 'USEFUL' ? 'Marcada como útil — el scoring se recalibra' : 'Marcada como no útil', 'success');
+        const open = dbService
+          .getSignalsByClient(clientId)
+          .filter((s) => s.status !== 'DISCARDED' && s.relevanceScore !== undefined)
+          .slice(0, 40);
+        for (const s of open) this.scoreSignal(s.id, clientId);
+        this.showToast(
+          kind === 'USEFUL'
+            ? `Marcada como útil — recalibradas ${open.length} señal(es)`
+            : `Marcada como no útil — recalibradas ${open.length} señal(es)`,
+          'success'
+        );
         this.refreshMain();
       });
     });
@@ -2635,7 +2646,10 @@ class App {
         const taskId = (e.currentTarget as HTMLElement).getAttribute('data-task-id');
         if (!taskId) return;
         const task = dbService.getAllTasks().find((t) => t.id === taskId);
-        const ok = await downloadRecording(taskId, task ? `${task.title}.webm` : undefined);
+        const filename = task ? `${task.title}.webm` : undefined;
+        const ok = task?.evidenceUrl
+          ? await downloadRecordingFromEvidence(task.evidenceUrl, filename)
+          : await downloadRecording(taskId, filename);
         if (!ok) this.showToast('No hay video guardado para esta tarea', 'warning');
       });
     });

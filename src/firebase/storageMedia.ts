@@ -45,6 +45,29 @@ export async function resolveRecordingUrl(evidenceUrl?: string | null): Promise<
   return blob ? URL.createObjectURL(blob) : null;
 }
 
+/** Obtiene el blob de una evidencia `storage:` o `indexeddb:` para descarga. */
+export async function getRecordingBlobFromEvidence(evidenceUrl?: string | null): Promise<Blob | null> {
+  const storagePath = evidenceUrl?.startsWith(STORAGE_REF_PREFIX)
+    ? evidenceUrl.slice(STORAGE_REF_PREFIX.length)
+    : null;
+
+  if (storagePath && readFirebaseConfig()) {
+    const storage = await getFirebaseStorage();
+    if (storage) {
+      const url = await resolveRecordingUrl(evidenceUrl);
+      if (!url) return null;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return res.blob();
+    }
+  }
+
+  const taskId = evidenceUrl?.startsWith(RECORDING_REF_PREFIX)
+    ? evidenceUrl.slice(RECORDING_REF_PREFIX.length)
+    : null;
+  return taskId ? getRecordingBlob(taskId) : null;
+}
+
 /** Sube a Storage si Firebase está activo; si no, IndexedDB local. */
 export async function persistRecording(
   orgId: string,

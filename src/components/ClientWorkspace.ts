@@ -38,6 +38,8 @@ import {
   type SignalCluster,
 } from '../domain/signalClusterCore';
 import { summarizeSourceHealth } from '../services/sourceHealth';
+import { isPlayableRecordingRef } from '../services/recordings';
+import { signalsAwaitingOutcome, computeConversionStats } from '../domain/radarFeedbackCore';
 import { renderMasterDossierPanel } from './MasterDossierPanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
 import { renderManagerOpportunities } from './OpportunityPanel';
@@ -646,8 +648,17 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
   const researchPending = signalsNeedingResearch(clientId).length;
   const triage = groupSignalsForTriage(canonical);
   const decideCount = triage.decideNow.length;
+  const outcomes = dbService.getSignalOutcomes(clientId);
+  const awaitingFeedback = signalsAwaitingOutcome(allSignals, outcomes);
+  const conversion = computeConversionStats(allSignals, outcomes);
 
   return `
+    ${awaitingFeedback.length
+      ? `<div class="info-strip warn">
+           <span><strong>${awaitingFeedback.length}</strong> señal(es) convertidas sin feedback (útil / no útil).</span>
+           ${conversion.usefulRate !== null ? `<span class="muted small">Tasa útil: ${conversion.usefulRate}%</span>` : ''}
+         </div>`
+      : ''}
     ${!thesis
       ? `<div class="info-strip warn">
            <span>Sin tesis activa no se puede calcular el score estratégico. Las señales se muestran sin puntuar.</span>
@@ -1572,19 +1583,18 @@ function renderTaskProvenance(task: Task): string {
 }
 
 function renderTaskRecording(task: Task): string {
-  if (task.type !== 'RECORD_VIDEO' || !task.evidenceUrl?.startsWith('indexeddb:')) return '';
-  const recordingTaskId = task.evidenceUrl.replace('indexeddb:', '');
+  if (task.type !== 'RECORD_VIDEO' || !isPlayableRecordingRef(task.evidenceUrl)) return '';
   return `
-    <div class="task-recording-block" data-recording-task-id="${esc(recordingTaskId)}">
+    <div class="task-recording-block" data-recording-task-id="${esc(task.id)}">
       <video
         class="task-recording-video"
         controls
         playsinline
         preload="metadata"
-        data-task-id="${esc(recordingTaskId)}"
+        data-task-id="${esc(task.id)}"
       ></video>
       <div class="task-recording-actions">
-        <button type="button" class="btn btn-secondary btn-sm btn-download-recording" data-task-id="${esc(recordingTaskId)}">
+        <button type="button" class="btn btn-secondary btn-sm btn-download-recording" data-task-id="${esc(task.id)}">
           Descargar video
         </button>
         <label class="btn btn-ghost btn-sm btn-reupload-recording">
@@ -1593,7 +1603,7 @@ function renderTaskRecording(task: Task): string {
             type="file"
             accept="video/*"
             class="sr-only input-reupload-recording"
-            data-task-id="${esc(recordingTaskId)}"
+            data-task-id="${esc(task.id)}"
           />
         </label>
       </div>

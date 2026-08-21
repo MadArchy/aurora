@@ -9,9 +9,11 @@ export const CLIENT_SUBCOLLECTIONS = [
   'results',
   'theses',
   'campaigns',
+  'campaignMilestones',
   'evidence',
   'advices',
   'feedbackEvents',
+  'signalOutcomes',
   'proofWallItems',
   'sources',
 ] as const;

@@ -24,6 +24,13 @@ export function isRecordingRef(evidenceUrl?: string | null): boolean {
   return Boolean(parseRecordingTaskId(evidenceUrl));
 }
 
+/** True si la evidencia apunta a IndexedDB o Firebase Storage. */
+export function isPlayableRecordingRef(evidenceUrl?: string | null): boolean {
+  if (!evidenceUrl) return false;
+  if (evidenceUrl.startsWith(RECORDING_REF_PREFIX)) return isRecordingRef(evidenceUrl);
+  return evidenceUrl.startsWith('storage:');
+}
+
 export async function saveRecording(taskId: string, blob: Blob): Promise<void> {
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
@@ -66,13 +73,31 @@ export async function deleteRecording(taskId: string): Promise<void> {
 }
 
 export async function downloadRecording(taskId: string, filename?: string): Promise<boolean> {
-  const blob = await getRecordingBlob(taskId);
+  return downloadRecordingFromEvidence(`${RECORDING_REF_PREFIX}${taskId}`, filename || `postura-video-${taskId}.webm`);
+}
+
+/** Descarga desde `indexeddb:` o `storage:` (Firebase). */
+export async function downloadRecordingFromEvidence(
+  evidenceUrl: string | null | undefined,
+  filename?: string
+): Promise<boolean> {
+  if (!evidenceUrl) return false;
+
+  let blob: Blob | null = null;
+  const { FIREBASE_ENABLED } = await import('../firebase/config');
+  if (FIREBASE_ENABLED && evidenceUrl.startsWith('storage:')) {
+    const { getRecordingBlobFromEvidence } = await import('../firebase/storageMedia');
+    blob = await getRecordingBlobFromEvidence(evidenceUrl);
+  } else {
+    const taskId = parseRecordingTaskId(evidenceUrl);
+    blob = taskId ? await getRecordingBlob(taskId) : null;
+  }
   if (!blob) return false;
 
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = filename || `postura-video-${taskId}.webm`;
+  anchor.download = filename || 'postura-video.webm';
   anchor.click();
   URL.revokeObjectURL(url);
   return true;

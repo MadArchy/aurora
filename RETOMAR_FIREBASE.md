@@ -102,7 +102,12 @@ npm run firebase:provision
 
 ## Ingesta programada (Cloud Functions)
 
-### Secretos (obligatorio, una vez)
+> **Bloqueo actual:** Cloud Functions + Secret Manager requieren plan **Blaze**.
+> Hasta actualizar: https://console.firebase.google.com/project/aurora-postura-app/usage/details
+> Mientras tanto el radar usa el proxy local de Vite (`npm run dev`) con keys en `.env.local`.
+> Los índices Firestore ya están desplegados.
+
+### Secretos (obligatorio, una vez — tras Blaze)
 
 Ejecuta **tú** estos comandos en PowerShell (el agente no puede subir API keys solo):
 
