@@ -1,5 +1,7 @@
 import { dbService } from './db';
 import { notifyClient } from './notifications';
+import { mapOpportunityLifecycle } from '../domain/opportunityLifecycle';
+import { daysUntilDeadline, opportunityNeedsReminder } from '../domain/clientOpportunityCore';
 const REMINDER_SENT_KEY = 'postura_reminders_sent_v1';
 const EMAIL_STUB_KEY = 'postura_email_stub_v1';
 
@@ -87,20 +89,22 @@ export function processDeadlineReminders(): number {
       created += 1;
     }
 
-    const opportunities = dbService.getOpportunitiesByClient(client.id).filter((opp) => {
-      const stage = opp.lifecycleStage;
-      return stage !== 'submitted' && stage !== 'declined' && opp.deadline;
-    });
+    const opportunities = dbService.getOpportunitiesByClient(client.id).filter((opp) =>
+      opportunityNeedsReminder(opp, now)
+    );
     for (const opp of opportunities) {
-      const deadlineMs = new Date(opp.deadline).getTime();
-      const delta = deadlineMs - now;
-      if (delta < 0 || delta > REMINDER_WINDOW_MS) continue;
-
       const key = `opp:${opp.id}:${opp.deadline.slice(0, 10)}`;
       if (sent.has(key)) continue;
 
-      const daysLeft = Math.max(1, Math.ceil(delta / 86400000));
-      const body = `La oportunidad «${opp.title}» cierra en ${daysLeft} día${daysLeft === 1 ? '' : 's'}.`;
+      const daysLeft = Math.max(1, daysUntilDeadline(opp.deadline, now));
+      const stage = mapOpportunityLifecycle(opp);
+      const checklistHint =
+        stage === 'checklist' || stage === 'accepted'
+          ? ' Revisa el checklist de postulación.'
+          : stage === 'proposed'
+            ? ' Acepta la propuesta para activar el checklist.'
+            : '';
+      const body = `La oportunidad «${opp.title}» cierra en ${daysLeft} día${daysLeft === 1 ? '' : 's'}.${checklistHint}`;
       notifyClient(client.id, {
         type: 'OPPORTUNITY',
         title: 'Recordatorio de oportunidad',

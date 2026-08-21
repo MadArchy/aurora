@@ -41,8 +41,10 @@ describe('opportunityLifecycle', () => {
   it('builds checklist by opportunity type', () => {
     const podcast = defaultOpportunityChecklist('PODCAST_GUEST');
     const journal = defaultOpportunityChecklist('JOURNAL_CALL');
+    const cle = defaultOpportunityChecklist('PANEL', { title: 'CLE: AI Governance', type: 'PANEL' });
     expect(podcast.length).toBeGreaterThan(0);
     expect(journal.some((item) => item.label.toLowerCase().includes('convocatoria'))).toBe(true);
+    expect(cle.some((item) => item.label.toLowerCase().includes('mcle'))).toBe(true);
   });
 
   it('tracks checklist progress and completion', () => {

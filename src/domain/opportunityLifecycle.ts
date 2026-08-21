@@ -1,6 +1,10 @@
 import type { Opportunity, OpportunityChecklistItem, OpportunityLifecycleStage, OpportunityType } from '../types';
 import { createId } from '../lib/id';
 
+export function isCleOpportunity(opp: Pick<Opportunity, 'title' | 'type'>): boolean {
+  return /\bCLE\b/i.test(opp.title) || (opp.type === 'PANEL' && /cle|continuing legal education/i.test(opp.title));
+}
+
 export const OPPORTUNITY_LIFECYCLE_LABELS: Record<OpportunityLifecycleStage, string> = {
   proposed: 'Propuesta',
   accepted: 'Aceptada',
@@ -9,7 +13,20 @@ export const OPPORTUNITY_LIFECYCLE_LABELS: Record<OpportunityLifecycleStage, str
   submitted: 'Postulación enviada',
 };
 
-export function defaultOpportunityChecklist(type: OpportunityType): OpportunityChecklistItem[] {
+export function defaultOpportunityChecklist(
+  type: OpportunityType,
+  context?: Pick<Opportunity, 'title' | 'type'>
+): OpportunityChecklistItem[] {
+  if (context && isCleOpportunity(context)) {
+    return [
+      { id: createId('ocl'), label: 'Confirmar elegibilidad CLE (Texas MCLE)', done: false },
+      { id: createId('ocl'), label: 'Enviar abstract / propuesta de sesión', done: false },
+      { id: createId('ocl'), label: 'Adjuntar bio, foto y materiales de programa', done: false },
+      { id: createId('ocl'), label: 'Coordinar con el organizador (logística / AV)', done: false },
+      { id: createId('ocl'), label: 'Confirmar postulación enviada', done: false },
+    ];
+  }
+
   const base = [
     { id: createId('ocl'), label: 'Confirmar disponibilidad de fechas', done: false },
     { id: createId('ocl'), label: 'Revisar bio / hoja de ponente', done: false },

@@ -5,7 +5,7 @@ import { renderTaskMetaBadges, KPI_LABELS, kpiLabel } from '../lib/campaignLabel
 import { icon } from '../lib/icons';
 import { renderClientProfileBody } from './ClientProfilePanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
-import { renderClientOpportunitiesBody } from './OpportunityPanel';
+import { renderClientOpportunitiesBody, renderOpportunityCard, renderOpportunitySpotlight } from './OpportunityPanel';
 import { renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
 import { CAMP_ADOPTION } from '../data/juanCampaignSeed';
 import { pickWeeklyLinkedInPostTask } from '../domain/clientHomeCore';
@@ -287,6 +287,7 @@ function renderClientHomeBody(
       </div>
 
       ${renderWeeklyLinkedInSpotlight(clientId, tasks, campaignId)}
+      ${renderOpportunitySpotlight(clientId)}
       ${renderClientStats(campaignId, tasks, clientId)}
       ${renderKpiSummaryTiles(clientId)}
       ${renderPlanProgress(campaignId)}
@@ -397,58 +398,21 @@ function renderClientTaskFeedBody(_client: ReturnType<typeof dbService.getClient
         </div>
       </div>
 
-      <!-- Opportunities section -->
+      <!-- Opportunities (The Scout) -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h3>Oportunidades de Escenarios & Conferencias (The Scout)</h3>
-            <p style="font-size: 0.9rem;">Convocatorias seleccionadas específicamente para tu tesis y audiencia objetivo.</p>
+            <h3>Oportunidades (The Scout)</h3>
+            <p style="font-size: 0.9rem;">Acepta, completa el checklist y marca la postulación enviada.</p>
           </div>
+          <button type="button" class="btn btn-ghost btn-sm" data-tab="client-opps">Ver todas</button>
         </div>
-
-        <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div class="opportunity-list">
           ${opportunities.length
-            ? opportunities.map(opp => `
-            <div class="card" style="background: var(--bg-surface); padding: 1.25rem;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
-                <div>
-                  <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <h4>${esc(opp.title)}</h4>
-                    <span class="badge ${opp.status === 'ACCEPTED' ? 'badge-ready' : opp.status === 'REJECTED' ? 'badge-pending' : 'badge-progress'}">${esc(opp.type)}</span>
-                  </div>
-                  <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                    <strong>${esc(opp.organization)}</strong> · Límite postulación: ${formatDeadline(opp.deadline)}
-                  </p>
-                  <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.5rem;">
-                    ${esc(opp.description)}
-                  </p>
-                  <p style="font-size: 0.82rem; color: #10b981; margin-top: 0.5rem;">
-                    <strong>Por qué encaja:</strong> ${esc(opp.fitRationale)}
-                  </p>
-                  ${opp.clientNotes ? `
-                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem;">
-                      <em>Tus notas: ${esc(opp.clientNotes)}</em>
-                    </p>
-                  ` : ''}
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 140px;">
-                  ${opp.status === 'ACCEPTED' ? `
-                    <span class="badge badge-ready" style="text-align: center;">Aceptada por ti</span>
-                  ` : opp.status === 'REJECTED' ? `
-                    <span class="badge badge-pending" style="text-align: center;">Descartada</span>
-                  ` : `
-                    <button class="btn btn-success btn-sm btn-accept-opp" data-opp-id="${esc(opp.id)}">
-                      Sí, me interesa
-                    </button>
-                    <button class="btn btn-secondary btn-sm btn-reject-opp" data-opp-id="${esc(opp.id)}">
-                      Descartar / Ajustar
-                    </button>
-                  `}
-                </div>
-              </div>
-            </div>
-          `).join('')
+            ? opportunities
+                .filter((o) => o.status !== 'ARCHIVED')
+                .map((opp) => renderOpportunityCard(opp))
+                .join('')
             : '<p class="empty-state">No hay oportunidades pendientes por ahora.</p>'}
         </div>
       </div>

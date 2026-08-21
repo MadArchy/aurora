@@ -453,7 +453,7 @@ class App {
           <div style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 420px; overflow-y: auto;">
             ${items.length
               ? items.map((item) => `
-                  <article class="notification-row ${item.read ? 'read' : 'unread'}" data-notification-id="${esc(item.id)}" data-tab-link="${item.type === 'TASK_ASSIGNED' ? 'client-feed' : item.type === 'THESIS' ? 'client-thesis' : 'client-home'}">
+                  <article class="notification-row ${item.read ? 'read' : 'unread'}" data-notification-id="${esc(item.id)}" data-tab-link="${item.type === 'TASK_ASSIGNED' ? 'client-feed' : item.type === 'OPPORTUNITY' ? 'client-opps' : item.type === 'THESIS' ? 'client-thesis' : 'client-home'}">
                     <strong>${esc(item.title)}</strong>
                     <p class="muted small">${esc(item.body)}</p>
                     <span class="muted small">${new Date(item.createdAt).toLocaleString('es')}</span>

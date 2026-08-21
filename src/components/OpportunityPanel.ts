@@ -6,6 +6,7 @@ import {
   mapOpportunityLifecycle,
   OPPORTUNITY_LIFECYCLE_LABELS,
 } from '../domain/opportunityLifecycle';
+import { daysUntilDeadline, isCleOpportunity, pickSpotlightOpportunity } from '../domain/clientOpportunityCore';
 import type { Opportunity } from '../types';
 
 function formatDeadline(deadline?: string): string {
@@ -13,10 +14,12 @@ function formatDeadline(deadline?: string): string {
   return new Date(deadline).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function renderOpportunityCard(opp: Opportunity): string {
+export function renderOpportunityCard(opp: Opportunity): string {
   const stage = mapOpportunityLifecycle(opp);
   const progress = checklistProgress(opp.submissionChecklist);
   const canSubmit = stage === 'checklist' && isChecklistComplete(opp.submissionChecklist);
+  const daysLeft = daysUntilDeadline(opp.deadline);
+  const deadlineSoon = daysLeft >= 0 && daysLeft <= 3;
 
   return `
     <article class="card opportunity-card" data-opp-id="${esc(opp.id)}">
@@ -25,8 +28,12 @@ function renderOpportunityCard(opp: Opportunity): string {
           <div class="opportunity-title-row">
             <h4>${esc(opp.title)}</h4>
             <span class="badge badge-progress">${esc(OPPORTUNITY_LIFECYCLE_LABELS[stage])}</span>
+            ${isCleOpportunity(opp) ? '<span class="badge badge-ready">CLE</span>' : ''}
           </div>
-          <p class="muted small"><strong>${esc(opp.organization)}</strong> · Cierre: ${formatDeadline(opp.deadline)}</p>
+          <p class="muted small">
+            <strong>${esc(opp.organization)}</strong> · Cierre: ${formatDeadline(opp.deadline)}
+            ${deadlineSoon ? ` · <strong class="warn-text">en ${daysLeft} día${daysLeft === 1 ? '' : 's'}</strong>` : ''}
+          </p>
         </div>
       </header>
 
@@ -72,6 +79,31 @@ function renderOpportunityCard(opp: Opportunity): string {
         : ''}
       ${stage === 'declined' ? '<p class="badge badge-pending">Declinada</p>' : ''}
     </article>
+  `;
+}
+
+export function renderOpportunitySpotlight(clientId: string): string {
+  const opportunities = dbService.getOpportunitiesByClient(clientId).filter((o) => o.status !== 'ARCHIVED');
+  const pick = pickSpotlightOpportunity(opportunities);
+  if (!pick) return '';
+
+  const stage = mapOpportunityLifecycle(pick);
+  const subtitle =
+    stage === 'proposed'
+      ? 'The Scout te propone esta convocatoria — acéptala para ver el checklist de postulación.'
+      : 'Completa el checklist antes del cierre.';
+
+  return `
+    <section class="card opportunity-spotlight">
+      <div class="card-header">
+        <div>
+          <h3>Oportunidad destacada</h3>
+          <p class="muted small">${subtitle}</p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" data-tab="client-opps">Ver todas</button>
+      </div>
+      ${renderOpportunityCard(pick)}
+    </section>
   `;
 }
 

@@ -483,6 +483,23 @@ class DataService {
 
     this.opportunities = [
       {
+        id: 'opp_cle_001',
+        organizationId: orgId,
+        clientId: juanId,
+        thesisId: thesisId1,
+        title: 'CLE: AI Governance para General Counsel (Texas MCLE)',
+        organization: 'State Bar of Texas — Continuing Legal Education',
+        type: 'PANEL',
+        deadline: '2026-08-22T23:59:00Z',
+        description:
+          'Convocatoria para sesión CLE sobre gobernanza de IA en departamentos legales: evaluación de herramientas, confidencialidad, People + Tools + Rules.',
+        fitRationale:
+          'Juan es Chair del Emerging Technology Committee — encaja con su tesis de adopción responsable de IA para GC e IP counsel.',
+        status: 'SENT_TO_CLIENT',
+        lifecycleStage: 'proposed',
+        createdAt: '2026-08-19T10:00:00Z',
+      },
+      {
         id: 'opp_001',
         organizationId: orgId,
         clientId: juanId,
@@ -491,12 +508,14 @@ class DataService {
         organization: 'State Bar of Texas — Emerging Technology Committee / 3ITAL',
         type: 'CONFERENCE_KEYNOTE',
         deadline: '2026-09-15T23:59:00Z',
-        description: 'Invitación a panel sobre adopción responsable de IA en la profesión legal: People + Tools + Rules, confidencialidad y evaluación de herramientas.',
-        fitRationale: 'Juan es Chair del comité anfitrión y President of the Board de 3ITAL — alineación institucional directa.',
+        description:
+          'Invitación a panel sobre adopción responsable de IA en la profesión legal: People + Tools + Rules, confidencialidad y evaluación de herramientas.',
+        fitRationale:
+          'Juan es Chair del comité anfitrión y President of the Board de 3ITAL — alineación institucional directa.',
         status: 'SENT_TO_CLIENT',
         lifecycleStage: 'proposed',
-        createdAt: '2026-08-18T12:00:00Z'
-      }
+        createdAt: '2026-08-18T12:00:00Z',
+      },
     ];
 
     this.campaigns = [
@@ -850,7 +869,7 @@ class DataService {
         (opp.lifecycleStage === 'checklist' || opp.status === 'IN_PROGRESS') &&
         !opp.submissionChecklist?.length
       ) {
-        opp.submissionChecklist = defaultOpportunityChecklist(opp.type);
+        opp.submissionChecklist = defaultOpportunityChecklist(opp.type, opp);
         changed = true;
       }
     }
@@ -1505,7 +1524,7 @@ class DataService {
     if (decision === 'ACCEPTED') {
       opp.status = 'IN_PROGRESS';
       opp.lifecycleStage = 'checklist';
-      opp.submissionChecklist = defaultOpportunityChecklist(opp.type);
+      opp.submissionChecklist = defaultOpportunityChecklist(opp.type, opp);
     } else {
       opp.status = 'REJECTED';
       opp.lifecycleStage = 'declined';

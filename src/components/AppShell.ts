@@ -2,6 +2,7 @@ import { authService } from '../services/auth';
 import { FIREBASE_ENABLED, readFirebaseConfig } from '../firebase/config';
 import { aiService } from '../services/ai';
 import { dbService } from '../services/db';
+import { mapOpportunityLifecycle } from '../domain/opportunityLifecycle';
 import { notificationService } from '../services/notifications';
 import { esc } from '../lib/escape';
 import { icon } from '../lib/icons';
@@ -77,7 +78,11 @@ function clientNav(activeTab: string, clientId?: string | null): string {
     ? dbService.getContentByClient(clientId).filter((c) => c.status === 'CLIENT_REVIEW').length
     : 0;
   const openOpps = clientId
-    ? dbService.getOpportunitiesByClient(clientId).filter((o) => o.status === 'SENT_TO_CLIENT').length
+    ? dbService.getOpportunitiesByClient(clientId).filter((o) => {
+        if (o.status === 'ARCHIVED') return false;
+        const stage = mapOpportunityLifecycle(o);
+        return stage === 'proposed' || stage === 'checklist' || stage === 'accepted';
+      }).length
     : 0;
 
   return `
