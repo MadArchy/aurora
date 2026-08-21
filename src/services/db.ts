@@ -1211,6 +1211,20 @@ class DataService {
     this.saveAll();
   }
 
+  /** Pausa, reactiva o archiva una fuente (ingesta automática respeta PAUSED/ARCHIVED/ERROR). */
+  public updateSourceStatus(
+    sourceId: string,
+    status: Source['status'],
+    options?: { clearError?: boolean }
+  ): Source | null {
+    const source = this.sources.find((s) => s.id === sourceId);
+    if (!source) return null;
+    source.status = status;
+    if (options?.clearError) source.lastError = undefined;
+    this.saveAll();
+    return source;
+  }
+
   // Signals with Fingerprint Deduplication (F9-D09)
   public getSignals(): Signal[] {
     return this.signals;

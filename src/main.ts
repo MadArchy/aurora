@@ -1133,16 +1133,66 @@ class App {
         try {
           const { items, error } = await fetchSourceItems(source.url);
           if (error) {
+            dbService.recordSourceRun(source.id, {
+              fetched: 0,
+              accepted: 0,
+              rejected: 0,
+              duplicates: 0,
+              error,
+            });
             this.showToast(`${source.name}: ${error}`, 'warning');
           } else {
+            if (source.status === 'ERROR' || source.lastError) {
+              dbService.updateSourceStatus(source.id, 'ACTIVE', { clearError: true });
+            }
             this.showToast(`${source.name}: feed OK · ${items.length} item(s) legibles`, 'success');
           }
+          this.render();
         } catch {
           this.showToast(`${source.name}: no se pudo probar el feed`, 'warning');
         } finally {
           el.textContent = 'Probar feed';
           el.disabled = false;
         }
+      });
+    });
+
+    document.querySelectorAll('.btn-pause-source').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const sourceId = (e.currentTarget as HTMLElement).getAttribute('data-source-id');
+        if (!sourceId) return;
+        const source = dbService.updateSourceStatus(sourceId, 'PAUSED');
+        if (!source) return;
+        auditService.log(authService.getCurrentUser(), 'SOURCE_PAUSED', 'Source', sourceId);
+        this.showToast(`Fuente «${source.name}» pausada`, 'info');
+        this.render();
+      });
+    });
+
+    document.querySelectorAll('.btn-resume-source').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const sourceId = (e.currentTarget as HTMLElement).getAttribute('data-source-id');
+        if (!sourceId) return;
+        const source = dbService.updateSourceStatus(sourceId, 'ACTIVE', { clearError: true });
+        if (!source) return;
+        auditService.log(authService.getCurrentUser(), 'SOURCE_RESUMED', 'Source', sourceId);
+        this.showToast(`Fuente «${source.name}» reactivada`, 'success');
+        this.render();
+      });
+    });
+
+    document.querySelectorAll('.btn-archive-source').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const sourceId = (e.currentTarget as HTMLElement).getAttribute('data-source-id');
+        if (!sourceId) return;
+        const existing = dbService.getSources().find((s) => s.id === sourceId);
+        if (!existing) return;
+        if (!window.confirm(`¿Archivar «${existing.name}»? Dejará de aparecer en ingesta.`)) return;
+        const source = dbService.updateSourceStatus(sourceId, 'ARCHIVED');
+        if (!source) return;
+        auditService.log(authService.getCurrentUser(), 'SOURCE_ARCHIVED', 'Source', sourceId);
+        this.showToast(`Fuente «${source.name}» archivada`, 'info');
+        this.render();
       });
     });
 
@@ -3201,7 +3251,7 @@ class App {
   private async pollSources(): Promise<{ created: number; failed: number; rejected: number }> {
     const clientId = this.currentClientId();
     const sources = (clientId ? dbService.getSourcesByClient(clientId) : dbService.getSources()).filter(
-      (s) => s.url && s.status !== 'ARCHIVED' && s.status !== 'PAUSED'
+      (s) => s.url && s.status !== 'ARCHIVED' && s.status !== 'PAUSED' && s.status !== 'ERROR'
     );
 
     let created = 0;

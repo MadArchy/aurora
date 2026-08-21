@@ -76,9 +76,16 @@ function renderClientTriageCard(summary: ClientPortfolioSummary): string {
 
       <footer class="triage-foot">
         <span class="triage-last">Última entrega: ${esc(lastDelivery)}</span>
-        <button class="btn btn-primary btn-sm btn-enter-client" data-client-id="${esc(client.id)}">
-          Entrar al cliente
-        </button>
+        <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+          ${summary.sourcesInError
+            ? `<button class="btn btn-secondary btn-sm btn-enter-client" data-client-id="${esc(client.id)}" data-tab="ws-sources">
+                 Revisar fuentes (${summary.sourcesInError})
+               </button>`
+            : ''}
+          <button class="btn btn-primary btn-sm btn-enter-client" data-client-id="${esc(client.id)}">
+            Entrar al cliente
+          </button>
+        </div>
       </footer>
     </article>
   `;

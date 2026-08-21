@@ -38,6 +38,11 @@ import {
   type SignalCluster,
 } from '../domain/signalClusterCore';
 import { summarizeSourceHealth } from '../services/sourceHealth';
+import {
+  countUnhealthySources,
+  sourceHealthTip,
+  sourceRemediationActions,
+} from '../domain/sourceHealthActionsCore';
 import { isPlayableRecordingRef } from '../services/recordings';
 import { signalsAwaitingOutcome, computeConversionStats } from '../domain/radarFeedbackCore';
 import { renderMasterDossierPanel } from './MasterDossierPanel';
@@ -1243,6 +1248,7 @@ function renderSources(client: Client, thesis?: PositioningThesis): string {
   const clientId = client.id;
   const sources = dbService.getSourcesByClient(clientId);
   const signalsFromSources = dbService.getSignalsByClient(clientId).filter((s) => s.sourceId).length;
+  const healthCounts = countUnhealthySources(sources, summarizeSourceHealth);
 
   return `
     <div class="info-strip">
@@ -1253,6 +1259,17 @@ function renderSources(client: Client, thesis?: PositioningThesis): string {
         <button class="link-btn" data-tab="ws-positioning">Posicionamiento</button>.
       </span>
     </div>
+
+    ${healthCounts.errors || healthCounts.degraded || healthCounts.paused
+      ? `<div class="info-strip warn" style="margin-bottom: 1rem;">
+           <span>
+             ${healthCounts.errors ? `<strong>${healthCounts.errors}</strong> en error · ` : ''}
+             ${healthCounts.degraded ? `<strong>${healthCounts.degraded}</strong> degradada(s)/vacía(s) · ` : ''}
+             ${healthCounts.paused ? `<strong>${healthCounts.paused}</strong> pausada(s) — ` : ''}
+             usa Pausar / Reactivar / Archivar en cada fila.
+           </span>
+         </div>`
+      : ''}
 
     ${(() => {
       const presetId = detectIndustryPreset(client, thesis, buildProfileKeywords(client, thesis));
@@ -1331,6 +1348,8 @@ function renderSourceRow(source: Source, clientId: string): string {
   const isQuery = (source.url || '').includes('news.google.com/rss/search');
   const lastRun = source.lastFetchedAt ? new Date(source.lastFetchedAt).toLocaleString('es') : null;
   const health = summarizeSourceHealth(source);
+  const tip = sourceHealthTip(source, health);
+  const actions = sourceRemediationActions(source, health);
 
   const healthBadgeClass =
     health.status === 'HEALTHY'
@@ -1341,12 +1360,21 @@ function renderSourceRow(source: Source, clientId: string): string {
           ? 'badge-pending'
           : 'badge-progress';
 
+  const statusLabel =
+    source.status === 'ACTIVE'
+      ? 'Activa'
+      : source.status === 'PAUSED'
+        ? 'Pausada'
+        : source.status === 'ERROR'
+          ? 'Error'
+          : source.status;
+
   const statusBadge = source.status === 'ERROR'
     ? '<span class="badge badge-danger">ERROR</span>'
-    : `<span class="badge ${source.status === 'ACTIVE' ? 'badge-ready' : 'badge-pending'}">${esc(source.status)}</span>`;
+    : `<span class="badge ${source.status === 'ACTIVE' ? 'badge-ready' : 'badge-pending'}">${esc(statusLabel)}</span>`;
 
   return `
-    <div class="source-row ${source.status === 'ERROR' ? 'source-row-error' : ''}">
+    <div class="source-row ${source.status === 'ERROR' ? 'source-row-error' : ''} ${source.status === 'PAUSED' ? 'source-row-paused' : ''}">
       <div style="min-width: 260px; flex: 1;">
         <strong>${esc(source.name)}</strong>
         <span class="badge badge-progress">${esc(source.type)}</span>
@@ -1367,10 +1395,24 @@ function renderSourceRow(source: Source, clientId: string): string {
              </p>`
           : ''}
         ${source.lastError ? `<p class="source-error-text">Fallo: ${esc(source.lastError)}</p>` : ''}
+        ${tip ? `<p class="muted small source-health-tip">${esc(tip)}</p>` : ''}
       </div>
-      <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
-        ${source.url ? `<button class="btn btn-ghost btn-sm btn-probe-source" data-source-id="${esc(source.id)}">Probar feed</button>` : ''}
-        ${source.url ? `<button class="btn btn-secondary btn-sm btn-poll-one-source" data-source-id="${esc(source.id)}">Ingerir ahora</button>` : ''}
+      <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: flex-start;">
+        ${actions.includes('probe') && source.url
+          ? `<button class="btn btn-ghost btn-sm btn-probe-source" data-source-id="${esc(source.id)}">Probar feed</button>`
+          : ''}
+        ${actions.includes('ingest') && source.url
+          ? `<button class="btn btn-secondary btn-sm btn-poll-one-source" data-source-id="${esc(source.id)}">Ingerir ahora</button>`
+          : ''}
+        ${actions.includes('pause')
+          ? `<button class="btn btn-ghost btn-sm btn-pause-source" data-source-id="${esc(source.id)}">Pausar</button>`
+          : ''}
+        ${actions.includes('resume')
+          ? `<button class="btn btn-secondary btn-sm btn-resume-source" data-source-id="${esc(source.id)}">Reactivar</button>`
+          : ''}
+        ${actions.includes('archive')
+          ? `<button class="btn btn-ghost btn-sm btn-archive-source" data-source-id="${esc(source.id)}">Archivar</button>`
+          : ''}
       </div>
     </div>
   `;

@@ -278,7 +278,9 @@ export function sourcesDueForIngest(clientId: string, now = Date.now()): import(
   return dbService
     .getSourcesByClient(clientId)
     .filter((source) => {
-      if (!source.url || source.status === 'ARCHIVED' || source.status === 'PAUSED') return false;
+      if (!source.url || source.status === 'ARCHIVED' || source.status === 'PAUSED' || source.status === 'ERROR') {
+        return false;
+      }
       if (!source.lastFetchedAt) return true;
       const elapsedMs = now - new Date(source.lastFetchedAt).getTime();
       return elapsedMs >= source.fetchIntervalMinutes * 60_000;
