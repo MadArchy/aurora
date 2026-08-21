@@ -200,6 +200,8 @@ class App {
     const clientId = user?.clientId;
     if (clientId) localStorage.setItem(`postura_active_campaign_${clientId}`, campaignId);
     this.activeCampaignId = campaignId;
+    const camp = dbService.getCampaignById(campaignId);
+    if (camp) this.showToast(`Campaña: ${camp.name}`, 'info');
     this.render();
   }
 
@@ -2846,6 +2848,27 @@ class App {
         createdBy: authService.getCurrentUser()?.uid || 'client',
       });
       this.showToast('Resultado registrado', 'success');
+      this.render();
+    });
+
+    document.getElementById('form-quick-kpi-consultation')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const form = e.currentTarget as HTMLFormElement;
+      const clientId = form.getAttribute('data-client-id') || authService.getCurrentUser()?.clientId || '';
+      const note = (document.getElementById('quick-kpi-note') as HTMLInputElement).value.trim();
+      dbService.addResult({
+        organizationId: 'org_aurora_01',
+        clientId,
+        title: note ? `Consulta: ${note}` : 'Consulta recibida',
+        channel: 'LinkedIn / Web',
+        metricLabel: 'Consultas recibidas',
+        metricValue: 1,
+        kpiType: 'consultation_requests',
+        notes: note || undefined,
+        addedToEvidence: false,
+        createdBy: authService.getCurrentUser()?.uid || 'client',
+      });
+      this.showToast('Consulta registrada — dashboard actualizado', 'success');
       this.render();
     });
 

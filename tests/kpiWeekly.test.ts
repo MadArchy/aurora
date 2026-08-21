@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aggregateWeeklyKpis, primaryKpiSeries, sumKpi } from '../src/domain/kpiWeekly';
+import { aggregateWeeklyKpis, primaryKpiSeries, sumKpi, sumKpiThisWeek } from '../src/domain/kpiWeekly';
 import type { ResultRecord } from '../src/types';
 
 function result(overrides: Partial<ResultRecord> = {}): ResultRecord {
@@ -55,5 +55,17 @@ describe('kpiWeekly', () => {
       'linkedin_profile_views'
     );
     expect(total).toBe(842);
+  });
+
+  it('sums KPI for current week only', () => {
+    const weekTotal = sumKpiThisWeek(
+      [
+        result({ metricValue: 1, kpiType: 'consultation_requests', createdAt: '2026-08-20T11:00:00Z' }),
+        result({ id: 'old', metricValue: 5, kpiType: 'consultation_requests', createdAt: '2026-08-04T09:00:00Z' }),
+      ],
+      'consultation_requests',
+      new Date('2026-08-20T12:00:00Z')
+    );
+    expect(weekTotal).toBe(1);
   });
 });

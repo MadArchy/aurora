@@ -6,7 +6,7 @@ import { icon } from '../lib/icons';
 import { renderClientProfileBody } from './ClientProfilePanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
 import { renderClientOpportunitiesBody, renderOpportunityCard, renderOpportunitySpotlight } from './OpportunityPanel';
-import { renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
+import { renderKpiHomeDashboard, renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
 import { CAMP_ADOPTION } from '../data/juanCampaignSeed';
 import { pickWeeklyLinkedInPostTask } from '../domain/clientHomeCore';
 
@@ -78,7 +78,7 @@ export function renderClientPortal(
     case 'client-feed':
       return clientPage('client-feed', renderClientTaskFeedBody(client, tasks, opportunities));
     case 'client-content':
-      return clientPage('client-content', renderClientContentReviewBody(client));
+      return clientPage('client-content', renderClientContentReviewBody(client, effectiveCampaignId));
     case 'client-opps':
       return clientPage('client-opps', renderClientOpportunitiesBody(client.id));
     case 'client-profile':
@@ -88,7 +88,7 @@ export function renderClientPortal(
     case 'client-results':
       return clientPage('client-results', renderClientResultsBody(client));
     case 'client-library':
-      return clientPage('client-library', renderClientLibraryBody(client));
+      return clientPage('client-library', renderClientLibraryBody(client, effectiveCampaignId));
     default:
       return clientPage('client-home', renderClientHomeBody(client, tasks, effectiveCampaignId));
   }
@@ -166,12 +166,25 @@ function renderPlanProgress(campaignId: string): string {
   `;
 }
 
+function renderCampaignContext(campaignId: string): string {
+  const camp = dbService.getCampaignById(campaignId);
+  if (!camp) return '';
+  return `
+    <div class="info-strip" style="margin-bottom: 1rem;">
+      <span>
+        Campaña activa: <strong>${esc(camp.name)}</strong> — tareas y contenido filtrados.
+        Cambia arriba entre Adopción IA y PI/Patentes.
+      </span>
+    </div>
+  `;
+}
+
 function renderWeeklyLinkedInSpotlight(
   clientId: string,
   tasks: ReturnType<typeof dbService.getTasksForClient>,
   campaignId: string
 ): string {
-  const contents = dbService.getContentByClient(clientId);
+  const contents = dbService.getContentForClient(clientId, campaignId);
   const currentDay = dbService.getCurrentPlanDay(campaignId);
   const pick = pickWeeklyLinkedInPostTask(tasks, contents, currentDay);
   if (!pick) return '';
@@ -286,10 +299,11 @@ function renderClientHomeBody(
         </div>
       </div>
 
+      ${renderCampaignContext(campaignId)}
       ${renderWeeklyLinkedInSpotlight(clientId, tasks, campaignId)}
       ${renderOpportunitySpotlight(clientId)}
+      ${renderKpiHomeDashboard(clientId)}
       ${renderClientStats(campaignId, tasks, clientId)}
-      ${renderKpiSummaryTiles(clientId)}
       ${renderPlanProgress(campaignId)}
       ${renderWeeklyStrip(campaignId, tasks)}
 
@@ -597,16 +611,24 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
   `;
 }
 
-function renderClientContentReviewBody(client: ReturnType<typeof dbService.getClientById>): string {
-  const contents = dbService.getContentByClient(client ? client.id : 'client_juan_001')
+function renderClientContentReviewBody(
+  client: ReturnType<typeof dbService.getClientById>,
+  campaignId?: string
+): string {
+  const clientId = client ? client.id : 'client_juan_001';
+  const contents = dbService
+    .getContentForClient(clientId, campaignId)
     .filter((item) => item.status === 'CLIENT_REVIEW' || item.status === 'CHANGES_REQUESTED');
+  const camp = campaignId ? dbService.getCampaignById(campaignId) : null;
 
   return `
     <div class="card">
       <div class="card-header">
         <div>
           <h3>Contenido pendiente de tu revisión</h3>
-          <p style="font-size: 0.9rem;">Edita el borrador en tu voz, aprueba o rechaza con un motivo claro.</p>
+          <p style="font-size: 0.9rem;">
+            ${camp ? `Filtrado por campaña: <strong>${esc(camp.name)}</strong>.` : 'Edita el borrador en tu voz, aprueba o rechaza con un motivo claro.'}
+          </p>
         </div>
       </div>
       <div style="display: flex; flex-direction: column; gap: 1rem;">
@@ -644,11 +666,21 @@ function renderContentRow(item: ReturnType<typeof dbService.getContentByClient>[
   `;
 }
 
-function renderClientLibraryBody(client: ReturnType<typeof dbService.getClientById>): string {
-  const contents = dbService.getContentByClient(client ? client.id : 'client_juan_001')
+function renderClientLibraryBody(
+  client: ReturnType<typeof dbService.getClientById>,
+  campaignId?: string
+): string {
+  const clientId = client ? client.id : 'client_juan_001';
+  const contents = dbService
+    .getContentForClient(clientId, campaignId)
     .filter((item) => item.status === 'READY' || item.status === 'PUBLISHED' || item.status === 'DRAFT');
+  const camp = campaignId ? dbService.getCampaignById(campaignId) : null;
+
   return `
     <div style="display: flex; flex-direction: column; gap: 2rem; width: 100%;">
+      ${camp
+        ? `<div class="info-strip"><span>Biblioteca filtrada: <strong>${esc(camp.name)}</strong></span></div>`
+        : ''}
       <div class="card">
         <div class="card-header">
           <div>

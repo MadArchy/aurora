@@ -75,3 +75,19 @@ export function sumKpi(results: ResultRecord[], kpiType: BusinessKpiType): numbe
     .filter((result) => result.kpiType === kpiType)
     .reduce((sum, result) => sum + result.metricValue, 0);
 }
+
+function weekKeyFromIso(iso: string): string {
+  return weekKey(new Date(iso));
+}
+
+/** Suma KPI registrados en la semana calendario actual. */
+export function sumKpiThisWeek(
+  results: ResultRecord[],
+  kpiType: BusinessKpiType,
+  now = new Date()
+): number {
+  const key = weekKey(now);
+  return results
+    .filter((result) => result.kpiType === kpiType && weekKeyFromIso(result.createdAt) === key)
+    .reduce((sum, result) => sum + result.metricValue, 0);
+}
