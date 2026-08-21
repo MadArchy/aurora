@@ -12,8 +12,8 @@ export interface DiscoveredSource {
   locale: DiscoveryLocale | 'ANY';
   /** Por qué el sistema la propone, en lenguaje del manager. */
   rationale: string;
-  /** Consulta generada desde el perfil vs. feed oficial verificado. */
-  kind: 'QUERY' | 'OFFICIAL';
+  /** Consulta generada desde el perfil vs. feed oficial vs. Tavily vs. social/YouTube/académico. */
+  kind: 'QUERY' | 'OFFICIAL' | 'TAVILY' | 'SOCIAL' | 'YOUTUBE' | 'ACADEMIC';
 }
 
 export interface ProfileKeywords {
@@ -219,6 +219,35 @@ function googleNewsUrl(query: string, locale: DiscoveryLocale): string {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&${LOCALE_PARAMS[locale]}`;
 }
 
+/** URL de feed Google News para una consulta y locale concretos. */
+export function buildGoogleNewsFeedUrl(query: string, locale: DiscoveryLocale): string {
+  return googleNewsUrl(query, locale);
+}
+
+/** Clave estable para comparar si una fuente descubierta ya está registrada. */
+export function normalizeSourceUrl(url: string): string {
+  if (url.startsWith('youtube-search:')) {
+    return url.toLowerCase();
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.includes('news.google.com')) {
+      const q = parsed.searchParams.get('q') || '';
+      return `news.google.com|${normalize(q)}`;
+    }
+    if (parsed.hostname.includes('youtube.com') && parsed.pathname.includes('/feeds/videos.xml')) {
+      const channel = parsed.searchParams.get('channel_id') || parsed.searchParams.get('playlist_id') || '';
+      return `youtube.com|feed|${channel.toLowerCase()}`;
+    }
+    if (parsed.hostname.includes('arxiv.org')) {
+      return `arxiv.org|${(parsed.searchParams.get('search_query') || '').toLowerCase()}`;
+    }
+    return `${parsed.hostname.replace(/^www\./, '')}${parsed.pathname}`.toLowerCase().replace(/\/$/, '');
+  } catch {
+    return url.toLowerCase().split('&hl=')[0];
+  }
+}
+
 /** Agrupa términos en consultas booleanas de tamaño manejable. */
 function buildQueries(terms: string[], anchor: string | undefined, locale: DiscoveryLocale): Array<{ label: string; query: string }> {
   if (!terms.length) return [];
@@ -301,7 +330,7 @@ export function discoverSources(client: Client, thesis?: PositioningThesis): Dis
       key: 'official_arxiv',
       name: 'arXiv — preprints del dominio',
       type: 'ACADEMIC',
-      url: `http://export.arxiv.org/api/query?search_query=${arxivQuery}&sortBy=submittedDate&sortOrder=descending&max_results=25`,
+      url: `https://export.arxiv.org/api/query?search_query=${arxivQuery}&sortBy=submittedDate&sortOrder=descending&max_results=25`,
       locale: 'EN_US',
       rationale: 'Investigación reciente para sostener afirmaciones con evidencia.',
       kind: 'OFFICIAL',
@@ -314,9 +343,7 @@ export function discoverSources(client: Client, thesis?: PositioningThesis): Dis
 /** Fuentes propuestas que el cliente todavía no tiene registradas. */
 export function pendingDiscoveries(client: Client, thesis?: PositioningThesis): DiscoveredSource[] {
   const existing = new Set(
-    dbService.getSourcesByClient(client.id).map((s) => (s.url || '').split('&hl=')[0].toLowerCase())
+    dbService.getSourcesByClient(client.id).map((s) => normalizeSourceUrl(s.url || ''))
   );
-  return discoverSources(client, thesis).filter(
-    (d) => !existing.has(d.url.split('&hl=')[0].toLowerCase())
-  );
+  return discoverSources(client, thesis).filter((d) => !existing.has(normalizeSourceUrl(d.url)));
 }

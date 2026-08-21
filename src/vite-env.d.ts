@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_APP_ID?: string;
   readonly VITE_FIREBASE_MEASUREMENT_ID?: string;
   readonly VITE_FIREBASE_USE_EMULATORS?: string;
+  /** Base URL Cloud Functions (prod). Ej: https://us-central1-aurora-postura-app.cloudfunctions.net */
+  readonly VITE_POSTURA_FUNCTIONS_BASE?: string;
 }
 
 interface ImportMeta {

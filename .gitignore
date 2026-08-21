@@ -10,4 +10,6 @@ coverage/
 *.tsbuildinfo
 .cursor/
 canvases/
+secrets/
+.firebase-service-account.json
 *.canvas.data.json

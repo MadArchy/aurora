@@ -20,8 +20,24 @@ import { icon } from '../lib/icons';
 import { deriveWorkStage, WORK_STAGE_BADGE, WORK_STAGE_LABELS } from '../domain/workPipeline';
 import { renderPage, normalizeTab } from './PageHeader';
 import { renderContentPipeline } from './ManagerCockpit';
-import { getSourceSuggestions } from '../services/sourceSuggestions';
-import { buildProfileKeywords, discoverSources } from '../services/sourceDiscovery';
+import { buildProfileKeywords, normalizeSourceUrl } from '../services/sourceDiscovery';
+import {
+  buildCuratedPresetsForProfile,
+  detectIndustryPreset,
+  getIndustryPresetMeta,
+  getRecommendedStackForClient,
+} from '../services/industryPresets';
+import { runSourceDiscoveryAgent, isAgentRunCurrent, loadLastAgentRun } from '../services/sourceDiscoveryAgent';
+import { pendingExtendedSources } from '../services/extendedSourceDiscovery';
+import { signalsNeedingResearch } from '../services/researchSignalsAgent';
+import { groupSignalsForTriage } from '../domain/radarTriageCore';
+import {
+  canonicalSignalsFromClusters,
+  clusterForSignal,
+  clusterSimilarSignals,
+  type SignalCluster,
+} from '../domain/signalClusterCore';
+import { summarizeSourceHealth } from '../services/sourceHealth';
 import { renderMasterDossierPanel } from './MasterDossierPanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
 import { renderManagerOpportunities } from './OpportunityPanel';
@@ -34,6 +50,8 @@ export interface WorkspaceFilters {
   contentStatus?: string;
   priorityBand?: string;
   topicKey?: string;
+  /** Lista clásica vs columnas de triage. */
+  radarView?: 'list' | 'triage';
 }
 
 const DESTINATION_LABELS: Record<CurationDestination, string> = {
@@ -411,13 +429,66 @@ function renderTopicRow(topic: Topic, compact = false): string {
   `;
 }
 
-function renderSignalCard(signal: Signal, thesis: PositioningThesis | undefined, inCuration: boolean): string {
+function renderScoreBreakdown(signal: Signal, compact: boolean): string {
+  const breakdown = signal.scoreBreakdown;
+  if (!breakdown || compact) {
+    return signal.scoreRationale && !compact
+      ? `<p class="muted small signal-rationale">${esc(signal.scoreRationale)}</p>`
+      : '';
+  }
+
+  const topFactors = breakdown.factors.slice(0, 4);
+  const maxPts = Math.max(...topFactors.map((f) => f.points), 1);
+
+  return `
+    <details class="score-explain">
+      <summary class="muted small">Por qué score ${breakdown.totalScore}: ${esc(breakdown.summary)}</summary>
+      <div class="score-explain-body">
+        ${topFactors
+          .map(
+            (f) => `
+          <div class="score-bar-row">
+            <span class="score-bar-label">${esc(f.label)}</span>
+            <span class="score-bar-track"><span class="score-bar-fill" style="width:${Math.round((f.points / maxPts) * 100)}%"></span></span>
+            <span class="score-bar-pts">+${f.points}</span>
+          </div>`
+          )
+          .join('')}
+        ${breakdown.penalties.length
+          ? `<p class="muted small" style="margin-top:0.35rem;">Penalizaciones: ${breakdown.penalties
+              .map((p) => `${esc(p.label)} −${p.points}`)
+              .join(' · ')}</p>`
+          : ''}
+      </div>
+    </details>
+  `;
+}
+
+function renderAlsoIn(cluster: SignalCluster | undefined, compact: boolean): string {
+  if (!cluster || cluster.memberCount < 2) return '';
+  const names = cluster.alsoIn.slice(0, compact ? 2 : 4);
+  const extra = cluster.alsoIn.length - names.length;
+  return `
+    <p class="signal-also-in muted small">
+      También en <strong>${esc(names.join(' · '))}</strong>${extra > 0 ? ` +${extra}` : ''}
+      <span class="badge badge-progress">${cluster.memberCount} medios</span>
+    </p>
+  `;
+}
+
+function renderSignalCard(
+  signal: Signal,
+  thesis: PositioningThesis | undefined,
+  inCuration: boolean,
+  compact = false,
+  cluster?: SignalCluster
+): string {
   const score = signal.relevanceScore;
   const band = signal.priorityBand;
   const accent = band === 'CRITICAL' ? 'accent-critical' : band === 'HIGH' ? 'accent-high' : band === 'LOW' ? 'accent-low' : 'accent-medium';
 
   return `
-    <article class="signal-card ${accent}">
+    <article class="signal-card ${accent}${compact ? ' signal-card-compact' : ''}">
       <header class="signal-head">
         <span class="badge badge-pending">${esc(signal.sourceType)}</span>
         ${score !== undefined
@@ -428,10 +499,33 @@ function renderSignalCard(signal: Signal, thesis: PositioningThesis | undefined,
       </header>
 
       <h4 class="signal-title">${esc(signal.title)}</h4>
-      <p class="signal-snippet">${esc(signal.contentSnippet)}</p>
+      ${compact
+        ? `<p class="signal-snippet">${esc(signal.contentSnippet.slice(0, 140))}${signal.contentSnippet.length > 140 ? '…' : ''}</p>`
+        : `<p class="signal-snippet">${esc(signal.contentSnippet)}</p>`}
+
+      ${renderAlsoIn(cluster, compact)}
+      ${renderScoreBreakdown(signal, compact)}
 
       ${signal.recommendedAction
-        ? `<p class="signal-suggestion">Sugerencia del sistema: <strong>${esc(signal.recommendedAction)}</strong></p>`
+        ? `<p class="signal-suggestion">Sugerencia: <strong>${esc(signal.recommendedAction)}</strong></p>`
+        : ''}
+
+      ${signal.recommendedAction === 'RESEARCH_REQUIRED' && !signal.researchBrief
+        ? `<p class="muted small">Necesita evidencia antes de convertirse en contenido.</p>`
+        : ''}
+
+      ${signal.researchBrief
+        ? `<div class="field-block" style="margin: 0.5rem 0; padding: 0.5rem; background: var(--surface-muted, rgba(0,0,0,0.04)); border-radius: 6px;">
+             <p class="muted small"><strong>Investigación Tavily</strong> · ${new Date(signal.researchBrief.queriedAt).toLocaleString('es')}</p>
+             <p style="font-size: 0.9rem;">${esc(signal.researchBrief.summary)}</p>
+             ${signal.researchBrief.evidence.length
+               ? `<ul class="policy-list" style="margin-top: 0.35rem;">
+                    ${signal.researchBrief.evidence.slice(0, 3).map((e) => `
+                      <li><a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.title.slice(0, 70))}</a></li>
+                    `).join('')}
+                  </ul>`
+               : ''}
+           </div>`
         : ''}
 
       <footer class="signal-foot">
@@ -439,14 +533,86 @@ function renderSignalCard(signal: Signal, thesis: PositioningThesis | undefined,
           ${esc(signal.sourceName)} · ${new Date(signal.detectedAt).toLocaleDateString('es')}
         </span>
         <div class="signal-actions">
+          ${signal.recommendedAction === 'RESEARCH_REQUIRED' && thesis && !signal.researchBrief
+            ? `<button class="btn btn-ghost btn-sm btn-research-signal" data-signal-id="${esc(signal.id)}">Investigar</button>`
+            : ''}
           <button class="btn btn-secondary btn-sm btn-discard-signal" data-signal-id="${esc(signal.id)}">Descartar</button>
-          ${thesis ? `<button class="btn btn-secondary btn-sm btn-analyze-signal" data-signal-id="${esc(signal.id)}">Puntuar</button>` : ''}
+          ${thesis && !compact ? `<button class="btn btn-secondary btn-sm btn-analyze-signal" data-signal-id="${esc(signal.id)}">Puntuar</button>` : ''}
           ${inCuration
             ? '<span class="badge badge-ready">En curación</span>'
             : `<button class="btn btn-primary btn-sm btn-send-to-curation" data-signal-id="${esc(signal.id)}">A curación</button>`}
         </div>
       </footer>
+      ${renderSignalOutcomeControls(signal)}
     </article>
+  `;
+}
+
+function renderSignalOutcomeControls(signal: Signal): string {
+  const outcome = dbService.getSignalOutcome(signal.id);
+  const canRate =
+    signal.status === 'CONVERTED' ||
+    signal.managerDecision === 'CONVERTED' ||
+    signal.managerDecision === 'SAVED' ||
+    Boolean(outcome);
+
+  if (!canRate && signal.managerDecision === 'UNREVIEWED') return '';
+
+  if (outcome) {
+    return `
+      <p class="signal-outcome-done muted small">
+        Feedback: <strong>${outcome.kind === 'USEFUL' ? 'Sirvió' : 'No sirvió'}</strong>
+        · ${new Date(outcome.createdAt).toLocaleDateString('es')}
+      </p>
+    `;
+  }
+
+  if (signal.status !== 'CONVERTED' && signal.managerDecision !== 'CONVERTED' && signal.managerDecision !== 'SAVED') {
+    return '';
+  }
+
+  return `
+    <div class="signal-outcome-actions">
+      <span class="muted small">¿Sirvió para posicionar?</span>
+      <button class="btn btn-ghost btn-sm btn-signal-outcome" data-signal-id="${esc(signal.id)}" data-outcome="USEFUL">Sí</button>
+      <button class="btn btn-ghost btn-sm btn-signal-outcome" data-signal-id="${esc(signal.id)}" data-outcome="NOT_USEFUL">No</button>
+    </div>
+  `;
+}
+
+function renderTriageColumn(
+  title: string,
+  hint: string,
+  signals: Signal[],
+  thesis: PositioningThesis | undefined,
+  clientId: string,
+  tone: 'critical' | 'review' | 'monitor',
+  clusters: SignalCluster[]
+): string {
+  return `
+    <div class="radar-triage-col radar-triage-${tone}">
+      <header class="radar-triage-col-head">
+        <h4>${esc(title)} <span class="badge badge-pending">${signals.length}</span></h4>
+        <p class="muted small">${esc(hint)}</p>
+      </header>
+      <div class="radar-triage-col-body">
+        ${signals.length
+          ? signals
+              .slice(0, 12)
+              .map((s) =>
+                renderSignalCard(
+                  s,
+                  thesis,
+                  dbService.isSignalInCuration(clientId, s.id),
+                  true,
+                  clusterForSignal(s.id, clusters)
+                )
+              )
+              .join('')
+          : '<p class="empty-state small">Vacío</p>'}
+        ${signals.length > 12 ? `<p class="muted small">+${signals.length - 12} más — usa filtros o vista lista</p>` : ''}
+      </div>
+    </div>
   `;
 }
 
@@ -454,6 +620,7 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
   const clientId = client.id;
   const allSignals = dbService.getSignalsByClient(clientId);
   const topics = buildTopics(clientId, allSignals);
+  const radarView = filters.radarView === 'list' ? 'list' : 'triage';
 
   const query = (filters.searchQuery || '').toLowerCase();
   const sourceFilter = filters.sourceType || 'ALL';
@@ -471,8 +638,14 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
     return true;
   });
 
-  const sorted = [...visible].sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
+  const clusters = clusterSimilarSignals(visible);
+  const multiSourceClusters = clusters.filter((c) => c.memberCount > 1).length;
+  const canonical = canonicalSignalsFromClusters(visible, clusters);
+  const sorted = [...canonical].sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
   const unscored = allSignals.filter((s) => s.relevanceScore === undefined && s.status !== 'DISCARDED').length;
+  const researchPending = signalsNeedingResearch(clientId).length;
+  const triage = groupSignalsForTriage(canonical);
+  const decideCount = triage.decideNow.length;
 
   return `
     ${!thesis
@@ -486,7 +659,18 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
                Puntuar todas
              </button>
            </div>`
-        : ''}
+        : researchPending > 0
+          ? `<div class="info-strip">
+               <span>${researchPending} señal(es) requieren investigación (Tavily).</span>
+               <button id="btn-research-all-signals" class="btn btn-secondary btn-sm" data-client-id="${esc(clientId)}">
+                 Investigar pendientes
+               </button>
+             </div>`
+          : decideCount > 0
+            ? `<div class="info-strip">
+                 <span><strong>${decideCount}</strong> señal(es) listas para decidir ahora (críticas / altas / investigación).</span>
+               </div>`
+            : ''}
 
     <section class="card">
       <div class="card-header">
@@ -504,11 +688,24 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
       <div class="card-header">
         <div>
           <h3>Señales${activeTopic ? `: ${esc(activeTopic.label)}` : ''}</h3>
-          <p style="font-size: 0.9rem;">Ordenadas por score estratégico. Envía a curación lo que valga la pena.</p>
+          <p style="font-size: 0.9rem;">
+            ${radarView === 'triage'
+              ? 'Modo triage: decide primero lo crítico, luego revisa y monitorea. Historias repetidas se agrupan.'
+              : 'Una tarjeta por historia (medios duplicados agrupados). Expande el score para ver el desglose.'}
+            ${multiSourceClusters
+              ? ` · <strong>${multiSourceClusters}</strong> historia(s) en varios medios`
+              : ''}
+          </p>
         </div>
-        ${activeTopic
-          ? '<button class="btn btn-secondary btn-sm btn-clear-topic-filter">Quitar filtro de tema</button>'
-          : ''}
+        <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+          <div class="filter-pills">
+            <span class="filter-pill ${radarView === 'triage' ? 'active' : ''}" data-radar-view="triage">Triage</span>
+            <span class="filter-pill ${radarView === 'list' ? 'active' : ''}" data-radar-view="list">Lista</span>
+          </div>
+          ${activeTopic
+            ? '<button class="btn btn-secondary btn-sm btn-clear-topic-filter">Quitar filtro de tema</button>'
+            : ''}
+        </div>
       </div>
 
       <div class="filter-bar">
@@ -516,7 +713,7 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
           <input type="text" id="input-search-signals" placeholder="Buscar en titulares o resúmenes..." value="${esc(filters.searchQuery || '')}" />
         </div>
         <div class="filter-pills">
-          <span class="filter-pill ${bandFilter === 'ALL' ? 'active' : ''}" data-band-filter="ALL">Todas (${visible.length})</span>
+          <span class="filter-pill ${bandFilter === 'ALL' ? 'active' : ''}" data-band-filter="ALL">Historias (${canonical.length})</span>
           <span class="filter-pill ${bandFilter === 'CRITICAL' ? 'active' : ''}" data-band-filter="CRITICAL">Críticas</span>
           <span class="filter-pill ${bandFilter === 'HIGH' ? 'active' : ''}" data-band-filter="HIGH">Altas</span>
           <span class="filter-pill ${bandFilter === 'MEDIUM' ? 'active' : ''}" data-band-filter="MEDIUM">Medias</span>
@@ -525,15 +722,34 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
           <span class="filter-pill ${sourceFilter === 'ALL' ? 'active' : ''}" data-source-filter="ALL">Toda fuente</span>
           <span class="filter-pill ${sourceFilter === 'REGULATORY' ? 'active' : ''}" data-source-filter="REGULATORY">Regulatorio</span>
           <span class="filter-pill ${sourceFilter === 'RSS' ? 'active' : ''}" data-source-filter="RSS">RSS</span>
+          <span class="filter-pill ${sourceFilter === 'VIDEO' ? 'active' : ''}" data-source-filter="VIDEO">YouTube</span>
+          <span class="filter-pill ${sourceFilter === 'SOCIAL' ? 'active' : ''}" data-source-filter="SOCIAL">Social</span>
+          <span class="filter-pill ${sourceFilter === 'ACADEMIC' ? 'active' : ''}" data-source-filter="ACADEMIC">Académico</span>
           <span class="filter-pill ${sourceFilter === 'MANUAL' ? 'active' : ''}" data-source-filter="MANUAL">Manual</span>
         </div>
       </div>
 
-      <div class="signal-grid">
-        ${sorted.length
-          ? sorted.map((s) => renderSignalCard(s, thesis, dbService.isSignalInCuration(clientId, s.id))).join('')
-          : '<p class="empty-state">No hay señales con estos filtros.</p>'}
-      </div>
+      ${radarView === 'triage'
+        ? `<div class="radar-triage-grid">
+             ${renderTriageColumn('Decidir ahora', 'Críticas, altas o con investigación pendiente', triage.decideNow, thesis, clientId, 'critical', clusters)}
+             ${renderTriageColumn('Revisar', 'Buenas candidatas a curación o contenido', triage.review, thesis, clientId, 'review', clusters)}
+             ${renderTriageColumn('Monitorear', 'Baja prioridad — no bloquean el flujo', triage.monitor, thesis, clientId, 'monitor', clusters)}
+           </div>`
+        : `<div class="signal-grid">
+             ${sorted.length
+               ? sorted
+                   .map((s) =>
+                     renderSignalCard(
+                       s,
+                       thesis,
+                       dbService.isSignalInCuration(clientId, s.id),
+                       false,
+                       clusterForSignal(s.id, clusters)
+                     )
+                   )
+                   .join('')
+               : '<p class="empty-state">No hay señales con estos filtros.</p>'}
+           </div>`}
     </section>
   `;
 }
@@ -953,19 +1169,20 @@ function renderRecommendedSources(
   profile: ReturnType<typeof dbService.getMasterProfile>
 ): string {
   const clientId = client.id;
-  const suggestions = getSourceSuggestions(client, thesis);
+  const agentRun = runSourceDiscoveryAgent(client, thesis);
+  const top = agentRun.recommendations.slice(0, 5);
   const activeSources = dbService.getSourcesByClient(clientId).filter((s) => s.status === 'ACTIVE').length;
 
   return `
     <section class="card">
       <div class="card-header">
         <div>
-          <h3>Fuentes recomendadas</h3>
+          <h3>Agente de fuentes</h3>
           <p style="font-size: 0.9rem;">
-            Orígenes de información derivados de la tesis y el perfil. Regístralos en Fuentes para alimentar el radar.
+            Recomendaciones automáticas (Google News, oficiales, Tavily). Actívalas en
+            <button class="link-btn" data-tab="ws-sources">Fuentes →</button>
           </p>
         </div>
-        <button class="link-btn" data-tab="ws-sources">Ir a Fuentes →</button>
       </div>
 
       ${thesis
@@ -987,16 +1204,24 @@ function renderRecommendedSources(
              <button class="link-btn" data-tab="ws-positioning">Ir a Posicionamiento</button>
            </p>`}
 
-      <div class="field-block">
-        <label class="form-label">Sugerencias según perfil</label>
-        <ul class="policy-list">
-          ${suggestions.map((s) => `<li>${esc(s.label)} <span class="muted small">(${esc(s.type)})</span></li>`).join('')}
-        </ul>
-      </div>
+      ${top.length
+        ? `<div class="field-block">
+             <label class="form-label">Top recomendaciones pendientes</label>
+             <ul class="policy-list">
+               ${top.map((s) => `
+                 <li>
+                   ${esc(s.name)}
+                   <span class="badge ${s.priority === 'HIGH' ? 'badge-ready' : 'badge-progress'}">${esc(s.priority)}</span>
+                   <span class="muted small">${esc(s.agentRationale.slice(0, 90))}…</span>
+                 </li>
+               `).join('')}
+             </ul>
+           </div>`
+        : `<p class="muted small">Sin fuentes pendientes — revisa el radar o busca con Tavily.</p>`}
 
       <p class="muted small">
         ${activeSources
-          ? `${activeSources} fuente(s) activa(s) registrada(s) para este cliente.`
+          ? `${activeSources} fuente(s) activa(s). ${agentRun.pendingCount} pendiente(s) por activar.`
           : 'Aún no hay fuentes registradas.'}
       </p>
     </section>
@@ -1017,6 +1242,19 @@ function renderSources(client: Client, thesis?: PositioningThesis): string {
         <button class="link-btn" data-tab="ws-positioning">Posicionamiento</button>.
       </span>
     </div>
+
+    ${(() => {
+      const presetId = detectIndustryPreset(client, thesis, buildProfileKeywords(client, thesis));
+      const stack = getRecommendedStackForClient(client, thesis, buildProfileKeywords(client, thesis));
+      const presetLabel = getIndustryPresetMeta(presetId).label;
+      return `<div class="info-strip" style="margin-bottom: 1rem;">
+           <span>
+             <strong>Stack recomendado (${esc(presetLabel)}):</strong>
+             ${stack.map((s) => esc(s)).join(' · ')}.
+             Usa <strong>Activar top 3</strong> en el panel del agente.
+           </span>
+         </div>`;
+    })()}
 
     ${!thesis
       ? `<p class="warn-strip">
@@ -1081,6 +1319,16 @@ function renderSourceRow(source: Source, clientId: string): string {
   const linkedSignals = dbService.getSignalsByClient(clientId).filter((sig) => sig.sourceId === source.id).length;
   const isQuery = (source.url || '').includes('news.google.com/rss/search');
   const lastRun = source.lastFetchedAt ? new Date(source.lastFetchedAt).toLocaleString('es') : null;
+  const health = summarizeSourceHealth(source);
+
+  const healthBadgeClass =
+    health.status === 'HEALTHY'
+      ? 'badge-ready'
+      : health.status === 'ERROR'
+        ? 'badge-danger'
+        : health.status === 'EMPTY'
+          ? 'badge-pending'
+          : 'badge-progress';
 
   const statusBadge = source.status === 'ERROR'
     ? '<span class="badge badge-danger">ERROR</span>'
@@ -1093,6 +1341,7 @@ function renderSourceRow(source: Source, clientId: string): string {
         <span class="badge badge-progress">${esc(source.type)}</span>
         ${isQuery ? '<span class="badge badge-progress">CONSULTA</span>' : ''}
         ${statusBadge}
+        <span class="badge ${healthBadgeClass}" title="Salud del feed">${esc(health.label)}</span>
         <p class="form-label" style="word-break: break-all;">
           ${esc((source.url || 'Entrada manual').slice(0, 110))}${(source.url || '').length > 110 ? '…' : ''}
         </p>
@@ -1109,35 +1358,88 @@ function renderSourceRow(source: Source, clientId: string): string {
         ${source.lastError ? `<p class="source-error-text">Fallo: ${esc(source.lastError)}</p>` : ''}
       </div>
       <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+        ${source.url ? `<button class="btn btn-ghost btn-sm btn-probe-source" data-source-id="${esc(source.id)}">Probar feed</button>` : ''}
         ${source.url ? `<button class="btn btn-secondary btn-sm btn-poll-one-source" data-source-id="${esc(source.id)}">Ingerir ahora</button>` : ''}
       </div>
     </div>
   `;
 }
 
+function discoveryKindBadge(c: { key: string; kind: string }): string {
+  if (c.key.startsWith('curated_')) return 'TOP 3';
+  if (c.kind === 'OFFICIAL') return 'OFICIAL';
+  if (c.kind === 'TAVILY') return 'TAVILY';
+  if (c.kind === 'YOUTUBE') return 'YOUTUBE';
+  if (c.kind === 'SOCIAL') return 'SOCIAL';
+  if (c.kind === 'ACADEMIC') return 'ACADÉMICO';
+  return 'CONSULTA';
+}
+
+function discoveryKindBadgeClass(kind: string): string {
+  if (kind === 'OFFICIAL' || kind === 'TAVILY' || kind === 'ACADEMIC' || kind === 'YOUTUBE') return 'badge-ready';
+  if (kind === 'SOCIAL') return 'badge-progress';
+  return 'badge-progress';
+}
+
 function renderDiscoveryPanel(client: Client, thesis?: PositioningThesis): string {
   const clientId = client.id;
-  const existing = new Set(dbService.getSourcesByClient(clientId).map((s) => (s.url || '').toLowerCase()));
-  const candidates = discoverSources(client, thesis);
-  const pending = candidates.filter((c) => !existing.has(c.url.toLowerCase()));
+  const cached = loadLastAgentRun(clientId);
+  const agentRun =
+    cached && isAgentRunCurrent(cached, client, thesis)
+      ? cached
+      : runSourceDiscoveryAgent(client, thesis);
+  const pending = agentRun.recommendations;
   const keywords = buildProfileKeywords(client, thesis);
   const terms = [...keywords.coreEn, ...keywords.coreEs];
+  const presetId = detectIndustryPreset(client, thesis, keywords);
+  const presetMeta = getIndustryPresetMeta(presetId);
+  const scannedLabel = new Date(agentRun.scannedAt).toLocaleString('es');
+  const existingUrls = new Set(
+    dbService.getSourcesByClient(clientId).map((s) => normalizeSourceUrl(s.url || ''))
+  );
+  const curatedPending = buildCuratedPresetsForProfile(client, thesis, keywords).filter(
+    (c) => !existingUrls.has(normalizeSourceUrl(c.url))
+  ).length;
+  const extendedPending = pendingExtendedSources(client, thesis).length;
+  const tavilyBadge = agentRun.tavilyUsed
+    ? `<span class="badge badge-ready">Tavily activo</span>`
+    : agentRun.tavilyError === 'TAVILY_KEY_MISSING'
+      ? `<span class="badge badge-pending">Tavily sin configurar</span>`
+      : '';
 
   return `
     <section class="card">
       <div class="card-header">
         <div>
-          <h3>Descubrimiento automático por perfil</h3>
+          <h3>Agente de descubrimiento de fuentes</h3>
           <p style="font-size: 0.9rem;">
-            Consultas y feeds derivados de la tesis y el dossier de ${esc(client.displayName)}.
-            Cobertura bilingüe: EE.UU. e inglés, México y español.
+            Escaneo automático: Google News, feeds oficiales, Tavily, redes sociales (LinkedIn/X), YouTube y fuentes académicas según el perfil de ${esc(client.displayName)}.
+          </p>
+          <p class="muted small" style="margin-top: 0.35rem;">
+            Preset: <strong>${esc(presetMeta.label)}</strong> · Último escaneo: ${esc(scannedLabel)} · ${agentRun.registeredCount} activa(s) · ${pending.length} pendiente(s)
+            ${tavilyBadge ? ` · ${tavilyBadge}` : ''}
           </p>
         </div>
-        ${pending.length
-          ? `<button id="btn-add-all-discovered" class="btn btn-primary btn-sm" data-client-id="${esc(clientId)}">
-               Activar ${pending.length} e ingerir
-             </button>`
-          : '<span class="badge badge-ready">Todas activas</span>'}
+        <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+          ${curatedPending
+            ? `<button id="btn-add-curated-top3" class="btn btn-primary btn-sm" data-client-id="${esc(clientId)}">
+                 Activar top 3 (${esc(presetMeta.media.map((m) => m.host.split('.')[0]).join(' · '))})
+               </button>`
+            : ''}
+          ${extendedPending
+            ? `<button id="btn-add-extended-sources" class="btn btn-secondary btn-sm" data-client-id="${esc(clientId)}">
+                 Social + YouTube + académico (${extendedPending})
+               </button>`
+            : ''}
+          <button id="btn-tavily-rescan" class="btn btn-secondary btn-sm" data-client-id="${esc(clientId)}">
+            Buscar con Tavily
+          </button>
+          ${pending.length
+            ? `<button id="btn-add-all-discovered" class="btn btn-primary btn-sm" data-client-id="${esc(clientId)}">
+                 Activar ${pending.length} e ingerir
+               </button>`
+            : '<span class="badge badge-ready">Todas activas</span>'}
+        </div>
       </div>
 
       ${terms.length
@@ -1157,10 +1459,13 @@ function renderDiscoveryPanel(client: Client, thesis?: PositioningThesis): strin
             <div class="discovery-row">
               <div style="min-width: 240px; flex: 1;">
                 <strong>${esc(c.name)}</strong>
-                <span class="badge ${c.kind === 'OFFICIAL' ? 'badge-ready' : 'badge-progress'}">
-                  ${c.kind === 'OFFICIAL' ? 'OFICIAL' : 'CONSULTA'}
+                <span class="badge ${discoveryKindBadgeClass(c.kind)}">
+                  ${esc(discoveryKindBadge(c))}
                 </span>
-                <p class="muted small">${esc(c.rationale)}</p>
+                <span class="badge ${c.priority === 'HIGH' ? 'badge-ready' : c.priority === 'MEDIUM' ? 'badge-progress' : 'badge-pending'}">
+                  ${esc(c.priority)}
+                </span>
+                <p class="muted small">${esc(c.agentRationale)}</p>
               </div>
               <button class="btn btn-secondary btn-sm btn-add-discovered-source"
                       data-client-id="${esc(clientId)}"
@@ -1170,7 +1475,8 @@ function renderDiscoveryPanel(client: Client, thesis?: PositioningThesis): strin
             </div>
           `).join('')
         : `<p class="muted small">
-             Las ${candidates.length} fuentes propuestas ya están registradas. Pulsa <strong>Ingerir todas</strong> para traer novedades.
+             Las fuentes propuestas ya están registradas. La ingesta automática corre cada 5 min según el intervalo configurado.
+             Pulsa <strong>Ingerir todas</strong> para forzar una corrida ahora.
            </p>`}
     </section>
   `;

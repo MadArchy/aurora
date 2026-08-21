@@ -1,4 +1,5 @@
 import { authService } from '../services/auth';
+import { FIREBASE_ENABLED, readFirebaseConfig } from '../firebase/config';
 import { aiService } from '../services/ai';
 import { dbService } from '../services/db';
 import { notificationService } from '../services/notifications';
@@ -160,6 +161,11 @@ export function renderAppShell(
          <span class="breadcrumb-sep">/</span>
          <span class="breadcrumb-current">${esc(pageTitle)}</span>`;
 
+  const firebaseCfg = FIREBASE_ENABLED ? readFirebaseConfig() : null;
+  const firebaseBadge = firebaseCfg
+    ? `<span class="status-pill status-on" title="Backend Firebase activo">${firebaseCfg.useEmulators ? 'Firebase · Emulator' : `Firebase · ${esc(firebaseCfg.projectId)}`}</span>`
+    : '';
+
   return `
     <aside class="sidebar" aria-label="Navegación principal">
       ${inWorkspace && workspaceClient
@@ -210,6 +216,7 @@ export function renderAppShell(
             </select>
           </label>
         ` : ''}
+        ${firebaseBadge}
         <span class="status-pill ${aiConfig.hasActiveSession ? 'status-on' : 'status-off'}" title="Estado de la sesión de IA">
           IA ${aiConfig.hasActiveSession ? esc(aiConfig.provider) : 'manual'}
         </span>

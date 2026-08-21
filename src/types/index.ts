@@ -217,7 +217,7 @@ export interface PositioningThesis {
   clientFeedback?: string;
 }
 
-export type SourceType = 'RSS' | 'WEB' | 'API' | 'REGULATORY' | 'ACADEMIC' | 'BLOG' | 'MEDIA' | 'MANUAL' | 'OTHER';
+export type SourceType = 'RSS' | 'WEB' | 'API' | 'REGULATORY' | 'ACADEMIC' | 'BLOG' | 'MEDIA' | 'MANUAL' | 'SOCIAL' | 'VIDEO' | 'OTHER';
 export type SourceStatus = 'ACTIVE' | 'PAUSED' | 'ERROR' | 'ARCHIVED';
 
 export interface Source {
@@ -249,7 +249,7 @@ export interface SourceRunOutcome {
   error?: string;
 }
 
-export type SignalSourceType = 'MANUAL' | 'RSS' | 'REGULATORY' | 'NEWS_API' | 'CLIENT_INPUT';
+export type SignalSourceType = 'MANUAL' | 'RSS' | 'REGULATORY' | 'NEWS_API' | 'CLIENT_INPUT' | 'SOCIAL' | 'VIDEO' | 'ACADEMIC';
 export type SignalStatus = 'NEW' | 'ANALYZED' | 'CONVERTED' | 'DISCARDED';
 export type SignalAiStatus = 'PENDING_AI' | 'PROCESSING' | 'ANALYZED' | 'FAILED' | 'NOT_REQUIRED';
 export type ManagerDecision = 'UNREVIEWED' | 'DISCARDED' | 'SAVED' | 'RESEARCH' | 'CONVERTED';
@@ -288,6 +288,31 @@ export interface Signal {
   sourceQuality?: SourceQuality;
   recommendedAction?: RecommendedAction;
   priorityBand?: PriorityBand;
+  /** Explicación corta del último score (para triage). */
+  scoreRationale?: string;
+  /** Desglose de factores/penalizaciones del último score. */
+  scoreBreakdown?: {
+    totalScore: number;
+    factors: Array<{ key: string; label: string; points: number; weight: number }>;
+    penalties: Array<{ key: string; label: string; points: number }>;
+    summary: string;
+  };
+  /** Evidencia web encontrada por RESEARCH_SIGNALS (Tavily). */
+  researchBrief?: SignalResearchBrief;
+}
+
+export interface ResearchEvidenceItem {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export interface SignalResearchBrief {
+  queriedAt: string;
+  query: string;
+  evidence: ResearchEvidenceItem[];
+  summary: string;
+  suggestedNextStep: 'SAVE' | 'MONITOR' | 'SHORT_POST';
 }
 
 export interface SignalAnalysis {
@@ -449,6 +474,21 @@ export interface ContentItem {
 }
 
 export type FeedbackEventKind = 'CLIENT_EDIT' | 'CLIENT_APPROVE' | 'CLIENT_REJECT';
+
+export type SignalOutcomeKind = 'USEFUL' | 'NOT_USEFUL';
+
+/** Feedback del manager sobre si una señal sirvió para posicionamiento. */
+export interface SignalOutcome {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  signalId: string;
+  kind: SignalOutcomeKind;
+  note?: string;
+  source: 'RADAR' | 'CURATION' | 'DELIVERY';
+  actorUid: string;
+  createdAt: string;
+}
 
 export interface FeedbackEvent {
   id: string;
@@ -1041,5 +1081,15 @@ export interface ClientPortfolioSummary {
   lastDeliveryAt?: string;
   attentionScore: number;
   attentionReasons: string[];
+  /** Fuentes y radar (Fase 4 cartera). */
+  activeSources: number;
+  sourcesInError: number;
+  signalsLast7Days: number;
+  researchPending: number;
+  industryPresetLabel?: string;
+  /** Señales convertidas sin feedback útil/no útil. */
+  outcomePending: number;
+  /** % útiles entre outcomes registrados (null si no hay). */
+  usefulRate: number | null;
 }
 

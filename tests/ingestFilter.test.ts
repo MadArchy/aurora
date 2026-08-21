@@ -21,6 +21,7 @@ const keywords = {
   coreEs: ['regulacion de inteligencia artificial'],
   strong: ['nist', 'uspto', 'compliance'],
   context: ['fintech', 'healthcare', 'legal'],
+  negative: [] as string[],
 };
 
 describe('gateItem', () => {
@@ -43,5 +44,19 @@ describe('gateItem', () => {
   it('rejects very short titles', () => {
     const result = gateItem({ title: 'Short' }, keywords, { ...baseSource, url: 'https://example.com/rss' });
     expect(result.accepted).toBe(false);
+  });
+
+  it('rejects items matching topicsToAvoid from profile', () => {
+    const withAvoid = {
+      ...keywords,
+      negative: ['experts in artificial intelligence', 'patent attorney only'],
+    };
+    const result = gateItem(
+      { title: 'New trends for experts in artificial intelligence hype cycle', snippet: 'Market report' },
+      withAvoid,
+      baseSource
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.reason).toMatch(/evitar/i);
   });
 });

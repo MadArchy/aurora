@@ -1,28 +1,67 @@
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { assertSafeUrl, assertSafeUrlWithDns } from './ssrf';
+import { callTavilySearch, fetchRssFeed } from './sourceFeedCore';
+import { resolveYoutubeChannel, searchYoutubeChannels, searchYoutubeVideos } from './youtubeCore';
 
 type Session = { openai?: string; claude?: string; createdAt: number };
 
 const sessions = new Map<string, Session>();
 const SESSION_TTL_MS = 60 * 60 * 1000;
 const MAX_BODY = 1_500_000;
-const MAX_RSS_BYTES = 800_000;
-const MAX_REDIRECTS = 4;
 const MAX_PROMPT_CHARS = 12_000;
 const MAX_OUTPUT_TOKENS = 1200;
 const AI_RATE_WINDOW_MS = 60_000;
 const AI_RATE_MAX = 30;
+const TAVILY_RATE_WINDOW_MS = 60 * 60 * 1000;
+const TAVILY_RATE_MAX = 40;
+const YOUTUBE_RATE_WINDOW_MS = 60 * 60 * 1000;
+const YOUTUBE_RATE_MAX = 60;
 
 const ALLOWED_OPENAI_MODELS = new Set(['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini']);
 const ALLOWED_CLAUDE_MODELS = new Set(['claude-3-5-haiku-20241022', 'claude-3-5-sonnet-20241022']);
 
 const aiRate = new Map<string, { count: number; windowStart: number }>();
+const tavilyRate = new Map<string, { count: number; windowStart: number }>();
+const youtubeRate = new Map<string, { count: number; windowStart: number }>();
+
+function tavilyApiKey(): string {
+  return (process.env.TAVILY_API_KEY || '').trim();
+}
+
+function youtubeApiKey(): string {
+  return (process.env.YOUTUBE_API_KEY || '').trim();
+}
+
+function checkRate(
+  map: Map<string, { count: number; windowStart: number }>,
+  clientKey: string,
+  windowMs: number,
+  max: number,
+  errorCode: string
+): void {
+  const now = Date.now();
+  const bucket = map.get(clientKey) || { count: 0, windowStart: now };
+  if (now - bucket.windowStart > windowMs) {
+    bucket.count = 0;
+    bucket.windowStart = now;
+  }
+  bucket.count += 1;
+  map.set(clientKey, bucket);
+  if (bucket.count > max) throw new Error(errorCode);
+}
+
+function checkTavilyRate(clientKey: string): void {
+  checkRate(tavilyRate, clientKey, TAVILY_RATE_WINDOW_MS, TAVILY_RATE_MAX, 'TAVILY_RATE_LIMIT');
+}
+
+function checkYoutubeRate(clientKey: string): void {
+  checkRate(youtubeRate, clientKey, YOUTUBE_RATE_WINDOW_MS, YOUTUBE_RATE_MAX, 'YOUTUBE_RATE_LIMIT');
+}
 
 function isLoopbackOrigin(req: IncomingMessage): boolean {
   const origin = String(req.headers.origin || '');
   const host = String(req.headers.host || '');
-  const allowed = ['http://127.0.0.1:3000', 'http://localhost:3000'];
+  const allowed = ['http://127.0.0.1:3000', 'http://localhost:3000', 'http://127.0.0.1:3001', 'http://localhost:3001'];
   if (origin && allowed.includes(origin)) return true;
   if (!origin && (host.startsWith('127.0.0.1:') || host.startsWith('localhost:'))) return true;
   return false;
@@ -58,68 +97,10 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-async function readResponseTextLimited(response: Response, maxBytes: number): Promise<string> {
-  if (!response.body) return '';
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    size += value.byteLength;
-    if (size > maxBytes) throw new Error('FETCH_TOO_LARGE');
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
-}
-
 function json(res: ServerResponse, status: number, payload: unknown) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.end(JSON.stringify(payload));
-}
-
-function parseRss(xml: string) {
-  const items: Array<{ title: string; link: string; snippet: string; pubDate: string }> = [];
-  const blocks = xml.split(/<item[\s>]/i).slice(1).concat(xml.split(/<entry[\s>]/i).slice(1));
-  for (const block of blocks.slice(0, 40)) {
-    const title = (block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i)?.[1] || '').replace(/<[^>]+>/g, '').trim();
-    const link =
-      block.match(/<link[^>]*href=["']([^"']+)["']/i)?.[1] ||
-      (block.match(/<link[^>]*>([\s\S]*?)<\/link>/i)?.[1] || '').replace(/<[^>]+>/g, '').trim();
-    const snippet = (block.match(/<(?:description|summary|content)[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/(?:description|summary|content)>/i)?.[1] || '')
-      .replace(/<[^>]+>/g, '')
-      .trim()
-      .slice(0, 500);
-    const pubDate = (block.match(/<(?:pubDate|updated|published)[^>]*>([\s\S]*?)<\/(?:pubDate|updated|published)>/i)?.[1] || '').trim();
-    if (title) items.push({ title, link, snippet, pubDate });
-  }
-  return items;
-}
-
-async function fetchFollowingRedirects(startUrl: URL, signal: AbortSignal) {
-  let current = startUrl;
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-    await assertSafeUrlWithDns(current.toString());
-    const response = await fetch(current.toString(), {
-      signal,
-      redirect: 'manual',
-      headers: {
-        'User-Agent': 'PosturaSourceBot/1.0',
-        Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
-      },
-    });
-
-    if (response.status < 300 || response.status >= 400) {
-      return { response, finalUrl: current };
-    }
-
-    const location = response.headers.get('location');
-    if (!location) throw new Error('REDIRECT_WITHOUT_LOCATION');
-    current = assertSafeUrl(new URL(location, current).toString());
-  }
-  throw new Error('TOO_MANY_REDIRECTS');
 }
 
 function validateAiPayload(raw: string): { validationPassed: boolean; securityCheckPassed: boolean; data: Record<string, unknown> } {
@@ -259,22 +240,128 @@ export function posturaApiPlugin(): Plugin {
             });
           }
 
+          if (req.method === 'GET' && url.startsWith('/api/tavily/status')) {
+            if (!isLoopbackOrigin(req)) return json(res, 403, { error: 'ORIGIN_DENIED' });
+            return json(res, 200, { available: Boolean(tavilyApiKey()) });
+          }
+
+          if (req.method === 'POST' && url.startsWith('/api/tavily/search')) {
+            if (!isLoopbackOrigin(req)) return json(res, 403, { error: 'ORIGIN_DENIED' });
+            const apiKey = tavilyApiKey();
+            if (!apiKey) return json(res, 503, { error: 'TAVILY_KEY_MISSING' });
+
+            checkTavilyRate(String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'local'));
+
+            const body = JSON.parse((await readBody(req)) || '{}');
+            const query = String(body.query || '').trim().slice(0, 400);
+            if (!query) return json(res, 400, { error: 'QUERY_EMPTY' });
+
+            const topic = body.topic === 'general' || body.topic === 'finance' ? body.topic : 'news';
+            const maxResults = Math.min(Math.max(Number(body.max_results) || 8, 1), 15);
+            const searchDepth =
+              body.search_depth === 'advanced' ||
+              body.search_depth === 'fast' ||
+              body.search_depth === 'ultra-fast'
+                ? body.search_depth
+                : 'basic';
+            const timeRange =
+              body.time_range === 'day' ||
+              body.time_range === 'month' ||
+              body.time_range === 'year' ||
+              body.time_range === 'week'
+                ? body.time_range
+                : 'week';
+
+            const started = Date.now();
+            try {
+              const { results, query: q } = await callTavilySearch(apiKey, {
+                query,
+                topic,
+                max_results: maxResults,
+                search_depth: searchDepth,
+                time_range: timeRange,
+              });
+              return json(res, 200, { results, query: q, latencyMs: Date.now() - started });
+            } catch (error) {
+              const detail = error instanceof Error ? error.message : 'TAVILY_PROVIDER_ERROR';
+              return json(res, 502, { error: 'TAVILY_PROVIDER_ERROR', detail });
+            }
+          }
+
+          if (req.method === 'GET' && url.startsWith('/api/youtube/status')) {
+            if (!isLoopbackOrigin(req)) return json(res, 403, { error: 'ORIGIN_DENIED' });
+            return json(res, 200, { available: Boolean(youtubeApiKey()) });
+          }
+
+          if (req.method === 'POST' && url.startsWith('/api/youtube/resolve')) {
+            if (!isLoopbackOrigin(req)) return json(res, 403, { error: 'ORIGIN_DENIED' });
+            const apiKey = youtubeApiKey();
+            if (!apiKey) return json(res, 503, { error: 'YOUTUBE_KEY_MISSING' });
+            checkYoutubeRate(String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'local'));
+            const body = JSON.parse((await readBody(req)) || '{}');
+            const targetUrl = String(body.url || '').trim();
+            if (!targetUrl) return json(res, 400, { error: 'URL_EMPTY' });
+            try {
+              const resolved = await resolveYoutubeChannel(apiKey, targetUrl);
+              if (!resolved) return json(res, 404, { error: 'YOUTUBE_CHANNEL_NOT_FOUND' });
+              return json(res, 200, resolved);
+            } catch (error) {
+              const detail = error instanceof Error ? error.message : 'YOUTUBE_PROVIDER_ERROR';
+              return json(res, 502, { error: 'YOUTUBE_PROVIDER_ERROR', detail });
+            }
+          }
+
+          if (req.method === 'POST' && url.startsWith('/api/youtube/channels')) {
+            if (!isLoopbackOrigin(req)) return json(res, 403, { error: 'ORIGIN_DENIED' });
+            const apiKey = youtubeApiKey();
+            if (!apiKey) return json(res, 503, { error: 'YOUTUBE_KEY_MISSING' });
+            checkYoutubeRate(String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'local'));
+            const body = JSON.parse((await readBody(req)) || '{}');
+            const query = String(body.query || '').trim().slice(0, 200);
+            if (!query) return json(res, 400, { error: 'QUERY_EMPTY' });
+            const maxResults = Math.min(Math.max(Number(body.maxResults) || 3, 1), 5);
+            try {
+              const channels = await searchYoutubeChannels(apiKey, query, maxResults);
+              return json(res, 200, { channels, query });
+            } catch (error) {
+              const detail = error instanceof Error ? error.message : 'YOUTUBE_PROVIDER_ERROR';
+              return json(res, 502, { error: 'YOUTUBE_PROVIDER_ERROR', detail });
+            }
+          }
+
+          if (req.method === 'POST' && url.startsWith('/api/youtube/search')) {
+            if (!isLoopbackOrigin(req)) return json(res, 403, { error: 'ORIGIN_DENIED' });
+            const apiKey = youtubeApiKey();
+            if (!apiKey) return json(res, 503, { error: 'YOUTUBE_KEY_MISSING' });
+            checkYoutubeRate(String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'local'));
+            const body = JSON.parse((await readBody(req)) || '{}');
+            const query = String(body.query || '').trim().slice(0, 200);
+            if (!query) return json(res, 400, { error: 'QUERY_EMPTY' });
+            const maxResults = Math.min(Math.max(Number(body.maxResults) || 15, 1), 25);
+            try {
+              const items = await searchYoutubeVideos(apiKey, query, maxResults);
+              return json(res, 200, { items, query });
+            } catch (error) {
+              const detail = error instanceof Error ? error.message : 'YOUTUBE_PROVIDER_ERROR';
+              return json(res, 502, { error: 'YOUTUBE_PROVIDER_ERROR', detail });
+            }
+          }
+
           if (req.method === 'GET' && url.startsWith('/api/rss')) {
             const target = new URL(url, 'http://local').searchParams.get('url') || '';
-            const safe = await assertSafeUrlWithDns(target);
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 15000);
+            if (!target) return json(res, 400, { error: 'URL_MISSING' });
             try {
-              const { response, finalUrl } = await fetchFollowingRedirects(safe, controller.signal);
-              if (!response.ok) {
-                return json(res, 502, { error: 'SOURCE_HTTP_ERROR', status: response.status });
+              const { items, sourceUrl } = await fetchRssFeed(target);
+              return json(res, 200, { items, sourceUrl });
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'RSS_FAILED';
+              if (message.startsWith('SOURCE_HTTP_ERROR:')) {
+                return json(res, 502, { error: 'SOURCE_HTTP_ERROR', status: Number(message.split(':')[1]) || 0 });
               }
-              const xml = await readResponseTextLimited(response, MAX_RSS_BYTES);
-              const items = parseRss(xml);
-              if (!items.length) return json(res, 422, { error: 'FEED_EMPTY_OR_UNPARSEABLE' });
-              return json(res, 200, { items, sourceUrl: finalUrl.toString() });
-            } finally {
-              clearTimeout(timer);
+              if (message === 'FEED_EMPTY_OR_UNPARSEABLE') {
+                return json(res, 422, { error: message });
+              }
+              throw error;
             }
           }
 
@@ -290,9 +377,18 @@ export function posturaApiPlugin(): Plugin {
             'FETCH_TOO_LARGE',
             'AI_RATE_LIMIT',
             'BODY_TOO_LARGE',
+            'TAVILY_RATE_LIMIT',
+            'YOUTUBE_RATE_LIMIT',
+            'YOUTUBE_KEY_MISSING',
+            'URL_EMPTY',
+            'QUERY_EMPTY',
+            'YOUTUBE_CHANNEL_NOT_FOUND',
+            'FEED_EMPTY_OR_UNPARSEABLE',
           ]);
           const status = clientErrors.has(message) ? 400 : 500;
-          if (message === 'AI_RATE_LIMIT') return json(res, 429, { error: message });
+          if (message === 'AI_RATE_LIMIT' || message === 'TAVILY_RATE_LIMIT' || message === 'YOUTUBE_RATE_LIMIT') {
+            return json(res, 429, { error: message });
+          }
           return json(res, status, { error: message });
         }
       });

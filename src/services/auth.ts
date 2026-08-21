@@ -45,19 +45,38 @@ class AuthService {
     else localStorage.removeItem(IMPERSONATION_KEY);
   }
 
+  private async syncFirestoreSession(user: User) {
+    const sync = await import('./firestore/sync');
+    sync.setFirestoreAuthoritative(true);
+
+    let clientIds: string[] = [];
+    if (user.role === 'ADMIN') {
+      const boot = await dbService.bootstrapFirestoreIfEmpty();
+      if (boot.bootstrapped) return;
+      await dbService.hydrateFromRemote();
+      clientIds = dbService.getClients().map((c) => c.id);
+    } else if (user.clientId) {
+      await dbService.hydrateFromRemote([user.clientId]);
+      clientIds = [user.clientId];
+    }
+
+    if (clientIds.length) {
+      await sync.startFirestoreRealtimeSync(clientIds, (partial) => {
+        dbService.importSnapshot(partial, { merge: true, skipRemote: true });
+      });
+    }
+  }
+
   private async init() {
     if (FIREBASE_ENABLED) {
       const { bindFirebaseAuthState } = await import('../firebase/authBridge');
-      const { setFirestoreAuthoritative } = await import('./firestore/sync');
       await bindFirebaseAuthState(async (user) => {
         if (user) {
-          setFirestoreAuthoritative(true);
-          const clientIds = user.role === 'ADMIN'
-            ? dbService.getClients().map((c) => c.id)
-            : user.clientId ? [user.clientId] : [];
-          if (clientIds.length) await dbService.hydrateFromRemote(clientIds);
+          await this.syncFirestoreSession(user);
         } else {
-          setFirestoreAuthoritative(false);
+          const sync = await import('./firestore/sync');
+          sync.stopFirestoreRealtimeSync();
+          sync.setFirestoreAuthoritative(false);
         }
         this.currentUser = user;
         this.notify();
@@ -200,21 +219,14 @@ class AuthService {
   public async login(email: string, password: string): Promise<{ ok: true } | { ok: false; message: string }> {
     if (FIREBASE_ENABLED) {
       const { firebaseSignIn } = await import('../firebase/authBridge');
-      const { setFirestoreAuthoritative } = await import('./firestore/sync');
       const result = await firebaseSignIn(email, password);
-      if (result.ok) {
-        this.persistImpersonation(null);
-        auditService.log(result.user, 'LOGIN', 'User', result.user.uid);
-        this.currentUser = result.user;
-        setFirestoreAuthoritative(true);
-        const clientIds = result.user.role === 'ADMIN'
-          ? dbService.getClients().map((c) => c.id)
-          : result.user.clientId ? [result.user.clientId] : [];
-        if (clientIds.length) await dbService.hydrateFromRemote(clientIds);
-        this.notify();
-        return { ok: true };
-      }
-      // Fallback a cuentas locales si aún no está provisionado en Firebase
+      if (!result.ok) return result;
+      this.persistImpersonation(null);
+      auditService.log(result.user, 'LOGIN', 'User', result.user.uid);
+      this.currentUser = result.user;
+      await this.syncFirestoreSession(result.user);
+      this.notify();
+      return { ok: true };
     }
 
     const account = this.accounts.find((a) => a.email.toLowerCase() === email.trim().toLowerCase());

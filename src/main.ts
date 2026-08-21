@@ -16,7 +16,12 @@ import { runTopicAgent } from './services/topicAgent';
 import { formatDossierMarkdown, downloadDossierMarkdown } from './services/dossierExport';
 import { generatePositioningAdvice, proposeAngle } from './services/advisor';
 import { calculateStrategicScore, ScoringContext } from './services/scoring';
-import { buildProfileKeywords, discoverSources, ProfileKeywords } from './services/sourceDiscovery';
+import {
+  buildProfileKeywords,
+  discoverSources,
+  normalizeSourceUrl,
+  ProfileKeywords,
+} from './services/sourceDiscovery';
 import { assessSourceQuality, gateItem, FeedItem } from './services/ingestFilter';
 import { renderAppShell, renderBriefingBar } from './components/AppShell';
 import { renderManagerCockpit } from './components/ManagerCockpit';
@@ -49,7 +54,23 @@ import { mapLegacyContentStatus, resolvePipelineStepsToTarget } from './domain/c
 import { nextIncompleteOnboardingStep } from './domain/profileCoverage';
 import type { ProfileFactSection } from './types';
 import { metricsService } from './services/metrics';
+import { fetchSourceItems } from './services/sourceApi';
 import { esc } from './lib/escape';
+import {
+  loadLastAgentRun,
+  profileChangedSinceLastRun,
+  resolveDiscoveryCandidate,
+  runSourceDiscoveryAgent,
+  runSourceDiscoveryAgentAsync,
+  saveAgentRun,
+  sourcesDueForIngest,
+} from './services/sourceDiscoveryAgent';
+import { buildCuratedPresetsForProfile } from './services/industryPresets';
+import { discoverExtendedSources } from './services/extendedSourceDiscovery';
+import { enrichYoutubeDiscoverySources } from './services/youtubeDiscovery';
+import { runResearchSignalsAgent } from './services/researchSignalsAgent';
+import { shouldAutoResearchSignal } from './domain/radarTriageCore';
+import { feedbackScoringHints } from './domain/radarFeedbackCore';
 
 interface ToastItem {
   id: string;
@@ -88,8 +109,17 @@ class App {
     priorityBand: 'ALL',
     contentStatus: 'ALL',
     topicKey: '' as string,
+    radarView: 'triage' as 'list' | 'triage',
   };
   private loginError = '';
+  private sourceAgentTimer: number | null = null;
+  private sourceIngestTimer: number | null = null;
+  private lastDiscoveryScanAt = 0;
+
+  /** Intervalo entre escaneos del agente de fuentes (1 h). */
+  private static readonly DISCOVERY_SCAN_MS = 60 * 60 * 1000;
+  /** Revisa ingesta programada cada 5 min. */
+  private static readonly INGEST_TICK_MS = 5 * 60 * 1000;
 
   constructor() {
     void this.boot();
@@ -100,6 +130,7 @@ class App {
     await authService.ready;
     authService.subscribe((user) => {
       if (!user) {
+        this.stopSourceAutomation();
         this.activeTab = 'dashboard';
         this.activeClientId = 'all';
         this.render();
@@ -109,7 +140,9 @@ class App {
         const valid = [...PORTFOLIO_TAB_IDS, ...WORKSPACE_TAB_IDS];
         if (!valid.includes(this.activeTab)) this.activeTab = 'dashboard';
         if (isWorkspaceTab(this.activeTab) && this.activeClientId === 'all') this.activeTab = 'dashboard';
+        this.startSourceAutomation();
       } else {
+        this.stopSourceAutomation();
         if (user.mustCompleteOnboarding) {
           this.activeModal = 'onboarding';
           this.modalData = { clientId: user.clientId, step: 1 };
@@ -118,6 +151,10 @@ class App {
         this.activeCampaignId = this.resolveCampaignId(user.clientId || undefined);
       }
       this.render();
+    });
+
+    dbService.onChange(() => {
+      if (authService.getCurrentUser()) this.render();
     });
   }
 
@@ -182,9 +219,9 @@ class App {
     );
   }
 
-  private enterClient(clientId: string) {
+  private enterClient(clientId: string, tab?: string) {
     this.activeClientId = clientId;
-    this.activeTab = 'ws-briefing';
+    this.activeTab = tab && tab.startsWith('ws-') ? tab : 'ws-briefing';
     this.filterState.topicKey = '';
     this.filterState.searchQuery = '';
     this.filterState.priorityBand = 'ALL';
@@ -251,6 +288,7 @@ class App {
         priorityBand: this.filterState.priorityBand,
         contentStatus: this.filterState.contentStatus,
         topicKey: this.filterState.topicKey || undefined,
+        radarView: this.filterState.radarView,
       });
     }
 
@@ -483,8 +521,10 @@ class App {
 
     document.querySelectorAll('.btn-enter-client').forEach((btn) => {
       btn.addEventListener('click', (e) => {
-        const clientId = (e.currentTarget as HTMLElement).getAttribute('data-client-id');
-        if (clientId) this.enterClient(clientId);
+        const el = e.currentTarget as HTMLElement;
+        const clientId = el.getAttribute('data-client-id');
+        const tab = el.getAttribute('data-tab') || undefined;
+        if (clientId) this.enterClient(clientId, tab);
       });
     });
   }
@@ -522,6 +562,14 @@ class App {
     document.querySelectorAll('[data-band-filter]').forEach((pill) => {
       pill.addEventListener('click', (e) => {
         this.filterState.priorityBand = (e.currentTarget as HTMLElement).getAttribute('data-band-filter') || 'ALL';
+        this.refreshMain();
+      });
+    });
+
+    document.querySelectorAll('[data-radar-view]').forEach((pill) => {
+      pill.addEventListener('click', (e) => {
+        const view = (e.currentTarget as HTMLElement).getAttribute('data-radar-view');
+        this.filterState.radarView = view === 'list' ? 'list' : 'triage';
         this.refreshMain();
       });
     });
@@ -1072,6 +1120,31 @@ class App {
       }
     });
 
+    document.querySelectorAll('.btn-probe-source').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        const sourceId = (e.currentTarget as HTMLElement).getAttribute('data-source-id');
+        const source = dbService.getSources().find((s) => s.id === sourceId);
+        if (!source?.url) return;
+
+        const el = e.currentTarget as HTMLButtonElement;
+        el.textContent = 'Probando…';
+        el.disabled = true;
+        try {
+          const { items, error } = await fetchSourceItems(source.url);
+          if (error) {
+            this.showToast(`${source.name}: ${error}`, 'warning');
+          } else {
+            this.showToast(`${source.name}: feed OK · ${items.length} item(s) legibles`, 'success');
+          }
+        } catch {
+          this.showToast(`${source.name}: no se pudo probar el feed`, 'warning');
+        } finally {
+          el.textContent = 'Probar feed';
+          el.disabled = false;
+        }
+      });
+    });
+
     document.querySelectorAll('.btn-poll-one-source').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         const sourceId = (e.currentTarget as HTMLElement).getAttribute('data-source-id');
@@ -1101,7 +1174,7 @@ class App {
 
         const theses = dbService.getThesesByClient(clientId);
         const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
-        const candidate = discoverSources(client, thesis).find((d) => d.key === key);
+        const candidate = resolveDiscoveryCandidate(client, thesis, key);
         if (!candidate) return;
 
         try {
@@ -1112,7 +1185,7 @@ class App {
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
-            fetchIntervalMinutes: candidate.kind === 'QUERY' ? 180 : 360,
+            fetchIntervalMinutes: fetchIntervalForKind(candidate.kind),
             status: 'ACTIVE',
             createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
           });
@@ -1125,6 +1198,13 @@ class App {
       });
     });
 
+    const fetchIntervalForKind = (kind: string): number => {
+      if (kind === 'QUERY' || kind === 'SOCIAL') return 180;
+      if (kind === 'YOUTUBE') return 240;
+      if (kind === 'ACADEMIC') return 360;
+      return 360;
+    };
+
     const addAllBtn = document.getElementById('btn-add-all-discovered');
     addAllBtn?.addEventListener('click', async () => {
       const clientId = addAllBtn.getAttribute('data-client-id') || this.resolveClientId();
@@ -1133,8 +1213,15 @@ class App {
 
       const theses = dbService.getThesesByClient(clientId);
       const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
-      const existing = new Set(dbService.getSourcesByClient(clientId).map((s) => (s.url || '').toLowerCase()));
-      const candidates = discoverSources(client, thesis).filter((d) => !existing.has(d.url.toLowerCase()));
+      const lastRun = loadLastAgentRun(clientId);
+      const existing = new Set(
+        dbService.getSourcesByClient(clientId).map((s) => normalizeSourceUrl(s.url || ''))
+      );
+      const candidates = (
+        lastRun?.recommendations.length
+          ? lastRun.recommendations
+          : discoverSources(client, thesis)
+      ).filter((d) => !existing.has(normalizeSourceUrl(d.url)));
 
       let added = 0;
       for (const candidate of candidates) {
@@ -1146,13 +1233,13 @@ class App {
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
-            fetchIntervalMinutes: candidate.kind === 'QUERY' ? 180 : 360,
+            fetchIntervalMinutes: fetchIntervalForKind(candidate.kind),
             status: 'ACTIVE',
             createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
           });
           added += 1;
         } catch {
-          break;
+          continue;
         }
       }
 
@@ -1164,6 +1251,111 @@ class App {
         created ? 'success' : 'info'
       );
       this.setTab('ws-sources');
+    });
+
+    const extendedBtn = document.getElementById('btn-add-extended-sources');
+    extendedBtn?.addEventListener('click', async () => {
+      const clientId = extendedBtn.getAttribute('data-client-id') || this.resolveClientId();
+      const client = dbService.getClientById(clientId);
+      if (!client) return;
+
+      const theses = dbService.getThesesByClient(clientId);
+      const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+      const keywords = buildProfileKeywords(client, thesis);
+      const profile = dbService.getMasterProfile(clientId);
+      const extendedBase = discoverExtendedSources(client, thesis);
+      const enriched = await enrichYoutubeDiscoverySources(extendedBase, keywords, profile || undefined);
+      const existing = new Set(
+        dbService.getSourcesByClient(clientId).map((s) => normalizeSourceUrl(s.url || ''))
+      );
+      const candidates = enriched.sources.filter((d) => !existing.has(normalizeSourceUrl(d.url)));
+
+      if (!candidates.length) {
+        this.showToast('Social, YouTube y académico ya están activos', 'info');
+        return;
+      }
+
+      let added = 0;
+      for (const candidate of candidates) {
+        try {
+          dbService.addSource({
+            organizationId: client.organizationId,
+            clientId,
+            thesisId: thesis?.id,
+            name: candidate.name,
+            type: candidate.type,
+            url: candidate.url,
+            fetchIntervalMinutes: fetchIntervalForKind(candidate.kind),
+            status: 'ACTIVE',
+            createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
+          });
+          added += 1;
+        } catch {
+          continue;
+        }
+      }
+
+      auditService.log(authService.getCurrentUser(), 'ADD_EXTENDED_SOURCES', 'Client', clientId, { added });
+      extendedBtn.textContent = 'Ingiriendo…';
+      const { created, failed } = await this.pollSources();
+      this.showToast(
+        `Social/YouTube/académico: ${added} fuente(s) · ${created} señal(es)${failed ? ` · ${failed} con error` : ''}`,
+        created ? 'success' : 'info'
+      );
+      this.setTab('ws-sources');
+    });
+
+    const curatedTopBtn = document.getElementById('btn-add-curated-top3');
+    curatedTopBtn?.addEventListener('click', async () => {
+      const clientId = curatedTopBtn.getAttribute('data-client-id') || this.resolveClientId();
+      const client = dbService.getClientById(clientId);
+      if (!client) return;
+
+      const theses = dbService.getThesesByClient(clientId);
+      const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+      if (!thesis) return;
+
+      const keywords = buildProfileKeywords(client, thesis);
+      const existing = new Set(
+        dbService.getSourcesByClient(clientId).map((s) => normalizeSourceUrl(s.url || ''))
+      );
+      const candidates = buildCuratedPresetsForProfile(client, thesis, keywords).filter(
+        (d) => !existing.has(normalizeSourceUrl(d.url))
+      );
+
+      if (!candidates.length) {
+        this.showToast('Las 3 fuentes top ya están activas', 'info');
+        return;
+      }
+
+      let added = 0;
+      for (const candidate of candidates) {
+        try {
+          dbService.addSource({
+            organizationId: client.organizationId,
+            clientId,
+            thesisId: thesis?.id,
+            name: candidate.name,
+            type: candidate.type,
+            url: candidate.url,
+            fetchIntervalMinutes: 240,
+            status: 'ACTIVE',
+            createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
+          });
+          added += 1;
+        } catch {
+          continue;
+        }
+      }
+
+      auditService.log(authService.getCurrentUser(), 'ADD_CURATED_TOP3_SOURCES', 'Client', clientId, { added });
+      curatedTopBtn.textContent = 'Ingiriendo…';
+      const { created, failed } = await this.pollSources();
+      this.showToast(
+        `Top 3 activado(s): ${added} fuente(s) · ${created} señal(es)${failed ? ` · ${failed} con error` : ''}`,
+        created ? 'success' : 'info'
+      );
+      this.setTab('ws-radar');
     });
 
     const bindManualSignal = (el: Element) => {
@@ -1190,6 +1382,47 @@ class App {
         if (nameHint && nameInput && !nameInput.value.trim()) nameInput.value = nameHint;
         nameInput?.focus();
       });
+    });
+
+    document.querySelectorAll('.btn-open-agent-sources').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.activeModal = null;
+        this.setTab('ws-sources');
+      });
+    });
+
+    const tavilyRescanBtn = document.getElementById('btn-tavily-rescan');
+    tavilyRescanBtn?.addEventListener('click', async () => {
+      const clientId = tavilyRescanBtn.getAttribute('data-client-id') || this.resolveClientId();
+      const client = dbService.getClientById(clientId);
+      if (!client) return;
+
+      const theses = dbService.getThesesByClient(clientId);
+      const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+      tavilyRescanBtn.textContent = 'Buscando…';
+      tavilyRescanBtn.setAttribute('disabled', 'true');
+
+      try {
+        const run = await runSourceDiscoveryAgentAsync(client, thesis, { forceTavily: true });
+        saveAgentRun(run);
+        const tavilyCount = run.recommendations.filter((r) => r.kind === 'TAVILY').length;
+        if (run.tavilyError === 'TAVILY_KEY_MISSING') {
+          this.showToast('Configura TAVILY_API_KEY en .env.local y reinicia el servidor', 'warning');
+        } else if (tavilyCount) {
+          this.showToast(
+            `Tavily: ${tavilyCount} fuente(s) web nueva(s) para ${client.displayName}`,
+            'success'
+          );
+        } else {
+          this.showToast('Tavily: sin fuentes nuevas para este perfil', 'info');
+        }
+        this.setTab('ws-sources');
+      } catch (error) {
+        this.showToast(error instanceof Error ? error.message : 'Fallo búsqueda Tavily', 'warning');
+      } finally {
+        tavilyRescanBtn.textContent = 'Buscar con Tavily';
+        tavilyRescanBtn.removeAttribute('disabled');
+      }
     });
   }
 
@@ -1299,10 +1532,14 @@ class App {
     const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
     const keywords = buildProfileKeywords(client, thesis);
     const dossier = dbService.getMasterDossier(clientId);
+    const hints = feedbackScoringHints(
+      dbService.getSignalsByClient(clientId),
+      dbService.getSignalOutcomes(clientId)
+    );
     return {
-      bilingualTerms: [...keywords.coreEn, ...keywords.coreEs],
+      bilingualTerms: [...keywords.coreEn, ...keywords.coreEs, ...hints.boostTerms],
       ownedTopics: dossier?.topicsToOwn,
-      avoidedFramings: dossier?.topicsToAvoid,
+      avoidedFramings: [...(dossier?.topicsToAvoid || []), ...hints.avoidTerms],
     };
   }
 
@@ -1327,6 +1564,59 @@ class App {
       auditService.log(authService.getCurrentUser(), 'SCORE_SIGNALS_BULK', 'Client', clientId, { scored });
       this.showToast(scored ? `${scored} señal(es) puntuada(s)` : 'No hay tesis activa para puntuar', scored ? 'success' : 'warning');
       this.render();
+    });
+
+    document.getElementById('btn-research-all-signals')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const clientId = btn.getAttribute('data-client-id') || this.resolveClientId();
+      btn.disabled = true;
+      btn.textContent = 'Investigando…';
+      try {
+        const result = await runResearchSignalsAgent(clientId, { maxSignals: 3 });
+        const ok = result.briefs.length;
+        const err = result.errors.length;
+        if (result.errors.some((x) => x.error === 'TAVILY_KEY_MISSING')) {
+          this.showToast('Configura TAVILY_API_KEY en .env.local', 'warning');
+        } else {
+          this.showToast(
+            ok ? `${ok} señal(es) investigada(s)${err ? ` · ${err} error(es)` : ''}` : 'Sin señales pendientes o Tavily falló',
+            ok ? 'success' : 'warning'
+          );
+        }
+        auditService.log(authService.getCurrentUser(), 'RESEARCH_SIGNALS_RUN', 'Client', clientId, { ok, err });
+        metricsService.track('research_signals_run', { ok, err }, clientId);
+      } catch (error) {
+        this.showToast(error instanceof Error ? error.message : 'Investigación fallida', 'warning');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Investigar pendientes';
+        this.render();
+      }
+    });
+
+    document.querySelectorAll('.btn-research-signal').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        const target = e.currentTarget as HTMLButtonElement;
+        const signalId = target.getAttribute('data-signal-id');
+        if (!signalId) return;
+        const signal = dbService.getSignalById(signalId);
+        const clientId = this.resolveClientId(signal?.clientId);
+        target.disabled = true;
+        target.textContent = '…';
+        try {
+          const result = await runResearchSignalsAgent(clientId, { signalId, maxSignals: 1 });
+          if (result.briefs.length) {
+            this.showToast('Evidencia Tavily adjunta a la señal', 'success');
+          } else if (result.errors.some((x) => x.error === 'TAVILY_KEY_MISSING')) {
+            this.showToast('Configura TAVILY_API_KEY en .env.local', 'warning');
+          } else {
+            this.showToast(result.errors[0]?.error || 'Sin resultados', 'warning');
+          }
+        } catch (error) {
+          this.showToast(error instanceof Error ? error.message : 'Error', 'warning');
+        }
+        this.render();
+      });
     });
 
     document.querySelectorAll('.btn-analyze-signal').forEach((btn) => {
@@ -1370,6 +1660,30 @@ class App {
         dbService.decideSignal(id, 'DISCARDED', 'Descartado por el manager en el radar.');
         auditService.log(authService.getCurrentUser(), 'SIGNAL_DISCARDED', 'Signal', id);
         this.showToast('Señal descartada', 'info');
+        this.refreshMain();
+      });
+    });
+
+    document.querySelectorAll('.btn-signal-outcome').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const el = e.currentTarget as HTMLElement;
+        const signalId = el.getAttribute('data-signal-id');
+        const kind = el.getAttribute('data-outcome') as 'USEFUL' | 'NOT_USEFUL' | null;
+        if (!signalId || (kind !== 'USEFUL' && kind !== 'NOT_USEFUL')) return;
+        const signal = dbService.getSignalById(signalId);
+        const clientId = this.resolveClientId(signal?.clientId);
+        if (!signal || !clientId) return;
+        dbService.recordSignalOutcome({
+          organizationId: signal.organizationId,
+          clientId,
+          signalId,
+          kind,
+          source: 'RADAR',
+          actorUid: authService.getCurrentUser()?.uid || 'user_admin_01',
+        });
+        auditService.log(authService.getCurrentUser(), 'SIGNAL_OUTCOME', 'Signal', signalId, { kind });
+        metricsService.track('signal_outcome', { kind }, clientId);
+        this.showToast(kind === 'USEFUL' ? 'Marcada como útil — el scoring se recalibra' : 'Marcada como no útil', 'success');
         this.refreshMain();
       });
     });
@@ -2755,6 +3069,120 @@ class App {
   // Ingesta RSS
   // ==========================================
 
+  private startSourceAutomation() {
+    this.stopSourceAutomation();
+    void this.tickSourceDiscovery();
+    void this.tickScheduledIngest();
+    this.sourceIngestTimer = window.setInterval(() => {
+      void this.tickScheduledIngest();
+    }, App.INGEST_TICK_MS);
+    this.sourceAgentTimer = window.setInterval(() => {
+      void this.tickSourceDiscovery();
+    }, App.DISCOVERY_SCAN_MS);
+  }
+
+  private stopSourceAutomation() {
+    if (this.sourceIngestTimer !== null) {
+      window.clearInterval(this.sourceIngestTimer);
+      this.sourceIngestTimer = null;
+    }
+    if (this.sourceAgentTimer !== null) {
+      window.clearInterval(this.sourceAgentTimer);
+      this.sourceAgentTimer = null;
+    }
+  }
+
+  /** Agente de fuentes: escanea perfiles y notifica recomendaciones nuevas. */
+  private async tickSourceDiscovery() {
+    const now = Date.now();
+    if (now - this.lastDiscoveryScanAt < App.DISCOVERY_SCAN_MS - 30_000) return;
+    this.lastDiscoveryScanAt = now;
+
+    for (const client of dbService.getClients()) {
+      const thesis = dbService.getThesesByClient(client.id).find((t) => t.status === 'ACTIVE');
+      const lastRun = loadLastAgentRun(client.id);
+      const profileChanged = profileChangedSinceLastRun(client, thesis, lastRun);
+      const run = profileChanged
+        ? await runSourceDiscoveryAgentAsync(client, thesis)
+        : runSourceDiscoveryAgent(client, thesis);
+      const previousKeys = new Set(lastRun?.recommendations.map((r) => r.key) || []);
+      const freshHigh = run.recommendations.filter(
+        (r) => r.priority === 'HIGH' && !previousKeys.has(r.key)
+      );
+
+      saveAgentRun(run);
+
+      if (run.pendingCount > 0 && (profileChanged || freshHigh.length)) {
+        const viewingClient = this.activeClientId === client.id && this.activeTab === 'ws-sources';
+        if (viewingClient || freshHigh.length) {
+          const tavilyHint = run.tavilyUsed ? ' · Tavily' : '';
+          this.showToast(
+            `Agente de fuentes · ${client.displayName}: ${run.pendingCount} fuente(s) recomendada(s)${freshHigh.length ? ` (${freshHigh.length} prioritarias)` : ''}${tavilyHint}`,
+            'info'
+          );
+        }
+      }
+    }
+
+    if (this.activeTab === 'ws-sources' && this.activeClientId !== 'all') {
+      this.render();
+    }
+  }
+
+  /** Tras ingesta: investiga automáticamente HIGH/CRITICAL con RESEARCH_REQUIRED. */
+  private async autoResearchPrioritySignals(clientId: string): Promise<number> {
+    const candidates = dbService
+      .getSignalsByClient(clientId)
+      .filter(shouldAutoResearchSignal)
+      .slice(0, 2);
+    if (!candidates.length) return 0;
+
+    let done = 0;
+    for (const signal of candidates) {
+      try {
+        const result = await runResearchSignalsAgent(clientId, { signalId: signal.id, maxSignals: 1 });
+        if (result.briefs.length) done += 1;
+      } catch {
+        // no bloquear ingesta si Tavily falla
+      }
+    }
+    return done;
+  }
+
+  /** Ingesta automática según fetchIntervalMinutes del cliente activo. */
+  private async tickScheduledIngest() {
+    const clientId =
+      isWorkspaceTab(this.activeTab) && this.activeClientId !== 'all'
+        ? this.activeClientId
+        : dbService.getClients()[0]?.id;
+    if (!clientId) return;
+
+    const due = sourcesDueForIngest(clientId).slice(0, 4);
+    if (!due.length) return;
+
+    let created = 0;
+    for (const source of due) {
+      try {
+        const outcome = await this.pollOneSource(source);
+        created += outcome.created;
+      } catch {
+        // error ya registrado en recordSourceRun
+      }
+    }
+
+    if (created > 0) {
+      const researched = await this.autoResearchPrioritySignals(clientId);
+      auditService.log(authService.getCurrentUser(), 'SOURCE_AUTO_INGEST', 'Client', clientId, {
+        created,
+        polled: due.length,
+        researched,
+      });
+      if (this.activeTab === 'ws-radar' || this.activeTab === 'ws-sources') {
+        this.render();
+      }
+    }
+  }
+
   /** Corre todas las fuentes activas sin que un fallo aislado detenga el resto. */
   private async pollSources(): Promise<{ created: number; failed: number; rejected: number }> {
     const clientId = this.currentClientId();
@@ -2775,6 +3203,11 @@ class App {
         failed += 1;
       }
     }
+
+    if (created > 0 && clientId) {
+      await this.autoResearchPrioritySignals(clientId);
+    }
+
     return { created, failed, rejected };
   }
 
@@ -2804,10 +3237,9 @@ class App {
 
     let items: FeedItem[] = [];
     try {
-      const response = await fetch(`/api/rss?url=${encodeURIComponent(source.url)}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'RSS_FAILED');
-      items = (data.items || []) as FeedItem[];
+      const { items: fetched, error } = await fetchSourceItems(source.url);
+      if (error) throw new Error(error);
+      items = fetched as FeedItem[];
     } catch (error) {
       const message = error instanceof Error ? error.message : 'RSS_FAILED';
       dbService.recordSourceRun(source.id, { fetched: 0, accepted: 0, rejected: 0, duplicates: 0, error: message });
@@ -2830,7 +3262,16 @@ class App {
         clientId,
         sourceId: source.id,
         title: item.title,
-        sourceType: source.type === 'REGULATORY' ? 'REGULATORY' : 'RSS',
+        sourceType:
+          source.type === 'REGULATORY'
+            ? 'REGULATORY'
+            : source.type === 'ACADEMIC'
+              ? 'ACADEMIC'
+              : source.type === 'VIDEO'
+                ? 'VIDEO'
+                : source.type === 'SOCIAL'
+                  ? 'SOCIAL'
+                  : 'RSS',
         sourceName: source.name,
         sourceUrl: item.link,
         contentSnippet: item.snippet || item.title,
@@ -2844,8 +3285,13 @@ class App {
         duplicates += 1;
         continue;
       }
-      accepted += 1;
       this.scoreSignal(result.signal.id, clientId);
+      const scored = dbService.getSignalById(result.signal.id);
+      if (scored?.status === 'DISCARDED') {
+        rejected += 1;
+      } else {
+        accepted += 1;
+      }
     }
 
     dbService.recordSourceRun(source.id, { fetched: items.length, accepted, rejected, duplicates });

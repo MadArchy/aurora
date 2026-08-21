@@ -47,6 +47,13 @@ declare module 'firebase/firestore' {
   export function writeBatch(db: Firestore): WriteBatch;
   export function getDoc(ref: DocumentReference): Promise<{ exists(): boolean; data(): Record<string, unknown> | undefined }>;
   export function getDocs(q: unknown): Promise<{ docs: Array<{ id: string; data(): Record<string, unknown> }> }>;
+  export interface QuerySnapshot {
+    docs: Array<{ id: string; data(): Record<string, unknown> }>;
+  }
+  export function onSnapshot(
+    ref: unknown,
+    callback: (snapshot: QuerySnapshot) => void
+  ): () => void;
   export function query(ref: unknown, ...constraints: unknown[]): unknown;
   export function setDoc(ref: DocumentReference, data: unknown, options?: { merge?: boolean }): Promise<void>;
 }

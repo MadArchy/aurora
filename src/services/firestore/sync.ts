@@ -19,6 +19,7 @@ const COLLECTION_MAP: Partial<Record<CollectionKey, typeof CLIENT_SUBCOLLECTIONS
   advices: 'advices',
   feedbackEvents: 'feedbackEvents',
   proofWallItems: 'proofWallItems',
+  sources: 'sources',
 };
 
 function itemsForClient<T extends { clientId?: string | null; id?: string }>(
@@ -87,6 +88,14 @@ export async function importSnapshotToFirestore(
   return { ok: true, message: `Importados ${written} documentos a Firestore.`, written };
 }
 
+export async function listFirestoreClientIds(): Promise<string[]> {
+  const db = await getFirebaseFirestore();
+  if (!db) return [];
+  const { collection, getDocs } = await import('firebase/firestore');
+  const snap = await getDocs(collection(db, 'clients'));
+  return snap.docs.map((docSnap) => docSnap.id);
+}
+
 /** Descarga datos de Firestore para un cliente (o todos si admin). */
 export async function pullClientDataFromFirestore(
   clientIds: string[]
@@ -110,6 +119,7 @@ export async function pullClientDataFromFirestore(
     advices: [],
     feedbackEvents: [],
     proofWallItems: [],
+    sources: [],
     profiles: {},
     dossiers: {},
   };
@@ -162,4 +172,46 @@ export async function hydrateFromFirestore(clientIds: string[]): Promise<Partial
   if (!readFirebaseConfig()) return {};
   setFirestoreAuthoritative(true);
   return pullClientDataFromFirestore(clientIds);
+}
+
+type RealtimePartialHandler = (partial: Partial<LocalV5Snapshot>) => void;
+
+let realtimeUnsubs: Array<() => void> = [];
+
+/** Detiene listeners en tiempo real (logout). */
+export function stopFirestoreRealtimeSync() {
+  for (const unsub of realtimeUnsubs) unsub();
+  realtimeUnsubs = [];
+}
+
+/**
+ * Escucha cambios en fuentes y señales (ingesta cloud u otro dispositivo).
+ * Usa merge + skipRemote para no re-empujar al servidor.
+ */
+export async function startFirestoreRealtimeSync(
+  clientIds: string[],
+  onPartial: RealtimePartialHandler
+): Promise<void> {
+  stopFirestoreRealtimeSync();
+  if (!readFirebaseConfig() || !clientIds.length) return;
+
+  const db = await getFirebaseFirestore();
+  if (!db) return;
+
+  const { collection, onSnapshot } = await import('firebase/firestore');
+
+  for (const clientId of clientIds) {
+    for (const sub of ['sources', 'signals'] as const) {
+      const colRef = collection(db, `${clientDocPath(clientId)}/${sub}`);
+      const unsub = onSnapshot(colRef, (snap: import('firebase/firestore').QuerySnapshot) => {
+        const rows = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        if (sub === 'sources') {
+          onPartial({ sources: rows as LocalV5Snapshot['sources'] });
+        } else {
+          onPartial({ signals: rows as LocalV5Snapshot['signals'] });
+        }
+      });
+      realtimeUnsubs.push(unsub);
+    }
+  }
 }

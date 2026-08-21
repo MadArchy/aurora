@@ -4,6 +4,8 @@ import { FIREBASE_ENABLED } from '../firebase/config';
 import { ClientPortfolioSummary, ContentItem } from '../types';
 import { esc } from '../lib/escape';
 import { renderPage } from './PageHeader';
+import { aggregatePortfolioRadarMetrics } from '../services/portfolioMetrics';
+import { buildPortfolioDigest } from '../domain/radarDigestCore';
 
 export function renderManagerCockpit(
   activeTab: string,
@@ -54,14 +56,19 @@ function renderClientTriageCard(summary: ClientPortfolioSummary): string {
           </div>
         </div>
         <span class="attention-tag">${level.label}</span>
+        ${summary.industryPresetLabel ? `<span class="badge badge-progress">${esc(summary.industryPresetLabel.split('·')[0]?.trim() || summary.industryPresetLabel)}</span>` : ''}
       </header>
 
       <div class="triage-metrics">
         <div><span class="triage-metric-value">${summary.unreviewedSignals}</span><span class="triage-metric-label">señales sin revisar</span></div>
         <div><span class="triage-metric-value">${summary.pendingCuration}</span><span class="triage-metric-label">en curación</span></div>
-        <div><span class="triage-metric-value">${summary.contentAwaitingManager}</span><span class="triage-metric-label">contenido para ti</span></div>
-        <div><span class="triage-metric-value">${summary.overdueTasks}</span><span class="triage-metric-label">tareas vencidas</span></div>
+        <div><span class="triage-metric-value">${summary.activeSources}</span><span class="triage-metric-label">fuentes activas</span></div>
+        <div><span class="triage-metric-value">${summary.signalsLast7Days}</span><span class="triage-metric-label">señales (7 d)</span></div>
       </div>
+
+        ${summary.sourcesInError || summary.researchPending || summary.outcomePending
+        ? `<p class="muted small">${summary.sourcesInError ? `${summary.sourcesInError} fuente(s) en error · ` : ''}${summary.researchPending ? `${summary.researchPending} pendiente(s) de investigación · ` : ''}${summary.outcomePending ? `${summary.outcomePending} sin feedback` : ''}</p>`
+        : ''}
 
       ${summary.attentionReasons.length
         ? `<ul class="triage-reasons">${summary.attentionReasons.slice(0, 3).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`
@@ -100,6 +107,12 @@ function renderPortfolioBody(filters: { searchQuery?: string } = {}): string {
   );
 
   const needsAttention = summaries.filter((s) => s.attentionScore >= 20);
+  const radar = aggregatePortfolioRadarMetrics();
+  const digest = buildPortfolioDigest(
+    summaries.map((s) => s.client),
+    (clientId) => dbService.getSignalsByClient(clientId),
+    dbService.getSignalOutcomes()
+  );
 
   return `
     ${!aiService.getConfig().hasActiveSession
@@ -129,6 +142,93 @@ function renderPortfolioBody(filters: { searchQuery?: string } = {}): string {
         <p class="form-label">Tareas vencidas</p>
         <h2>${totals.overdue}</h2>
         <span class="stat-hint">${totals.drafts} briefing(s) en borrador</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3>Digest del radar · ${esc(digest.periodLabel)}</h3>
+          <p style="font-size: 0.9rem;">
+            Historias prioritarias por cliente. Generado ${esc(new Date(digest.generatedAt).toLocaleString('es'))}.
+          </p>
+        </div>
+      </div>
+      <div class="grid-4">
+        <div class="card stat-card">
+          <p class="form-label">Decidir ahora</p>
+          <h2>${digest.decideNowTotal}</h2>
+          <span class="stat-hint">${digest.criticalTotal} críticas</span>
+        </div>
+        <div class="card stat-card">
+          <p class="form-label">Convertidas (7 d)</p>
+          <h2>${digest.converted7d}</h2>
+          <span class="stat-hint">señal → briefing/contenido</span>
+        </div>
+        <div class="card stat-card">
+          <p class="form-label">Tasa “sirvió”</p>
+          <h2>${digest.usefulRate !== null ? `${digest.usefulRate}%` : '—'}</h2>
+          <span class="stat-hint">feedback del manager</span>
+        </div>
+        <div class="card stat-card">
+          <p class="form-label">Clientes con cola</p>
+          <h2>${digest.byClient.length}</h2>
+          <span class="stat-hint">con señales por decidir</span>
+        </div>
+      </div>
+      ${digest.topItems.length
+        ? `<div class="digest-list">
+             ${digest.topItems
+               .map(
+                 (item) => `
+               <div class="digest-row">
+                 <div>
+                   <strong>${esc(item.clientName)}</strong>
+                   <span class="badge ${item.priorityBand === 'CRITICAL' || item.priorityBand === 'HIGH' ? 'badge-ready' : 'badge-progress'}">
+                     ${item.score !== undefined ? `Score ${item.score}` : 'Sin score'}${item.priorityBand ? ` · ${esc(item.priorityBand)}` : ''}
+                   </span>
+                   ${item.alsoInCount ? `<span class="badge badge-pending">+${item.alsoInCount} medios</span>` : ''}
+                   <p class="digest-title">${esc(item.title)}</p>
+                   <p class="muted small">${esc(item.sourceName)}${item.recommendedAction ? ` · ${esc(item.recommendedAction)}` : ''}</p>
+                 </div>
+                 <button class="btn btn-secondary btn-sm btn-enter-client" data-client-id="${esc(item.clientId)}" data-tab="ws-radar">
+                   Abrir radar
+                 </button>
+               </div>`
+               )
+               .join('')}
+           </div>`
+        : '<p class="empty-state">Sin historias prioritarias en el periodo. El radar está tranquilo.</p>'}
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3>Salud del radar (cartera)</h3>
+          <p style="font-size: 0.9rem;">Fuentes, ingesta e investigación Tavily — últimos 7 días.</p>
+        </div>
+      </div>
+      <div class="grid-4">
+        <div class="card stat-card">
+          <p class="form-label">Fuentes activas</p>
+          <h2>${radar.totalActiveSources}</h2>
+          <span class="stat-hint">${radar.sourcesHealthy} saludables · ${radar.sourcesDegraded} degradadas</span>
+        </div>
+        <div class="card stat-card ${radar.sourcesInError ? 'stat-alert' : ''}">
+          <p class="form-label">Fuentes en error</p>
+          <h2>${radar.sourcesInError}</h2>
+          <span class="stat-hint">${radar.clientsWithSourceErrors} cliente(s) afectado(s)</span>
+        </div>
+        <div class="card stat-card">
+          <p class="form-label">Señales aceptadas (ingesta)</p>
+          <h2>${radar.ingestAccepted7d}</h2>
+          <span class="stat-hint">${radar.signalsCreated7d} señales nuevas en 7 d</span>
+        </div>
+        <div class="card stat-card">
+          <p class="form-label">Investigación pendiente</p>
+          <h2>${radar.researchPending}</h2>
+          <span class="stat-hint">RESEARCH_REQUIRED sin Tavily</span>
+        </div>
       </div>
     </section>
 

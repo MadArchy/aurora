@@ -20,6 +20,7 @@ import type {
   Recommendation,
   ResultRecord,
   Signal,
+  SignalOutcome,
   Source,
   Task,
 } from '../../types';
@@ -49,6 +50,7 @@ export interface LocalV5Snapshot {
   topicPins: string[];
   dossiers: Record<string, MasterDossier>;
   feedbackEvents: FeedbackEvent[];
+  signalOutcomes: SignalOutcome[];
   proofWallItems: ProofWallItem[];
 }
 
@@ -76,5 +78,6 @@ export const LOCAL_V5_KEYS = [
   'postura_topic_pins_v5',
   'postura_dossiers_v5',
   'postura_feedback_v1',
+  'postura_signal_outcomes_v1',
   'postura_proof_wall_v1',
 ] as const;

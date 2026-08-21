@@ -1,5 +1,5 @@
 import { dbService } from '../services/db';
-import { getSourceSuggestions } from '../services/sourceSuggestions';
+import { runSourceDiscoveryAgent } from '../services/sourceDiscoveryAgent';
 import { esc } from '../lib/escape';
 
 function renderSuggestionHint(clientId: string): string {
@@ -7,30 +7,32 @@ function renderSuggestionHint(clientId: string): string {
   if (!client) return '';
 
   const thesis = dbService.getThesesByClient(clientId).find((t) => t.status === 'ACTIVE');
-  const suggestions = getSourceSuggestions(client, thesis);
+  const agentRun = runSourceDiscoveryAgent(client, thesis);
+  const top = agentRun.recommendations.slice(0, 4);
 
   return `
     <aside class="source-suggestion-hint">
       <div class="source-suggestion-hint-head">
         <div>
-          <p class="form-label" style="margin-bottom: 0.2rem;">Según Posicionamiento</p>
+          <p class="form-label" style="margin-bottom: 0.2rem;">Agente de fuentes</p>
           ${thesis
             ? `<p class="muted small">${esc(thesis.domain)} · ${esc(thesis.title.slice(0, 55))}${thesis.title.length > 55 ? '…' : ''}</p>`
             : `<p class="muted small">Sin tesis activa. <button type="button" class="link-btn" data-tab="ws-positioning">Completar perfil</button></p>`}
         </div>
       </div>
-      <p class="muted small" style="margin: 0.5rem 0;">Pulsa una sugerencia para prellenar el formulario:</p>
-      <div class="source-suggestion-chips">
-        ${suggestions.map((s) => `
-          <button type="button"
-                  class="source-suggestion-chip btn-apply-source-suggestion"
-                  data-suggestion-type="${esc(s.type)}"
-                  data-suggestion-name="${esc(s.nameHint)}"
-                  title="Tipo: ${esc(s.type)}">
-            ${esc(s.label)}
-          </button>
-        `).join('')}
-      </div>
+      ${top.length
+        ? `<p class="muted small" style="margin: 0.5rem 0;">Recomendaciones del agente (activar en Fuentes):</p>
+           <div class="source-suggestion-chips">
+             ${top.map((s) => `
+               <button type="button"
+                       class="source-suggestion-chip btn-open-agent-sources"
+                       title="${esc(s.agentRationale)}">
+                 ${esc(s.name.slice(0, 42))}${s.name.length > 42 ? '…' : ''}
+                 <span class="muted small"> · ${esc(s.priority)}</span>
+               </button>
+             `).join('')}
+           </div>`
+        : `<p class="muted small">Sin fuentes nuevas pendientes. El agente reescanea cada hora.</p>`}
     </aside>
   `;
 }

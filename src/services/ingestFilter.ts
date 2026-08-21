@@ -22,8 +22,8 @@ function normalize(text: string): string {
 }
 
 /** Hosts cuya autoridad se conoce y no depende del contenido del item. */
-const HIGH_AUTHORITY = /(^|\.)(uspto\.gov|nist\.gov|federalregister\.gov|europa\.eu|arxiv\.org|texasbar\.com|supremecourt\.gov)$/i;
-const MEDIUM_AUTHORITY = /(^|\.)(ipwatchdog\.com|law\.com|reuters\.com|bloomberg\.com|wsj\.com|ft\.com|nytimes\.com)$/i;
+const HIGH_AUTHORITY = /(^|\.)(uspto\.gov|nist\.gov|federalregister\.gov|europa\.eu|arxiv\.org|ncbi\.nlm\.nih\.gov|pubmed|ssrn\.com|texasbar\.com|supremecourt\.gov|youtube\.com)$/i;
+const MEDIUM_AUTHORITY = /(^|\.)(ipwatchdog\.com|law\.com|reuters\.com|bloomberg\.com|wsj\.com|ft\.com|nytimes\.com|linkedin\.com|\.edu)$/i;
 
 /**
  * Califica la fuente del item. Evita que todo entre como UNASSESSED,
@@ -41,6 +41,8 @@ export function assessSourceQuality(source: Source, item: FeedItem): SourceQuali
   if (HIGH_AUTHORITY.test(host)) return 'HIGH';
   if (MEDIUM_AUTHORITY.test(host)) return 'MEDIUM';
   if (source.type === 'REGULATORY' || source.type === 'ACADEMIC') return 'HIGH';
+  if (source.type === 'VIDEO') return 'MEDIUM';
+  if (source.type === 'SOCIAL') return 'MEDIUM';
   if (source.type === 'MEDIA') return 'MEDIUM';
   if (host.endsWith('.gov') || host.endsWith('.edu')) return 'HIGH';
   return 'MEDIUM';
@@ -62,6 +64,18 @@ export function gateItem(item: FeedItem, keywords: ProfileKeywords, source: Sour
   const matchedPhrases = [...keywords.coreEn, ...keywords.coreEs].filter((term) => haystack.includes(normalize(term)));
   const matchedStrong = keywords.strong.filter((token) => words.has(normalize(token)));
   const matchedContext = keywords.context.filter((term) => haystack.includes(normalize(term)));
+
+  const matchedNegative = (keywords.negative || []).filter((term) => {
+    const n = normalize(term);
+    return n.length >= 4 && haystack.includes(n);
+  });
+  if (matchedNegative.length) {
+    return {
+      accepted: false,
+      reason: `Tema a evitar según perfil: ${matchedNegative[0]}`,
+      matchedTerms: matchedNegative,
+    };
+  }
 
   // Los feeds de consulta vienen pre-filtrados, pero exigimos al menos un match de perfil.
   if ((source.url || '').includes('news.google.com/rss/search')) {

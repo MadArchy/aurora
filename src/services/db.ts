@@ -5,6 +5,7 @@ import {
   Source,
   SourceRunOutcome,
   Signal, 
+  SignalResearchBrief,
   Recommendation, 
   Task, 
   ContentItem, 
@@ -31,7 +32,12 @@ import {
   ProofWallItem,
   ProfileFact,
   ProfileFactSection,
+  SignalOutcome,
 } from '../types';
+import {
+  computeConversionStats,
+} from '../domain/radarFeedbackCore';
+import { detectIndustryPreset, getIndustryPresetMeta } from './industryPresets';
 import { createId } from '../lib/id';
 import { renderDiffHtml, diffLines, hasDiffChanges, summarizeDiff } from '../domain/textDiff';
 import { buildFactsFromProfile } from '../domain/profileFacts';
@@ -63,6 +69,7 @@ import { quotasFor, assertClientQuota, assertSourceQuota, assertThesisQuota } fr
 import { buildJuanMasterDossier } from '../data/juanMasterDossier';
 import { FIREBASE_ENABLED } from '../firebase/config';
 import type { LocalV5Snapshot } from './firestore/types';
+import { buildScoreBreakdown } from '../domain/scoreExplainCore';
 
 export type { LocalV5Snapshot } from './firestore/types';
 
@@ -90,13 +97,17 @@ class DataService {
   private topicPins: string[] = [];
   private dossiers: Record<string, MasterDossier> = {};
   private feedbackEvents: FeedbackEvent[] = [];
+  private signalOutcomes: SignalOutcome[] = [];
   private proofWallItems: ProofWallItem[] = [];
+  private changeListeners: Array<() => void> = [];
 
   constructor() {
     this.loadInitialData();
   }
 
   private loadInitialData() {
+    if (FIREBASE_ENABLED) return;
+
     const savedClients = localStorage.getItem('postura_clients_v5');
     if (savedClients) {
       try {
@@ -123,6 +134,7 @@ class DataService {
         this.topicPins = JSON.parse(localStorage.getItem('postura_topic_pins_v5') || '[]');
         this.dossiers = JSON.parse(localStorage.getItem('postura_dossiers_v5') || '{}');
         this.feedbackEvents = JSON.parse(localStorage.getItem('postura_feedback_v1') || '[]');
+        this.signalOutcomes = JSON.parse(localStorage.getItem('postura_signal_outcomes_v1') || '[]');
         this.proofWallItems = JSON.parse(localStorage.getItem('postura_proof_wall_v1') || '[]');
         this.ensureSeedDossiers();
         this.ensureJuanCampaignSeed();
@@ -139,6 +151,11 @@ class DataService {
       }
     }
 
+    this.runBuiltInSeed();
+  }
+
+  /** Seed demo Juan (+ Elena). Usado en local o bootstrap inicial de Firestore. */
+  public runBuiltInSeed(): void {
     const orgId = 'org_aurora_01';
     const juanId = 'client_juan_001';
     
@@ -858,30 +875,33 @@ class DataService {
   }
 
   private saveAll(options?: { skipRemote?: boolean }) {
-    localStorage.setItem('postura_clients_v5', JSON.stringify(this.clients));
-    localStorage.setItem('postura_theses_v5', JSON.stringify(this.theses));
-    localStorage.setItem('postura_profiles_v5', JSON.stringify(this.profiles));
-    localStorage.setItem('postura_sources_v5', JSON.stringify(this.sources));
-    localStorage.setItem('postura_signals_v5', JSON.stringify(this.signals));
-    localStorage.setItem('postura_recommendations_v5', JSON.stringify(this.recommendations));
-    localStorage.setItem('postura_tasks_v5', JSON.stringify(this.tasks));
-    localStorage.setItem('postura_contents_v5', JSON.stringify(this.contents));
-    localStorage.setItem('postura_opportunities_v5', JSON.stringify(this.opportunities));
-    localStorage.setItem('postura_campaigns_v5', JSON.stringify(this.campaigns));
-    localStorage.setItem('postura_milestones_v5', JSON.stringify(this.campaignMilestones));
-    localStorage.setItem('postura_evidence_v5', JSON.stringify(this.evidenceVault));
-    localStorage.setItem('postura_ai_runs_v5', JSON.stringify(this.aiRuns));
-    localStorage.setItem('postura_subscription_v5', JSON.stringify(this.subscription));
-    localStorage.setItem('postura_invitations_v5', JSON.stringify(this.invitations));
-    localStorage.setItem('postura_results_v5', JSON.stringify(this.results));
-    localStorage.setItem('postura_curation_v5', JSON.stringify(this.curation));
-    localStorage.setItem('postura_deliveries_v5', JSON.stringify(this.deliveries));
-    localStorage.setItem('postura_advices_v5', JSON.stringify(this.advices));
-    localStorage.setItem('postura_files_v5', JSON.stringify(this.files));
-    localStorage.setItem('postura_topic_pins_v5', JSON.stringify(this.topicPins));
-    localStorage.setItem('postura_dossiers_v5', JSON.stringify(this.dossiers));
-    localStorage.setItem('postura_feedback_v1', JSON.stringify(this.feedbackEvents));
-    localStorage.setItem('postura_proof_wall_v1', JSON.stringify(this.proofWallItems));
+    if (!FIREBASE_ENABLED) {
+      localStorage.setItem('postura_clients_v5', JSON.stringify(this.clients));
+      localStorage.setItem('postura_theses_v5', JSON.stringify(this.theses));
+      localStorage.setItem('postura_profiles_v5', JSON.stringify(this.profiles));
+      localStorage.setItem('postura_sources_v5', JSON.stringify(this.sources));
+      localStorage.setItem('postura_signals_v5', JSON.stringify(this.signals));
+      localStorage.setItem('postura_recommendations_v5', JSON.stringify(this.recommendations));
+      localStorage.setItem('postura_tasks_v5', JSON.stringify(this.tasks));
+      localStorage.setItem('postura_contents_v5', JSON.stringify(this.contents));
+      localStorage.setItem('postura_opportunities_v5', JSON.stringify(this.opportunities));
+      localStorage.setItem('postura_campaigns_v5', JSON.stringify(this.campaigns));
+      localStorage.setItem('postura_milestones_v5', JSON.stringify(this.campaignMilestones));
+      localStorage.setItem('postura_evidence_v5', JSON.stringify(this.evidenceVault));
+      localStorage.setItem('postura_ai_runs_v5', JSON.stringify(this.aiRuns));
+      localStorage.setItem('postura_subscription_v5', JSON.stringify(this.subscription));
+      localStorage.setItem('postura_invitations_v5', JSON.stringify(this.invitations));
+      localStorage.setItem('postura_results_v5', JSON.stringify(this.results));
+      localStorage.setItem('postura_curation_v5', JSON.stringify(this.curation));
+      localStorage.setItem('postura_deliveries_v5', JSON.stringify(this.deliveries));
+      localStorage.setItem('postura_advices_v5', JSON.stringify(this.advices));
+      localStorage.setItem('postura_files_v5', JSON.stringify(this.files));
+      localStorage.setItem('postura_topic_pins_v5', JSON.stringify(this.topicPins));
+      localStorage.setItem('postura_dossiers_v5', JSON.stringify(this.dossiers));
+      localStorage.setItem('postura_feedback_v1', JSON.stringify(this.feedbackEvents));
+      localStorage.setItem('postura_signal_outcomes_v1', JSON.stringify(this.signalOutcomes));
+      localStorage.setItem('postura_proof_wall_v1', JSON.stringify(this.proofWallItems));
+    }
 
     if (!options?.skipRemote && FIREBASE_ENABLED) {
       void import('./firestore/sync').then(({ isFirestoreAuthoritative, scheduleFirestorePush }) => {
@@ -890,6 +910,19 @@ class DataService {
         }
       });
     }
+    this.emitChange();
+  }
+
+  /** Suscripción a cambios locales (p. ej. sync Firestore en tiempo real). */
+  public onChange(listener: () => void): () => void {
+    this.changeListeners.push(listener);
+    return () => {
+      this.changeListeners = this.changeListeners.filter((fn) => fn !== listener);
+    };
+  }
+
+  private emitChange() {
+    for (const fn of this.changeListeners) fn();
   }
 
   public exportSnapshot(): LocalV5Snapshot {
@@ -917,6 +950,7 @@ class DataService {
       topicPins: this.topicPins,
       dossiers: this.dossiers,
       feedbackEvents: this.feedbackEvents,
+      signalOutcomes: this.signalOutcomes,
       proofWallItems: this.proofWallItems,
     };
   }
@@ -950,6 +984,7 @@ class DataService {
     assign('evidenceVault', partial.evidenceVault);
     assign('advices', partial.advices);
     assign('feedbackEvents', partial.feedbackEvents);
+    assign('signalOutcomes', partial.signalOutcomes);
     assign('proofWallItems', partial.proofWallItems);
 
     if (partial.profiles) this.profiles = merge ? { ...this.profiles, ...partial.profiles } : partial.profiles;
@@ -967,12 +1002,30 @@ class DataService {
   }
 
   /** Hidrata desde Firestore tras login Firebase (backend autoritativo). */
-  public async hydrateFromRemote(clientIds: string[]): Promise<boolean> {
-    const { hydrateFromFirestore } = await import('./firestore/sync');
-    const partial = await hydrateFromFirestore(clientIds);
-    if (!Object.keys(partial).length) return false;
-    this.importSnapshot(partial, { merge: true, skipRemote: true });
+  public async hydrateFromRemote(clientIds?: string[]): Promise<boolean> {
+    const sync = await import('./firestore/sync');
+    let ids = clientIds?.filter(Boolean);
+    if (!ids?.length) {
+      ids = await sync.listFirestoreClientIds();
+    }
+    if (!ids.length) return false;
+
+    const partial = await sync.pullClientDataFromFirestore(ids);
+    if (!partial.clients?.length) return false;
+    this.importSnapshot(partial, { merge: false, skipRemote: true });
     return true;
+  }
+
+  /** Si Firestore está vacío, sube el seed demo (solo ADMIN, primera vez). */
+  public async bootstrapFirestoreIfEmpty(): Promise<{ bootstrapped: boolean; message: string }> {
+    const sync = await import('./firestore/sync');
+    const existing = await sync.listFirestoreClientIds();
+    if (existing.length) {
+      return { bootstrapped: false, message: 'Firestore ya contiene clientes.' };
+    }
+    this.runBuiltInSeed();
+    const result = await sync.importSnapshotToFirestore(this.exportSnapshot());
+    return { bootstrapped: result.ok, message: result.message };
   }
 
   // Client CRUD
@@ -1334,6 +1387,31 @@ class DataService {
     this.feedbackEvents.unshift(event);
     this.saveAll();
     return event;
+  }
+
+  public getSignalOutcomes(clientId?: string): SignalOutcome[] {
+    return clientId
+      ? this.signalOutcomes.filter((o) => o.clientId === clientId)
+      : [...this.signalOutcomes];
+  }
+
+  public getSignalOutcome(signalId: string): SignalOutcome | undefined {
+    return this.signalOutcomes.find((o) => o.signalId === signalId);
+  }
+
+  /** Registra si una señal sirvió (reemplaza outcome previo del mismo signalId). */
+  public recordSignalOutcome(
+    input: Omit<SignalOutcome, 'id' | 'createdAt'>
+  ): SignalOutcome {
+    this.signalOutcomes = this.signalOutcomes.filter((o) => o.signalId !== input.signalId);
+    const outcome: SignalOutcome = {
+      ...input,
+      id: createId('sout'),
+      createdAt: new Date().toISOString(),
+    };
+    this.signalOutcomes.unshift(outcome);
+    this.saveAll();
+    return outcome;
   }
 
   public saveClientArticleRevision(
@@ -1746,6 +1824,28 @@ class DataService {
     sig.relevanceScore = score.totalScore;
     sig.priorityBand = score.priorityBand;
     sig.recommendedAction = score.recommendedAction;
+    sig.scoreRationale = score.strategicRationale;
+    sig.scoreBreakdown = buildScoreBreakdown(score);
+    // Ruido claro: sin acción y score bajo → descartar automáticamente (auditable).
+    if (score.recommendedAction === 'NO_ACTION' && score.totalScore < 40) {
+      sig.status = 'DISCARDED';
+      sig.managerDecision = 'DISCARDED';
+      sig.discardReason = 'Auto-descartada: score bajo y sin acción recomendada.';
+    }
+    this.saveAll();
+  }
+
+  /** Adjunta evidencia Tavily (agente RESEARCH_SIGNALS) a la señal. */
+  public applyResearchBriefToSignal(signalId: string, brief: SignalResearchBrief): void {
+    const sig = this.signals.find((s) => s.id === signalId);
+    if (!sig) return;
+    sig.researchBrief = brief;
+    sig.aiStatus = 'ANALYZED';
+    if (brief.suggestedNextStep === 'SHORT_POST' && sig.recommendedAction === 'RESEARCH_REQUIRED') {
+      sig.recommendedAction = 'SHORT_POST';
+    } else if (brief.suggestedNextStep === 'SAVE' && sig.recommendedAction === 'RESEARCH_REQUIRED') {
+      sig.recommendedAction = 'SAVE';
+    }
     this.saveAll();
   }
 
@@ -2008,6 +2108,12 @@ class DataService {
         const opportunities = this.getOpportunitiesByClient(client.id);
         const deliveries = this.getDeliveriesByClient(client.id);
         const sent = deliveries.filter((d) => d.sentAt);
+        const sources = this.getSourcesByClient(client.id);
+        const activeSources = sources.filter((s) => s.status === 'ACTIVE');
+        const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+        const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+        const presetId = detectIndustryPreset(client, thesis);
+        const presetLabel = getIndustryPresetMeta(presetId).label;
 
         const openTasks = tasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
         const overdueTasks = openTasks.filter((t) => t.deadline && new Date(t.deadline).getTime() < now);
@@ -2027,9 +2133,23 @@ class DataService {
           pendingCuration: this.getPendingCurationByClient(client.id).length,
           draftDeliveries: deliveries.filter((d) => d.status === 'DRAFT').length,
           lastDeliveryAt: sent.length ? sent[0].sentAt : undefined,
+          activeSources: activeSources.length,
+          sourcesInError: sources.filter((s) => s.status === 'ERROR' || Boolean(s.lastError)).length,
+          signalsLast7Days: signals.filter((s) => s.detectedAt >= since7 && s.status !== 'DISCARDED').length,
+          researchPending: signals.filter(
+            (s) => s.recommendedAction === 'RESEARCH_REQUIRED' && !s.researchBrief && s.status !== 'DISCARDED'
+          ).length,
+          industryPresetLabel: presetLabel,
+          outcomePending: 0,
+          usefulRate: null,
           attentionScore: 0,
           attentionReasons: [],
         };
+
+        const outcomes = this.getSignalOutcomes(client.id);
+        const conversion = computeConversionStats(signals, outcomes);
+        summary.outcomePending = conversion.pendingFeedback;
+        summary.usefulRate = conversion.usefulRate;
 
         const reasons: string[] = [];
         let score = 0;
@@ -2053,6 +2173,18 @@ class DataService {
         if (summary.unreviewedSignals > 0) {
           score += Math.min(20, summary.unreviewedSignals * 2);
           reasons.push(`${summary.unreviewedSignals} señal(es) sin revisar`);
+        }
+        if (summary.sourcesInError > 0) {
+          score += summary.sourcesInError * 5;
+          reasons.push(`${summary.sourcesInError} fuente(s) con error de ingesta`);
+        }
+        if (summary.researchPending > 0) {
+          score += Math.min(12, summary.researchPending * 4);
+          reasons.push(`${summary.researchPending} señal(es) requieren investigación`);
+        }
+        if (summary.outcomePending > 0) {
+          score += Math.min(8, summary.outcomePending * 2);
+          reasons.push(`${summary.outcomePending} señal(es) convertidas sin feedback`);
         }
         if (client.onboardingStatus !== 'COMPLETED') {
           score += 15;

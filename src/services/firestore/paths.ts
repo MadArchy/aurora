@@ -13,6 +13,7 @@ export const CLIENT_SUBCOLLECTIONS = [
   'advices',
   'feedbackEvents',
   'proofWallItems',
+  'sources',
 ] as const;
 
 export type ClientSubcollection = (typeof CLIENT_SUBCOLLECTIONS)[number];

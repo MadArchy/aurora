@@ -1,4 +1,8 @@
 import { PositioningThesis, Signal, SourceQuality, StrategicScoreResult } from '../types';
+import { buildScoreBreakdown } from '../domain/scoreExplainCore';
+
+export { buildScoreBreakdown } from '../domain/scoreExplainCore';
+export type { ScoreBreakdownView, ScoreFactorRow, ScorePenaltyRow } from '../domain/scoreExplainCore';
 
 /**
  * Contexto opcional derivado del perfil y del dossier. Permite puntuar contenido
@@ -136,7 +140,7 @@ export function calculateStrategicScore(
   const hardConstraint = restricted && restricted.split(/[,;]/).some((rule) => rule.trim().length > 4 && lower.includes(rule.trim()));
   if (hardConstraint) recommendedAction = 'NO_ACTION';
 
-  return {
+  const result: StrategicScoreResult = {
     totalScore: finalScore,
     priorityBand,
     factors,
@@ -146,4 +150,9 @@ export function calculateStrategicScore(
     scoringStatus: 'SCORED',
     calculatedAt: new Date().toISOString(),
   };
+
+  // Resumen más accionable para el manager (top factores).
+  const breakdown = buildScoreBreakdown(result);
+  result.strategicRationale = `${result.strategicRationale} · ${breakdown.summary}`;
+  return result;
 }

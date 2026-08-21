@@ -13,13 +13,21 @@
     "test:run": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run test:run",
     "emulators": "firebase emulators:start",
-    "firebase:deploy:rules": "firebase deploy --only firestore:rules,storage"
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules,storage",
+    "firebase:deploy:hosting": "npm run build && firebase deploy --only hosting",
+    "firebase:deploy:functions": "npm --prefix functions run build && firebase deploy --only functions",
+    "firebase:deploy": "npm run build && firebase deploy",
+    "firebase:provision": "node scripts/provision-firebase.mjs",
+    "validate:juan-tavily": "node scripts/validate-juan-tavily-flow.mjs",
+    "probe:feeds": "node scripts/probe-source-feeds.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@firebase/rules-unit-testing": "^4.0.1",
     "@types/node": "^22.20.1",
     "eslint": "^9.39.5",
+    "firebase-admin": "^13.2.0",
+    "firebase-tools": "^14.0.0",
     "globals": "^16.5.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.67.0",

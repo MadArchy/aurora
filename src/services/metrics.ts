@@ -42,6 +42,11 @@ class MetricsService {
     }
     return tally;
   }
+
+  eventsSince(sinceIso: string): MetricEvent[] {
+    const since = Date.parse(sinceIso);
+    return this.events.filter((e) => Date.parse(e.at) >= since);
+  }
 }
 
 export const metricsService = new MetricsService();
