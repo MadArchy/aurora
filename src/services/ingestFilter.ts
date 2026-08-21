@@ -1,5 +1,6 @@
 import { Source, SourceQuality } from '../types';
 import { ProfileKeywords } from './sourceDiscovery';
+import { decideByChannel, resolveGateChannel } from '../domain/ingestGateCore';
 
 export interface FeedItem {
   title: string;
@@ -50,7 +51,7 @@ export function assessSourceQuality(source: Source, item: FeedItem): SourceQuali
 
 /**
  * Puerta de entrada al radar: solo pasan items que tocan el dominio del cliente.
- * Sin esto, un feed como el de USPTO (500 entradas) inunda el radar de ruido.
+ * Umbrales más estrictos en VIDEO/SOCIAL; más permisivos en ACADEMIC/REGULATORY.
  */
 export function gateItem(item: FeedItem, keywords: ProfileKeywords, source: Source): GateResult {
   const title = (item.title || '').trim();
@@ -76,6 +77,16 @@ export function gateItem(item: FeedItem, keywords: ProfileKeywords, source: Sour
       matchedTerms: matchedNegative,
     };
   }
+
+  const channel = resolveGateChannel(source.type, source.url);
+  const channelDecision = decideByChannel({
+    channel,
+    matchedPhrases,
+    matchedStrong,
+    matchedContext,
+    titleLength: title.length,
+  });
+  if (channelDecision) return channelDecision;
 
   // Los feeds de consulta vienen pre-filtrados, pero exigimos al menos un match de perfil.
   if ((source.url || '').includes('news.google.com/rss/search')) {

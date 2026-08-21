@@ -59,4 +59,36 @@ describe('gateItem', () => {
     expect(result.accepted).toBe(false);
     expect(result.reason).toMatch(/evitar/i);
   });
+
+  it('applies stricter VIDEO channel rules', () => {
+    const videoSource = { ...baseSource, type: 'VIDEO' as const, url: 'youtube-search:ai%20patent', name: 'YouTube API' };
+    const weak = gateItem(
+      { title: 'Casual vlog about office furniture and coffee setups', snippet: 'Daily life' },
+      keywords,
+      videoSource
+    );
+    expect(weak.accepted).toBe(false);
+
+    const strong = gateItem(
+      { title: 'NIST compliance guidance for AI systems explained', snippet: 'Tutorial on regulation' },
+      keywords,
+      videoSource
+    );
+    expect(strong.accepted).toBe(true);
+  });
+
+  it('is more permissive for ACADEMIC sources', () => {
+    const academic = {
+      ...baseSource,
+      type: 'ACADEMIC' as const,
+      url: 'https://export.arxiv.org/api/query?search_query=all:ai',
+      name: 'arXiv',
+    };
+    const result = gateItem(
+      { title: 'A survey of fintech risk models in regulated markets', snippet: 'Working paper' },
+      keywords,
+      academic
+    );
+    expect(result.accepted).toBe(true);
+  });
 });
