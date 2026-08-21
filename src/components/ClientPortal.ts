@@ -8,6 +8,7 @@ import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
 import { renderClientOpportunitiesBody } from './OpportunityPanel';
 import { renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
 import { CAMP_ADOPTION } from '../data/juanCampaignSeed';
+import { pickWeeklyLinkedInPostTask } from '../domain/clientHomeCore';
 
 function clientPage(tab: string, body: string): string {
   return renderPage(tab, body);
@@ -165,6 +166,62 @@ function renderPlanProgress(campaignId: string): string {
   `;
 }
 
+function renderWeeklyLinkedInSpotlight(
+  clientId: string,
+  tasks: ReturnType<typeof dbService.getTasksForClient>,
+  campaignId: string
+): string {
+  const contents = dbService.getContentByClient(clientId);
+  const currentDay = dbService.getCurrentPlanDay(campaignId);
+  const pick = pickWeeklyLinkedInPostTask(tasks, contents, currentDay);
+  if (!pick) return '';
+
+  const { task, content } = pick;
+  const isChecklist = content.format === 'checklist';
+  const preview = content.body.length > 320 ? `${content.body.slice(0, 317)}…` : content.body;
+
+  return `
+    <section class="card linkedin-spotlight">
+      <div class="card-header">
+        <div>
+          <h3>${icon('checkSquare', 16)} Post LinkedIn de la semana</h3>
+          <p>Aprueba o edita el borrador preparado en tu voz — sin ir a la bandeja de tareas.</p>
+        </div>
+        <span class="badge ${isChecklist ? 'badge-ready' : 'badge-progress'}">
+          ${isChecklist ? 'Checklist' : 'Post'}
+        </span>
+      </div>
+      <article class="linkedin-spotlight-body">
+        <h4>${esc(content.title.replace(/^Post:\s*/i, ''))}</h4>
+        <p class="muted small">
+          ${icon('clock', 13)} ${esc(formatDeadline(task.deadline))}
+          · ~${task.estimatedMinutes} min
+          ${content.pillar ? ` · ${esc(content.pillar.replace(/_/g, ' '))}` : ''}
+        </p>
+        <div class="linkedin-spotlight-preview">${esc(preview)}</div>
+        <div class="linkedin-spotlight-actions">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm btn-open-article-review"
+            data-content-id="${esc(content.id)}"
+            data-task-id="${esc(task.id)}"
+          >
+            Editar borrador
+          </button>
+          <button
+            type="button"
+            class="btn btn-success btn-sm btn-approve-article-task"
+            data-content-id="${esc(content.id)}"
+            data-task-id="${esc(task.id)}"
+          >
+            Aprobar sin cambios
+          </button>
+        </div>
+      </article>
+    </section>
+  `;
+}
+
 function renderWeeklyStrip(campaignId: string, tasks: ReturnType<typeof dbService.getTasksForClient>): string {
   const milestones = dbService.getCampaignMilestones(campaignId);
   const currentDay = dbService.getCurrentPlanDay(campaignId);
@@ -229,6 +286,7 @@ function renderClientHomeBody(
         </div>
       </div>
 
+      ${renderWeeklyLinkedInSpotlight(clientId, tasks, campaignId)}
       ${renderClientStats(campaignId, tasks, clientId)}
       ${renderKpiSummaryTiles(clientId)}
       ${renderPlanProgress(campaignId)}
