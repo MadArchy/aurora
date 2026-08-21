@@ -102,19 +102,55 @@ npm run firebase:provision
 
 ## Ingesta programada (Cloud Functions)
 
-Tras deploy de functions:
+### Secretos (obligatorio, una vez)
+
+Ejecuta **tú** estos comandos en PowerShell (el agente no puede subir API keys solo):
 
 ```powershell
-cd functions
-npm install
-cd ..
+cd C:\Users\user\Desktop\AURORA
+
+# Pega la key cuando Firebase lo pida (o usa --data-file=ruta_a_archivo_con_la_key)
 firebase functions:secrets:set TAVILY_API_KEY
-npm run firebase:deploy:functions
+firebase functions:secrets:set YOUTUBE_API_KEY
 ```
 
-- **`ingestSourcesScheduled`**: cada 15 min, ingesta RSS de fuentes ACTIVE vencidas (sin browser).
-- **`ingestSourcesManual`**: callable ADMIN para forzar una corrida.
-- **`rssProxy`** / **`tavilySearch`**: APIs de producción (`VITE_POSTURA_FUNCTIONS_BASE` en build).
+Si ya tienes las keys en `.env.local`:
+
+```powershell
+# Tavily (solo si está definida)
+($m = Select-String -Path .env.local -Pattern '^TAVILY_API_KEY=(.+)$'); if ($m) { $m.Matches[0].Groups[1].Value | firebase functions:secrets:set TAVILY_API_KEY }
+
+# YouTube
+($m = Select-String -Path .env.local -Pattern '^YOUTUBE_API_KEY=(.+)$'); if ($m) { $m.Matches[0].Groups[1].Value | firebase functions:secrets:set YOUTUBE_API_KEY }
+```
+
+### Build + deploy
+
+```powershell
+cd C:\Users\user\Desktop\AURORA\functions
+npm install
+cd ..
+npm run firebase:deploy:functions
+firebase deploy --only firestore:indexes
+```
+
+### Frontend producción
+
+En el build de hosting, define:
+
+```text
+VITE_POSTURA_FUNCTIONS_BASE=https://us-central1-aurora-postura-app.cloudfunctions.net
+```
+
+### Funciones desplegadas
+
+| Función | Rol |
+|---------|-----|
+| `rssProxy` | Proxy RSS con SSRF |
+| `tavilySearch` | Descubrimiento web (secret `TAVILY_API_KEY`) |
+| `youtubeApi` | Resolve/search YouTube (secret `YOUTUBE_API_KEY`) |
+| `ingestSourcesScheduled` | Ingesta cada 15 min |
+| `ingestSourcesManual` | Disparo ADMIN |
 
 Los clientes reciben señales nuevas vía listeners Firestore (`sources` + `signals`) al tener sesión abierta.
 
@@ -122,4 +158,5 @@ Los clientes reciben señales nuevas vía listeners Firestore (`sources` + `sign
 
 ## Plan general
 
-Oleadas **0–7 implementadas** en código. Siguiente hito: **recorrido piloto Juan** (DoD en `PLAN_UNIFICADO_POSTURA.md` §7).
+Oleadas **0–7** + radar (triage, clusters, feedback, gate por canal) en código.
+Siguiente hito operativo: **secretos + deploy functions** (arriba) y recorrido piloto Juan.
