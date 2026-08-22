@@ -45,11 +45,17 @@ export function kpiLabel(kpiType?: BusinessKpiType): string {
 }
 
 export function renderTaskMetaBadges(task: {
+  type?: import('../types').TaskType;
   format?: ContentFormat;
   pillar?: ContentPillar;
   campaignDay?: number;
 }): string {
   const parts: string[] = [];
+  if (task.type === 'RECORD_VIDEO') {
+    parts.push('<span class="badge badge-accent">YouTube / LinkedIn</span>');
+  } else if (task.type === 'REVIEW_ARTICLE') {
+    parts.push('<span class="badge badge-accent">LinkedIn / Web</span>');
+  }
   if (task.format) parts.push(`<span class="badge badge-progress">${FORMAT_LABELS[task.format]}</span>`);
   if (task.pillar) parts.push(`<span class="badge badge-neutral">${PILLAR_LABELS[task.pillar]}</span>`);
   if (task.campaignDay) parts.push(`<span class="badge badge-ready">Día ${task.campaignDay}</span>`);

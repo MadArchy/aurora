@@ -37,6 +37,7 @@ import {
 } from '../types';
 import { applyScopedCollectionMerge } from '../domain/firestoreMergeCore';
 import { computeConversionStats } from '../domain/radarFeedbackCore';
+import { resolveThesis } from '../domain/thesisContextCore';
 import { detectIndustryPreset, getIndustryPresetMeta } from './industryPresets';
 import { createId } from '../lib/id';
 import { renderDiffHtml, diffLines, hasDiffChanges, summarizeDiff } from '../domain/textDiff';
@@ -58,12 +59,14 @@ import {
 import {
   buildJuanCampaigns,
   buildJuanContentQueue,
+  buildJuanGovernanceReviewThesis,
   buildJuanKpiSeeds,
   buildJuanMilestones,
   buildJuanProofWallExtras,
   buildJuanSecondThesis,
-  isJuanCampaignSeedApplied,
+  CAMP_ADOPTION,
   JUAN_ID,
+  THESIS_GOVERNANCE_REVIEW,
   THESIS_PATENTS,
 } from '../data/juanCampaignSeed';
 import { quotasFor, assertClientQuota, assertSourceQuota, assertThesisQuota } from './entitlements';
@@ -197,7 +200,7 @@ class DataService {
         firstName: 'Elena',
         lastName: 'Rostova',
         displayName: 'Dra. Elena Rostova',
-        primaryEmail: 'elena.rostova@biomed.org',
+        primaryEmail: 'elena.martinez@lexfirm.com',
         profession: 'Cirujana Oncológica & Investigadora Genómica',
         company: 'Instituto Biomédico Avanzado',
         country: 'España',
@@ -205,7 +208,8 @@ class DataService {
         onboardingStatus: 'IN_PROGRESS',
         profileCompleteness: 65,
         status: 'ACTIVE',
-        internalNotes: 'Posicionamiento en terapias génicas de precisión.',
+        internalNotes: 'Posicionamiento en terapias génicas de precisión. Cuenta aislamiento DoD (no ve datos de Juan).',
+        userId: 'user_client_elena_01',
         createdAt: '2026-08-10T12:00:00Z',
         createdBy: 'user_admin_01',
         updatedAt: '2026-08-18T16:00:00Z',
@@ -245,7 +249,43 @@ class DataService {
         createdAt: '2026-08-02T10:00:00Z',
         createdBy: 'user_admin_01',
         updatedAt: '2026-08-18T10:00:00Z',
-        updatedBy: 'user_admin_01'
+        updatedBy: 'user_admin_01',
+        identityCurrent: 'Patent attorney con background de ingeniería y ciberseguridad',
+        perceptionTarget: 'La referencia para adoptar IA con IP defendible',
+        priority: 90,
+        audiences: [
+          { id: 'aud_gc', name: 'General Counsel', tier: 'COMMERCIAL', weight: 95, keywords: ['general counsel', 'legal', 'ip counsel'] },
+          { id: 'aud_cto', name: 'CTOs / CIOs', tier: 'COMMERCIAL', weight: 80, keywords: ['cto', 'cio', 'innovation'] },
+          { id: 'aud_bar', name: 'State Bar committees', tier: 'INFLUENCE', weight: 70, keywords: ['state bar', 'committee'] },
+        ],
+        territories: [
+          { id: 'ter_patent', name: 'Patent Strategy', pillar: 'IP', weight: 100, keywords: ['patent', 'uspto', 'fto', 'prosecution'] },
+          { id: 'ter_ai', name: 'AI Adoption', pillar: 'Governance', weight: 90, keywords: ['ai adoption', 'nist', 'iso 42001', 'governance'] },
+          { id: 'ter_cyber', name: 'Cybersecurity applied', pillar: 'Risk', weight: 60, keywords: ['cybersecurity', 'risk', 'controls'] },
+        ],
+        objectives: [
+          { id: 'obj_business', kind: 'BUSINESS', weight: 40 },
+          { id: 'obj_tl', kind: 'THOUGHT_LEADERSHIP', weight: 30 },
+          { id: 'obj_speak', kind: 'SPEAKING', weight: 20 },
+          { id: 'obj_inst', kind: 'INSTITUTIONAL', weight: 10 },
+        ],
+        voiceProfile: {
+          authority: 85,
+          technicalDepth: 80,
+          academic: 55,
+          executive: 70,
+          accessible: 60,
+          provocative: 25,
+          commercial: 45,
+          legalPrecision: 95,
+          humor: 10,
+          style: 'Preciso, sobrio, sin hype',
+          avoid: ['hype', 'experto en IA', 'garantizado'],
+        },
+        limits: {
+          hardBlocks: ['Fundador 3ITAL', 'Best Lawyers 2026', 'resultados de patentes garantizados'],
+          softAvoid: ['consumer AI', 'entretenimiento'],
+        },
       }
     ];
 
@@ -557,6 +597,8 @@ class DataService {
         verifiedAt: '2026-08-01T12:00:00Z',
         associatedThesesIds: [thesisId1],
         createdAt: '2026-08-01T11:00:00Z',
+        supports: ['Member Whitaker Chalk', 'patent strategy'],
+        authorityWeight: 85,
       },
       {
         id: 'ev_002',
@@ -571,6 +613,8 @@ class DataService {
         verifiedAt: '2026-08-05T09:00:00Z',
         associatedThesesIds: [thesisId1],
         createdAt: '2026-08-05T09:00:00Z',
+        supports: ['Chair Emerging Technology Committee', 'State Bar of Texas'],
+        authorityWeight: 90,
       },
       {
         id: 'ev_003',
@@ -585,6 +629,8 @@ class DataService {
         verifiedAt: '2026-08-10T09:00:00Z',
         associatedThesesIds: [thesisId1],
         createdAt: '2026-08-10T09:00:00Z',
+        supports: ['Artificial Intelligence in Patent Practice', 'coautor'],
+        authorityWeight: 88,
       },
       {
         id: 'ev_004',
@@ -669,6 +715,20 @@ class DataService {
   }
 
   /**
+   * Borra datos locales v5 y vuelve a cargar el seed demo (solo sin Firebase).
+   * Útil cuando el navegador conserva un snapshot antiguo (p. ej. plan 30 días).
+   */
+  public resetLocalDemoAndReload(): void {
+    if (FIREBASE_ENABLED) {
+      throw new Error('Con Firebase activo los datos vienen de Firestore. Cierra sesión y usa bootstrap o reprovisiona.');
+    }
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('postura_')) localStorage.removeItem(key);
+    }
+    location.reload();
+  }
+
+  /**
    * Corrige URLs de fuentes que se comprobó que no devuelven items (feed vacío,
    * redirección o 404). Se hace en sitio para no perder señales ya capturadas.
    */
@@ -727,14 +787,33 @@ class DataService {
     }
   }
 
-  /** Seed Oleada 0: dual campaña, plan 30 días, cola de contenido Juan. */
+  /** Seed Oleada 0 + migraciones plan 90 días, cola de contenido Juan. */
   private ensureJuanCampaignSeed() {
-    if (isJuanCampaignSeedApplied(this.campaignMilestones)) return;
-
     let changed = false;
+
+    const freshCampaigns = buildJuanCampaigns();
+    const adoptionFresh = freshCampaigns.find((c) => c.id === CAMP_ADOPTION);
+    const adoption = this.campaigns.find((c) => c.id === CAMP_ADOPTION);
+    if (adoption && adoptionFresh && adoption.planDays !== adoptionFresh.planDays) {
+      Object.assign(adoption, {
+        name: adoptionFresh.name,
+        description: adoptionFresh.description,
+        endDate: adoptionFresh.endDate,
+        targetDeliverables: adoptionFresh.targetDeliverables,
+        planDays: adoptionFresh.planDays,
+        tags: adoptionFresh.tags,
+        updatedAt: new Date().toISOString(),
+      });
+      changed = true;
+    }
 
     if (!this.theses.some((t) => t.id === THESIS_PATENTS)) {
       this.theses.push(buildJuanSecondThesis());
+      changed = true;
+    }
+
+    if (!this.theses.some((t) => t.id === THESIS_GOVERNANCE_REVIEW)) {
+      this.theses.push(buildJuanGovernanceReviewThesis());
       changed = true;
     }
 
@@ -1043,6 +1122,9 @@ class DataService {
     if (partial.invitations) this.invitations = partial.invitations;
     if (partial.files) this.files = partial.files;
 
+    this.ensureJuanCampaignSeed();
+    this.migrateOpportunityLifecycle();
+
     this.saveAll({ skipRemote: options?.skipRemote });
 
     if (partial.notifications) {
@@ -1240,6 +1322,48 @@ class DataService {
     return this.theses.filter(t => t.clientId === clientId && t.status !== 'ARCHIVED');
   }
 
+  /**
+   * Tesis activas ordenadas por prioridad declarada. Punto único desde el que el
+   * router decide qué tesis aplica a cada señal.
+   */
+  public getActiveTheses(clientId: string): PositioningThesis[] {
+    return this.getThesesByClient(clientId)
+      .filter(t => t.status === 'ACTIVE')
+      .sort((a, b) => {
+        const byPriority = (b.priority ?? 0) - (a.priority ?? 0);
+        if (byPriority !== 0) return byPriority;
+        return (b.updatedAt || '').localeCompare(a.updatedAt || '');
+      });
+  }
+
+  /**
+   * Tesis ACTIVE de mayor prioridad. Sin fallback a borradores: el scoring no opera sin ACTIVE.
+   */
+  public getPrimaryThesis(clientId: string): PositioningThesis | undefined {
+    return this.getActiveTheses(clientId)[0];
+  }
+
+  public getThesisById(clientId: string, thesisId: string): PositioningThesis | undefined {
+    return this.getThesesByClient(clientId).find((t) => t.id === thesisId);
+  }
+
+  /**
+   * Contexto único de tesis: selección del manager → entidad → primaria.
+   */
+  public resolveThesisFor(params: {
+    clientId: string;
+    selectedThesisId?: string | null;
+    entityThesisId?: string | null;
+  }): PositioningThesis | undefined {
+    return resolveThesis({
+      clientId: params.clientId,
+      selectedThesisId: params.selectedThesisId,
+      entityThesisId: params.entityThesisId,
+      getPrimary: (id) => this.getPrimaryThesis(id),
+      getById: (cid, tid) => this.getThesisById(cid, tid),
+    });
+  }
+
   public saveThesis(thesis: PositioningThesis): void {
     const idx = this.theses.findIndex(t => t.id === thesis.id);
     if (idx >= 0) {
@@ -1248,10 +1372,16 @@ class DataService {
       const quota = assertThesisQuota(this.getSubscription(), this.getThesesByClient(thesis.clientId).length);
       if (!quota.ok) throw new Error(quota.message);
       this.theses.push(thesis);
-      const client = this.clients.find(c => c.id === thesis.clientId);
-      if (client) client.activeThesesCount += 1;
     }
+    this.recomputeActiveThesesCount(thesis.clientId);
     this.saveAll();
+  }
+
+  /** Mantiene el contador del cliente alineado con las tesis realmente ACTIVE. */
+  public recomputeActiveThesesCount(clientId: string): void {
+    const client = this.clients.find(c => c.id === clientId);
+    if (!client) return;
+    client.activeThesesCount = this.getActiveTheses(clientId).length;
   }
 
   // Sources (F9-D09)
@@ -1681,6 +1811,30 @@ class DataService {
     return newItem;
   }
 
+  public updateEvidenceItem(
+    id: string,
+    patch: Partial<Omit<EvidenceVaultItem, 'id' | 'clientId' | 'organizationId' | 'createdAt'>>
+  ): EvidenceVaultItem | undefined {
+    const idx = this.evidenceVault.findIndex(e => e.id === id);
+    if (idx < 0) return undefined;
+    this.evidenceVault[idx] = { ...this.evidenceVault[idx], ...patch };
+    this.saveAll();
+    return this.evidenceVault[idx];
+  }
+
+  /** Conecta o desconecta una evidencia de una tesis. Devuelve el estado resultante. */
+  public toggleEvidenceThesis(evidenceId: string, thesisId: string): boolean {
+    const item = this.evidenceVault.find(e => e.id === evidenceId);
+    if (!item) return false;
+    const current = item.associatedThesesIds || [];
+    const linked = current.includes(thesisId);
+    item.associatedThesesIds = linked
+      ? current.filter(id => id !== thesisId)
+      : [...current, thesisId];
+    this.saveAll();
+    return !linked;
+  }
+
   // AI Run Logging & Observability (F10-D10)
   public getAiRuns(limit: number = 20): AIRunRecord[] {
     return this.aiRuns.slice(0, limit);
@@ -1918,9 +2072,19 @@ class DataService {
   }
 
   /** Guarda el resultado del scoring en la señal para no recalcularlo en cada render. */
-  public applyScoreToSignal(signalId: string, score: StrategicScoreResult): void {
+  public applyScoreToSignal(
+    signalId: string,
+    score: StrategicScoreResult,
+    extras?: Pick<Signal, 'thesisId' | 'thesisScores' | 'whyNow' | 'routingDecision'>
+  ): void {
     const sig = this.signals.find((s) => s.id === signalId);
     if (!sig) return;
+    if (extras) {
+      if ('thesisId' in extras) sig.thesisId = extras.thesisId;
+      if ('thesisScores' in extras) sig.thesisScores = extras.thesisScores;
+      if (extras.whyNow) sig.whyNow = extras.whyNow;
+      if (extras.routingDecision) sig.routingDecision = extras.routingDecision;
+    }
     sig.relevanceScore = score.totalScore;
     sig.priorityBand = score.priorityBand;
     sig.recommendedAction = score.recommendedAction;
@@ -2234,7 +2398,7 @@ class DataService {
         const sources = this.getSourcesByClient(client.id);
         const activeSources = sources.filter((s) => s.status === 'ACTIVE');
         const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
-        const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+        const thesis = this.getPrimaryThesis(client.id);
         const presetId = detectIndustryPreset(client, thesis);
         const presetLabel = getIndustryPresetMeta(presetId).label;
 

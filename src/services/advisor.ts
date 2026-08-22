@@ -358,8 +358,7 @@ export async function generatePositioningAdvice(clientId: string): Promise<Posit
   const client = dbService.getClientById(clientId);
   if (!client) throw new Error('Cliente no encontrado.');
 
-  const theses = dbService.getThesesByClient(clientId);
-  const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+  const thesis = dbService.getPrimaryThesis(clientId);
   const input: AdvisorInput = {
     client,
     thesis,
@@ -431,8 +430,7 @@ export async function proposeAngle(params: {
   snippet: string;
 }): Promise<{ angle: string; usedLiveModel: boolean }> {
   const client = dbService.getClientById(params.clientId);
-  const theses = dbService.getThesesByClient(params.clientId);
-  const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+  const thesis = dbService.getPrimaryThesis(params.clientId);
 
   if (client && thesis) {
     try {

@@ -12,6 +12,7 @@ export const JUAN_ID = 'client_juan_001';
 export const ORG_ID = 'org_aurora_01';
 export const THESIS_ADOPTION = 'thesis_juan_ip_ai_adoption';
 export const THESIS_PATENTS = 'thesis_juan_ip_patents';
+export const THESIS_GOVERNANCE_REVIEW = 'thesis_juan_governance_review';
 export const CAMP_ADOPTION = 'camp_juan_adoption_30d';
 export const CAMP_PATENTS = 'camp_juan_patents_q3';
 
@@ -47,6 +48,21 @@ const PLAN_30_DAYS: Array<{ day: number; title: string; description: string; wee
   { day: 29, title: 'Identificar 20 contactos objetivo', description: 'Outreach no comercial.', weekday: 'Jue' },
   { day: 30, title: 'Mensaje de reconexión reflexivo', description: 'Nuevo posicionamiento.', weekday: 'Vie' },
 ];
+
+/** Hitos semanales días 31–90 (expansión Q2 del plan marketing). */
+const PLAN_90_WEEKLY: Array<{ day: number; title: string; description: string; weekday?: string }> = [
+  { day: 37, title: 'Semana 6 — revisión KPIs y ajuste pilares', description: 'Consolidar posts LI + primer video.', weekday: 'Vie' },
+  { day: 44, title: 'Semana 7 — segundo video educativo', description: 'Guion + grabación teleprompter.', weekday: 'Vie' },
+  { day: 51, title: 'Semana 8 — artículo largo PI/patentes', description: 'Opinion work + FTO angle.', weekday: 'Vie' },
+  { day: 58, title: 'Semana 9 — outreach GC objetivo', description: '20 contactos + mensaje reflexivo.', weekday: 'Vie' },
+  { day: 65, title: 'Semana 10 — CLE / panel oportunidad', description: 'Checklist postulación si aplica.', weekday: 'Vie' },
+  { day: 72, title: 'Semana 11 — clips reutilización', description: '3 clips desde biblioteca video.', weekday: 'Vie' },
+  { day: 79, title: 'Semana 12 — actualizar muro de pruebas', description: 'Nuevos assets §5.3.', weekday: 'Vie' },
+  { day: 86, title: 'Semana 13 — retrospectiva 90 días', description: 'KPIs acumulados + plan Q3.', weekday: 'Vie' },
+  { day: 90, title: 'Cierre Q1 — informe posicionamiento', description: 'Briefing manager + cliente.', weekday: 'Mar' },
+];
+
+const PLAN_MILESTONES = [...PLAN_30_DAYS, ...PLAN_90_WEEKLY];
 
 const VIDEO_TOPICS = [
   'La gobernanza de IA no es suficiente: por qué las organizaciones necesitan adopción de IA',
@@ -120,9 +136,106 @@ export function buildJuanSecondThesis(): PositioningThesis {
     complianceRules: 'No prometer resultados de patentes; USPTO + State Bar Texas.',
     status: 'ACTIVE',
     clientApprovalStatus: 'APPROVED',
+    identityCurrent: 'Patent attorney con credibilidad técnica en software, IA y dispositivos médicos',
+    perceptionTarget: 'Asesor de decisión para patentes, FTO y carteras en startups y scale-ups',
+    priority: 75,
+    audiences: [
+      { id: 'aud_founders', name: 'Fundadores / CEOs', tier: 'COMMERCIAL', weight: 90, keywords: ['founder', 'ceo', 'startup'] },
+      { id: 'aud_cto', name: 'CTOs / equipos I+D', tier: 'COMMERCIAL', weight: 85, keywords: ['cto', 'r&d', 'product'] },
+      { id: 'aud_ip', name: 'IP counsel interno', tier: 'INFLUENCE', weight: 75, keywords: ['ip counsel', 'portfolio'] },
+    ],
+    territories: [
+      { id: 'ter_patent', name: 'Patent Strategy', pillar: 'Prosecution', weight: 100, keywords: ['patent', 'prosecution', 'portfolio'] },
+      { id: 'ter_fto', name: 'Freedom-to-Operate', pillar: 'Opinion', weight: 85, keywords: ['fto', 'non-infringement', 'launch'] },
+      { id: 'ter_startup', name: 'Startups & fundraising', pillar: 'Business', weight: 70, keywords: ['startup', 'fundraising', 'due diligence'] },
+    ],
+    objectives: [
+      { id: 'obj_business', kind: 'BUSINESS', weight: 55 },
+      { id: 'obj_tl', kind: 'THOUGHT_LEADERSHIP', weight: 25 },
+      { id: 'obj_speak', kind: 'SPEAKING', weight: 20 },
+    ],
+    voiceProfile: {
+      authority: 88,
+      technicalDepth: 90,
+      academic: 50,
+      executive: 75,
+      accessible: 55,
+      provocative: 20,
+      commercial: 60,
+      legalPrecision: 92,
+      humor: 10,
+      style: 'Preciso, orientado a decisión de negocio, sin hype',
+      avoid: ['hype', 'garantías de patente'],
+    },
+    limits: {
+      hardBlocks: ['No prometer resultados de patentes', 'No afirmar concesiones no verificadas'],
+      softAvoid: ['consumer hype', 'política partidista'],
+    },
     createdAt: '2026-08-02T10:00:00Z',
     createdBy: 'user_admin_01',
     updatedAt: '2026-08-18T10:00:00Z',
+    updatedBy: 'user_admin_01',
+  };
+}
+
+/** Tercera tesis en revisión — demo del flujo aprobar → activar (FLOW-17/18). */
+export function buildJuanGovernanceReviewThesis(): PositioningThesis {
+  return {
+    id: THESIS_GOVERNANCE_REVIEW,
+    organizationId: ORG_ID,
+    clientId: JUAN_ID,
+    title: 'Gobernanza IA para consejos y comités',
+    expertIdentity:
+      'Asesor en gobernanza de IA para consejos y comités — NIST AI RMF, ISO/IEC 42001 y controles operativos',
+    targetAudience: 'General Counsel, comités de auditoría, risk officers y líderes de compliance',
+    domain: 'Gobernanza de IA · políticas · controles · NIST AI RMF · ISO/IEC 42001',
+    objective: 'Posicionar evaluaciones de preparación IA y marcos de gobernanza para consejos',
+    proofPoints: [
+      'Chair, Emerging Technology Committee — State Bar of Texas',
+      'President of the Board, 3ITAL',
+      'Coautor AI in Patent Practice (2024)',
+    ],
+    differentiator: 'Traduce marcos técnicos (NIST, ISO) a preguntas que un consejo puede usar en 30 minutos.',
+    voiceAndTone: 'Preciso, orientado a decisión, sin hype.',
+    complianceRules: 'No prometer resultados regulatorios; confidencialidad profesional.',
+    status: 'UNDER_REVIEW',
+    clientApprovalStatus: 'PENDING',
+    identityCurrent: 'Abogado de PI con exposición en adopción de IA',
+    perceptionTarget: 'Referente en gobernanza IA aplicable a consejos',
+    priority: 60,
+    audiences: [
+      { id: 'aud_gc', name: 'General Counsel', tier: 'COMMERCIAL', weight: 90, keywords: ['gc', 'legal'] },
+      { id: 'aud_audit', name: 'Comités de auditoría', tier: 'INFLUENCE', weight: 75, keywords: ['audit', 'board'] },
+    ],
+    territories: [
+      { id: 'ter_gov', name: 'AI Governance', pillar: 'Governance', weight: 100, keywords: ['governance', 'policy'] },
+      { id: 'ter_nist', name: 'NIST AI RMF', pillar: 'Framework', weight: 80, keywords: ['nist', 'rmf'] },
+    ],
+    objectives: [
+      { id: 'obj_biz', kind: 'BUSINESS', weight: 50 },
+      { id: 'obj_tl', kind: 'THOUGHT_LEADERSHIP', weight: 30 },
+      { id: 'obj_speak', kind: 'SPEAKING', weight: 20 },
+    ],
+    voiceProfile: {
+      authority: 85,
+      technicalDepth: 75,
+      academic: 55,
+      executive: 80,
+      accessible: 60,
+      provocative: 20,
+      commercial: 45,
+      legalPrecision: 90,
+      humor: 10,
+      style: 'Preciso, sobrio, orientado a decisión',
+      avoid: ['hype', 'experto en IA'],
+    },
+    limits: {
+      hardBlocks: ['No prometer cumplimiento regulatorio', 'No afirmar certificaciones no verificadas'],
+      softAvoid: ['consumer AI'],
+    },
+    createdAt: '2026-08-19T10:00:00Z',
+    createdBy: 'user_admin_01',
+    updatedAt: '2026-08-21T10:00:00Z',
     updatedBy: 'user_admin_01',
   };
 }
@@ -134,15 +247,15 @@ export function buildJuanCampaigns(): Campaign[] {
       organizationId: ORG_ID,
       clientId: JUAN_ID,
       thesisId: THESIS_ADOPTION,
-      name: 'Plan 30 días: Adopción IA + Liderazgo de pensamiento',
-      description: 'Ejecución del plan de marketing — reposicionamiento, contenido y primer video.',
+      name: 'Plan 90 días: Adopción IA + Liderazgo de pensamiento',
+      description: 'Ejecución del plan de marketing — reposicionamiento, contenido, video y expansión Q1.',
       status: 'ACTIVE',
       startDate: '2026-08-01',
-      endDate: '2026-08-30',
-      targetDeliverables: 30,
+      endDate: '2026-10-29',
+      targetDeliverables: 90,
       completedDeliverables: 13,
-      tags: ['30-day-plan', 'AI Adoption', 'LinkedIn', 'YouTube'],
-      planDays: 30,
+      tags: ['90-day-plan', 'AI Adoption', 'LinkedIn', 'YouTube'],
+      planDays: 90,
       createdAt: '2026-08-01T10:00:00Z',
       createdBy: 'user_admin_01',
       updatedAt: '2026-08-20T12:00:00Z',
@@ -169,10 +282,11 @@ export function buildJuanCampaigns(): Campaign[] {
 
 export function buildJuanMilestones(campaignId: string = CAMP_ADOPTION): CampaignMilestone[] {
   const today = new Date('2026-08-20T12:00:00Z');
-  return PLAN_30_DAYS.map((entry) => {
+  return PLAN_MILESTONES.map((entry) => {
     let status: CampaignMilestone['status'] = 'pending';
     if (entry.day < 14) status = 'completed';
     else if (entry.day <= 20) status = 'in_progress';
+    else if (entry.day <= 90) status = 'pending';
     if (entry.day === 20 && today.getDate() >= 20) status = 'in_progress';
 
     return {
@@ -185,7 +299,7 @@ export function buildJuanMilestones(campaignId: string = CAMP_ADOPTION): Campaig
       description: entry.description,
       weekdayHint: entry.weekday,
       status,
-      completedAt: status === 'completed' ? '2026-08-14T18:00:00Z' : undefined,
+      ...(status === 'completed' ? { completedAt: '2026-08-14T18:00:00Z' } : {}),
     };
   });
 }
@@ -353,7 +467,7 @@ export function buildJuanContentQueue(): { contents: ContentItem[]; tasks: Task[
       targetPlatform: 'LinkedIn',
       status: i < 2 ? 'CLIENT_REVIEW' : 'MANAGER_APPROVED',
       pipelineStatus: i < 2 ? 'sent_to_client' : 'manager_review',
-      clientReviewBaseline: i < 2 ? post.body : undefined,
+      ...(i < 2 ? { clientReviewBaseline: post.body } : {}),
       stateHistory: [
         { state: 'draft_ready', actorUid: 'user_admin_01', actorRole: 'ADMIN', at: base },
         { state: i < 2 ? 'sent_to_client' : 'manager_review', actorUid: 'user_admin_01', actorRole: 'ADMIN', at: base },
@@ -437,4 +551,9 @@ export function buildJuanContentQueue(): { contents: ContentItem[]; tasks: Task[
 /** Indica si el seed de campaña Juan ya fue aplicado. */
 export function isJuanCampaignSeedApplied(milestones: CampaignMilestone[]): boolean {
   return milestones.some((m) => m.id === `ms_${CAMP_ADOPTION}_d30`);
+}
+
+/** Plan 90 días + hitos semanales 31–90 aplicados. */
+export function isJuanPlan90Applied(milestones: CampaignMilestone[]): boolean {
+  return milestones.some((m) => m.id === `ms_${CAMP_ADOPTION}_d90`);
 }

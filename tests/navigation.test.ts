@@ -16,7 +16,7 @@ describe('navigation information architecture', () => {
 
   it('keeps retired client routes compatible with the simplified portal', () => {
     expect(normalizeTab('client-feed')).toBe('client-home');
-    expect(normalizeTab('client-profile')).toBe('client-thesis');
+    expect(normalizeTab('client-profile')).toBe('client-profile');
     expect(normalizeTab('client-library')).toBe('client-content');
   });
 

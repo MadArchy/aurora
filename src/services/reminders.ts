@@ -81,7 +81,8 @@ export function processDeadlineReminders(): number {
         type: 'TASK_ASSIGNED',
         title: 'Recordatorio de deadline',
         body,
-        href: 'client-feed',
+        href: 'client-home',
+        targetId: task.id,
       });
       pushEmailStub(client.primaryEmail, `[POSTURA stub] Recordatorio: ${task.title}`, body);
 

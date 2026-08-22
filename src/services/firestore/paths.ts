@@ -17,6 +17,8 @@ export const CLIENT_SUBCOLLECTIONS = [
   'proofWallItems',
   'sources',
   'notifications',
+  'recommendations',
+  'aiRuns',
 ] as const;
 
 export type ClientSubcollection = (typeof CLIENT_SUBCOLLECTIONS)[number];

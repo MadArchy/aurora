@@ -7,6 +7,7 @@ import { notificationService } from '../services/notifications';
 import { esc } from '../lib/escape';
 import { icon } from '../lib/icons';
 import { isWorkspaceTab, normalizeTab } from './PageHeader';
+import { computeProfileCoverage } from '../domain/profileCoverage';
 
 type NavItem = { id: string; label: string; icon: string; badge?: number };
 
@@ -83,6 +84,8 @@ function clientNav(activeTab: string, clientId?: string | null): string {
         return stage === 'proposed' || stage === 'checklist' || stage === 'accepted';
       }).length
     : 0;
+  const profileCoverage = clientId ? computeProfileCoverage(dbService.getMasterProfile(clientId)) : null;
+  const profileIncomplete = profileCoverage && !profileCoverage.meetsPilotThreshold ? 1 : undefined;
 
   return `
     ${renderNavGroup('Mi semana', [
@@ -91,6 +94,7 @@ function clientNav(activeTab: string, clientId?: string | null): string {
       { id: 'client-opps', label: 'Oportunidades', icon: 'briefcase', badge: openOpps || undefined },
     ], activeTab)}
     ${renderNavGroup('Mi trayectoria', [
+      { id: 'client-profile', label: 'Mi perfil', icon: 'users', badge: profileIncomplete },
       { id: 'client-thesis', label: 'Mi posicionamiento', icon: 'target' },
       { id: 'client-results', label: 'Resultados', icon: 'chart' },
     ], activeTab)}
@@ -127,7 +131,8 @@ export function renderBriefingBar(activeTab: string, clientId: string): string {
 export function renderAppShell(
   activeTab: string,
   activeClientId: string = 'all',
-  activeCampaignId: string | null = null
+  activeCampaignId: string | null = null,
+  selectedThesisId: string | null = null
 ): string {
   const user = authService.getCurrentUser();
   if (!user) return '';
@@ -137,6 +142,8 @@ export function renderAppShell(
   const unread = notificationService.unreadCount(user.uid, user.clientId);
   const clientIdForCampaign = !isAdmin ? user.clientId : (activeClientId !== 'all' ? activeClientId : null);
   const clientCampaigns = clientIdForCampaign ? dbService.getCampaignsByClient(clientIdForCampaign) : [];
+  const clientTheses = clientIdForCampaign ? dbService.getThesesByClient(clientIdForCampaign) : [];
+  const viewableTheses = clientTheses.filter((t) => t.status === 'ACTIVE' || t.status === 'UNDER_REVIEW');
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
 
   const inWorkspace = isAdmin && activeClientId !== 'all' && isWorkspaceTab(activeTab);
@@ -210,6 +217,17 @@ export function renderAppShell(
             </select>
           </label>
         ` : ''}
+        ${!isAdmin && viewableTheses.length > 1 ? `
+          <label class="campaign-filter-label">
+            <span class="sr-only">Tesis activa</span>
+            <select id="client-thesis-filter" class="form-select form-select-sm">
+              <option value="">Todas las tesis</option>
+              ${viewableTheses.map((t) => `
+                <option value="${esc(t.id)}" ${t.id === selectedThesisId ? 'selected' : ''}>${esc(t.title)}</option>
+              `).join('')}
+            </select>
+          </label>
+        ` : ''}
         ${firebaseBadge}
         <span class="status-pill ${aiConfig.hasActiveSession ? 'status-on' : 'status-off'}" title="Estado de la sesión de IA">
           IA ${aiConfig.hasActiveSession ? esc(aiConfig.provider) : 'manual'}
@@ -236,9 +254,11 @@ export function renderAppShell(
           </div>
         </div>
         <div class="topbar-actions">
-          ${isAdmin
+          ${isAdmin && !FIREBASE_ENABLED
             ? `<button type="button" id="btn-toggle-role" class="btn btn-ghost btn-sm">Vista cliente</button>`
-            : authService.isImpersonating()
+            : isAdmin && FIREBASE_ENABLED
+              ? `<span class="muted small topbar-firebase-hint" title="Con Firebase activo, inicia sesión como cliente para ver su portal">Firebase · sin impersonación local</span>`
+              : authService.isImpersonating()
               ? `<button type="button" id="btn-return-manager" class="btn btn-ghost btn-sm">Volver al cockpit</button>`
               : ''}
           <button type="button" id="btn-logout" class="icon-btn" title="Salir" aria-label="Cerrar sesión">

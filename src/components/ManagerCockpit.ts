@@ -4,9 +4,16 @@ import { FIREBASE_ENABLED } from '../firebase/config';
 import { Client, ClientPortfolioSummary, ContentItem, PositioningThesis } from '../types';
 import { suggestScientificFoci } from '../domain/scientificFocusCore';
 import { esc } from '../lib/escape';
+import { renderClaimSafetyBadge, renderClaimSafetyPanel } from './ClaimSafetyPanel';
 import { renderPage } from './PageHeader';
 import { aggregatePortfolioRadarMetrics } from '../services/portfolioMetrics';
 import { buildPortfolioDigest } from '../domain/radarDigestCore';
+import { getEmailStubLog } from '../services/reminders';
+import {
+  availablePipelineActions,
+  PIPELINE_ACTION_LABELS,
+  pipelineStatusLabel,
+} from '../domain/contentPublishCore';
 
 export function renderManagerCockpit(
   activeTab: string,
@@ -195,7 +202,7 @@ function renderClientDirectoryRow(summary: ClientPortfolioSummary): string {
   const lastDelivery = summary.lastDeliveryAt
     ? new Date(summary.lastDeliveryAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })
     : 'sin entregas';
-  const thesis = dbService.getThesesByClient(client.id).find((t) => t.status === 'ACTIVE');
+  const thesis = dbService.getActiveTheses(client.id)[0];
   const statusNote =
     client.onboardingStatus !== 'COMPLETED'
       ? 'Onboarding en curso'
@@ -242,7 +249,7 @@ function renderClientsBody(filters: { searchQuery?: string } = {}): string {
     : summaries;
 
   const activeTheses = summaries.reduce(
-    (acc, s) => acc + dbService.getThesesByClient(s.client.id).filter((t) => t.status === 'ACTIVE').length,
+    (acc, s) => acc + dbService.getActiveTheses(s.client.id).length,
     0
   );
   const completedTasks = summaries.reduce(
@@ -397,7 +404,7 @@ export function renderContentPipeline(
           <p>Revisa y edita antes de que el material llegue al portal del cliente.</p>
         </div>
         ${options.showCreate
-          ? `<button id="btn-generate-article" class="btn btn-primary" data-client-id="${esc(options.clientId || '')}">+ Nuevo contenido</button>`
+          ? `<button type="button" id="btn-generate-article" class="btn btn-primary btn-open-generate-content" data-client-id="${esc(options.clientId || '')}">+ Nuevo contenido</button>`
           : ''}
       </div>
 
@@ -418,7 +425,9 @@ export function renderContentPipeline(
         ${filtered.length
           ? filtered.map((item) => {
             const clientEdit = dbService.getLatestClientEdit(item.id);
-            const showDiff = Boolean(clientEdit);
+            const feedbackEvents = dbService.getFeedbackEventsForContent(item.id);
+            const showFeedback = feedbackEvents.length > 0;
+            const pipelineActions = availablePipelineActions(item);
             return `
             <div class="card content-row status-${esc(item.status.toLowerCase())}">
               <div class="content-row-head">
@@ -426,9 +435,13 @@ export function renderContentPipeline(
                   <div class="content-row-title">
                     <h4>${esc(item.title)}</h4>
                     <span class="badge ${item.status === 'READY' || item.status === 'PUBLISHED' ? 'badge-ready' : item.status === 'CHANGES_REQUESTED' ? 'badge-pending' : 'badge-progress'}">${esc(item.status)}</span>
+                    <span class="badge badge-neutral" title="Pipeline canónico">${esc(pipelineStatusLabel(item))}</span>
                     <span class="badge badge-progress">${esc(item.targetPlatform)}</span>
-                    ${showDiff && clientEdit?.diffSummary
+                    ${clientEdit?.diffSummary
                       ? `<span class="badge badge-ready">Cliente editó (+${clientEdit.diffSummary.added}/−${clientEdit.diffSummary.removed})</span>`
+                      : ''}
+                    ${item.claimSafety && item.claimSafety.verdict !== 'PASS'
+                      ? renderClaimSafetyBadge(item.claimSafety)
                       : ''}
                   </div>
                   <p class="content-row-meta">
@@ -436,13 +449,30 @@ export function renderContentPipeline(
                   </p>
                 </div>
                 <div class="row-actions">
-                  ${showDiff ? `<button class="btn btn-primary btn-sm btn-view-content-diff" data-content-id="${esc(item.id)}">Ver diff</button>` : ''}
+                  ${pipelineActions.map((action) => `
+                    <button
+                      type="button"
+                      class="btn btn-sm ${action === 'publish' ? 'btn-success' : 'btn-primary'} btn-content-pipeline-action"
+                      data-content-id="${esc(item.id)}"
+                      data-pipeline-action="${esc(action)}"
+                    >${esc(PIPELINE_ACTION_LABELS[action])}</button>
+                  `).join('')}
+                  ${showFeedback
+                    ? `<button class="btn btn-primary btn-sm btn-view-content-diff" data-content-id="${esc(item.id)}">${clientEdit ? 'Ver diff' : 'Ver feedback'}</button>`
+                    : ''}
                   <button class="btn btn-secondary btn-sm btn-open-content-editor" data-content-id="${esc(item.id)}">Editar</button>
                   <button class="btn btn-secondary btn-sm btn-preview-content" data-content-id="${esc(item.id)}">Ver</button>
                 </div>
               </div>
 
               <div class="content-preview">${esc(item.body.substring(0, 280))}…</div>
+
+              ${item.claimSafety && item.claimSafety.verdict !== 'PASS'
+                ? `<details class="claim-safety-disclosure">
+                     <summary>${item.claimSafety.findings.length} afirmación(es) señalada(s)</summary>
+                     ${renderClaimSafetyPanel(item.claimSafety)}
+                   </details>`
+                : ''}
 
               <div class="content-row-foot">
                 <span>Notas: ${esc(item.managerNotes || 'sin notas')}</span>
@@ -576,5 +606,28 @@ function renderAICenterBody(): string {
         </table>
       </div>
     </section>
+
+    ${(() => {
+      const emails = getEmailStubLog().slice(0, 8);
+      if (!emails.length) return '';
+      return `
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3>Recordatorios (email stub)</h3>
+          <p class="muted small">Oleada 6.4 — avisos que se enviarían por correo; aquí solo log local.</p>
+        </div>
+      </div>
+      <ul class="policy-list email-stub-log">
+        ${emails.map((entry) => `
+          <li>
+            <strong>${esc(entry.subject)}</strong>
+            <span class="muted small"> → ${esc(entry.to)} · ${new Date(entry.createdAt).toLocaleString('es')}</span>
+            <p class="muted small">${esc(entry.body)}</p>
+          </li>
+        `).join('')}
+      </ul>
+    </section>`;
+    })()}
   `;
 }

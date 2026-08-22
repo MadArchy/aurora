@@ -72,44 +72,42 @@ flowchart TB
 ### 3.1 Infraestructura y calidad ✅
 | Área | Estado | Ubicación |
 |------|--------|-----------|
-| Auth seguro + impersonación | ✅ | `src/services/auth.ts` |
-| Aislamiento por `clientId` | ✅ | `src/services/db.ts` |
-| XSS / escape | ✅ | `src/lib/escape.ts`, componentes |
+| Auth Firebase + claims POSTURA | ✅ | `src/firebase/`, `src/services/auth.ts` |
+| Aislamiento por `clientId` | ✅ | `src/domain/clientIsolationCore.ts`, `firestore.rules` |
+| XSS / escape | ✅ | `src/lib/escape.ts` |
 | API SSRF + rate limit IA | ✅ | `server/ssrf.ts`, `postura-api.ts` |
-| Tests + CI | ✅ | `tests/`, `.github/workflows/ci.yml` |
-| Firebase scaffolding | ✅ esqueleto | `firebase.json`, `src/firebase/` |
-| Métricas ingesta | ✅ básico | `src/services/metrics.ts` |
+| Tests + CI | ✅ 260+ | `tests/`, `npm run check` |
+| Firebase sync + realtime | ✅ | `src/services/firestore/sync.ts` |
+| Reglas Firestore + Storage | ✅ | `firestore.rules`, `storage.rules`, `test:rules` |
+| Pipeline publicación canónico | ✅ | `contentPublishCore.ts`, Manager Producción |
 
-### 3.2 Portal Manager ✅ (funcional)
+### 3.2 Portal Manager ✅
 | Módulo | Estado |
 |--------|--------|
-| Cockpit cartera | ✅ |
-| Workspace: Fuentes, Radar, Curación, Entregas, Posicionamiento, Producción, Tareas, Resultados | ✅ |
-| Discovery bilingüe US/MX + ingest filter | ✅ |
-| Scoring con dossier | ✅ |
-| Advisor (diagnóstico imagen) | ✅ manager-only |
-| Dossier maestro Juan | ✅ `src/data/juanMasterDossier.ts` |
+| Cockpit cartera + KPIs semanales | ✅ |
+| Workspace completo (Fuentes → Resultados) | ✅ |
+| Producción: pipeline QA → Listo → Publicar | ✅ |
+| Topic Agent con rationale | ✅ |
+| Claim Safety gate en publicación | ✅ |
 
-### 3.3 Portal Cliente ⚠️ (esqueleto usable, gaps críticos)
-| Pestaña | Estado | Gap principal |
-|---------|--------|---------------|
-| Inicio | ⚠️ | Duplica feed; sin vista semanal ni plan 30/90 días |
-| Mis tareas | ⚠️ | Sin formatos (checklist, video, marco); video no llega al manager |
-| Contenido | ⚠️ | Sin editor + diff; rechazo sin razón |
-| Oportunidades | ⚠️ | Accept/reject; sin checklist ni lifecycle |
-| Posicionamiento | ⚠️ | Una tesis; sin muro de pruebas ni dual campaña |
-| Resultados | ⚠️ | KPIs genéricos, no alineados al plan marketing |
+### 3.3 Portal Cliente ✅ (piloto Juan)
+| Pestaña | Estado | Notas |
+|---------|--------|-------|
+| Inicio | ✅ | Plan 90 días, semana, KPIs, CLE destacada |
+| Mis tareas | ✅ | Teleprompter + envío video → manager |
+| Contenido | ✅ | Revisión + diff artículos |
+| Oportunidades | ✅ | Accept → checklist → submitted + reminder |
+| Mi perfil | ✅ | Onboarding v2, cobertura, muro pruebas |
+| Posicionamiento | ✅ | Dual tesis + editor por pasos |
+| Resultados | ✅ | KPIs alineados plan marketing |
 | Biblioteca | ✅ | Preview read-only |
-| Onboarding | ⚠️ | Wizard 6 pasos; no entrevista conversacional ni CV |
-| Notificaciones | ⚠️ | Modal; sin tab dedicado |
 
-### 3.4 Gaps transversales 🔴
-1. **ContentItem lifecycle canónico** (docs §4.1) no implementado end-to-end.
-2. **Video:** grabación → IndexedDB local; manager no reproduce ni descarga.
-3. **Multi-engagement:** Juan necesita 2 campañas (PI + Adopción IA); UI asume una.
-4. **Plan operativo Juan:** cadencia semanal, pilares, plan 30 días no modelados en datos ni UI.
-5. **Firebase:** scaffolding listo; persistencia sigue en localStorage.
-6. **Agentes IA:** proxy existe; no hay Topic/Strategy/Content agents en cola.
+### 3.4 Gaps restantes (post-DoD) 🔶
+1. ~~Recorrido manual DoD §7~~ — ✅ cerrado 2026-08-22 (`docs/ops/pilot.md`).
+2. **Firebase Storage** — ⏳ bloqueado en Console: hay que pulsar **Get Started** en Storage; luego `firebase deploy --only storage`.
+3. **Hosting** — URL pública piloto (`firebase:deploy:hosting`) tras Storage.
+4. **Cloud Functions** (ingesta RSS/Tavily) — requiere plan Blaze + secretos.
+5. ~~Decisiones producto~~ — ✅ readiness **70**; challenge **opcional** (no bloquea envío).
 
 ---
 
@@ -325,14 +323,14 @@ El piloto está listo cuando **Santiago (manager) y Juan (cliente)** pueden reco
 
 ```
 Frontend:  Vite + TypeScript vanilla
-Datos:     localStorage v5 → Firebase (oleada 7)
-API dev:   server/postura-api.ts (RSS + IA proxy)
-Auth:      local → Firebase Auth
-Media:     IndexedDB → Firebase Storage (oleada 3)
-Calidad:   npm run check | npm run build | npm run dev
+Datos:     Firebase Firestore (autoritativo) · fallback localStorage sin .env.local
+API dev:   server/postura-api.ts (RSS + IA proxy local)
+Auth:      Firebase Auth + custom claims · demo local solo sin Firebase
+Media:     Firebase Storage · fallback IndexedDB
+Calidad:   npm run check | npm run checklist:pilot | npm run firebase:prep
 ```
 
-**Credenciales demo:** `manager@postura.internal` / `Postura2026!` · `juan.vasquez@lexfirm.com` / `Postura2026!`
+**Credenciales demo:** `manager@postura.internal` / `Postura2026!` · `juan.vasquez@lexfirm.com` / `Postura2026!` · `elena.martinez@lexfirm.com` / `Postura2026!`
 
 ---
 
@@ -351,13 +349,17 @@ Calidad:   npm run check | npm run build | npm run dev
 
 ## 11. Próxima acción inmediata
 
-**Empezar Oleada 0 + Oleada 1 en paralelo:**
+**Hecho:** DoD §7 local + Firebase (acta 2026-08-22).
 
-1. Seed dual campaña + plan 30 días Juan en `db.ts`.
-2. Extender `stateMachine.ts` con lifecycle ContentItem completo.
-3. Rediseñar `ClientPortal` home (Oleada 2 puede solaparse si el modelo ya está).
+**Orden de ejecución post-piloto:**
 
-**Primera demo de valor (semana 3–4):** Oleada 3 — Juan graba video en el teléfono y Santiago lo recibe en el workspace.
+1. **P0 Storage** — ⏳ Tú: Console → Storage → Get Started → luego `firebase deploy --only storage`.
+2. **P1 Hosting** — `npm run firebase:deploy:hosting` → smoke login URL pública.
+3. ~~P2 Producto~~ — ✅ readiness 70 · challenge opcional (`THESIS_CHALLENGE_REQUIRED_BEFORE_SUBMIT=false`).
+4. **P3 Operación** — una semana real Juan (3 posts + 1 video + KPIs).
+5. **P4 Functions** — solo tras upgrade Blaze + secretos Tavily/YouTube.
+
+**Remediación reciente:** sync Firestore strip `undefined` (toast `clientReviewBaseline`); aislamiento portal sin fallback Juan; editor contenido solo ADMIN.
 
 ---
 

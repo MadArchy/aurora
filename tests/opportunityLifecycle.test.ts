@@ -34,6 +34,18 @@ describe('opportunityLifecycle', () => {
     expect(mapOpportunityLifecycle(opp({ status: 'IN_PROGRESS' }))).toBe('checklist');
   });
 
+  it('maps ACCEPTED with checklist to checklist stage', () => {
+    const items = defaultOpportunityChecklist('PANEL', { title: 'CLE test', type: 'PANEL' });
+    expect(
+      mapOpportunityLifecycle(
+        opp({
+          status: 'ACCEPTED',
+          submissionChecklist: items,
+        })
+      )
+    ).toBe('checklist');
+  });
+
   it('prefers explicit lifecycleStage over status mapping', () => {
     expect(mapOpportunityLifecycle(opp({ lifecycleStage: 'submitted', status: 'SENT_TO_CLIENT' }))).toBe('submitted');
   });

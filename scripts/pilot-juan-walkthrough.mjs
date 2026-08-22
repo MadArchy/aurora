@@ -23,6 +23,12 @@ const autoChecks = [
   { ok: fileHas('src/components/KpiWeeklyChart.ts', /renderKpiHomeDashboard/), label: 'Dashboard KPI en home' },
   { ok: fileHas('src/domain/clientIsolationCore.ts', /canAccessClientResource/), label: 'Reglas aislamiento clientId' },
   { ok: fileHas('firestore.rules', /ownsClient/), label: 'Reglas Firestore ownsClient' },
+  { ok: fileHas('src/domain/contentPublishCore.ts', /availablePipelineActions/), label: 'Acciones pipeline publicación' },
+  { ok: fileHas('src/domain/contentPublishCore.ts', /publish/), label: 'Gate publicar ADMIN' },
+  { ok: fileHas('src/data/juanCampaignSeed.ts', /planDays: 90/), label: 'Campaña Adopción plan 90 días' },
+  { ok: fileHas('src/components/ClientPortal.ts', /renderUpcomingMilestones/), label: 'UI próximos hitos en Inicio' },
+  { ok: existsSync(resolve(root, 'scripts/firebase-prep-check.mjs')), label: 'Script firebase:prep' },
+  { ok: fileHas('src/components/ManagerCockpit.ts', /btn-content-pipeline-action/), label: 'UI botones pipeline manager' },
   { ok: fileHas('tests/auth.test.ts', /tampered session/), label: 'Test anti-elevación sesión' },
 ];
 
@@ -63,12 +69,19 @@ Credenciales:
    [ ] Tareas y contenido cambian al alternar
 
 6. SEGURIDAD
-   [ ] Ventana incógnito: otro cliente no existe en demo local
+   [ ] Ventana incógnito: login Elena → no ve datos de Juan
    [ ] DevTools: postura_session_v4 role=ADMIN no eleva a Juan tras reload
-   [ ] Firebase: reglas ownsClient desplegadas (npm run firebase:deploy:rules)
+   [ ] Firebase: npm run firebase:prep → deploy rules → provision
+
+   [ ] Manager → Producción → «Marcar listo para publicar» → «Publicar» (pipeline canónico)
 
 7. CALIDAD
    [ ] npm run check — verde
+
+Modo Firebase (después del recorrido local):
+   [ ] npm run firebase:prep — todos [OK]
+   [ ] Badge topbar «Firebase · aurora-postura-app»
+   [ ] Repetir acta en docs/ops/pilot.md
 
 Bloqueado (requiere Blaze):
    [ ] firebase functions:secrets:set TAVILY_API_KEY / YOUTUBE_API_KEY

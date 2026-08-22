@@ -1,5 +1,15 @@
-import { PositioningThesis, Signal, SourceQuality, StrategicScoreResult } from '../types';
+import {
+  AudienceTier,
+  PositioningThesis,
+  Signal,
+  SourceQuality,
+  StrategicScoreResult,
+  ThesisAudience,
+  ThesisTerritory,
+} from '../types';
 import { buildScoreBreakdown } from '../domain/scoreExplainCore';
+import { matchedTerms, normalizeText, tokenize as sharedTokenize } from '../domain/textMatchCore';
+import { normalizeThesis } from '../domain/thesisModelCore';
 
 export { buildScoreBreakdown } from '../domain/scoreExplainCore';
 export type { ScoreBreakdownView, ScoreFactorRow, ScorePenaltyRow } from '../domain/scoreExplainCore';
@@ -11,10 +21,20 @@ export type { ScoreBreakdownView, ScoreFactorRow, ScorePenaltyRow } from '../dom
 export interface ScoringContext {
   /** Términos del dominio en ambos idiomas. */
   bilingualTerms?: string[];
-  /** Temas que el cliente debe dominar, según el dossier. */
+  /** Temas que el cliente debe dominar, desde el dossier. */
   ownedTopics?: string[];
   /** Framings a evitar: restan puntos, no descartan. */
   avoidedFramings?: string[];
+  /**
+   * Resultado de `computeWhyNow`. Cuando está presente sustituye a la heurística
+   * por tipo de fuente en el factor `timeliness`.
+   */
+  whyNow?: { score: number; reason: string };
+  /**
+   * Authority Score 0-100 de la tesis (Evidence Vault). Cuando está presente
+   * sustituye el proxy basado en número de proof points.
+   */
+  authorityScore?: number;
 }
 
 function clamp(n: number, min = 0, max = 100): number {
@@ -23,16 +43,11 @@ function clamp(n: number, min = 0, max = 100): number {
 
 /** Minúsculas sin acentos: "regulación" y "regulacion" deben coincidir. */
 function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+  return normalizeText(text);
 }
 
 function tokenize(text: string): string[] {
-  return normalize(text)
-    .split(/[^a-z0-9]+/i)
-    .filter((t) => t.length > 3);
+  return sharedTokenize(text);
 }
 
 function tokenOverlap(a: string, b: string): number {
@@ -62,6 +77,54 @@ function sourceQualityScore(quality?: SourceQuality): number {
   }
 }
 
+/** Una audiencia comercial vale más que una de amplificación con el mismo peso. */
+const TIER_MULTIPLIER: Record<AudienceTier, number> = {
+  COMMERCIAL: 1,
+  INFLUENCE: 0.85,
+  AMPLIFICATION: 0.7,
+};
+
+/**
+ * Fracción del vocabulario de un bloque que aparece en la señal. A diferencia de
+ * `tokenOverlap`, mide cobertura del concepto y no del texto de la señal.
+ */
+function conceptHit(haystack: string, name: string, keywords: string[]): number {
+  const terms = [name, ...keywords].filter((term) => term && term.trim().length > 2);
+  if (!terms.length) return 0;
+  return matchedTerms(haystack, terms).length / terms.length;
+}
+
+/**
+ * Mejor territorio alcanzado, escalado por su peso: una señal que solo toca un
+ * territorio marginal no puede puntuar como si tocara el núcleo de la tesis.
+ */
+function bestTerritory(
+  territories: ThesisTerritory[],
+  haystack: string
+): { score: number; name?: string } {
+  let best = { score: 0, name: undefined as string | undefined };
+  for (const territory of territories) {
+    const hit = conceptHit(haystack, territory.name, territory.keywords);
+    const scaled = hit * (Math.max(0, Math.min(100, territory.weight)) / 100);
+    if (scaled > best.score) best = { score: scaled, name: territory.name };
+  }
+  return best;
+}
+
+function bestAudience(
+  audiences: ThesisAudience[],
+  haystack: string
+): { score: number; name?: string } {
+  let best = { score: 0, name: undefined as string | undefined };
+  for (const audience of audiences) {
+    const hit = conceptHit(haystack, audience.name, audience.keywords);
+    const scaled =
+      hit * (Math.max(0, Math.min(100, audience.weight)) / 100) * TIER_MULTIPLIER[audience.tier];
+    if (scaled > best.score) best = { score: scaled, name: audience.name };
+  }
+  return best;
+}
+
 export function calculateStrategicScore(
   signal: Signal,
   thesis: PositioningThesis,
@@ -70,24 +133,40 @@ export function calculateStrategicScore(
   const haystack = `${signal.title} ${signal.contentSnippet} ${signal.targetDomain || ''}`;
   const normalizedHaystack = normalize(haystack);
 
+  // Estructura declarada o derivada del texto libre: mismo camino para legacy y nuevo.
+  const structured = normalizeThesis(thesis);
+  const territories = structured.territories.length ? structured.territories : null;
+  const audiences = structured.audiences.length ? structured.audiences : null;
+  const businessObjective = structured.objectives.find((o) => o.kind === 'BUSINESS');
+
+  const territoryMatch = territories ? bestTerritory(territories, haystack) : null;
+  const audienceHit = audiences ? bestAudience(audiences, haystack) : null;
+
   // El match temático toma el mejor de tres señales: solapamiento con la tesis,
   // términos bilingües del perfil y temas propios del dossier.
   const thesisMatch = Math.max(
     0.35,
-    tokenOverlap(thesis.domain + ' ' + thesis.title, haystack),
+    territoryMatch ? territoryMatch.score : tokenOverlap(thesis.domain + ' ' + thesis.title, haystack),
     phraseHits(context.bilingualTerms, normalizedHaystack),
     phraseHits(context.ownedTopics, normalizedHaystack) * 0.9
   );
   const audienceMatch = Math.max(
     0.35,
-    tokenOverlap(thesis.targetAudience, haystack),
+    audienceHit ? audienceHit.score : tokenOverlap(thesis.targetAudience, haystack),
     phraseHits(context.bilingualTerms, normalizedHaystack) * 0.7
   );
-  const timeliness = signal.sourceType === 'REGULATORY' ? 0.95 : signal.sourceType === 'NEWS_API' ? 0.78 : 0.62;
-  const authorityFit = Math.min(1, 0.55 + thesis.proofPoints.length * 0.07);
+  const timeliness = context.whyNow
+    ? clamp(context.whyNow.score, 0, 1)
+    : signal.sourceType === 'REGULATORY' ? 0.95 : signal.sourceType === 'NEWS_API' ? 0.78 : 0.62;
+  const authorityFit =
+    typeof context.authorityScore === 'number'
+      ? clamp(context.authorityScore / 100, 0, 1)
+      : Math.min(1, 0.55 + thesis.proofPoints.length * 0.07);
   const differentiation = thesis.differentiator ? 0.72 : 0.48;
   const strategicPotential = thesisMatch * 0.6 + audienceMatch * 0.4;
-  const commercialPotential = /cliente|negocio|junta|general counsel|board/i.test(thesis.objective + thesis.targetAudience) ? 0.6 : 0.35;
+  const commercialPotential = businessObjective
+    ? 0.3 + (Math.max(0, Math.min(100, businessObjective.weight)) / 100) * 0.6
+    : /cliente|negocio|junta|general counsel|board/i.test(thesis.objective + thesis.targetAudience) ? 0.6 : 0.35;
   const sourceQuality = sourceQualityScore(signal.sourceQuality);
 
   const factors = {
@@ -117,7 +196,12 @@ export function calculateStrategicScore(
   const captured = Date.parse(signal.detectedAt || '') || Date.now();
   const ageHours = (Date.now() - captured) / 36e5;
   const staleness = ageHours > 24 * 21 ? 15 : ageHours > 24 * 7 ? 7 : ageHours > 48 ? 2 : 0;
-  const conflict = Math.round(phraseHits(context.avoidedFramings, normalizedHaystack) * 8);
+  const softAvoid = [
+    ...(context.avoidedFramings || []),
+    ...structured.limits.softAvoid,
+    ...(structured.voiceProfile.avoid || []),
+  ];
+  const conflict = Math.round(phraseHits(softAvoid, normalizedHaystack) * 8);
   const penalties = { evidenceGap, risk, staleness, conflict };
 
   const finalScore = Math.round(clamp(baseScore100 - evidenceGap - risk - staleness - conflict));
@@ -136,19 +220,33 @@ export function calculateStrategicScore(
   else if (finalScore >= 40) recommendedAction = 'MONITOR';
   else recommendedAction = 'NO_ACTION';
 
-  const restricted = normalize(thesis.complianceRules || '');
-  const hardConstraint = restricted && restricted.split(/[,;]/).some((rule) => rule.trim().length > 4 && lower.includes(rule.trim()));
-  if (hardConstraint) recommendedAction = 'NO_ACTION';
+  // Los límites duros declarados (o derivados) sustituyen al split por comas.
+  const hardBlocks = structured.limits.hardBlocks.length
+    ? structured.limits.hardBlocks
+    : normalize(thesis.complianceRules || '')
+        .split(/[,;]/)
+        .map((rule) => rule.trim())
+        .filter((rule) => rule.length > 4);
+  const blockedByLimit = hardBlocks.find((rule) => lower.includes(normalize(rule)));
+  if (blockedByLimit) recommendedAction = 'NO_ACTION';
+
+  const matchDetail = territoryMatch?.name
+    ? ` Territorio: ${territoryMatch.name}.`
+    : '';
+  const whyNowDetail = context.whyNow ? ` Why now: ${context.whyNow.reason}.` : '';
 
   const result: StrategicScoreResult = {
     totalScore: finalScore,
     priorityBand,
     factors,
     penalties,
-    strategicRationale: `Alineación con tesis "${thesis.title}": match temático ${Math.round(thesisMatch * 100)}%, audiencia ${Math.round(audienceMatch * 100)}%. Penalización de riesgo ${risk}, evidencia ${evidenceGap}${conflict ? `, framing ${conflict}` : ''}.`,
+    strategicRationale: `Alineación con tesis "${thesis.title}": match temático ${Math.round(thesisMatch * 100)}%, audiencia ${Math.round(audienceMatch * 100)}%.${matchDetail}${whyNowDetail} Penalización de riesgo ${risk}, evidencia ${evidenceGap}${conflict ? `, framing ${conflict}` : ''}.`,
     recommendedAction,
     scoringStatus: 'SCORED',
     calculatedAt: new Date().toISOString(),
+    matchedTerritory: territoryMatch?.name,
+    matchedAudience: audienceHit?.name,
+    blockedByLimit,
   };
 
   // Resumen más accionable para el manager (top factores).

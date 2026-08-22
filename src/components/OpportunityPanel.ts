@@ -52,7 +52,7 @@ export function renderOpportunityCard(opp: Opportunity): string {
            </div>`
         : ''}
 
-      ${stage === 'checklist' && opp.submissionChecklist?.length
+      ${(stage === 'checklist' || stage === 'accepted') && opp.submissionChecklist?.length
         ? `<div class="opportunity-checklist">
              <div class="opportunity-checklist-head">
                <strong>Checklist de postulación</strong>

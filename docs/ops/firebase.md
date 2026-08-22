@@ -10,6 +10,7 @@
 ```powershell
 cd C:\Users\user\Desktop\AURORA
 npm install
+npm run firebase:prep    # opcional — valida .env.local antes de dev
 npm run dev
 ```
 
@@ -50,6 +51,7 @@ npm run firebase:provision
 |-------|-----|-----------------|
 | `manager@postura.internal` | ADMIN | `Postura2026!` |
 | `juan.vasquez@lexfirm.com` | CLIENT (Juan) | `Postura2026!` |
+| `elena.martinez@lexfirm.com` | CLIENT (Elena) | `Postura2026!` |
 
 ### 4. Probar
 1. Login **manager** → si Firestore vacío, bootstrap automático del seed Juan
@@ -71,6 +73,7 @@ npm run firebase:provision
 
 | Comando | Para qué |
 |---------|----------|
+| `npm run firebase:prep` | Validar .env.local + service account antes de piloto |
 | `npm run dev` | Desarrollo local contra Firebase nube |
 | `npm run check` | Tests + lint + types |
 | `npm run firebase:provision` | Crear/actualizar usuarios + claims |
@@ -97,6 +100,7 @@ npm run firebase:provision
 
 - Manager: `manager@postura.internal` / `Postura2026!`
 - Cliente Juan: `juan.vasquez@lexfirm.com` / `Postura2026!`
+- Cliente Elena: `elena.martinez@lexfirm.com` / `Postura2026!`
 
 ---
 

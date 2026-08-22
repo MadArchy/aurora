@@ -23,6 +23,8 @@ const COLLECTION_MAP: Partial<Record<CollectionKey, typeof CLIENT_SUBCOLLECTIONS
   proofWallItems: 'proofWallItems',
   sources: 'sources',
   notifications: 'notifications',
+  recommendations: 'recommendations',
+  aiRuns: 'aiRuns',
 };
 
 function itemsForClient<T extends { clientId?: string | null; id?: string }>(
@@ -30,6 +32,25 @@ function itemsForClient<T extends { clientId?: string | null; id?: string }>(
   clientId: string
 ): T[] {
   return rows.filter((row) => row.clientId === clientId);
+}
+
+/**
+ * Firestore no acepta `undefined` en documentos. Quita claves undefined
+ * (también anidadas) antes de batch.set / merge.
+ */
+export function stripUndefinedForFirestore<T>(value: T): T {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => item !== undefined)
+      .map((item) => stripUndefinedForFirestore(item)) as T;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (entry === undefined) continue;
+    out[key] = stripUndefinedForFirestore(entry);
+  }
+  return out as T;
 }
 
 /** Importa snapshot v5 a Firestore (Emulator o producción). */
@@ -56,7 +77,7 @@ export async function importSnapshotToFirestore(
   };
 
   for (const client of snapshot.clients) {
-    batch.set(doc(db, clientDocPath(client.id)), client, { merge: true });
+    batch.set(doc(db, clientDocPath(client.id)), stripUndefinedForFirestore(client), { merge: true });
     ops += 1;
     written += 1;
 
@@ -65,7 +86,11 @@ export async function importSnapshotToFirestore(
       if (!Array.isArray(rows)) continue;
       for (const row of itemsForClient(rows as Array<{ clientId?: string | null; id?: string }>, client.id)) {
         if (!row.id) continue;
-        batch.set(doc(db, `${clientDocPath(client.id)}/${subName}/${row.id}`), row, { merge: true });
+        batch.set(
+          doc(db, `${clientDocPath(client.id)}/${subName}/${row.id}`),
+          stripUndefinedForFirestore(row),
+          { merge: true }
+        );
         ops += 1;
         written += 1;
         if (ops >= 400) await flush();
@@ -74,14 +99,22 @@ export async function importSnapshotToFirestore(
 
     const profile = snapshot.profiles[client.id];
     if (profile) {
-      batch.set(doc(db, `${clientDocPath(client.id)}/profile/data`), profile, { merge: true });
+      batch.set(
+        doc(db, `${clientDocPath(client.id)}/profile/data`),
+        stripUndefinedForFirestore(profile),
+        { merge: true }
+      );
       ops += 1;
       written += 1;
     }
 
     const dossier = snapshot.dossiers[client.id];
     if (dossier) {
-      batch.set(doc(db, `${clientDocPath(client.id)}/dossier/data`), dossier, { merge: true });
+      batch.set(
+        doc(db, `${clientDocPath(client.id)}/dossier/data`),
+        stripUndefinedForFirestore(dossier),
+        { merge: true }
+      );
       ops += 1;
       written += 1;
     }
@@ -126,6 +159,8 @@ export async function pullClientDataFromFirestore(
     proofWallItems: [],
     sources: [],
     notifications: [],
+    recommendations: [],
+    aiRuns: [],
     profiles: {},
     dossiers: {},
   };
@@ -211,7 +246,20 @@ const REALTIME_SUBS = [
   'deliveries',
   'tasks',
   'contents',
+  'theses',
+  'recommendations',
+  'opportunities',
+  'campaigns',
+  'results',
+  'feedbackEvents',
+  'proofWallItems',
+  'aiRuns',
 ] as const;
+
+/** Subcolecciones cuyo nombre en Firestore no coincide con la clave del snapshot. */
+const REALTIME_KEY_MAP: Partial<Record<(typeof REALTIME_SUBS)[number] | 'evidence', CollectionKey>> = {
+  evidence: 'evidenceVault',
+};
 
 /**
  * Escucha colecciones operativas por cliente.
@@ -229,21 +277,27 @@ export async function startFirestoreRealtimeSync(
 
   const { collection, onSnapshot } = await import('firebase/firestore');
 
+  const listen = (clientId: string, sub: string, snapshotKey: CollectionKey) => {
+    const colRef = collection(db, `${clientDocPath(clientId)}/${sub}`);
+    const unsub = onSnapshot(colRef, (snap: import('firebase/firestore').QuerySnapshot) => {
+      const rows = snap.docs.map((docSnap) => ({
+        ...docSnap.data(),
+        id: docSnap.id,
+        clientId,
+      }));
+      const partial: Partial<LocalV5Snapshot> = {
+        [snapshotKey]: rows,
+      } as Partial<LocalV5Snapshot>;
+      onPartial(partial, { clientId });
+    });
+    realtimeUnsubs.push(unsub);
+  };
+
   for (const clientId of clientIds) {
     for (const sub of REALTIME_SUBS) {
-      const colRef = collection(db, `${clientDocPath(clientId)}/${sub}`);
-      const unsub = onSnapshot(colRef, (snap: import('firebase/firestore').QuerySnapshot) => {
-        const rows = snap.docs.map((docSnap) => ({
-          ...docSnap.data(),
-          id: docSnap.id,
-          clientId,
-        }));
-        const partial: Partial<LocalV5Snapshot> = {
-          [sub]: rows,
-        } as Partial<LocalV5Snapshot>;
-        onPartial(partial, { clientId });
-      });
-      realtimeUnsubs.push(unsub);
+      listen(clientId, sub, (REALTIME_KEY_MAP[sub] || sub) as CollectionKey);
     }
+    // Evidence usa nombre distinto en el snapshot local.
+    listen(clientId, 'evidence', 'evidenceVault');
   }
 }

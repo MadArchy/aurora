@@ -5,6 +5,7 @@ export interface AppHost {
   setTab(tab: string): void;
   showToast(message: string, type?: 'success' | 'warning' | 'info' | 'error'): void;
   openModal(id: string): void;
+  navigateFromNotification?(tab: string, targetId?: string | null): void;
 }
 
 export interface SessionControllerDeps {
@@ -40,9 +41,14 @@ export function bindSessionUi(host: AppHost, deps: SessionControllerDeps): void 
       const el = e.currentTarget as HTMLElement;
       const id = el.getAttribute('data-notification-id');
       const tab = el.getAttribute('data-tab-link');
+      const targetId = el.getAttribute('data-target-id');
       if (id) deps.markRead(id);
       host.closeModal();
-      if (tab) host.setTab(tab);
+      if (tab && host.navigateFromNotification) {
+        host.navigateFromNotification(tab, targetId);
+      } else if (tab) {
+        host.setTab(tab);
+      }
     });
   });
 }

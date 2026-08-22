@@ -67,7 +67,7 @@ export function renderOnboardingWizard(clientId: string, currentStep: number = 1
                 Guardar y continuar luego
               </button>
               <button type="submit" class="btn btn-primary">
-                ${effectiveStep === 6 ? 'Finalizar onboarding' : 'Continuar →'}
+                ${effectiveStep === 6 ? 'Finalizar y crear tesis' : 'Continuar →'}
               </button>
             </div>
           </div>
@@ -212,6 +212,7 @@ function renderStepContent(step: number, client: any, profile: any, displayName:
           <label class="form-label">Reglas Deontológicas Profesionales</label>
           <input type="text" id="onb-compliance" class="form-input" value="${profile?.voicePreferences?.complianceGuidelines || ''}" placeholder="No garantizar resultados, secreto profesional estricto..." />
         </div>
+        <p class="muted small">Al finalizar podrás generar una propuesta de tesis de posicionamiento desde este perfil.</p>
       `;
 
     default:

@@ -6,7 +6,7 @@ function renderSuggestionHint(clientId: string): string {
   const client = dbService.getClientById(clientId);
   if (!client) return '';
 
-  const thesis = dbService.getThesesByClient(clientId).find((t) => t.status === 'ACTIVE');
+  const thesis = dbService.getActiveTheses(clientId)[0];
   const agentRun = runSourceDiscoveryAgent(client, thesis);
   const top = agentRun.recommendations.slice(0, 4);
 
@@ -40,7 +40,7 @@ function renderSuggestionHint(clientId: string): string {
 export function renderSourceRegistryModal(clientId?: string): string {
   const client = clientId ? dbService.getClientById(clientId) : null;
   const sources = clientId ? dbService.getSourcesByClient(clientId) : dbService.getSources();
-  const thesis = clientId ? dbService.getThesesByClient(clientId).find((t) => t.status === 'ACTIVE') : undefined;
+  const thesis = clientId ? dbService.getActiveTheses(clientId)[0] : undefined;
 
   return `
     <div id="source-registry-modal" class="modal-overlay">

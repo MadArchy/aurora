@@ -194,6 +194,96 @@ export interface ProofWallItem {
 export type ThesisStatus = 'DRAFT' | 'UNDER_REVIEW' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 export type ThesisApprovalStatus = 'PENDING' | 'APPROVED' | 'CHANGES_REQUESTED';
 
+/**
+ * Nivel de una audiencia: quién compra, quién abre puertas y quién amplifica.
+ * El scoring pondera distinto cada nivel.
+ */
+export type AudienceTier = 'COMMERCIAL' | 'INFLUENCE' | 'AMPLIFICATION';
+
+export interface ThesisAudience {
+  id: string;
+  name: string;
+  tier: AudienceTier;
+  /** 0-100. Relevancia relativa dentro de su nivel. */
+  weight: number;
+  keywords: string[];
+}
+
+/** Territorio temático de la tesis, con jerarquía opcional por pilar. */
+export interface ThesisTerritory {
+  id: string;
+  name: string;
+  pillar?: string;
+  /** 0-100. Un territorio con peso bajo apenas mueve el score. */
+  weight: number;
+  keywords: string[];
+}
+
+export type ThesisObjectiveKind =
+  | 'BUSINESS'
+  | 'THOUGHT_LEADERSHIP'
+  | 'SPEAKING'
+  | 'INSTITUTIONAL'
+  | 'NETWORK';
+
+export interface ThesisObjective {
+  id: string;
+  kind: ThesisObjectiveKind;
+  /** 0-100. El conjunto debería sumar 100. */
+  weight: number;
+}
+
+/** Perfil de voz multidimensional. Cada eje es 0-100. */
+export interface VoiceProfile {
+  authority: number;
+  technicalDepth: number;
+  academic: number;
+  executive: number;
+  accessible: number;
+  provocative: number;
+  commercial: number;
+  legalPrecision: number;
+  humor: number;
+  style?: string;
+  avoid?: string[];
+}
+
+export interface ThesisLimits {
+  /** Bloquean publicación: si aparecen, la acción recomendada es NO_ACTION. */
+  hardBlocks: string[];
+  /** Restan puntos sin descartar. */
+  softAvoid: string[];
+}
+
+/** Borrador pendiente de aprobación del cliente; la tesis ACTIVE sigue operativa. */
+export interface ThesisPendingRevision {
+  proposed: {
+    title: string;
+    expertIdentity: string;
+    targetAudience: string;
+    secondaryAudience?: string;
+    domain: string;
+    objective: string;
+    proofPoints: string[];
+    differentiator?: string;
+    voiceAndTone: string;
+    complianceRules: string;
+    identityCurrent?: string;
+    perceptionTarget?: string;
+    audiences?: ThesisAudience[];
+    territories?: ThesisTerritory[];
+    objectives?: ThesisObjective[];
+    voiceProfile?: VoiceProfile;
+    limits?: ThesisLimits;
+    priority?: number;
+  };
+  createdAt: string;
+  createdBy: string;
+  note?: string;
+}
+
+export type ThesisEditableFields = ThesisPendingRevision['proposed'];
+
 export interface PositioningThesis {
   id: string;
   organizationId: string;
@@ -215,6 +305,23 @@ export interface PositioningThesis {
   updatedAt: string;
   updatedBy: string;
   clientFeedback?: string;
+  /** Cuando el cliente aprueba (FLOW-17). */
+  clientApprovedAt?: string;
+  /** Cuando el manager activa (FLOW-18). */
+  activatedAt?: string;
+  /** Identidad que el mercado ya reconoce hoy (expertIdentity es la objetivo). */
+  identityCurrent?: string;
+  /** Asociación mental que queremos construir. */
+  perceptionTarget?: string;
+  audiences?: ThesisAudience[];
+  territories?: ThesisTerritory[];
+  objectives?: ThesisObjective[];
+  voiceProfile?: VoiceProfile;
+  limits?: ThesisLimits;
+  /** Desempate cuando varias tesis están activas. Mayor gana. */
+  priority?: number;
+  /** Cambios propuestos que aún no sustituyen la versión ACTIVE. */
+  pendingRevision?: ThesisPendingRevision;
 }
 
 export type SourceType = 'RSS' | 'WEB' | 'API' | 'REGULATORY' | 'ACADEMIC' | 'BLOG' | 'MEDIA' | 'MANUAL' | 'SOCIAL' | 'VIDEO' | 'OTHER';
@@ -299,6 +406,18 @@ export interface Signal {
   };
   /** Evidencia web encontrada por RESEARCH_SIGNALS (Tavily). */
   researchBrief?: SignalResearchBrief;
+  /** Tesis primaria elegida por el router para esta señal. */
+  thesisId?: string;
+  /** Score de la señal contra cada tesis activa, para justificar el enrutado. */
+  thesisScores?: Array<{ thesisId: string; score: number; band: PriorityBand }>;
+  /** Por qué hablar de esto ahora, calculado por whyNowCore. */
+  whyNow?: { score: number; band: 'NOW' | 'SOON' | 'STALE'; reason: string };
+  /** Cómo se resolvió el conflicto entre tesis para esta señal. */
+  routingDecision?: {
+    contested?: boolean;
+    secondaryThesisId?: string;
+    source: 'AUTO' | 'MANUAL';
+  };
 }
 
 export interface ResearchEvidenceItem {
@@ -471,6 +590,25 @@ export interface ContentItem {
   createdAt: string;
   updatedAt: string;
   readyAt?: string;
+  /** Veredicto del Claim Safety Engine sobre el cuerpo del contenido. */
+  claimSafety?: ClaimSafetyVerdictRecord;
+}
+
+/** Resultado persistido de `reviewClaims`, para no re-evaluar en cada render. */
+export interface ClaimSafetyVerdictRecord {
+  verdict: 'PASS' | 'REVIEW' | 'BLOCK';
+  summary: string;
+  reviewedAt: string;
+  /** Huella del texto revisado; si cambia el body, el veredicto queda obsoleto. */
+  contentHash?: string;
+  findings: Array<{
+    kind: string;
+    severity: 'REVIEW' | 'BLOCK';
+    claim: string;
+    detail: string;
+    action: string;
+    supportingEvidenceIds?: string[];
+  }>;
 }
 
 export type FeedbackEventKind = 'CLIENT_EDIT' | 'CLIENT_APPROVE' | 'CLIENT_REJECT';
@@ -665,6 +803,12 @@ export interface StrategicScoreResult {
   recommendedAction: RecommendedAction;
   scoringStatus: 'NOT_SCORED' | 'LIMITED_CONTEXT' | 'SCORED' | 'FAILED';
   calculatedAt: string;
+  /** Territorio de la tesis que disparó el match, cuando la tesis está estructurada. */
+  matchedTerritory?: string;
+  /** Audiencia de la tesis a la que apunta la señal. */
+  matchedAudience?: string;
+  /** true cuando un límite duro de la tesis fuerza NO_ACTION. */
+  blockedByLimit?: string;
 }
 
 export interface PrioritizationQuadrant {
@@ -758,6 +902,10 @@ export interface EvidenceVaultItem {
   verifiedAt?: string;
   associatedThesesIds: string[];
   createdAt: string;
+  /** Qué demuestra esta evidencia, en términos del posicionamiento. */
+  supports?: string[];
+  /** 0-100. Cuánta autoridad aporta, distinto de confidenceScore que es confianza en el dato. */
+  authorityWeight?: number;
 }
 
 // ==========================================
@@ -813,6 +961,8 @@ export interface NotificationItem {
   title: string;
   body: string;
   href?: string;
+  /** Tarea, contenido u oportunidad para deep-link desde la bandeja. */
+  targetId?: string;
   read: boolean;
   createdAt: string;
 }
@@ -890,6 +1040,8 @@ export interface CurationEntry {
   organizationId: string;
   clientId: string;
   signalId?: string;
+  /** Tesis que reclamó la señal; se propaga a contenido/tareas. */
+  thesisId?: string;
   topicKey?: string;
   title: string;
   sourceName?: string;

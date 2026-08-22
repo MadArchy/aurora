@@ -7,6 +7,7 @@ import {
   CurationDestination,
   CurationEntry,
   DeliveryPackage,
+  EvidenceVaultItem,
   PositioningAdvice,
   PositioningThesis,
   Signal,
@@ -15,7 +16,8 @@ import {
   TaskType,
   Topic,
 } from '../types';
-import { esc } from '../lib/escape';
+import { esc, escAttr } from '../lib/escape';
+import { computeThesisLearningMetrics, type ThesisLearningMetrics } from '../domain/thesisMetricsCore';
 import { icon } from '../lib/icons';
 import { deriveWorkStage, WORK_STAGE_BADGE, WORK_STAGE_LABELS } from '../domain/workPipeline';
 import { renderPage, normalizeTab } from './PageHeader';
@@ -38,6 +40,25 @@ import {
   clusterSimilarSignals,
   type SignalCluster,
 } from '../domain/signalClusterCore';
+import {
+  AUDIENCE_TIER_LABELS,
+  OBJECTIVE_KIND_LABELS,
+  VOICE_DIMENSION_LABELS,
+  audiencesByTier,
+  normalizeThesis,
+  thesisCompleteness,
+  validateWeights,
+  type NormalizedThesis,
+  type ThesisCompleteness,
+} from '../domain/thesisModelCore';
+import {
+  computePositioningGap,
+  computeThesisStrength,
+  evidenceAuthority,
+  type AuthorityBand,
+  type PositioningGap,
+  type ThesisStrength,
+} from '../domain/thesisStrengthCore';
 import { summarizeSourceHealth } from '../services/sourceHealth';
 import {
   countUnhealthySources,
@@ -52,6 +73,7 @@ import { renderMasterDossierPanel } from './MasterDossierPanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
 import { renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
 import { getLatestTopicAgentRun } from '../services/topicAgent';
+import { canActivateThesis } from '../domain/thesisRevisionCore';
 
 export interface WorkspaceFilters {
   searchQuery?: string;
@@ -61,6 +83,8 @@ export interface WorkspaceFilters {
   topicKey?: string;
   /** Lista clásica vs columnas de triage. */
   radarView?: 'list' | 'triage';
+  /** Tesis seleccionada en Identidad. */
+  thesisId?: string;
 }
 
 const DESTINATION_LABELS: Record<CurationDestination, string> = {
@@ -115,13 +139,17 @@ export function renderClientWorkspace(
   }
 
   const theses = dbService.getThesesByClient(clientId);
-  const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+  const thesis = dbService.resolveThesisFor({
+    clientId,
+    selectedThesisId: filters.thesisId,
+  });
+  const thesisBar = renderThesisContextBar(clientId, theses, filters.thesisId);
 
   switch (normalizeTab(activeTab)) {
     case 'ws-sources':
       return renderPage(
         'ws-sources',
-        renderSources(client, thesis),
+        `${thesisBar}${renderSources(client, thesis)}`,
         `<button id="btn-poll-all-sources" class="btn btn-secondary">Ingerir todas</button>
          <button id="btn-open-source-registry" class="btn btn-secondary" data-client-id="${esc(clientId)}">+ Nueva fuente</button>
          <button id="btn-add-manual-signal" class="btn btn-primary" data-client-id="${esc(clientId)}">+ Señal manual</button>`
@@ -129,35 +157,39 @@ export function renderClientWorkspace(
     case 'ws-tasks':
       return renderPage(
         'ws-tasks',
-        renderTasks(client),
+        `${thesisBar}${renderTasks(client, filters)}`,
         `<button id="btn-open-add-task" class="btn btn-primary" data-client-id="${esc(clientId)}">+ Asignar tarea</button>`
       );
     case 'ws-radar':
       return renderPage(
         'ws-radar',
-        renderRadar(client, thesis, filters),
+        `${thesisBar}${renderRadar(client, thesis, filters)}`,
         `<button class="btn btn-ghost" data-tab="ws-sources">Gestionar fuentes</button>
          <button id="btn-add-manual-signal" class="btn btn-secondary" data-client-id="${esc(clientId)}">+ Señal manual</button>
          <button id="btn-poll-all-sources" class="btn btn-primary">Buscar novedades</button>`
       );
     case 'ws-deliver':
-      return renderPage('ws-deliver', renderDeliver(client, thesis));
+      return renderPage('ws-deliver', `${thesisBar}${renderDeliver(client, thesis)}`);
     case 'ws-positioning':
       return renderPage(
         'ws-positioning',
-        renderPositioning(client, theses),
+        renderPositioning(client, theses, filters),
         `<a class="btn btn-secondary btn-sm" href="#dossier-maestro" style="text-decoration:none;">Ver dossier</a>
-         <button class="btn btn-secondary btn-open-thesis-editor" data-client-id="${esc(clientId)}">Nueva tesis</button>
-         ${thesis ? `<button class="btn btn-secondary btn-challenge-thesis" data-client-id="${esc(clientId)}">Stress-test</button>` : ''}`
+         <button class="btn btn-primary btn-open-thesis-editor" data-client-id="${esc(clientId)}">Nueva tesis</button>`
       );
     case 'ws-production':
       return renderPage(
         'ws-production',
         `<div class="content-stack content-stack-lg">
-           ${renderProductionOverview(client)}
-           ${renderContentPipeline(dbService.getContentByClient(clientId), filters, { showCreate: true, clientId })}
+           ${thesisBar}
+           ${renderProductionOverview(client, filters)}
+           ${renderContentPipeline(
+             dbService.getContentByClient(clientId).filter((c) => !filters.thesisId || c.thesisId === filters.thesisId),
+             filters,
+             { showCreate: true, clientId }
+           )}
            ${renderScientificFocusPanel(client, thesis)}
-           ${renderTasks(client)}
+           ${renderTasks(client, filters)}
          </div>`,
         `<button id="btn-open-add-task" class="btn btn-secondary" data-client-id="${esc(clientId)}">+ Asignar tarea</button>`
       );
@@ -165,8 +197,35 @@ export function renderClientWorkspace(
       return renderPage('ws-results', renderResults(client));
     case 'ws-briefing':
     default:
-      return renderPage('ws-briefing', renderBriefing(client, thesis, filters));
+      return renderPage('ws-briefing', `${thesisBar}${renderBriefing(client, thesis, filters)}`);
   }
+}
+
+/** Selector de contexto de tesis compartido entre pestañas del workspace. */
+function renderThesisContextBar(
+  clientId: string,
+  theses: PositioningThesis[],
+  selectedId?: string
+): string {
+  if (theses.length < 2) return '';
+  const active = theses.filter((t) => t.status === 'ACTIVE');
+  return `
+    <div class="thesis-context-bar" role="group" aria-label="Contexto de tesis">
+      <span class="thesis-context-label">Trabajando sobre</span>
+      <button type="button" class="thesis-context-chip${!selectedId ? ' thesis-context-chip-active' : ''}"
+              data-thesis-select="">
+        Todas
+      </button>
+      ${(active.length ? active : theses).map((t) => `
+        <button type="button"
+                class="thesis-context-chip${selectedId === t.id ? ' thesis-context-chip-active' : ''}"
+                data-thesis-select="${esc(t.id)}"
+                data-client-id="${esc(clientId)}">
+          ${esc(t.title)}
+        </button>
+      `).join('')}
+    </div>
+  `;
 }
 
 // ==========================================
@@ -421,19 +480,25 @@ function renderBriefing(client: Client, thesis: PositioningThesis | undefined, _
             : '<p class="muted small">Sin convocatorias registradas.</p>'}
         </article>
 
-        <article class="context-tile">
+        <article class="context-tile context-tile-wide">
           <header class="context-tile-head">
             <h3>Topic Agent</h3>
-            <button type="button" id="btn-run-topic-agent" class="btn btn-ghost btn-sm" data-client-id="${esc(clientId)}">Actualizar</button>
+            <button type="button" id="btn-run-topic-agent" class="btn btn-ghost btn-sm" data-client-id="${esc(clientId)}">Actualizar ranking</button>
           </header>
           ${topicRun
-            ? `<ul class="context-tile-list">
-                 ${topicRun.items.slice(0, 2).map((item) => `
-                   <li><strong>#${item.rank} ${esc(item.label)}</strong></li>
+            ? `<ol class="topic-agent-ranking">
+                 ${topicRun.items.map((item) => `
+                   <li class="topic-agent-row">
+                     <div class="topic-agent-row-head">
+                       <strong>#${item.rank} ${esc(item.label)}</strong>
+                       <span class="badge badge-progress">${item.signalCount} señal${item.signalCount === 1 ? '' : 'es'}</span>
+                     </div>
+                     <p class="muted small">${esc(item.rationale)}</p>
+                   </li>
                  `).join('')}
-               </ul>
-               <p class="muted small">Actualizado ${new Date(topicRun.run.createdAt).toLocaleDateString('es')}</p>`
-            : '<p class="muted small">Sin ranking. Pulsa Actualizar para generar uno.</p>'}
+               </ol>
+               <p class="muted small">Actualizado ${new Date(topicRun.run.createdAt).toLocaleString('es')}</p>`
+            : '<p class="muted small">Sin ranking. Pulsa «Actualizar ranking» para generar la lista diaria con rationale.</p>'}
         </article>
       </section>
     </div>
@@ -634,6 +699,49 @@ function renderAlsoIn(cluster: SignalCluster | undefined, compact: boolean): str
   `;
 }
 
+/** Qué tesis reclamó la señal, y cuáles quedaron detrás. Solo aparece con varias tesis. */
+function renderThesisAttribution(signal: Signal): string {
+  const scores = signal.thesisScores;
+  if (!scores?.length || scores.length < 2) return '';
+
+  const titles = new Map(
+    dbService.getThesesByClient(signal.clientId || '').map((t) => [t.id, t.title])
+  );
+  const primary = scores.find((s) => s.thesisId === signal.thesisId) || scores[0];
+  const others = scores.filter((s) => s.thesisId !== primary.thesisId);
+  const contested = signal.routingDecision?.contested;
+  const secondaryId = signal.routingDecision?.secondaryThesisId || others[0]?.thesisId;
+
+  return `
+    <div class="signal-thesis-attribution">
+      <p>
+        <strong>${esc(titles.get(primary.thesisId) || 'Tesis')}</strong> ${primary.score}
+        ${others.length
+          ? `· frente a ${others
+              .map((s) => `${esc(titles.get(s.thesisId) || 'otra')} ${s.score}`)
+              .join(', ')}`
+          : ''}
+        ${contested ? '<span class="badge badge-pending">Empate — decide</span>' : ''}
+        ${signal.routingDecision?.source === 'MANUAL' ? '<span class="badge badge-progress">Override manual</span>' : ''}
+      </p>
+      ${contested && secondaryId
+        ? `<div class="row-actions">
+             <button type="button" class="btn btn-secondary btn-sm"
+                     data-thesis-override="${esc(primary.thesisId)}"
+                     data-signal-id="${esc(signal.id)}">
+               Usar ${esc(titles.get(primary.thesisId) || 'primaria')}
+             </button>
+             <button type="button" class="btn btn-secondary btn-sm"
+                     data-thesis-override="${esc(secondaryId)}"
+                     data-signal-id="${esc(signal.id)}">
+               Usar ${esc(titles.get(secondaryId) || 'secundaria')}
+             </button>
+           </div>`
+        : ''}
+    </div>
+  `;
+}
+
 function renderSignalCard(
   signal: Signal,
   thesis: PositioningThesis | undefined,
@@ -654,6 +762,11 @@ function renderSignalCard(
                Score ${score}${band ? ` · ${esc(band)}` : ''}
              </span>`
           : '<span class="badge badge-progress">Sin puntuar</span>'}
+        ${signal.whyNow
+          ? `<span class="why-now-chip why-now-${signal.whyNow.band.toLowerCase()}">
+               ${signal.whyNow.band === 'NOW' ? 'Ahora' : signal.whyNow.band === 'SOON' ? 'Pronto' : 'Sin urgencia'}
+             </span>`
+          : ''}
       </header>
 
       <h4 class="signal-title">${esc(signal.title)}</h4>
@@ -661,6 +774,10 @@ function renderSignalCard(
         ? `<p class="signal-snippet">${esc(signal.contentSnippet.slice(0, 140))}${signal.contentSnippet.length > 140 ? '…' : ''}</p>`
         : `<p class="signal-snippet">${esc(signal.contentSnippet)}</p>`}
 
+      ${signal.whyNow
+        ? `<p class="why-now-reason"><strong>Why now:</strong> ${esc(signal.whyNow.reason)}</p>`
+        : ''}
+      ${renderThesisAttribution(signal)}
       ${renderAlsoIn(cluster, compact)}
       ${renderScoreBreakdown(signal, compact)}
 
@@ -776,6 +893,13 @@ function renderTriageColumn(
 
 function renderRadar(client: Client, thesis: PositioningThesis | undefined, filters: WorkspaceFilters): string {
   const clientId = client.id;
+  const activeTheses = dbService.getActiveTheses(clientId);
+  const scoringThesis =
+    thesis?.status === 'ACTIVE'
+      ? thesis
+      : filters.thesisId
+        ? activeTheses.find((t) => t.id === filters.thesisId)
+        : activeTheses[0];
   const allSignals = dbService.getSignalsByClient(clientId);
   const topics = buildTopics(clientId, allSignals);
   const radarView = filters.radarView === 'list' ? 'list' : 'triage';
@@ -789,6 +913,7 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
 
   const visible = allSignals.filter((s) => {
     if (s.status === 'DISCARDED') return false;
+    if (filters.thesisId && s.thesisId && s.thesisId !== filters.thesisId) return false;
     if (query && !s.title.toLowerCase().includes(query) && !s.contentSnippet.toLowerCase().includes(query)) return false;
     if (sourceFilter !== 'ALL' && s.sourceType !== sourceFilter) return false;
     if (bandFilter !== 'ALL' && s.priorityBand !== bandFilter) return false;
@@ -815,14 +940,16 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
            ${conversion.usefulRate !== null ? `<span class="muted small">Tasa útil: ${conversion.usefulRate}%</span>` : ''}
          </div>`
       : ''}
-    ${!thesis
+    ${!scoringThesis
       ? `<div class="info-strip warn">
-           <span>Sin tesis activa no se puede calcular el score estratégico. Las señales se muestran sin puntuar.</span>
+           <span>Sin tesis <strong>ACTIVE</strong> el radar no puntuará señales. Activa una tesis en Identidad o completa y envía una al cliente.</span>
+           <button type="button" class="btn btn-secondary btn-sm" data-tab="ws-positioning">Ir a Identidad</button>
          </div>`
       : unscored > 0
         ? `<div class="info-strip">
              <span>${unscored} señal(es) sin puntuar.</span>
-             <button id="btn-score-all-signals" class="btn btn-secondary btn-sm" data-client-id="${esc(clientId)}">
+             <button id="btn-score-all-signals" class="btn btn-secondary btn-sm" data-client-id="${esc(clientId)}"
+                     ${scoringThesis ? '' : 'disabled title="Requiere una tesis ACTIVE"'}>
                Puntuar todas
              </button>
            </div>`
@@ -1200,74 +1327,499 @@ function renderDeliver(client: Client, thesis: PositioningThesis | undefined): s
 // Posicionamiento
 // ==========================================
 
-function renderPositioning(client: Client, theses: PositioningThesis[]): string {
+/** Orden de exhibición: activas primero, luego por prioridad declarada. */
+function sortThesesForBoard(theses: PositioningThesis[]): PositioningThesis[] {
+  const statusRank: Record<string, number> = { ACTIVE: 0, UNDER_REVIEW: 1, DRAFT: 2, PAUSED: 3, ARCHIVED: 4 };
+  return theses.slice().sort((a, b) => {
+    const byStatus = (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
+    if (byStatus !== 0) return byStatus;
+    const byPriority = (b.priority ?? 0) - (a.priority ?? 0);
+    if (byPriority !== 0) return byPriority;
+    return a.title.localeCompare(b.title, 'es');
+  });
+}
+
+function renderWeightRow(label: string, weight: number, meta?: string): string {
+  const pct = Math.max(0, Math.min(100, Math.round(weight)));
+  return `
+    <div class="weight-row">
+      <div class="weight-row-head">
+        <span class="weight-row-label">${esc(label)}</span>
+        <strong class="weight-row-value">${pct}</strong>
+      </div>
+      <div class="progress-track progress-track-sm">
+        <div class="progress-fill ${pct >= 70 ? 'progress-green' : pct >= 40 ? '' : 'progress-red'}" style="width: ${pct}%"></div>
+      </div>
+      ${meta ? `<p class="weight-row-meta">${esc(meta)}</p>` : ''}
+    </div>
+  `;
+}
+
+function renderThesisIdentityBlock(thesis: PositioningThesis, normalized: NormalizedThesis): string {
+  return `
+    <div class="thesis-block">
+      ${thesis.pendingRevision
+        ? `<p class="warn-strip">Hay una revisión pendiente de aprobación del cliente${
+            thesis.pendingRevision.proposed.title
+              ? ` («${esc(thesis.pendingRevision.proposed.title)}»)`
+              : ''
+          }.</p>`
+        : ''}
+      <h3 class="thesis-block-title">Identidad y percepción</h3>
+      <div class="identity-ladder">
+        <div class="identity-step">
+          <span class="identity-step-label">Hoy reconocen</span>
+          <p>${normalized.identityCurrent
+            ? esc(normalized.identityCurrent)
+            : '<span class="muted">Sin declarar. Sin esto no se puede medir la brecha.</span>'}</p>
+        </div>
+        <div class="identity-step identity-step-target">
+          <span class="identity-step-label">Queremos que reconozcan</span>
+          <p>${esc(normalized.identityTarget || 'Sin identidad objetivo.')}</p>
+        </div>
+        <div class="identity-step">
+          <span class="identity-step-label">Asociación mental objetivo</span>
+          <p>${normalized.perceptionTarget
+            ? esc(normalized.perceptionTarget)
+            : '<span class="muted">Sin percepción objetivo declarada.</span>'}</p>
+        </div>
+      </div>
+      ${thesis.differentiator
+        ? `<p class="thesis-differentiator"><span class="thesis-block-hint">Ángulo único:</span> ${esc(thesis.differentiator)}</p>`
+        : ''}
+    </div>
+  `;
+}
+
+function renderThesisAudienceBlock(normalized: NormalizedThesis): string {
+  const groups = audiencesByTier(normalized.audiences);
+  if (!groups.length) return '';
+
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Audiencias</h3>
+      <p class="thesis-block-hint">Quién compra, quién abre puertas y quién amplifica.</p>
+      <div class="audience-tiers">
+        ${groups.map((group) => `
+          <div class="audience-tier">
+            <h4 class="audience-tier-title">${esc(AUDIENCE_TIER_LABELS[group.tier])}</h4>
+            ${group.items.map((item) => renderWeightRow(item.name, item.weight)).join('')}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderThesisTerritoryBlock(normalized: NormalizedThesis): string {
+  if (!normalized.territories.length) return '';
+
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Territorios</h3>
+      <p class="thesis-block-hint">Mapa de temas con peso: define qué noticia merece atención.</p>
+      ${normalized.territories
+        .slice()
+        .sort((a, b) => b.weight - a.weight)
+        .map((t) => renderWeightRow(t.name, t.weight, t.pillar))
+        .join('')}
+    </div>
+  `;
+}
+
+function renderThesisObjectiveBlock(normalized: NormalizedThesis): string {
+  if (!normalized.objectives.length) return '';
+  const validation = validateWeights(normalized.objectives);
+
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Objetivos</h3>
+      <p class="thesis-block-hint">Contra qué se evalúa cada oportunidad.</p>
+      ${normalized.objectives
+        .slice()
+        .sort((a, b) => b.weight - a.weight)
+        .map((o) => renderWeightRow(OBJECTIVE_KIND_LABELS[o.kind], o.weight))
+        .join('')}
+      ${validation.ok ? '' : `<p class="warn-strip">${esc(validation.message || '')}</p>`}
+    </div>
+  `;
+}
+
+function renderThesisVoiceBlock(normalized: NormalizedThesis): string {
+  const voice = normalized.voiceProfile;
+  const dimensions = Object.keys(VOICE_DIMENSION_LABELS) as Array<keyof typeof VOICE_DIMENSION_LABELS>;
+
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Perfil de voz</h3>
+      <div class="voice-grid">
+        ${dimensions.map((key) => renderWeightRow(VOICE_DIMENSION_LABELS[key], voice[key])).join('')}
+      </div>
+      ${voice.style ? `<p class="thesis-block-hint">${esc(voice.style)}</p>` : ''}
+      ${voice.avoid?.length
+        ? `<p class="muted small">Evitar: ${voice.avoid.map((a) => esc(a)).join(' · ')}</p>`
+        : ''}
+    </div>
+  `;
+}
+
+function renderThesisLimitsBlock(thesis: PositioningThesis, normalized: NormalizedThesis): string {
+  const { hardBlocks, softAvoid } = normalized.limits;
+
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Límites</h3>
+      <div class="limits-split">
+        <div>
+          <h4 class="limits-title limits-title-hard">Bloquean publicación (${hardBlocks.length})</h4>
+          ${hardBlocks.length
+            ? `<ul class="policy-list">${hardBlocks.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`
+            : '<p class="warn-strip">Sin límites duros: nada frena una afirmación arriesgada.</p>'}
+        </div>
+        <div>
+          <h4 class="limits-title">Restan puntos (${softAvoid.length})</h4>
+          ${softAvoid.length
+            ? `<ul class="policy-list">${softAvoid.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`
+            : '<p class="muted small">Sin framings penalizados.</p>'}
+        </div>
+      </div>
+      <div class="limits-split">
+        <div>
+          <h4 class="limits-title">Proof points (${thesis.proofPoints.length})</h4>
+          ${thesis.proofPoints.length
+            ? `<ul class="policy-list">${thesis.proofPoints.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>`
+            : '<p class="warn-strip">Sin proof points: la tesis promete más de lo que puede respaldar.</p>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderThesisCompletenessBlock(
+  completeness: ThesisCompleteness,
+  derived: boolean,
+  clientId: string,
+  thesisId: string
+): string {
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Estructura de la tesis</h3>
+      <div class="completeness-head">
+        <strong class="completeness-value">${completeness.score}<span>/100</span></strong>
+        <div class="progress-track">
+          <div class="progress-fill ${completeness.score >= 70 ? 'progress-green' : completeness.score >= 40 ? '' : 'progress-red'}" style="width: ${completeness.score}%"></div>
+        </div>
+      </div>
+      ${derived
+        ? '<p class="muted small">Los bloques sin declarar se derivan del texto libre para que el scoring siga funcionando.</p>'
+        : '<p class="muted small">Todos los bloques están declarados explícitamente.</p>'}
+      ${completeness.missing.length
+        ? `<ul class="completeness-missing">
+             ${completeness.missing.map((block) => `
+               <li>
+                 <strong>${esc(block.label)}</strong>
+                 <span>${esc(block.hint)}</span>
+                 <button type="button" class="btn btn-ghost btn-sm btn-focus-thesis-block"
+                         data-client-id="${escAttr(clientId)}"
+                         data-thesis-id="${escAttr(thesisId)}"
+                         data-focus-block="${escAttr(block.key)}">
+                   Completar
+                 </button>
+               </li>
+             `).join('')}
+           </ul>`
+        : ''}
+    </div>
+  `;
+}
+
+const AUTHORITY_BAND_LABELS: Record<AuthorityBand, string> = {
+  WEAK: 'Sin respaldo',
+  EMERGING: 'Emergente',
+  SOLID: 'Sólida',
+  DOMINANT: 'Dominante',
+};
+
+function renderThesisLearningBlock(metrics: ThesisLearningMetrics): string {
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Aprendizaje de esta tesis</h3>
+      <p class="muted small">${esc(metrics.summary)}</p>
+    </div>
+  `;
+}
+
+function renderThesisAuthorityBlock(strength: ThesisStrength): string {
+  const tone = strength.authorityScore >= 55 ? 'progress-green' : strength.authorityScore >= 30 ? '' : 'progress-red';
+
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Authority Score</h3>
+      <p class="thesis-block-hint">Cuánta autoridad real sostiene la promesa de esta tesis.</p>
+      <div class="completeness-head">
+        <strong class="completeness-value">${strength.authorityScore}<span>/100</span></strong>
+        <div class="progress-track">
+          <div class="progress-fill ${tone}" style="width: ${strength.authorityScore}%"></div>
+        </div>
+        <span class="badge ${strength.authorityScore >= 55 ? 'badge-ready' : 'badge-pending'}">
+          ${esc(AUTHORITY_BAND_LABELS[strength.band])}
+        </span>
+      </div>
+      <p class="muted small">${esc(strength.summary)}</p>
+
+      <div class="authority-components">
+        ${strength.components.map((c) => `
+          <div class="authority-component">
+            <div class="weight-row-head">
+              <span class="weight-row-label">${esc(c.label)}</span>
+              <strong class="weight-row-value">${c.points}/${c.maxPoints}</strong>
+            </div>
+            <div class="progress-track progress-track-sm">
+              <div class="progress-fill ${c.score >= 60 ? 'progress-green' : c.score >= 30 ? '' : 'progress-red'}" style="width: ${c.score}%"></div>
+            </div>
+            <p class="weight-row-meta">${esc(c.detail)}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderGapAction(item: PositioningGap['gaps'][number], clientId: string, thesisId: string): string {
+  if (item.kind === 'TERRITORY' && item.evidenceCount === 0) {
+    return `
+      <button type="button" class="btn btn-secondary btn-sm btn-add-evidence-vault"
+              data-client-id="${escAttr(clientId)}">
+        Añadir evidencia
+      </button>`;
+  }
+  if ((item.kind === 'TERRITORY' || item.kind === 'AUDIENCE') && item.contentCount === 0) {
+    return `
+      <button type="button" class="btn btn-secondary btn-sm btn-open-generate-content"
+              data-client-id="${escAttr(clientId)}"
+              data-thesis-id="${escAttr(thesisId)}"
+              data-topic="${escAttr(item.label)}">
+        Generar contenido
+      </button>`;
+  }
+  const focus =
+    item.kind === 'PERCEPTION' ? 'perceptionTarget' : item.kind === 'AUDIENCE' ? 'audiences' : 'territories';
+  return `
+    <button type="button" class="btn btn-ghost btn-sm btn-focus-thesis-block"
+            data-client-id="${escAttr(clientId)}"
+            data-thesis-id="${escAttr(thesisId)}"
+            data-focus-block="${escAttr(focus)}">
+      Completar en editor
+    </button>`;
+}
+
+function renderPositioningGapBlock(gap: PositioningGap, clientId: string, thesisId: string): string {
+  return `
+    <div class="thesis-block">
+      <h3 class="thesis-block-title">Brecha de posicionamiento</h3>
+      <p class="thesis-block-hint">${esc(gap.summary)}</p>
+      ${gap.gaps.length
+        ? `<ul class="gap-list">
+             ${gap.gaps.slice(0, 8).map((item) => `
+               <li class="gap-item gap-item-${item.severity.toLowerCase()}">
+                 <div class="gap-item-head">
+                   <strong>${esc(item.label)}</strong>
+                   <span class="gap-item-severity">${item.severity === 'HIGH' ? 'crítica' : item.severity === 'MEDIUM' ? 'media' : 'baja'}</span>
+                 </div>
+                 <p>${esc(item.detail)}</p>
+                 <p class="gap-item-action">${esc(item.action)}</p>
+                 ${renderGapAction(item, clientId, thesisId)}
+               </li>
+             `).join('')}
+           </ul>`
+        : '<p class="muted small">Sin brechas: cada territorio y audiencia tiene evidencia y contenido.</p>'}
+    </div>
+  `;
+}
+
+function renderEvidenceAssignment(
+  evidence: EvidenceVaultItem[],
+  selected: PositioningThesis | undefined,
+  clientId: string
+): string {
+  if (!evidence.length) {
+    return '<p class="empty-state">Vault vacío. Sin evidencia no se pueden sostener afirmaciones públicas.</p>';
+  }
+
+  const linked = selected ? evidence.filter((e) => e.associatedThesesIds?.includes(selected.id)) : [];
+  const rest = selected ? evidence.filter((e) => !e.associatedThesesIds?.includes(selected.id)) : evidence;
+
+  const row = (item: EvidenceVaultItem, isLinked: boolean) => `
+    <div class="evidence-row">
+      <div>
+        <span class="badge badge-progress">${esc(item.type)}</span>
+        <strong>${esc(item.title)}</strong>
+        <p class="muted small">${esc(item.snippet)}</p>
+        ${item.supports?.length
+          ? `<p class="muted small">Demuestra: ${item.supports.map((s) => esc(s)).join(' · ')}</p>`
+          : ''}
+      </div>
+      <div class="evidence-row-actions">
+        <span class="badge ${item.verified ? 'badge-ready' : 'badge-pending'}">
+          ${item.verified ? 'Verificada' : 'Sin verificar'}
+        </span>
+        <span class="muted small">autoridad ${evidenceAuthority(item)}</span>
+        ${selected
+          ? `<button type="button" class="btn btn-secondary btn-sm"
+                     data-evidence-thesis-toggle="${esc(item.id)}"
+                     data-thesis-id="${esc(selected.id)}"
+                     data-client-id="${esc(clientId)}">
+               ${isLinked ? 'Quitar de la tesis' : 'Asignar a la tesis'}
+             </button>`
+          : ''}
+      </div>
+    </div>
+  `;
+
+  return `
+    ${selected
+      ? `<h4 class="limits-title">Asignada a ${esc(selected.title)} (${linked.length})</h4>
+         ${linked.length
+           ? linked.map((item) => row(item, true)).join('')
+           : '<p class="warn-strip">Ninguna evidencia sostiene esta tesis. El Authority Score se queda en cero.</p>'}
+         <h4 class="limits-title">Resto del vault (${rest.length})</h4>`
+      : ''}
+    ${rest.length
+      ? rest.slice(0, 12).map((item) => row(item, false)).join('')
+      : '<p class="muted small">Todo el vault está conectado a esta tesis.</p>'}
+  `;
+}
+
+function renderPositioning(
+  client: Client,
+  theses: PositioningThesis[],
+  filters: WorkspaceFilters = {}
+): string {
   const clientId = client.id;
-  const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+  const ordered = sortThesesForBoard(theses);
+  const selected =
+    ordered.find((t) => t.id === filters.thesisId) ||
+    ordered.find((t) => t.status === 'ACTIVE') ||
+    ordered[0];
   const profile = dbService.getMasterProfile(clientId);
   const campaigns = dbService.getCampaignsByClient(clientId);
   const evidence = dbService.getEvidenceVaultByClient(clientId);
   const dossier = dbService.getMasterDossier(clientId);
+  const activeCount = ordered.filter((t) => t.status === 'ACTIVE').length;
+  const publishedContent = dbService
+    .getContentByClient(clientId)
+    .filter((item) => item.status === 'PUBLISHED' || item.status === 'READY')
+    .map((item) => ({ id: item.id, title: item.title, body: item.body }));
+
+  const normalized = selected ? normalizeThesis(selected) : null;
+  const completeness = selected ? thesisCompleteness(selected) : null;
+  const strength = selected ? computeThesisStrength(selected, evidence) : null;
+  const gap = selected ? computePositioningGap(selected, evidence, publishedContent) : null;
+  const learning = selected
+    ? computeThesisLearningMetrics({
+        thesis: selected,
+        signals: dbService.getSignalsByClient(clientId),
+        outcomes: dbService.getSignalOutcomes(clientId),
+        content: dbService.getContentByClient(clientId),
+        evidence,
+      })
+    : null;
+  const activationCheck = selected ? canActivateThesis(selected) : null;
 
   return `
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h3>Tesis de posicionamiento</h3>
-          <p>El filtro maestro que define qué temas se publican y ante quién.</p>
-        </div>
-        ${thesis
-          ? `<span class="badge ${thesis.clientApprovalStatus === 'APPROVED' ? 'badge-ready' : 'badge-pending'}">
-               ${esc(thesis.status)} · ${thesis.clientApprovalStatus === 'APPROVED' ? 'aprobada' : 'pendiente del cliente'}
-             </span>`
-          : ''}
-      </div>
+    <section class="thesis-board editorial-panel">
+      <p class="section-kicker">Motor de posicionamiento</p>
+      <p class="thesis-board-lead measure">
+        ${ordered.length
+          ? `${ordered.length} tesis registrada${ordered.length === 1 ? '' : 's'}, ${activeCount} activa${activeCount === 1 ? '' : 's'}. Cada tesis define su propia audiencia, territorio y objetivo.`
+          : 'Sin tesis registrada. El radar no puede puntuar señales hasta que exista al menos una.'}
+      </p>
 
-      ${thesis
-        ? `
-          <div class="grid-2">
-            <div class="field-block">
-              <label class="form-label">Identidad experta</label>
-              <p>${esc(thesis.expertIdentity)}</p>
-            </div>
-            <div class="field-block">
-              <label class="form-label">Audiencia primaria</label>
-              <p>${esc(thesis.targetAudience)}</p>
-            </div>
-            <div class="field-block">
-              <label class="form-label">Dominio</label>
-              <p>${esc(thesis.domain)}</p>
-            </div>
-            <div class="field-block">
-              <label class="form-label">Objetivo</label>
-              <p>${esc(thesis.objective)}</p>
-            </div>
-          </div>
-
-          <div class="field-block">
-            <label class="form-label">Proof points (${thesis.proofPoints.length})</label>
-            ${thesis.proofPoints.length
-              ? `<ul class="policy-list">${thesis.proofPoints.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>`
-              : '<p class="warn-strip">Sin proof points: la tesis promete más de lo que puede respaldar.</p>'}
-          </div>
-
-          ${thesis.differentiator ? `
-            <div class="field-block">
-              <label class="form-label">Diferenciador</label>
-              <p>${esc(thesis.differentiator)}</p>
-            </div>` : ''}
-
-          <div class="field-block">
-            <label class="form-label">Límites deontológicos</label>
-            <p>${esc(thesis.complianceRules || 'Sin límites declarados.')}</p>
-          </div>
-
-          <button class="btn btn-secondary btn-sm btn-edit-thesis"
-                  data-client-id="${esc(clientId)}" data-thesis-id="${esc(thesis.id)}">
-            Editar tesis
-          </button>
-        `
-        : '<p class="empty-state">Sin tesis registrada. Créala para activar el radar y el scoring.</p>'}
+      ${ordered.length
+        ? `<div class="thesis-rail" role="tablist" aria-label="Tesis del cliente">
+             ${ordered.map((t) => {
+               const c = thesisCompleteness(t);
+               const s = computeThesisStrength(t, evidence);
+               const isSelected = selected?.id === t.id;
+               return `
+                 <button type="button"
+                         class="thesis-chip${isSelected ? ' thesis-chip-active' : ''}"
+                         role="tab"
+                         aria-selected="${isSelected ? 'true' : 'false'}"
+                         data-thesis-select="${esc(t.id)}">
+                   <span class="thesis-chip-title">${esc(t.title)}</span>
+                   <span class="thesis-chip-meta">
+                     <span class="badge ${t.status === 'ACTIVE' ? 'badge-ready' : 'badge-pending'}">${esc(t.status)}</span>
+                     <span class="thesis-chip-score">autoridad ${s.authorityScore} · estructura ${c.score}</span>
+                   </span>
+                 </button>
+               `;
+             }).join('')}
+           </div>`
+        : ''}
     </section>
+
+    ${selected && normalized && completeness && strength && gap
+      ? `<section class="card thesis-detail">
+           <div class="section-heading">
+             <div class="section-heading-copy">
+               <h2>${esc(selected.title)}</h2>
+               <p>
+                 ${esc(selected.status)} ·
+                 ${selected.clientApprovalStatus === 'APPROVED' ? 'aprobada por el cliente' : 'pendiente del cliente'}
+                 ${normalized.derived ? ' · estructura parcialmente derivada' : ''}
+               </p>
+             </div>
+             <div class="row-actions">
+               <button type="button" class="btn btn-secondary btn-sm btn-challenge-thesis"
+                       data-client-id="${esc(clientId)}" data-thesis-id="${esc(selected.id)}">
+                 Stress-test
+               </button>
+               ${activationCheck?.ok
+                 ? `<button type="button" class="btn btn-success btn-sm btn-activate-thesis"
+                            data-client-id="${esc(clientId)}" data-thesis-id="${esc(selected.id)}">
+                      Activar tesis
+                    </button>`
+                 : selected.status === 'UNDER_REVIEW' && selected.clientApprovalStatus === 'APPROVED'
+                   ? `<span class="muted small" title="${esc(activationCheck?.blockers.join(' · ') || '')}">Pendiente de activación</span>`
+                   : ''}
+               <button type="button" class="btn btn-primary btn-sm btn-edit-thesis"
+                       data-client-id="${esc(clientId)}" data-thesis-id="${esc(selected.id)}">
+                 Editar tesis
+               </button>
+             </div>
+           </div>
+
+           ${selected.status === 'DRAFT'
+             ? '<p class="info-strip">Borrador · invisible para el cliente hasta que pulses «Enviar al cliente».</p>'
+             : selected.status === 'UNDER_REVIEW'
+               ? selected.clientApprovalStatus === 'APPROVED'
+                 ? '<p class="info-strip">Aprobada por el cliente · pulsa «Activar tesis» para usarla en radar y scoring.</p>'
+                 : '<p class="info-strip">En revisión del cliente · el radar no la usa hasta que esté ACTIVE.</p>'
+               : ''}
+
+           ${selected.clientApprovalStatus === 'CHANGES_REQUESTED' && selected.clientFeedback
+             ? `<p class="warn-strip"><strong>Feedback del cliente:</strong> ${esc(selected.clientFeedback)}</p>`
+             : selected.clientApprovalStatus === 'CHANGES_REQUESTED'
+               ? '<p class="warn-strip">El cliente pidió cambios. Ajusta y vuelve a enviar.</p>'
+               : ''}
+
+           <div class="thesis-blocks">
+             ${renderThesisIdentityBlock(selected, normalized)}
+             ${renderThesisAuthorityBlock(strength)}
+             ${learning ? renderThesisLearningBlock(learning) : ''}
+             ${renderPositioningGapBlock(gap, clientId, selected.id)}
+             ${renderThesisCompletenessBlock(completeness, normalized.derived, clientId, selected.id)}
+             ${renderThesisAudienceBlock(normalized)}
+             ${renderThesisTerritoryBlock(normalized)}
+             ${renderThesisObjectiveBlock(normalized)}
+             ${renderThesisVoiceBlock(normalized)}
+             ${renderThesisLimitsBlock(selected, normalized)}
+           </div>
+         </section>`
+      : `<section class="card">
+           <p class="empty-state">Sin tesis registrada. Créala para activar el radar y el scoring.</p>
+         </section>`}
 
     ${dossier
       ? `<details class="card disclosure" id="dossier-maestro">
@@ -1276,7 +1828,7 @@ function renderPositioning(client: Client, theses: PositioningThesis[]): string 
          </details>`
       : ''}
 
-    <details class="card disclosure">
+    <details class="card disclosure" id="proof-wall-section">
       <summary>Pruebas y líneas de servicio</summary>
       <div class="disclosure-body content-stack">
         ${renderProofWall(clientId, { editable: true })}
@@ -1284,19 +1836,17 @@ function renderPositioning(client: Client, theses: PositioningThesis[]): string 
       </div>
     </details>
 
-    <section class="workspace-split">
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3>Perfil maestro</h3>
-            <p>Contexto que alimenta la voz de todo el contenido.</p>
+    <details class="card disclosure">
+      <summary>Perfil maestro (${client.profileCompleteness || 0}% completo)</summary>
+      <div class="disclosure-body content-stack">
+        <div class="section-heading">
+          <div class="section-heading-copy">
+            <p class="muted small">Contexto que alimenta la voz de todo el contenido · onboarding ${esc(client.onboardingStatus)}</p>
           </div>
           <button class="btn btn-secondary btn-sm" id="btn-open-onboarding" data-client-id="${esc(clientId)}">
             Abrir asistente
           </button>
         </div>
-
-        <p class="muted">Completitud: <strong>${client.profileCompleteness || 0}%</strong> · onboarding ${esc(client.onboardingStatus)}</p>
 
         ${profile
           ? `
@@ -1321,57 +1871,45 @@ function renderPositioning(client: Client, theses: PositioningThesis[]): string 
           `
           : '<p class="empty-state">El cliente aún no ha completado el perfil.</p>'}
       </div>
+    </details>
 
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3>Evidence vault</h3>
-            <p>Respaldo verificable de cada afirmación pública.</p>
+    <details class="card disclosure"${strength && strength.evidenceCount === 0 && evidence.length ? ' open' : ''}>
+      <summary>Evidence vault (${evidence.length})${strength?.unassignedCount ? ` · ${strength.unassignedCount} sin asignar` : ''}</summary>
+      <div class="disclosure-body content-stack">
+        <div class="section-heading">
+          <div class="section-heading-copy">
+            <p class="muted small">Cada evidencia asignada a una tesis levanta su Authority Score.</p>
           </div>
-          <button class="btn btn-secondary btn-sm" id="btn-add-evidence-vault" data-client-id="${esc(clientId)}">
+          <button class="btn btn-secondary btn-sm btn-add-evidence-vault" id="btn-add-evidence-vault" data-client-id="${esc(clientId)}">
             + Evidencia
           </button>
         </div>
 
-        ${evidence.length
-          ? evidence.slice(0, 8).map((item) => `
-            <div class="evidence-row">
-              <div>
-                <span class="badge badge-progress">${esc(item.type)}</span>
-                <strong>${esc(item.title)}</strong>
-                <p class="muted small">${esc(item.snippet)}</p>
-              </div>
-              <span class="badge ${item.verified ? 'badge-ready' : 'badge-pending'}">
-                ${item.verified ? 'Verificada' : 'Sin verificar'}
-              </span>
-            </div>
-          `).join('')
-          : '<p class="empty-state">Vault vacío. Sin evidencia no se pueden sostener afirmaciones públicas.</p>'}
+        ${renderEvidenceAssignment(evidence, selected, clientId)}
       </div>
-    </section>
+    </details>
 
     ${campaigns.length
-      ? `<section class="card">
-           <div class="card-header">
-             <div>
-               <h3>Campañas</h3>
-               <p>Progreso de entregables comprometidos.</p>
-             </div>
-           </div>
-           ${campaigns.map((c) => {
-             const pct = c.targetDeliverables ? Math.round((c.completedDeliverables / c.targetDeliverables) * 100) : 0;
-             return `
-               <div class="campaign-block">
-                 <div class="campaign-block-head">
-                   <strong>${esc(c.name)}</strong>
-                   <span class="muted">${c.completedDeliverables}/${c.targetDeliverables}</span>
+      ? `<details class="card disclosure">
+           <summary>Campañas (${campaigns.length})</summary>
+           <div class="disclosure-body content-stack">
+             <p class="muted small">Cada campaña ejecuta una tesis. Las que no apuntan a la tesis seleccionada aparecen atenuadas.</p>
+             ${campaigns.map((c) => {
+               const pct = c.targetDeliverables ? Math.round((c.completedDeliverables / c.targetDeliverables) * 100) : 0;
+               const ownedBySelected = selected ? c.thesisId === selected.id : false;
+               return `
+                 <div class="campaign-block${ownedBySelected ? '' : ' campaign-block-muted'}">
+                   <div class="campaign-block-head">
+                     <strong>${esc(c.name)}</strong>
+                     <span class="muted">${c.completedDeliverables}/${c.targetDeliverables}</span>
+                   </div>
+                   <p class="muted small">${esc(c.description)}</p>
+                   <div class="progress-track"><div class="progress-fill" style="width: ${pct}%"></div></div>
                  </div>
-                 <p class="muted small">${esc(c.description)}</p>
-                 <div class="progress-track"><div class="progress-fill" style="width: ${pct}%"></div></div>
-               </div>
-             `;
-           }).join('')}
-         </section>`
+               `;
+             }).join('')}
+           </div>
+         </details>`
       : ''}
   `;
 }
@@ -1749,27 +2287,37 @@ function renderDiscoveryPanel(client: Client, thesis?: PositioningThesis): strin
 // Tareas asignadas al cliente
 // ==========================================
 
-function renderProductionOverview(client: Client): string {
-  const contents = dbService.getContentByClient(client.id);
-  const tasks = dbService.getTasksByClient(client.id);
+function renderProductionOverview(client: Client, filters: WorkspaceFilters = {}): string {
+  const contents = dbService
+    .getContentByClient(client.id)
+    .filter((item) => !filters.thesisId || item.thesisId === filters.thesisId);
+  const tasks = dbService
+    .getTasksByClient(client.id)
+    .filter((task) => !filters.thesisId || task.thesisId === filters.thesisId);
   const openTasks = tasks.filter((task) => task.status !== 'COMPLETED' && task.status !== 'CANCELLED');
   const managerReview = contents.filter((item) => item.status === 'AI_GENERATED' || item.status === 'DRAFT');
   const clientReview = contents.filter((item) => item.status === 'CLIENT_REVIEW' || item.status === 'CHANGES_REQUESTED');
   const ready = contents.filter((item) => item.status === 'READY' || item.status === 'PUBLISHED');
+  const claimIssues = contents.filter(
+    (item) => item.claimSafety && item.claimSafety.verdict !== 'PASS'
+  ).length;
 
   return `
     <section class="metric-band" aria-label="Estado de producción">
       <div class="metric-band-item"><span class="metric-band-label">Por hacer</span><strong class="metric-band-value">${openTasks.length}</strong><span class="metric-band-hint">tareas activas</span></div>
       <div class="metric-band-item"><span class="metric-band-label">Revisión manager</span><strong class="metric-band-value">${managerReview.length}</strong><span class="metric-band-hint">borradores internos</span></div>
       <div class="metric-band-item"><span class="metric-band-label">Con el cliente</span><strong class="metric-band-value">${clientReview.length}</strong><span class="metric-band-hint">aprobación o ajustes</span></div>
+      <div class="metric-band-item"><span class="metric-band-label">Claim safety</span><strong class="metric-band-value">${claimIssues}</strong><span class="metric-band-hint">REVIEW / BLOCK</span></div>
       <div class="metric-band-item"><span class="metric-band-label">Listo / archivo</span><strong class="metric-band-value">${ready.length}</strong><span class="metric-band-hint">contenido utilizable</span></div>
     </section>
   `;
 }
 
-function renderTasks(client: Client): string {
+function renderTasks(client: Client, filters: WorkspaceFilters = {}): string {
   const clientId = client.id;
-  const allTasks = dbService.getTasksByClient(clientId);
+  const allTasks = dbService
+    .getTasksByClient(clientId)
+    .filter((task) => !filters.thesisId || task.thesisId === filters.thesisId);
   const openTasks = allTasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
   const doneTasks = allTasks.filter((t) => t.status === 'COMPLETED');
 
@@ -1828,8 +2376,14 @@ function renderTaskProvenance(task: Task): string {
 
 function renderTaskRecording(task: Task): string {
   if (task.type !== 'RECORD_VIDEO' || !isPlayableRecordingRef(task.evidenceUrl)) return '';
+  const pipeline = task.contentItemId
+    ? dbService.getContentById(task.contentItemId)?.pipelineStatus
+    : undefined;
   return `
     <div class="task-recording-block" data-recording-task-id="${esc(task.id)}">
+      ${pipeline === 'manager_finalizing'
+        ? '<span class="badge badge-ready">Video recibido · pendiente de revisión</span>'
+        : ''}
       <video
         class="task-recording-video"
         controls

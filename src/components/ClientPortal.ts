@@ -5,10 +5,13 @@ import { renderTaskMetaBadges, KPI_LABELS, kpiLabel } from '../lib/campaignLabel
 import { icon } from '../lib/icons';
 import { renderClientProfileBody } from './ClientProfilePanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
-import { renderClientOpportunitiesBody, renderOpportunityCard } from './OpportunityPanel';
+import { renderClientOpportunitiesBody, renderOpportunityCard, renderOpportunitySpotlight } from './OpportunityPanel';
 import { renderKpiHomeDashboard, renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
 import { CAMP_ADOPTION } from '../data/juanCampaignSeed';
 import { deliveryItemKindLabel, deliveryStatusLabel } from '../domain/deliveryCore';
+import { normalizeThesis, AUDIENCE_TIER_LABELS } from '../domain/thesisModelCore';
+import { computeProfileCoverage } from '../domain/profileCoverage';
+import { thesisForClientReview, thesesAwaitingClientAction } from '../domain/thesisRevisionCore';
 import type { DeliveryPackage } from '../types';
 
 function clientPage(tab: string, body: string): string {
@@ -88,10 +91,18 @@ function renderReceivedBriefings(clientId: string, limit = 5): string {
 
 export function renderClientPortal(
   activeTab: string,
-  clientId: string = 'client_juan_001',
-  activeCampaignId: string | null = CAMP_ADOPTION
+  clientId: string,
+  activeCampaignId: string | null = CAMP_ADOPTION,
+  selectedThesisId?: string,
+  highlightTaskId?: string
 ): string {
-  const client = dbService.getClientById(clientId) || dbService.getClients()[0];
+  const client = dbService.getClientById(clientId);
+  if (!client) {
+    return clientPage(
+      'client-home',
+      `<div class="card"><p class="empty-state">No hay un cliente vinculado a esta sesión. Cierra sesión e inicia de nuevo.</p></div>`
+    );
+  }
   const campaignId = activeCampaignId || undefined;
   const tasks = dbService.getTasksForClient(client.id, campaignId);
   const theses = dbService.getThesesByClient(client.id);
@@ -102,7 +113,7 @@ export function renderClientPortal(
 
   switch (activeTab) {
     case 'client-home':
-      return clientPage('client-home', renderClientHomeBody(client, tasks, effectiveCampaignId));
+      return clientPage('client-home', renderClientHomeBody(client, tasks, effectiveCampaignId, theses, highlightTaskId));
     case 'client-feed':
       return clientPage('client-feed', renderClientTaskFeedBody(client, tasks, opportunities));
     case 'client-content':
@@ -112,13 +123,13 @@ export function renderClientPortal(
     case 'client-profile':
       return clientPage('client-profile', renderClientProfileBody(client.id));
     case 'client-thesis':
-      return clientPage('client-thesis', renderClientThesisBody(client, theses, profile));
+      return clientPage('client-thesis', renderClientThesisBody(client, theses, profile, selectedThesisId));
     case 'client-results':
       return clientPage('client-results', renderClientResultsBody(client));
     case 'client-library':
       return clientPage('client-library', renderClientLibraryBody(client, effectiveCampaignId));
     default:
-      return clientPage('client-home', renderClientHomeBody(client, tasks, effectiveCampaignId));
+      return clientPage('client-home', renderClientHomeBody(client, tasks, effectiveCampaignId, theses, highlightTaskId));
   }
 }
 
@@ -194,6 +205,39 @@ function renderPlanProgress(campaignId: string): string {
   `;
 }
 
+function renderUpcomingMilestones(campaignId: string): string {
+  const camp = dbService.getCampaignById(campaignId);
+  if (!camp?.planDays) return '';
+  const currentDay = dbService.getCurrentPlanDay(campaignId);
+  const upcoming = dbService
+    .getCampaignMilestones(campaignId)
+    .filter((m) => m.status !== 'completed' && m.dayNumber >= currentDay)
+    .slice(0, 3);
+  if (!upcoming.length) return '';
+
+  return `
+    <div class="card plan-milestones-card">
+      <div class="card-header">
+        <div>
+          <h3>Próximos hitos</h3>
+          <p>Lo que viene en el plan a partir del día ${currentDay}.</p>
+        </div>
+      </div>
+      <ul class="plan-milestone-list">
+        ${upcoming.map((m) => `
+          <li class="plan-milestone-item">
+            <span class="plan-milestone-day">Día ${m.dayNumber}</span>
+            <div>
+              <strong>${esc(m.title)}</strong>
+              <span class="muted small">${esc(m.description || '')}</span>
+            </div>
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  `;
+}
+
 function renderCampaignContext(campaignId: string): string {
   const camp = dbService.getCampaignById(campaignId);
   if (!camp) return '';
@@ -245,11 +289,41 @@ function renderWeeklyStrip(campaignId: string, tasks: ReturnType<typeof dbServic
 function renderClientHomeBody(
   client: ReturnType<typeof dbService.getClientById>,
   tasks: ReturnType<typeof dbService.getTasksForClient>,
-  campaignId: string
+  campaignId: string,
+  theses: ReturnType<typeof dbService.getThesesByClient>,
+  highlightTaskId?: string
 ): string {
-  const open = tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
-  const priorities = open.slice(0, 3);
+  const open = tasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+  const priorities = open.slice(0, 5);
   const clientId = client?.id || '';
+  const pendingContent = dbService.getContentByClient(clientId).filter((c) => c.status === 'CLIENT_REVIEW').length;
+  const thesisPending = thesesAwaitingClientAction(theses).length;
+
+  const urgents: Array<{ label: string; detail: string; tab: string; cta: string }> = [];
+  if (thesisPending) {
+    urgents.push({
+      label: `${thesisPending} tesis pendiente${thesisPending === 1 ? '' : 's'} de tu aprobación`,
+      detail: 'Revisa identidad, audiencias y límites antes de activar el radar.',
+      tab: 'client-thesis',
+      cta: 'Revisar tesis',
+    });
+  }
+  if (pendingContent) {
+    urgents.push({
+      label: `${pendingContent} contenido${pendingContent === 1 ? '' : 's'} por revisar`,
+      detail: 'Artículos y guiones esperan tu voz.',
+      tab: 'client-content',
+      cta: 'Abrir revisión',
+    });
+  }
+  if (open.length) {
+    urgents.push({
+      label: `${open.length} acción${open.length === 1 ? '' : 'es'} de la campaña`,
+      detail: 'Grabaciones, revisiones y entregables de esta semana.',
+      tab: 'client-home',
+      cta: 'Ver cola',
+    });
+  }
 
   return `
       <div class="card hero-card client-week-hero">
@@ -273,6 +347,33 @@ function renderClientHomeBody(
 
       ${renderCampaignContext(campaignId)}
 
+      ${urgents.length
+        ? `<section class="card">
+             <div class="section-heading">
+               <div class="section-heading-copy">
+                 <p class="section-kicker">Urgente</p>
+                 <h2>Requiere tu atención</h2>
+               </div>
+             </div>
+             <ul class="urgent-task-list">
+               ${urgents.map((u) => `
+                 <li>
+                   <strong>${esc(u.label)}</strong>
+                   <span class="muted small">${esc(u.detail)}</span>
+                   <button type="button" class="btn btn-ghost btn-sm" data-tab="${esc(u.tab)}" style="align-self:flex-start;margin-top:0.35rem;">
+                     ${esc(u.cta)}
+                   </button>
+                 </li>
+               `).join('')}
+             </ul>
+           </section>`
+        : ''}
+
+      ${renderOpportunitySpotlight(clientId)}
+      ${renderPlanProgress(campaignId)}
+      ${renderUpcomingMilestones(campaignId)}
+      ${renderWeeklyStrip(campaignId, tasks)}
+
       <section class="card">
         <div class="section-heading">
           <div class="section-heading-copy">
@@ -284,7 +385,9 @@ function renderClientHomeBody(
         ${priorities.length
           ? `<div class="priority-list">
                ${priorities.map((task) => `
-                 <div class="priority-item">
+                 <div class="priority-item${highlightTaskId === task.id ? ' priority-item-highlight' : ''}"
+                      id="client-task-${esc(task.id)}"
+                      data-task-id="${esc(task.id)}">
                    <div class="priority-copy">
                      <strong>${esc(task.title)}</strong>
                      <span>${esc(formatDeadline(task.deadline))} · ~${task.estimatedMinutes} min</span>
@@ -311,11 +414,9 @@ function renderClientHomeBody(
       </section>
 
       <details class="card disclosure">
-        <summary>Progreso, semana y métricas</summary>
+        <summary>Métricas de la campaña</summary>
         <div class="disclosure-body content-stack content-stack-lg">
           ${renderClientStats(campaignId, tasks, clientId)}
-          ${renderPlanProgress(campaignId)}
-          ${renderWeeklyStrip(campaignId, tasks)}
           ${renderKpiHomeDashboard(clientId)}
         </div>
       </details>
@@ -416,14 +517,58 @@ function renderClientTaskFeedBody(_client: ReturnType<typeof dbService.getClient
   `;
 }
 
-function renderClientThesisBody(client: ReturnType<typeof dbService.getClientById>, theses: ReturnType<typeof dbService.getThesesByClient>, profile: ReturnType<typeof dbService.getMasterProfile>): string {
-  const activeThesis = theses[0];
-  const clientId = client ? client.id : 'client_juan_001';
-  const campaigns = dbService.getCampaignsByClient(clientId);
+function renderClientThesisBody(
+  client: ReturnType<typeof dbService.getClientById>,
+  theses: ReturnType<typeof dbService.getThesesByClient>,
+  profile: ReturnType<typeof dbService.getMasterProfile>,
+  selectedThesisId?: string
+): string {
+  const awaiting = thesesAwaitingClientAction(theses);
+  const viewable = theses.filter((t) => t.status === 'ACTIVE' || t.status === 'UNDER_REVIEW');
+  const selected =
+    (selectedThesisId ? theses.find((t) => t.id === selectedThesisId) : undefined) ||
+    awaiting[0] ||
+    viewable.find((t) => t.status === 'ACTIVE') ||
+    theses[0];
+  const activeThesis = selected;
+  const reviewThesis = activeThesis ? thesisForClientReview(activeThesis) : undefined;
+  const normalized = reviewThesis ? normalizeThesis(reviewThesis) : null;
+  const clientId = client?.id;
+  if (!clientId) {
+    return `<div class="card"><p class="empty-state">Sin cliente vinculado — no se puede mostrar posicionamiento.</p></div>`;
+  }
+  const campaigns = dbService.getCampaignsByClient(clientId).filter(
+    (c) => !selected || c.thesisId === selected.id
+  );
   const evidenceList = dbService.getEvidenceVaultByClient(clientId);
+  const needsAction =
+    activeThesis &&
+    ((activeThesis.status === 'UNDER_REVIEW' && activeThesis.clientApprovalStatus === 'PENDING') ||
+      (activeThesis.pendingRevision && activeThesis.clientApprovalStatus === 'PENDING'));
+  const coverage = computeProfileCoverage(profile);
 
   return `
     <div class="content-stack content-stack-lg">
+      ${!coverage.meetsPilotThreshold
+        ? `<div class="info-strip profile-coverage-strip">
+             <strong>Perfil en construcción</strong>
+             <span class="muted small">${coverage.totalConfirmed} facts confirmados en ${coverage.sectionsWithFacts} secciones — objetivo: ≥20 en ≥5.</span>
+             <button type="button" class="btn btn-secondary btn-sm" data-tab="client-profile">Completar Mi perfil</button>
+           </div>`
+        : ''}
+      ${viewable.length > 1
+        ? `<div class="thesis-context-bar" role="group" aria-label="Tesis del cliente">
+             <span class="thesis-context-label">Tesis</span>
+             ${viewable.map((t) => `
+               <button type="button"
+                       class="thesis-context-chip${selected?.id === t.id ? ' thesis-context-chip-active' : ''}"
+                       data-client-thesis-select="${esc(t.id)}">
+                 ${esc(t.title)}
+                 ${awaiting.some((a) => a.id === t.id) ? ' · pendiente' : ''}
+               </button>
+             `).join('')}
+           </div>`
+        : ''}
       <!-- Campaigns Tracker (F8-D08) -->
       ${campaigns.length > 0 ? `
         <div class="card">
@@ -452,59 +597,85 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
       <div class="card">
         <div class="card-header">
           <div>
-            <h3>Tu Tesis de Posicionamiento Activa</h3>
+            <h3>${selected?.status === 'UNDER_REVIEW' ? 'Tesis en revisión' : 'Tu tesis de posicionamiento'}</h3>
             <p>El filtro maestro que define qué temas se publican y ante qué público objetivo.</p>
           </div>
           ${activeThesis
-            ? `<span class="badge badge-ready">${esc(activeThesis.status)} · ${esc(activeThesis.clientApprovalStatus)}</span>`
+            ? `<span class="badge ${activeThesis.status === 'ACTIVE' ? 'badge-ready' : 'badge-pending'}">${esc(activeThesis.status)} · ${esc(activeThesis.clientApprovalStatus)}</span>`
             : ''}
         </div>
 
-        ${activeThesis ? `
+        ${reviewThesis && normalized ? `
           <div class="content-stack">
+            ${activeThesis?.pendingRevision
+              ? '<p class="warn-strip">Hay una revisión pendiente propuesta por tu Brand Manager.</p>'
+              : ''}
             <div class="identity-grid">
               <div class="identity-field">
-                <label class="form-label">Identidad Experta</label>
-                <p>
-                  ${esc(activeThesis.expertIdentity)}
-                </p>
+                <label class="form-label">Identidad actual</label>
+                <p>${esc(normalized.identityCurrent || '—')}</p>
               </div>
               <div class="identity-field">
-                <label class="form-label">Audiencia Objetivo</label>
-                <p>
-                  ${esc(activeThesis.targetAudience)}
-                </p>
+                <label class="form-label">Identidad objetivo</label>
+                <p>${esc(reviewThesis.expertIdentity)}</p>
               </div>
               <div class="identity-field">
-                <label class="form-label">Dominio / Disciplina</label>
-                <p>
-                  ${esc(activeThesis.domain)}
-                </p>
+                <label class="form-label">Percepción objetivo</label>
+                <p>${esc(normalized.perceptionTarget || reviewThesis.objective)}</p>
               </div>
               <div class="identity-field">
-                <label class="form-label">Objetivo de Posicionamiento</label>
-                <p>
-                  ${esc(activeThesis.objective)}
-                </p>
+                <label class="form-label">Dominio</label>
+                <p>${esc(reviewThesis.domain)}</p>
               </div>
+            </div>
+
+            <div class="identity-field">
+              <label class="form-label">Audiencias</label>
+              <ul class="policy-list">
+                ${normalized.audiences.map((a) => `<li>${esc(a.name)} · ${esc(AUDIENCE_TIER_LABELS[a.tier])} · ${a.weight}</li>`).join('')
+                  || `<li>${esc(reviewThesis.targetAudience)}</li>`}
+              </ul>
+            </div>
+
+            <div class="identity-field">
+              <label class="form-label">Territorios</label>
+              <ul class="policy-list">
+                ${normalized.territories.map((t) => `<li>${esc(t.name)} · ${t.weight}</li>`).join('')
+                  || `<li>${esc(reviewThesis.domain)}</li>`}
+              </ul>
+            </div>
+
+            <div class="identity-field">
+              <label class="form-label">Límites duros</label>
+              <ul class="policy-list">
+                ${normalized.limits.hardBlocks.map((r) => `<li>${esc(r)}</li>`).join('')
+                  || '<li class="muted">Sin límites duros declarados</li>'}
+              </ul>
             </div>
 
             <div class="identity-field">
               <label class="form-label">Evidencias & Proof Points Registrados</label>
               <ul class="policy-list">
-                ${activeThesis.proofPoints.map(p => `<li>${esc(p)}</li>`).join('')}
+                ${reviewThesis.proofPoints.map(p => `<li>${esc(p)}</li>`).join('')}
               </ul>
             </div>
           </div>
         ` : `
           <p style="color: var(--text-muted);">Sin tesis configurada. Tu Brand Manager aún no ha publicado una tesis para tu aprobación.</p>
         `}
-        ${activeThesis && activeThesis.clientApprovalStatus !== 'APPROVED' ? `
-          <div class="row-actions">
-            <button class="btn btn-success btn-approve-thesis" data-thesis-id="${activeThesis.id}">Aprobar tesis</button>
-            <button class="btn btn-secondary btn-request-thesis-changes" data-thesis-id="${activeThesis.id}">Pedir cambios</button>
+        ${needsAction ? `
+          <div class="form-group">
+            <label class="form-label" for="thesis-change-notes">Si pides cambios, indica qué debe ajustar el manager</label>
+            <textarea id="thesis-change-notes" class="form-textarea" rows="2"
+                      placeholder="Ej. La audiencia comercial está demasiado amplia."></textarea>
           </div>
-        ` : ''}
+          <div class="row-actions">
+            <button class="btn btn-success btn-approve-thesis" data-thesis-id="${activeThesis!.id}">Aprobar tesis</button>
+            <button class="btn btn-secondary btn-request-thesis-changes" data-thesis-id="${activeThesis!.id}">Pedir cambios</button>
+          </div>
+        ` : activeThesis?.status === 'UNDER_REVIEW' && activeThesis.clientApprovalStatus === 'APPROVED'
+          ? '<p class="info-strip">Aprobaste esta tesis. Tu Brand Manager la activará para el radar y el contenido.</p>'
+          : ''}
       </div>
 
       ${renderProofWall(clientId)}
@@ -517,7 +688,7 @@ function renderClientThesisBody(client: ReturnType<typeof dbService.getClientByI
             <h3>Evidence Vault & Verificación de Credenciales (Módulo C)</h3>
             <p>Pruebas verificables, papers y acreditaciones que respaldan el rigor de los contenidos.</p>
           </div>
-          <button id="btn-add-evidence-vault" class="btn btn-secondary btn-sm" data-client-id="${clientId}">
+          <button id="btn-add-evidence-vault" class="btn btn-secondary btn-sm btn-add-evidence-vault" data-client-id="${clientId}">
             + Añadir Evidencia al Vault
           </button>
         </div>
@@ -595,7 +766,10 @@ function renderClientContentReviewBody(
   client: ReturnType<typeof dbService.getClientById>,
   campaignId?: string
 ): string {
-  const clientId = client ? client.id : 'client_juan_001';
+  if (!client) {
+    return `<div class="card"><p class="empty-state">Sin cliente vinculado.</p></div>`;
+  }
+  const clientId = client.id;
   const allContents = dbService.getContentForClient(clientId, campaignId);
   const contents = allContents.filter((item) => item.status === 'CLIENT_REVIEW' || item.status === 'CHANGES_REQUESTED');
   const approved = allContents.filter((item) => item.status === 'READY' || item.status === 'PUBLISHED');
@@ -659,10 +833,13 @@ function renderClientLibraryBody(
   client: ReturnType<typeof dbService.getClientById>,
   campaignId?: string
 ): string {
-  const clientId = client ? client.id : 'client_juan_001';
+  if (!client) {
+    return `<div class="card"><p class="empty-state">Sin cliente vinculado.</p></div>`;
+  }
+  const clientId = client.id;
   const contents = dbService
     .getContentForClient(clientId, campaignId)
-    .filter((item) => item.status === 'READY' || item.status === 'PUBLISHED' || item.status === 'DRAFT');
+    .filter((item) => item.status === 'READY' || item.status === 'PUBLISHED');
   const camp = campaignId ? dbService.getCampaignById(campaignId) : null;
 
   return `
@@ -689,14 +866,17 @@ function renderClientLibraryBody(
 }
 
 function renderClientResultsBody(client: ReturnType<typeof dbService.getClientById>): string {
-  const results = dbService.getResultsByClient(client ? client.id : 'client_juan_001');
+  if (!client) {
+    return `<div class="card"><p class="empty-state">Sin cliente vinculado.</p></div>`;
+  }
+  const results = dbService.getResultsByClient(client.id);
   const kpiOptions = Object.entries(KPI_LABELS)
     .map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`)
     .join('');
 
   return `
-    ${renderKpiSummaryTiles(client ? client.id : 'client_juan_001')}
-    ${renderKpiWeeklyChart(client ? client.id : 'client_juan_001')}
+    ${renderKpiSummaryTiles(client.id)}
+    ${renderKpiWeeklyChart(client.id)}
     <div class="card" style="width:100%;">
       <div class="card-header">
         <div>

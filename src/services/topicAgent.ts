@@ -23,7 +23,7 @@ export function getLatestTopicAgentRun(clientId: string): TopicAgentRunResult | 
 /** Disparo manual del Topic Agent v1 (sin LLM — heurístico + rationale). */
 export function runTopicAgent(clientId: string): TopicAgentRunResult {
   const signals = dbService.getSignalsByClient(clientId);
-  const thesis = dbService.getThesesByClient(clientId).find((t) => t.status === 'ACTIVE');
+  const thesis = dbService.getActiveTheses(clientId)[0];
   const items = rankDailyTopics(clientId, signals, thesis, 5);
 
   const run = dbService.recordAiRun({

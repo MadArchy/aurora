@@ -103,7 +103,7 @@ export async function runResearchSignalsAgent(
   const client = dbService.getClientById(clientId);
   if (!client) throw new Error('CLIENT_NOT_FOUND');
 
-  const thesis = dbService.getThesesByClient(clientId).find((t) => t.status === 'ACTIVE');
+  const thesis = dbService.getActiveTheses(clientId)[0];
   if (!thesis) throw new Error('THESIS_REQUIRED');
 
   const max = options?.maxSignals ?? 3;

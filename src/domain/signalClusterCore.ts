@@ -12,6 +12,8 @@ export interface SignalClusterMember {
   sourceName: string;
   sourceUrl?: string;
   relevanceScore?: number;
+  /** Necesario para medir a qué velocidad los medios recogen la historia. */
+  detectedAt?: string;
 }
 
 export interface SignalCluster {
@@ -123,6 +125,7 @@ export function clusterSimilarSignals(signals: Signal[], minSimilarity = 0.45): 
         sourceName: m.sourceName,
         sourceUrl: m.sourceUrl,
         relevanceScore: m.relevanceScore,
+        detectedAt: m.detectedAt,
       })),
       memberCount: members.length,
       alsoIn,

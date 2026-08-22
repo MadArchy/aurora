@@ -1,6 +1,14 @@
 import { dbService } from '../services/db';
+import { authService } from '../services/auth';
 import { esc, escAttr, nl2br } from '../lib/escape';
 import { renderDeliveryBriefingCard } from './ClientPortal';
+import { renderClaimSafetyPanel } from './ClaimSafetyPanel';
+import { hasArticleSectionMarkers } from '../domain/articleReviewCore';
+import { mapLegacyContentStatus } from '../domain/contentPipeline';
+import {
+  thesisChallengeOutcomeLabel,
+  type ThesisChallengeResult,
+} from '../domain/thesisChallengeCore';
 
 export function renderTeleprompterModal(taskId: string): string {
   const task = dbService.getAllTasks().find(t => t.id === taskId);
@@ -39,28 +47,28 @@ export function renderTeleprompterModal(taskId: string): string {
           </div>
         </div>
 
-        <div id="teleprompter-phase-record" class="teleprompter-controls">
-          <button id="btn-teleprompter-play" class="btn btn-primary btn-sm" type="button">
+        <div id="teleprompter-phase-record" class="teleprompter-controls teleprompter-action-bar">
+          <button id="btn-teleprompter-play" class="btn btn-primary teleprompter-touch-btn" type="button">
             Iniciar desplazamiento
           </button>
           <label class="teleprompter-speed-control">
             <span class="muted small">Velocidad</span>
             <input id="teleprompter-speed" type="range" min="1" max="5" value="2" />
           </label>
-          <button id="btn-start-recording" class="btn btn-danger btn-sm" type="button">
+          <button id="btn-start-recording" class="btn btn-danger teleprompter-touch-btn" type="button">
             Grabar
           </button>
-          <button id="btn-stop-recording" class="btn btn-secondary btn-sm hidden" type="button">
+          <button id="btn-stop-recording" class="btn btn-secondary teleprompter-touch-btn hidden" type="button">
             Detener
           </button>
         </div>
 
-        <div id="teleprompter-phase-preview" class="teleprompter-controls teleprompter-preview-controls hidden">
+        <div id="teleprompter-phase-preview" class="teleprompter-controls teleprompter-preview-controls teleprompter-action-bar hidden">
           <p class="muted small teleprompter-preview-copy">Revisa tu toma antes de enviarla al manager.</p>
-          <button id="btn-retake-recording" class="btn btn-secondary btn-sm" type="button">
+          <button id="btn-retake-recording" class="btn btn-secondary teleprompter-touch-btn" type="button">
             Volver a grabar
           </button>
-          <button id="btn-confirm-send-recording" class="btn btn-success btn-sm" data-task-id="${escAttr(taskId)}" type="button">
+          <button id="btn-confirm-send-recording" class="btn btn-success teleprompter-touch-btn" data-task-id="${escAttr(taskId)}" type="button">
             Enviar video al manager
           </button>
         </div>
@@ -167,10 +175,58 @@ export function renderComparativeModal(result: any): string {
   `;
 }
 
-export function renderChallengeModal(thesisTitle: string, challenge: any): string {
+export function renderChallengeModal(
+  thesisTitle: string,
+  challenge: ThesisChallengeResult,
+  context?: { clientId: string; thesisId: string; thesisStatus?: string }
+): string {
+  const riskClass =
+    challenge.riskScore >= 65 ? 'challenge-risk-high' : challenge.riskScore >= 40 ? 'challenge-risk-mid' : 'challenge-risk-low';
+  const outcomeClass =
+    challenge.outcome === 'READY'
+      ? 'badge-ready'
+      : challenge.outcome === 'SPLIT'
+        ? 'badge-pending'
+        : 'badge-progress';
+
+  const actions: string[] = [];
+  if (context) {
+    if (challenge.primaryAction === 'edit' || challenge.outcome === 'REFINE') {
+      actions.push(`
+        <button type="button" id="btn-challenge-edit-thesis" class="btn btn-primary"
+                data-client-id="${escAttr(context.clientId)}"
+                data-thesis-id="${escAttr(context.thesisId)}">
+          Editar tesis
+        </button>`);
+    }
+    if (challenge.primaryAction === 'split' || challenge.outcome === 'SPLIT') {
+      actions.push(`
+        <button type="button" id="btn-challenge-split-thesis" class="btn btn-secondary"
+                data-client-id="${escAttr(context.clientId)}"
+                data-split-hint="${escAttr(challenge.splitHint || '')}">
+          Crear segunda tesis
+        </button>`);
+    }
+    if (challenge.primaryAction === 'vault' || challenge.outcome === 'PAUSE') {
+      actions.push(`
+        <button type="button" id="btn-challenge-open-vault" class="btn btn-secondary"
+                data-client-id="${escAttr(context.clientId)}">
+          Revisar evidencia
+        </button>`);
+    }
+    if (challenge.primaryAction === 'submit' && context.thesisStatus === 'DRAFT') {
+      actions.push(`
+        <button type="button" id="btn-challenge-submit-thesis" class="btn btn-primary"
+                data-client-id="${escAttr(context.clientId)}"
+                data-thesis-id="${escAttr(context.thesisId)}">
+          Enviar al cliente
+        </button>`);
+    }
+  }
+
   return `
     <div id="challenge-modal" class="modal-overlay">
-      <div class="modal-content" style="max-width: 650px;">
+      <div class="modal-content challenge-modal-content">
         <div class="modal-header">
           <div class="modal-header-copy">
             <h3>Stress-test de la tesis</h3>
@@ -179,18 +235,25 @@ export function renderChallengeModal(thesisTitle: string, challenge: any): strin
           <button id="btn-close-challenge" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
-        <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.25rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <span class="badge badge-ready">Estado: ${esc(challenge.status)}</span>
-            <span style="font-size: 0.85rem; color: #10b981; font-weight: 700;">Riesgo de Saturación: ${esc(challenge.riskScore)}% (Bajo)</span>
+        <div class="challenge-summary">
+          <div class="challenge-summary-head">
+            <span class="badge ${outcomeClass}">${esc(thesisChallengeOutcomeLabel(challenge.outcome))}</span>
+            <span class="challenge-risk ${riskClass}">Riesgo estratégico: ${esc(challenge.riskScore)}%</span>
           </div>
-          <ul style="padding-left: 1.25rem; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.8;">
-            ${(challenge.recommendations || []).map((r: string) => `<li>${esc(r)}</li>`).join('')}
+          ${challenge.splitHint ? `<p class="info-strip">${esc(challenge.splitHint)}</p>` : ''}
+          ${challenge.findings.length
+            ? `<ul class="challenge-findings">
+                 ${challenge.findings.map((f) => `<li class="challenge-finding-${f.severity}">${esc(f.message)}</li>`).join('')}
+               </ul>`
+            : ''}
+          <ul class="challenge-recommendations">
+            ${(challenge.recommendations || []).map((r) => `<li>${esc(r)}</li>`).join('')}
           </ul>
         </div>
 
-        <div style="display: flex; justify-content: flex-end;">
-          <button id="btn-close-challenge-bottom" class="btn btn-primary">Cerrar Diagnóstico</button>
+        <div class="modal-footer challenge-modal-footer">
+          ${actions.join('')}
+          <button id="btn-close-challenge-bottom" class="btn btn-secondary">Cerrar</button>
         </div>
       </div>
     </div>
@@ -198,6 +261,7 @@ export function renderChallengeModal(thesisTitle: string, challenge: any): strin
 }
 
 export function renderAddEvidenceModal(clientId: string): string {
+  const theses = dbService.getThesesByClient(clientId);
   return `
     <div id="add-evidence-modal" class="modal-overlay">
       <div class="modal-content">
@@ -221,6 +285,8 @@ export function renderAddEvidenceModal(clientId: string): string {
                 <option value="CASE_STUDY">Caso de Éxito Corporativo</option>
                 <option value="MEDIA_MENTION">Mención en Prensa de Prestigio</option>
                 <option value="METRIC">Métrica de Impacto Comprobable</option>
+                <option value="AWARD">Premio / Ranking</option>
+                <option value="PATENT">Patente</option>
               </select>
             </div>
 
@@ -230,15 +296,40 @@ export function renderAddEvidenceModal(clientId: string): string {
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Enlace de Verificación / URL</label>
-            <input type="url" id="evidence-url" class="form-input" placeholder="https://..." />
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Peso de autoridad (0-100)</label>
+              <input type="number" id="evidence-authority-weight" class="form-input" value="70" min="0" max="100" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Enlace de Verificación / URL</label>
+              <input type="url" id="evidence-url" class="form-input" placeholder="https://..." />
+            </div>
           </div>
 
           <div class="form-group">
             <label class="form-label">Extracto o Resumen Verificable</label>
             <textarea id="evidence-snippet" class="form-textarea" rows="3" required placeholder="Detalle concreto de la credencial o cita para ser utilizada por los agentes de IA sin alucinaciones..."></textarea>
           </div>
+
+          <div class="form-group">
+            <label class="form-label">Qué demuestra (uno por línea)</label>
+            <textarea id="evidence-supports" class="form-textarea" rows="2" placeholder="Fundador de 3ITAL&#10;Best Lawyers 2026"></textarea>
+          </div>
+
+          ${theses.length
+            ? `<div class="form-group">
+                 <label class="form-label">Asignar a tesis</label>
+                 <div class="checkbox-list">
+                   ${theses.map((t) => `
+                     <label class="checkbox-row">
+                       <input type="checkbox" name="evidence-thesis" value="${escAttr(t.id)}" />
+                       <span>${esc(t.title)}</span>
+                     </label>
+                   `).join('')}
+                 </div>
+               </div>`
+            : ''}
 
           <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
             <button type="button" id="btn-cancel-evidence" class="btn btn-secondary">Cancelar</button>
@@ -255,6 +346,7 @@ export function renderArticleReviewModal(contentId: string, taskId?: string): st
   if (!content) return '';
 
   const wordCount = content.body.trim().split(/\s+/).filter(Boolean).length;
+  const structured = hasArticleSectionMarkers(content.body);
 
   return `
     <div id="article-review-modal" class="modal-overlay">
@@ -282,6 +374,9 @@ export function renderArticleReviewModal(contentId: string, taskId?: string): st
 
           <div class="form-group">
             <label class="form-label" for="article-review-body">Cuerpo del artículo</label>
+            ${structured
+              ? `<p class="muted small article-section-hint">Guion estructurado: conserva los bloques [GANCHO], [DESARROLLO] y [CIERRE] si aplican.</p>`
+              : ''}
             <textarea id="article-review-body" class="form-textarea article-review-body" rows="16" required>${esc(content.body)}</textarea>
             <p class="muted small">Edita el borrador para que suene a ti. Al guardar registramos los cambios para tu Brand Manager.</p>
           </div>
@@ -311,6 +406,15 @@ export function renderContentDiffModal(contentId: string): string {
   const latestEdit = events.find((event) => event.kind === 'CLIENT_EDIT');
   const latestReject = events.find((event) => event.kind === 'CLIENT_REJECT');
   const latestApprove = events.find((event) => event.kind === 'CLIENT_APPROVE');
+  const pipeline = content.pipelineStatus || mapLegacyContentStatus(content.status);
+  const readyToFinalize = pipeline === 'client_submitted' || pipeline === 'manager_finalizing' || Boolean(latestApprove);
+
+  const pipelineLabels: Record<string, string> = {
+    sent_to_client: 'Enviado al cliente',
+    client_in_progress: 'Cliente editando',
+    client_submitted: 'Aprobado por cliente',
+    manager_finalizing: 'Manager finalizando',
+  };
 
   return `
     <div id="content-diff-modal" class="modal-overlay">
@@ -318,10 +422,17 @@ export function renderContentDiffModal(contentId: string): string {
         <header class="article-review-header">
           <div>
             <h3>Cambios del cliente</h3>
-            <p class="muted small">${esc(content.title)}</p>
+            <p class="muted small">${esc(content.title)} · ${esc(pipelineLabels[pipeline] || pipeline)}</p>
           </div>
           <button id="btn-close-content-diff" class="btn btn-secondary btn-sm teleprompter-close" type="button" aria-label="Cerrar">✕</button>
         </header>
+
+        ${readyToFinalize
+          ? `<div class="article-review-notes">
+               <strong>Listo para finalizar</strong>
+               <p class="muted small">El cliente aprobó o envió cambios. Abre el editor manager para pulir y marcar como listo.</p>
+             </div>`
+          : ''}
 
         ${latestEdit?.diffSummary
           ? `<div class="diff-summary-bar">
@@ -348,9 +459,11 @@ export function renderContentDiffModal(contentId: string): string {
 
         <div class="article-review-actions">
           <button type="button" id="btn-close-content-diff-bottom" class="btn btn-secondary">Cerrar</button>
-          <button type="button" class="btn btn-primary btn-open-content-editor" data-content-id="${escAttr(contentId)}">
-            Abrir editor manager
-          </button>
+          ${authService.getCurrentUser()?.role === 'ADMIN'
+            ? `<button type="button" class="btn btn-primary btn-open-content-editor" data-content-id="${escAttr(contentId)}">
+                 Abrir editor manager
+               </button>`
+            : ''}
         </div>
       </div>
     </div>
@@ -372,7 +485,7 @@ export function renderContentEditorModal(contentId: string): string {
           <button id="btn-close-content-editor" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
-        <form id="form-edit-content" data-content-id="${content.id}">
+        <form id="form-edit-content" data-content-id="${content.id}" data-client-id="${escAttr(content.clientId)}" data-thesis-id="${escAttr(content.thesisId || '')}">
           <div class="form-group">
             <label class="form-label">Título del Contenido</label>
             <input type="text" id="edit-content-title" class="form-input" value="${escAttr(content.title)}" required />
@@ -419,6 +532,17 @@ export function renderContentEditorModal(contentId: string): string {
           <div class="form-group">
             <label class="form-label">Notas del Brand Manager / Indicaciones de Grabación</label>
             <input type="text" id="edit-content-notes" class="form-input" value="${escAttr(content.managerNotes || '')}" placeholder="Ej. Grabar con energía en los primeros 8 segundos..." />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Claim safety</label>
+            <div id="claim-safety-live">
+              ${renderClaimSafetyPanel(content.claimSafety)}
+            </div>
+            <label id="claim-review-ack-row" class="claim-review-ack${content.claimSafety?.verdict === 'REVIEW' ? '' : ' hidden'}">
+              <input type="checkbox" id="claim-review-ack" />
+              Confirmo que revisé las afirmaciones señaladas
+            </label>
           </div>
 
           <div class="modal-footer">
@@ -513,6 +637,10 @@ export function renderContentPreviewModal(contentId: string): string {
         ${content.managerNotes
           ? `<div class="field-block"><label class="form-label">Notas del manager</label><p class="muted small">${esc(content.managerNotes)}</p></div>`
           : ''}
+        <div class="field-block">
+          <label class="form-label">Claim safety</label>
+          ${renderClaimSafetyPanel(content.claimSafety)}
+        </div>
 
         <div class="modal-footer">
           <button type="button" id="btn-close-content-preview-bottom" class="btn btn-primary">Cerrar</button>
@@ -524,8 +652,7 @@ export function renderContentPreviewModal(contentId: string): string {
 
 export function renderAddTaskModal(clientId: string): string {
   const client = dbService.getClientById(clientId);
-  const theses = dbService.getThesesByClient(clientId);
-  const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+  const thesis = dbService.getPrimaryThesis(clientId);
 
   return `
     <div id="add-task-modal" class="modal-overlay">
@@ -614,6 +741,78 @@ export function renderDeliveryPreviewModal(packageId: string): string {
             Confirmar y enviar
           </button>
         </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderGenerateContentModal(
+  clientId: string,
+  options?: { thesisId?: string; topic?: string }
+): string {
+  const theses = dbService.getThesesByClient(clientId);
+  const preferred =
+    (options?.thesisId && theses.find((t) => t.id === options.thesisId)) ||
+    dbService.resolveThesisFor({ clientId, selectedThesisId: options?.thesisId }) ||
+    dbService.getPrimaryThesis(clientId);
+  const selectedId = preferred?.id || theses[0]?.id || '';
+  const topic = options?.topic || '';
+
+  return `
+    <div id="generate-content-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-header-copy">
+            <h3>Nuevo contenido</h3>
+            <p>Elige tesis, formato y tema. La voz de la tesis se aplica al borrador.</p>
+          </div>
+          <button id="btn-close-generate-content" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
+        </div>
+
+        ${theses.length
+          ? `<form id="form-generate-content" data-client-id="${escAttr(clientId)}">
+               <div class="form-group">
+                 <label class="form-label" for="generate-thesis">Tesis</label>
+                 <select id="generate-thesis" class="form-select" required>
+                   ${theses.map((thesis) => `
+                     <option value="${escAttr(thesis.id)}" ${thesis.id === selectedId ? 'selected' : ''}>
+                       ${esc(thesis.title)}${thesis.status === 'ACTIVE' ? '' : ' (inactiva)'}
+                     </option>
+                   `).join('')}
+                 </select>
+               </div>
+
+               <div class="form-group">
+                 <label class="form-label" for="generate-format">Formato</label>
+                 <select id="generate-format" class="form-select">
+                   <option value="LINKEDIN_ARTICLE">Artículo LinkedIn</option>
+                   <option value="THOUGHT_LEADERSHIP">Columna de opinión</option>
+                   <option value="VIDEO_SCRIPT">Guion de video</option>
+                   <option value="ACADEMIC_PAPER">Artículo científico</option>
+                 </select>
+               </div>
+
+               <div class="form-group">
+                 <label class="form-label" for="generate-topic">Tema</label>
+                 <textarea id="generate-topic" class="form-textarea" rows="3" required
+                           placeholder="Ej. Lo que un General Counsel debe exigir antes de adoptar un copiloto de IA">${esc(topic)}</textarea>
+               </div>
+
+               <div class="form-group">
+                 <label class="form-label" for="generate-angle">Ángulo o matiz de voz (opcional)</label>
+                 <input type="text" id="generate-angle" class="form-input"
+                        placeholder="Ej. diagnóstico, sin hype, dirigido a GC" />
+               </div>
+
+               <div class="modal-footer">
+                 <button type="button" id="btn-cancel-generate-content" class="btn btn-secondary">Cancelar</button>
+                 <button type="submit" class="btn btn-primary">Redactar borrador</button>
+               </div>
+             </form>`
+          : `<p class="empty-state">Define una tesis antes de generar contenido.</p>
+             <div class="modal-footer">
+               <button type="button" id="btn-cancel-generate-content" class="btn btn-secondary">Cerrar</button>
+             </div>`}
       </div>
     </div>
   `;

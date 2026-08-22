@@ -71,7 +71,7 @@ export function mapOpportunityLifecycle(opp: Opportunity): OpportunityLifecycleS
     case 'IN_PROGRESS':
       return 'checklist';
     case 'ACCEPTED':
-      return opp.submissionChecklist?.every((item) => item.done) ? 'checklist' : 'accepted';
+      return opp.submissionChecklist?.length ? 'checklist' : 'accepted';
     default:
       return 'proposed';
   }

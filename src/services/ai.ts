@@ -10,13 +10,33 @@ import {
   AIRouterDecision,
   StrategicScoreResult,
   AIComparativeResult,
+  ClaimSafetyVerdictRecord,
+  ThesisEditableFields,
 } from '../types';
 import { auditService } from './audit';
 import { authService } from './auth';
 import { dbService } from './db';
-import { calculateStrategicScore } from './scoring';
+import { calculateStrategicScore, type ScoringContext } from './scoring';
 import { assertAiQuota, assertComparativeAllowed } from './entitlements';
 import { academicDraftSkeleton } from '../domain/scientificFocusCore';
+import { reviewClaims } from '../domain/claimSafetyCore';
+import { normalizeThesis } from '../domain/thesisModelCore';
+import { buildThesisProposalFromProfile } from '../domain/thesisProposalCore';
+import {
+  evaluateThesisChallenge,
+  mapLegacyChallengeStatus,
+  mergeChallengeWithAi,
+  type ThesisChallengeResult,
+} from '../domain/thesisChallengeCore';
+
+/** Hash síncrono liviano para invalidar claim safety cuando cambia el texto. */
+function simpleContentHash(text: string): string {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return `h${hash.toString(16)}`;
+}
 
 class AIService {
   private sessionId: string | null = null;
@@ -118,8 +138,12 @@ class AIService {
     };
   }
 
-  public calculateStrategicScore(signal: Signal, thesis: PositioningThesis): StrategicScoreResult {
-    return calculateStrategicScore(signal, thesis);
+  public calculateStrategicScore(
+    signal: Signal,
+    thesis: PositioningThesis,
+    context?: ScoringContext
+  ): StrategicScoreResult {
+    return calculateStrategicScore(signal, thesis, context);
   }
 
   private async complete(agent: AgentType, prompt: string): Promise<{ text: string; provider: AIProvider; modelName: string; promptTokens: number; completionTokens: number; latencyMs: number } | null> {
@@ -185,8 +209,12 @@ class AIService {
     return parsed;
   }
 
-  public async analyzeSignalAgainstThesis(signal: Signal, thesis: PositioningThesis): Promise<Omit<Recommendation, 'id' | 'createdAt'> & { usedLiveModel: boolean }> {
-    const scoring = calculateStrategicScore(signal, thesis);
+  public async analyzeSignalAgainstThesis(
+    signal: Signal,
+    thesis: PositioningThesis,
+    scoringContext?: ScoringContext
+  ): Promise<Omit<Recommendation, 'id' | 'createdAt'> & { usedLiveModel: boolean }> {
+    const scoring = calculateStrategicScore(signal, thesis, scoringContext);
     let usedLiveModel = false;
     let proposedAngle = `Impacto: "${signal.title}" para ${thesis.targetAudience}.`;
     let rationale = scoring.strategicRationale;
@@ -284,40 +312,216 @@ class AIService {
     };
   }
 
-  public async challengeThesis(thesis: PositioningThesis): Promise<{ status: 'SOLID' | 'VULNERABLE' | 'SATURATED'; recommendations: string[]; riskScore: number }> {
+  public async generateThesisProposal(clientId: string): Promise<ThesisEditableFields> {
+    const client = dbService.getClientById(clientId);
+    const profile = dbService.getMasterProfile(clientId);
+    const dossier = dbService.getMasterDossier(clientId);
+    const evidence = dbService.getEvidenceVaultByClient(clientId);
+    const fallback = buildThesisProposalFromProfile({ client, profile, dossier, evidence });
+
+    if (!client) return fallback;
+
+    const context = {
+      name: client.displayName || client.firstName,
+      profession: profile?.career?.profession || client.profession,
+      selfDescription: profile?.identity?.selfDescription,
+      primaryGoal: profile?.goals?.primaryGoal,
+      audience: profile?.audience?.targetAudienceDescription,
+      industries: profile?.audience?.targetIndustries,
+      dossierTagline: dossier?.taglineEn,
+      topicsToOwn: dossier?.topicsToOwn,
+      proofPoints: fallback.proofPoints,
+      compliance: profile?.voicePreferences?.complianceGuidelines,
+    };
+
     try {
       const live = await this.complete(
         'POSITIONING_STRATEGIST',
-        `Critica esta tesis. JSON { "status": "SOLID"|"VULNERABLE"|"SATURATED", "recommendations": string[], "riskScore": number }\n${JSON.stringify({
+        `Genera una propuesta de tesis de posicionamiento. Usa SOLO credenciales del contexto.
+Contexto confirmado: ${JSON.stringify(context)}
+JSON {
+  "title": string,
+  "expertIdentity": string,
+  "identityCurrent": string,
+  "perceptionTarget": string,
+  "targetAudience": string,
+  "domain": string,
+  "objective": string,
+  "differentiator": string,
+  "proofPoints": string[],
+  "audiences": [{"name": string, "tier": "COMMERCIAL"|"INFLUENCE"|"AMPLIFICATION", "weight": number}],
+  "territories": [{"name": string, "weight": number, "pillar": string}],
+  "objectives": [{"kind": "BUSINESS"|"THOUGHT_LEADERSHIP"|"SPEAKING"|"INSTITUTIONAL"|"NETWORK", "weight": number}],
+  "voiceAndTone": string,
+  "voiceAvoid": string[],
+  "hardBlocks": string[],
+  "softAvoid": string[],
+  "complianceRules": string
+}`
+      );
+      if (live) {
+        const parsed = JSON.parse(live.text);
+        dbService.recordAiRun({
+          organizationId: client.organizationId,
+          clientId,
+          agent: 'POSITIONING_STRATEGIST',
+          provider: live.provider,
+          modelName: live.modelName,
+          promptTemplateId: 'thesis-generator-v1',
+          inputContextSummary: client.displayName || clientId,
+          outputPayload: (parsed.title || '').slice(0, 120),
+          promptTokens: live.promptTokens,
+          completionTokens: live.completionTokens,
+          totalCostUsd: 0,
+          latencyMs: live.latencyMs,
+          validationPassed: true,
+          securityCheckPassed: true,
+          status: 'SUCCESS',
+        });
+
+        return {
+          title: parsed.title || fallback.title,
+          expertIdentity: parsed.expertIdentity || fallback.expertIdentity,
+          identityCurrent: parsed.identityCurrent || fallback.identityCurrent,
+          perceptionTarget: parsed.perceptionTarget || fallback.perceptionTarget,
+          targetAudience: parsed.targetAudience || fallback.targetAudience,
+          domain: parsed.domain || fallback.domain,
+          objective: parsed.objective || fallback.objective,
+          differentiator: parsed.differentiator || fallback.differentiator,
+          proofPoints: Array.isArray(parsed.proofPoints) && parsed.proofPoints.length
+            ? parsed.proofPoints
+            : fallback.proofPoints,
+          voiceAndTone: parsed.voiceAndTone || fallback.voiceAndTone,
+          complianceRules: parsed.complianceRules || fallback.complianceRules,
+          audiences: Array.isArray(parsed.audiences)
+            ? parsed.audiences.map((a: { name: string; tier?: string; weight?: number }, i: number) => ({
+                id: `aud_prop_${i}`,
+                name: a.name,
+                tier: (a.tier || 'COMMERCIAL') as import('../types').ThesisAudience['tier'],
+                weight: a.weight ?? 70,
+                keywords: [],
+              }))
+            : fallback.audiences,
+          territories: Array.isArray(parsed.territories)
+            ? parsed.territories.map((t: { name: string; weight?: number; pillar?: string }, i: number) => ({
+                id: `ter_prop_${i}`,
+                name: t.name,
+                weight: t.weight ?? 70,
+                pillar: t.pillar || t.name,
+                keywords: [],
+              }))
+            : fallback.territories,
+          objectives: Array.isArray(parsed.objectives)
+            ? parsed.objectives.map((o: { kind: string; weight: number }, i: number) => ({
+                id: `obj_prop_${i}`,
+                kind: o.kind as import('../types').ThesisObjectiveKind,
+                weight: o.weight,
+              }))
+            : fallback.objectives,
+          voiceProfile: {
+            ...fallback.voiceProfile!,
+            style: parsed.voiceAndTone || fallback.voiceAndTone,
+            avoid: Array.isArray(parsed.voiceAvoid) ? parsed.voiceAvoid : fallback.voiceProfile?.avoid,
+          },
+          limits: {
+            hardBlocks: Array.isArray(parsed.hardBlocks) ? parsed.hardBlocks : fallback.limits?.hardBlocks || [],
+            softAvoid: Array.isArray(parsed.softAvoid) ? parsed.softAvoid : fallback.limits?.softAvoid || [],
+          },
+          priority: fallback.priority,
+        };
+      }
+    } catch {
+      /* degraded */
+    }
+
+    return fallback;
+  }
+
+  public async challengeThesis(thesis: PositioningThesis): Promise<ThesisChallengeResult> {
+    const evidence = dbService.getEvidenceVaultByClient(thesis.clientId);
+    const heuristic = evaluateThesisChallenge(thesis, evidence);
+
+    try {
+      const live = await this.complete(
+        'POSITIONING_STRATEGIST',
+        `Critica esta tesis de posicionamiento. Responde JSON:
+{
+  "outcome": "READY"|"REFINE"|"SPLIT"|"PAUSE"|"REJECT",
+  "recommendations": string[],
+  "riskScore": number
+}
+Busca vaguedad, falta de evidencia, audiencia incorrecta, contradicciones y riesgo de saturación.
+${JSON.stringify({
           title: thesis.title,
           expertIdentity: thesis.expertIdentity,
           audience: thesis.targetAudience,
           domain: thesis.domain,
           proofPoints: thesis.proofPoints,
+          territories: normalizeThesis(thesis).territories.map((t) => t.name),
         })}`
       );
-      if (live) return JSON.parse(live.text);
+      if (live) {
+        const parsed = JSON.parse(live.text) as {
+          outcome?: ThesisChallengeResult['outcome'];
+          status?: 'SOLID' | 'VULNERABLE' | 'SATURATED';
+          recommendations?: string[];
+          riskScore?: number;
+        };
+        const outcome =
+          parsed.outcome ||
+          (parsed.status ? mapLegacyChallengeStatus(parsed.status) : heuristic.outcome);
+        return mergeChallengeWithAi(heuristic, {
+          outcome,
+          recommendations: parsed.recommendations,
+          riskScore: parsed.riskScore,
+        });
+      }
     } catch {
       /* fall through */
     }
+
+    return heuristic;
+  }
+
+  /**
+   * Pasa el borrador por el Claim Safety Engine. Un cargo o premio sin respaldo
+   * no debería llegar a revisión del cliente sin aviso explícito.
+   */
+  public reviewDraftClaims(body: string, thesis: PositioningThesis): ClaimSafetyVerdictRecord {
+    const review = reviewClaims(body, thesis, dbService.getEvidenceVaultByClient(thesis.clientId));
     return {
-      status: thesis.proofPoints.length >= 3 ? 'SOLID' : 'VULNERABLE',
-      recommendations: [
-        `Evaluación heurística (sin modelo): ${thesis.proofPoints.length} proof points.`,
-        'Conecta IA en el Control Center para un challenge real.',
-        thesis.differentiator ? 'Hay diferenciador declarado.' : 'Falta diferenciador explícito.',
-      ],
-      riskScore: thesis.proofPoints.length >= 3 ? 18 : 42,
+      verdict: review.verdict,
+      summary: review.summary,
+      reviewedAt: new Date().toISOString(),
+      contentHash: simpleContentHash(body),
+      findings: review.findings.map((finding) => ({
+        kind: finding.kind,
+        severity: finding.severity,
+        claim: finding.claim,
+        detail: finding.detail,
+        action: finding.action,
+        supportingEvidenceIds: finding.supportingEvidenceIds,
+      })),
     };
   }
 
   public async generateContentDraft(
     thesis: PositioningThesis,
     topicTitle: string,
-    format: 'VIDEO_SCRIPT' | 'LINKEDIN_ARTICLE' | 'ACADEMIC_PAPER',
-    extras?: { roleAngle?: string; venueLabel?: string; why?: string }
+    format: 'VIDEO_SCRIPT' | 'LINKEDIN_ARTICLE' | 'ACADEMIC_PAPER' | 'THOUGHT_LEADERSHIP',
+    extras?: { roleAngle?: string; venueLabel?: string; why?: string; angle?: string }
   ): Promise<Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>> {
     let body = '';
+    const structured = normalizeThesis(thesis);
+    const evidence = dbService
+      .getEvidenceVaultByClient(thesis.clientId)
+      .filter((item) => item.verified)
+      .slice(0, 6);
+    const voiceHint = structured.voiceProfile.style || thesis.voiceAndTone;
+    const hardBlocks = structured.limits.hardBlocks.join(' | ') || thesis.complianceRules || 'sin límites duros';
+    const evidenceHint = evidence.length
+      ? evidence.map((item) => `${item.title}: ${item.snippet.slice(0, 80)}`).join(' · ')
+      : thesis.proofPoints.join(' | ');
     const academicHint =
       format === 'ACADEMIC_PAPER'
         ? `\nFormato: artículo científico / working paper (${extras?.venueLabel || 'working paper'}).\nÁngulo de rol: ${extras?.roleAngle || thesis.expertIdentity}.\nPor qué centrarnos aquí: ${extras?.why || 'inteligencia del radar + tesis'}.\nEstructura: abstract, problema, marco, evidencia verificable, implicaciones, límites, referencias. No inventes citas.`
@@ -325,7 +529,14 @@ class AIService {
     try {
       const live = await this.complete(
         'CONTENT_TASKS',
-        `Redacta ${format} en voz ${thesis.voiceAndTone}. No inventes credenciales fuera de: ${thesis.proofPoints.join(' | ')}.\nTema: ${topicTitle}\nIdentidad: ${thesis.expertIdentity}${academicHint}\nJSON { "title": string, "body": string }`
+        `Redacta ${format} en voz ${voiceHint}.
+Percepción objetivo: ${structured.perceptionTarget || thesis.expertIdentity}.
+No inventes credenciales fuera de: ${evidenceHint}.
+Límites duros (nunca violar): ${hardBlocks}.
+Evitar en voz: ${(structured.voiceProfile.avoid || []).join(', ') || 'hype'}.
+Tema: ${topicTitle}${extras?.angle ? `\nÁngulo: ${extras.angle}` : ''}
+Identidad: ${thesis.expertIdentity}${academicHint}
+JSON { "title": string, "body": string }`
       );
       if (live) {
         const parsed = JSON.parse(live.text);
@@ -347,6 +558,7 @@ class AIService {
           securityCheckPassed: true,
           status: 'SUCCESS',
         });
+        const claimSafety = this.reviewDraftClaims(body, thesis);
         return {
           organizationId: thesis.organizationId,
           clientId: thesis.clientId,
@@ -357,7 +569,10 @@ class AIService {
           teleprompterScript: format === 'VIDEO_SCRIPT' ? body : undefined,
           targetPlatform: format === 'ACADEMIC_PAPER' ? 'LegalJournal' : 'LinkedIn',
           status: 'AI_GENERATED',
-          managerNotes: 'Generado con modelo conectado. Revisión humana obligatoria.',
+          managerNotes: claimSafety.verdict === 'PASS'
+            ? 'Generado con modelo conectado. Revisión humana obligatoria.'
+            : `Generado con modelo conectado. Claim safety ${claimSafety.verdict}: ${claimSafety.summary}`,
+          claimSafety,
         };
       }
     } catch {
@@ -391,6 +606,7 @@ class AIService {
       managerNotes: format === 'ACADEMIC_PAPER'
         ? `Borrador científico (${extras?.venueLabel || 'working paper'}). Revisión humana; no cites fuentes no verificadas.`
         : 'Borrador en modo degradado. Conecta IA para generación real.',
+      claimSafety: this.reviewDraftClaims(body, thesis),
     };
   }
 }

@@ -51,6 +51,10 @@ service cloud.firestore {
       allow read: if ownsClient(clientId);
       allow write: if isAdmin();
     }
+    match /clients/{clientId}/recommendations/{docId} {
+      allow read: if ownsClient(clientId);
+      allow write: if isAdmin();
+    }
     match /clients/{clientId}/campaigns/{docId} {
       allow read: if ownsClient(clientId);
       allow write: if isAdmin();
@@ -138,6 +142,12 @@ service cloud.firestore {
     match /clients/{clientId}/proofWallItems/{docId} {
       allow read: if ownsClient(clientId);
       allow write: if isAdmin();
+    }
+
+    match /clients/{clientId}/aiRuns/{docId} {
+      allow read: if ownsClient(clientId);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin();
     }
 
     match /auditLogs/{logId} {

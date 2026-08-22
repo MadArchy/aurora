@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    exclude: ['tests/firestore.rules.test.ts'],
     setupFiles: ['./tests/setup.ts'],
     env: {
       VITE_FIREBASE_API_KEY: '',

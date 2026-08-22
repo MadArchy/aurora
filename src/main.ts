@@ -13,6 +13,7 @@ import {
   RECORDING_REF_PREFIX,
 } from './services/recordings';
 import { pushCurrentLocalToFirestore } from './services/firebase/importLocalV5';
+import { FIREBASE_ENABLED } from './firebase/config';
 import { runTopicAgent } from './services/topicAgent';
 import { formatDossierMarkdown, downloadDossierMarkdown } from './services/dossierExport';
 import { generatePositioningAdvice, proposeAngle } from './services/advisor';
@@ -42,9 +43,11 @@ import {
   renderFeedbackModal,
   renderAddTaskModal,
   renderDeliveryPreviewModal,
+  renderGenerateContentModal,
 } from './components/Modals';
 import { renderOnboardingWizard } from './components/OnboardingWizard';
 import { renderThesisEditorModal } from './components/ThesisEditorModal';
+import { renderClaimSafetyPanel } from './components/ClaimSafetyPanel';
 import { renderSourceRegistryModal } from './components/SourceRegistryModal';
 import { PORTFOLIO_TAB_IDS, WORKSPACE_TAB_IDS, CLIENT_TAB_IDS, isWorkspaceTab, normalizeTab } from './components/PageHeader';
 import { CurationDestination, DeliveryItemKind, Source, TaskType, ContentStatus, BusinessKpiType, ContentPipelineStatus, DeliveryItem } from './types';
@@ -52,9 +55,53 @@ import { createId } from './lib/id';
 import { CAMP_ADOPTION } from './data/juanCampaignSeed';
 import { bindSessionUi } from './controllers/sessionController';
 import { themeService } from './services/theme';
-import { mapLegacyContentStatus, resolvePipelineStepsToTarget } from './domain/contentPipeline';
+import { mapLegacyContentStatus, resolvePipelineStepsToTarget, syncLegacyStatusFromPipeline } from './domain/contentPipeline';
+import {
+  pipelineActionTarget,
+  PIPELINE_ACTION_LABELS,
+  type ContentPipelineAction,
+} from './domain/contentPublishCore';
+import { assertClaimSafeTransition } from './domain/claimSafetyGateCore';
 import { nextIncompleteOnboardingStep } from './domain/profileCoverage';
-import type { ProfileFactSection } from './types';
+import {
+  VOICE_DIMENSION_LABELS,
+  parseAudienceLines,
+  parseTerritoryLines,
+  validateWeights,
+  assertThesisReadyForReview,
+  formatAudienceLines,
+  formatTerritoryLines,
+} from './domain/thesisModelCore';
+import {
+  evaluateThesisEditorProgress,
+  nextThesisEditorStep,
+  prevThesisEditorStep,
+  validateThesisEditorStep,
+  type ThesisEditorFormSnapshot,
+  type ThesisEditorStep,
+} from './domain/thesisEditorCore';
+import { routeSignalAcrossTheses, routingSignalPatch } from './domain/thesisRoutingCore';
+import { clusterForSignal, clusterSimilarSignals, titleSimilarity } from './domain/signalClusterCore';
+import { computeWhyNow, type WhyNowResult } from './domain/whyNowCore';
+import {
+  activateThesisByManager,
+  approveThesisByClient,
+  planThesisSave,
+  rejectThesisByClient,
+  type ThesisSaveIntent,
+} from './domain/thesisRevisionCore';
+import { computeThesisStrength } from './domain/thesisStrengthCore';
+import { resolveArticleSavePipelineSteps } from './domain/articleReviewCore';
+import { VIDEO_SUBMIT_PIPELINE_TARGET } from './domain/videoSubmitCore';
+import type {
+  PositioningThesis,
+  Signal,
+  ProfileFactSection,
+  ThesisObjective,
+  ThesisObjectiveKind,
+  VoiceProfile,
+  ThesisEditableFields,
+} from './types';
 import { metricsService } from './services/metrics';
 import { readingTaskDescription, validateDeliveryForSend } from './domain/deliveryCore';
 import { fetchSourceItems } from './services/sourceApi';
@@ -114,10 +161,13 @@ class App {
     contentStatus: 'ALL',
     topicKey: '' as string,
     radarView: 'triage' as 'list' | 'triage',
+    thesisId: '' as string,
+    highlightTaskId: '' as string,
   };
   private loginError = '';
   private sourceAgentTimer: number | null = null;
   private sourceIngestTimer: number | null = null;
+  private claimLiveTimer: number | null = null;
   private lastDiscoveryScanAt = 0;
 
   /** Intervalo entre escaneos del agente de fuentes (1 h). */
@@ -268,7 +318,7 @@ class App {
 
     appEl.innerHTML = `
       <div class="app-container">
-        ${renderAppShell(this.activeTab, this.activeClientId, this.activeCampaignId)}
+        ${renderAppShell(this.activeTab, this.activeClientId, this.activeCampaignId, this.filterState.thesisId || null)}
         <main class="main-wrapper">
           ${this.renderMainView()}
         </main>
@@ -298,7 +348,9 @@ class App {
       return renderClientPortal(
         this.activeTab,
         user.clientId || dbService.getClients()[0]?.id || '',
-        this.activeCampaignId
+        this.activeCampaignId,
+        this.filterState.thesisId || undefined,
+        this.filterState.highlightTaskId || undefined
       );
     }
 
@@ -311,6 +363,7 @@ class App {
         contentStatus: this.filterState.contentStatus,
         topicKey: this.filterState.topicKey || undefined,
         radarView: this.filterState.radarView,
+        thesisId: this.filterState.thesisId || undefined,
       });
     }
 
@@ -398,6 +451,20 @@ class App {
     this.render();
   }
 
+  navigateFromNotification(tab: string, targetId?: string | null) {
+    if (targetId) this.filterState.highlightTaskId = targetId;
+    this.setTab(tab);
+    if (targetId) {
+      window.setTimeout(() => {
+        const el = document.getElementById(`client-task-${targetId}`) || document.querySelector(`[data-task-id="${targetId}"]`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.setTimeout(() => {
+          this.filterState.highlightTaskId = '';
+        }, 4000);
+      }, 150);
+    }
+  }
+
   private renderActiveModal(): string {
     const fallbackClient = this.resolveClientId();
 
@@ -411,7 +478,17 @@ class App {
       return renderOnboardingWizard(this.modalData?.clientId || fallbackClient, this.modalData?.step || 1);
     }
     if (this.activeModal === 'thesis-editor') {
-      return renderThesisEditorModal(this.modalData?.clientId || fallbackClient, this.modalData?.thesisId);
+      return renderThesisEditorModal(
+        this.modalData?.clientId || fallbackClient,
+        this.modalData?.thesisId,
+        this.modalData?.focusBlock
+      );
+    }
+    if (this.activeModal === 'generate-content') {
+      return renderGenerateContentModal(this.modalData?.clientId || fallbackClient, {
+        thesisId: this.modalData?.thesisId,
+        topic: this.modalData?.topic,
+      });
     }
     if (this.activeModal === 'source-registry') {
       return renderSourceRegistryModal(this.modalData?.clientId || this.currentClientId() || undefined);
@@ -423,12 +500,20 @@ class App {
       return renderComparativeModal(this.modalData.result);
     }
     if (this.activeModal === 'challenge' && this.modalData) {
-      return renderChallengeModal(this.modalData.title, this.modalData.challenge);
+      return renderChallengeModal(this.modalData.title, this.modalData.challenge, {
+        clientId: this.modalData.clientId,
+        thesisId: this.modalData.thesisId,
+        thesisStatus: this.modalData.thesisStatus,
+      });
     }
     if (this.activeModal === 'add-evidence' && this.modalData?.clientId) {
       return renderAddEvidenceModal(this.modalData.clientId);
     }
     if (this.activeModal === 'content-editor' && this.modalData?.contentId) {
+      if (authService.getCurrentUser()?.role !== 'ADMIN') {
+        this.activeModal = null;
+        return '';
+      }
       return renderContentEditorModal(this.modalData.contentId);
     }
     if (this.activeModal === 'content-preview' && this.modalData?.contentId) {
@@ -479,13 +564,27 @@ class App {
           </div>
           <div style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 420px; overflow-y: auto;">
             ${items.length
-              ? items.map((item) => `
-                  <article class="notification-row ${item.read ? 'read' : 'unread'}" data-notification-id="${esc(item.id)}" data-tab-link="${item.type === 'TASK_ASSIGNED' ? 'client-feed' : item.type === 'BRIEFING' ? 'client-home' : item.type === 'OPPORTUNITY' ? 'client-opps' : item.type === 'THESIS' ? 'client-thesis' : 'client-home'}">
+              ? items.map((item) => {
+                  const tab = item.href || (item.type === 'TASK_ASSIGNED' || item.type === 'CONTENT_REVIEW'
+                    ? 'client-home'
+                    : item.type === 'BRIEFING'
+                      ? 'client-home'
+                      : item.type === 'OPPORTUNITY'
+                        ? 'client-opps'
+                        : item.type === 'THESIS'
+                          ? 'client-thesis'
+                          : 'client-home');
+                  return `
+                  <article class="notification-row ${item.read ? 'read' : 'unread'}"
+                           data-notification-id="${esc(item.id)}"
+                           data-tab-link="${esc(tab)}"
+                           ${item.targetId ? `data-target-id="${esc(item.targetId)}"` : ''}>
                     <strong>${esc(item.title)}</strong>
                     <p class="muted small">${esc(item.body)}</p>
                     <span class="muted small">${new Date(item.createdAt).toLocaleString('es')}</span>
                   </article>
-                `).join('')
+                `;
+                }).join('')
               : '<p class="empty-state">No tienes avisos todavía.</p>'}
           </div>
           <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
@@ -525,6 +624,11 @@ class App {
     document.getElementById('client-campaign-filter')?.addEventListener('change', (e) => {
       const campaignId = (e.currentTarget as HTMLSelectElement).value;
       if (campaignId) this.setActiveCampaign(campaignId);
+    });
+
+    document.getElementById('client-thesis-filter')?.addEventListener('change', (e) => {
+      this.filterState.thesisId = (e.currentTarget as HTMLSelectElement).value;
+      this.refreshMain();
     });
 
     document.querySelectorAll('[data-tab]').forEach((btn) => {
@@ -644,6 +748,10 @@ class App {
     });
 
     document.getElementById('btn-toggle-role')?.addEventListener('click', () => {
+      if (FIREBASE_ENABLED) {
+        this.showToast('Con Firebase activo, inicia sesión con la cuenta del cliente.', 'info');
+        return;
+      }
       const targetClientId = this.currentClientId();
       if (!targetClientId) {
         this.showToast('Entra a un cliente para ver su portal.', 'warning');
@@ -840,8 +948,10 @@ class App {
         body: 'El cliente completó el onboarding.',
       });
       authService.clearOnboardingFlag();
-      this.showToast('Onboarding guardado. Perfil listo para revisión.', 'success');
-      this.closeModal();
+      this.showToast('Onboarding completado. Abriendo propuesta de tesis…', 'success');
+      this.activeModal = 'thesis-editor';
+      this.modalData = { clientId, generateProposal: true };
+      this.render();
     });
 
     document.getElementById('btn-onboarding-prev')?.addEventListener('click', (e) => {
@@ -956,18 +1066,258 @@ class App {
   // Tesis
   // ==========================================
 
+  private thesisProgressTimer: number | null = null;
+
+  private collectThesisFormSnapshot(): ThesisEditorFormSnapshot | null {
+    const form = document.getElementById('form-save-thesis');
+    if (!form) return null;
+
+    const val = (id: string) =>
+      (document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? '';
+    const lines = (id: string) => val(id).split('\n').map((l) => l.trim()).filter(Boolean);
+    const num = (id: string, fallback: number) => {
+      const parsed = Number.parseInt(val(id), 10);
+      return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : fallback;
+    };
+
+    const objectives: ThesisObjective[] = Array.from(
+      document.querySelectorAll<HTMLInputElement>('[data-objective-kind]')
+    )
+      .map((input) => ({
+        id: `obj_${(input.getAttribute('data-objective-kind') || '').toLowerCase()}`,
+        kind: input.getAttribute('data-objective-kind') as ThesisObjectiveKind,
+        weight: Math.max(0, Math.min(100, Number.parseInt(input.value, 10) || 0)),
+      }))
+      .filter((o) => o.weight > 0);
+
+    const voiceDimensions = Object.keys(VOICE_DIMENSION_LABELS) as Array<
+      keyof Omit<VoiceProfile, 'style' | 'avoid'>
+    >;
+    const voiceProfile = voiceDimensions.reduce(
+      (acc, key) => ({ ...acc, [key]: num(`thesis-voice-${key}`, 50) }),
+      {} as VoiceProfile
+    );
+    voiceProfile.style = val('thesis-voice-style').trim() || undefined;
+
+    return {
+      title: val('thesis-title'),
+      identityCurrent: val('thesis-identity-current'),
+      expertIdentity: val('thesis-expert-identity'),
+      perceptionTarget: val('thesis-perception-target'),
+      differentiator: val('thesis-differentiator'),
+      audiencesText: val('thesis-audiences'),
+      targetAudience: val('thesis-target-audience'),
+      territoriesText: val('thesis-territories'),
+      domain: val('thesis-domain'),
+      objective: val('thesis-objective'),
+      objectives,
+      voiceProfile,
+      voiceAvoidText: val('thesis-voice-avoid'),
+      proofPoints: lines('thesis-proof-points'),
+      hardBlocks: lines('thesis-limits-hard'),
+      softAvoid: lines('thesis-limits-soft'),
+      compliance: val('thesis-compliance'),
+      priority: num('thesis-priority', 50),
+    };
+  }
+
+  private showThesisEditorStep(step: ThesisEditorStep) {
+    const form = document.getElementById('form-save-thesis');
+    form?.setAttribute('data-thesis-current-step', step);
+
+    document.querySelectorAll('[data-thesis-step]').forEach((chip) => {
+      chip.classList.toggle('thesis-step-chip-active', chip.getAttribute('data-thesis-step') === step);
+    });
+    document.querySelectorAll('[data-thesis-panel]').forEach((panel) => {
+      panel.classList.toggle('thesis-fieldset-active', panel.getAttribute('data-thesis-panel') === step);
+    });
+
+    const prev = document.getElementById('btn-thesis-prev') as HTMLButtonElement | null;
+    const next = document.getElementById('btn-thesis-next') as HTMLButtonElement | null;
+    if (prev) prev.disabled = step === 'identity';
+    if (next) next.disabled = step === 'review';
+  }
+
+  private refreshThesisEditorProgress() {
+    const form = document.getElementById('form-save-thesis');
+    const snapshot = this.collectThesisFormSnapshot();
+    if (!form || !snapshot) return;
+
+    const clientId = form.getAttribute('data-client-id') || this.resolveClientId();
+    const thesisId = form.getAttribute('data-thesis-id') || 'draft';
+    const client = dbService.getClientById(clientId);
+    const { completeness, readiness } = evaluateThesisEditorProgress(
+      snapshot,
+      thesisId,
+      clientId,
+      client?.organizationId || 'org_aurora_01'
+    );
+
+    const valueEl = document.getElementById('thesis-editor-progress-value');
+    const fillEl = document.getElementById('thesis-editor-progress-fill');
+    if (valueEl) valueEl.innerHTML = `${completeness.score}<span>/100</span>`;
+    if (fillEl) {
+      fillEl.style.width = `${completeness.score}%`;
+      fillEl.classList.toggle('progress-green', completeness.score >= 70);
+      fillEl.classList.toggle('progress-red', completeness.score < 40);
+    }
+
+    const reviewHost = document.getElementById('thesis-review-live');
+    if (reviewHost) {
+      reviewHost.innerHTML = `
+        <div class="completeness-head">
+          <strong class="completeness-value">${completeness.score}<span>/100</span></strong>
+          <div class="progress-track">
+            <div class="progress-fill ${completeness.score >= 70 ? 'progress-green' : completeness.score >= 40 ? '' : 'progress-red'}" style="width: ${completeness.score}%"></div>
+          </div>
+        </div>
+        ${readiness.ready
+          ? '<p class="info-strip">Lista para enviar al cliente.</p>'
+          : `<p class="warn-strip">Pendiente: ${esc(readiness.blockers.slice(0, 5).join(' · '))}</p>`}
+      `;
+    }
+  }
+
+  private applyThesisProposalToForm(proposal: ThesisEditableFields) {
+    const set = (id: string, value: string) => {
+      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (el) el.value = value;
+    };
+
+    set('thesis-title', proposal.title);
+    set('thesis-identity-current', proposal.identityCurrent || '');
+    set('thesis-expert-identity', proposal.expertIdentity);
+    set('thesis-perception-target', proposal.perceptionTarget || '');
+    set('thesis-differentiator', proposal.differentiator || '');
+    set('thesis-target-audience', proposal.targetAudience);
+    set('thesis-domain', proposal.domain);
+    set('thesis-objective', proposal.objective);
+    set('thesis-voice-style', proposal.voiceAndTone);
+    set('thesis-compliance', proposal.complianceRules);
+    set('thesis-proof-points', (proposal.proofPoints || []).join('\n'));
+    set('thesis-limits-hard', (proposal.limits?.hardBlocks || []).join('\n'));
+    set('thesis-limits-soft', (proposal.limits?.softAvoid || []).join('\n'));
+    set('thesis-voice-avoid', (proposal.voiceProfile?.avoid || []).join('\n'));
+
+    if (proposal.audiences?.length) {
+      set('thesis-audiences', formatAudienceLines(proposal.audiences));
+    }
+    if (proposal.territories?.length) {
+      set('thesis-territories', formatTerritoryLines(proposal.territories));
+    }
+
+    if (proposal.objectives?.length) {
+      for (const obj of proposal.objectives) {
+        const input = document.getElementById(`thesis-objective-${obj.kind}`) as HTMLInputElement | null;
+        if (input) input.value = String(obj.weight);
+      }
+    }
+
+    if (proposal.voiceProfile) {
+      for (const key of Object.keys(VOICE_DIMENSION_LABELS) as Array<keyof Omit<VoiceProfile, 'style' | 'avoid'>>) {
+        const input = document.getElementById(`thesis-voice-${key}`) as HTMLInputElement | null;
+        if (input && typeof proposal.voiceProfile![key] === 'number') {
+          input.value = String(proposal.voiceProfile![key]);
+        }
+      }
+    }
+
+    if (proposal.priority != null) {
+      set('thesis-priority', String(proposal.priority));
+    }
+
+    this.refreshThesisEditorProgress();
+  }
+
   private bindThesis() {
-    document.querySelectorAll('.btn-open-thesis-editor, .btn-edit-thesis').forEach((btn) => {
+    document.querySelectorAll('.btn-open-thesis-editor, .btn-edit-thesis, .btn-focus-thesis-block').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const target = e.currentTarget as HTMLElement;
         this.activeModal = 'thesis-editor';
         this.modalData = {
           clientId: target.getAttribute('data-client-id') || this.resolveClientId(),
           thesisId: target.getAttribute('data-thesis-id') || undefined,
+          focusBlock: target.getAttribute('data-focus-block') || undefined,
         };
         this.render();
       });
     });
+
+    document.querySelectorAll('[data-thesis-step]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const step = (e.currentTarget as HTMLElement).getAttribute('data-thesis-step') as ThesisEditorStep | null;
+        if (!step) return;
+        this.showThesisEditorStep(step);
+      });
+    });
+
+    document.getElementById('btn-thesis-next')?.addEventListener('click', () => {
+      const form = document.getElementById('form-save-thesis');
+      const current = (form?.getAttribute('data-thesis-current-step') || 'identity') as ThesisEditorStep;
+      const snapshot = this.collectThesisFormSnapshot();
+      if (!snapshot) return;
+      const check = validateThesisEditorStep(current, snapshot);
+      if (!check.ok) {
+        this.showToast(check.message || 'Completa este paso antes de continuar.', 'warning');
+        return;
+      }
+      const next = nextThesisEditorStep(current);
+      if (next) {
+        this.showThesisEditorStep(next);
+        if (next === 'review') this.refreshThesisEditorProgress();
+      }
+    });
+
+    document.getElementById('btn-thesis-prev')?.addEventListener('click', () => {
+      const form = document.getElementById('form-save-thesis');
+      const current = (form?.getAttribute('data-thesis-current-step') || 'identity') as ThesisEditorStep;
+      const prev = prevThesisEditorStep(current);
+      if (prev) this.showThesisEditorStep(prev);
+    });
+
+    document.getElementById('btn-generate-thesis-proposal')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const clientId = btn.getAttribute('data-client-id') || this.resolveClientId();
+      btn.disabled = true;
+      btn.textContent = 'Generando…';
+      try {
+        const proposal = await aiService.generateThesisProposal(clientId);
+        this.applyThesisProposalToForm(proposal);
+        this.showToast('Propuesta cargada. Revísala y ajusta antes de guardar.', 'success');
+      } catch (error) {
+        this.showToast(error instanceof Error ? error.message : 'No se pudo generar la propuesta', 'warning');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generar propuesta desde perfil';
+      }
+    });
+
+    const thesisForm = document.getElementById('form-save-thesis');
+    thesisForm?.addEventListener('input', () => {
+      if (this.thesisProgressTimer) window.clearTimeout(this.thesisProgressTimer);
+      this.thesisProgressTimer = window.setTimeout(() => this.refreshThesisEditorProgress(), 400);
+    });
+
+    if (this.modalData?.generateProposal && thesisForm) {
+      void (async () => {
+        const clientId = thesisForm.getAttribute('data-client-id') || this.resolveClientId();
+        try {
+          const proposal = await aiService.generateThesisProposal(clientId);
+          this.applyThesisProposalToForm(proposal);
+          const hint = this.modalData?.splitHint;
+          this.showToast(
+            hint
+              ? `Propuesta generada. ${hint}`
+              : 'Propuesta generada desde el perfil. Revisa cada bloque.',
+            'info'
+          );
+        } catch {
+          this.showToast('No se pudo generar la propuesta automática.', 'warning');
+        } finally {
+          this.modalData = { ...this.modalData, generateProposal: false, splitHint: undefined };
+        }
+      })();
+    }
 
     ['btn-close-thesis-editor', 'btn-cancel-thesis-editor'].forEach((id) => {
       document.getElementById(id)?.addEventListener('click', () => this.closeModal());
@@ -977,56 +1327,231 @@ class App {
     formSaveThesis?.addEventListener('submit', (e) => {
       e.preventDefault();
       try {
+        const submitter = (e as SubmitEvent).submitter as HTMLButtonElement | null;
+        const intent = (submitter?.getAttribute('data-thesis-intent') || 'draft') as ThesisSaveIntent;
         const clientId = formSaveThesis.getAttribute('data-client-id') || this.resolveClientId();
         const thesisId = formSaveThesis.getAttribute('data-thesis-id') || createId('thesis');
         const client = dbService.getClientById(clientId);
 
         const val = (id: string) =>
-          (document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement).value;
+          (document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? '';
+        const lines = (id: string) => val(id).split('\n').map((l) => l.trim()).filter(Boolean);
+        const num = (id: string, fallback: number) => {
+          const parsed = Number.parseInt(val(id), 10);
+          return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : fallback;
+        };
 
-        const title = val('thesis-title');
+        const objectives: ThesisObjective[] = Array.from(
+          document.querySelectorAll<HTMLInputElement>('[data-objective-kind]')
+        )
+          .map((input) => ({
+            id: `obj_${(input.getAttribute('data-objective-kind') || '').toLowerCase()}`,
+            kind: input.getAttribute('data-objective-kind') as ThesisObjectiveKind,
+            weight: Math.max(0, Math.min(100, Number.parseInt(input.value, 10) || 0)),
+          }))
+          .filter((o) => o.weight > 0);
+
+        const voiceDimensions = Object.keys(VOICE_DIMENSION_LABELS) as Array<
+          keyof Omit<VoiceProfile, 'style' | 'avoid'>
+        >;
+        const voiceProfile = voiceDimensions.reduce(
+          (acc, key) => ({ ...acc, [key]: num(`thesis-voice-${key}`, 50) }),
+          {} as VoiceProfile
+        );
+        voiceProfile.style = val('thesis-voice-style').trim() || undefined;
+        const voiceAvoid = lines('thesis-voice-avoid');
+        voiceProfile.avoid = voiceAvoid.length ? voiceAvoid : undefined;
+
+        const audiences = parseAudienceLines(val('thesis-audiences'));
+        const territories = parseTerritoryLines(val('thesis-territories'));
+        const hardBlocks = lines('thesis-limits-hard');
+        const softAvoid = lines('thesis-limits-soft');
+
+        const existing = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
+        const now = new Date().toISOString();
+        const actor = authService.getCurrentUser()?.uid || 'user_admin_01';
+
+        const title = val('thesis-title').trim();
+        if (!title || !val('thesis-expert-identity').trim()) {
+          this.showToast('Título e identidad objetivo son obligatorios.', 'warning');
+          return;
+        }
+        const weightCheck = validateWeights(objectives);
+        if (!weightCheck.ok && objectives.length) {
+          this.showToast(weightCheck.message || 'Los objetivos deben sumar 100.', 'warning');
+          return;
+        }
+
+        const editable = {
+          title,
+          expertIdentity: val('thesis-expert-identity'),
+          targetAudience: val('thesis-target-audience'),
+          secondaryAudience: existing?.secondaryAudience,
+          domain: val('thesis-domain'),
+          objective: val('thesis-objective'),
+          proofPoints: lines('thesis-proof-points'),
+          differentiator: val('thesis-differentiator') || undefined,
+          voiceAndTone: val('thesis-voice-style').trim() || 'Autoritativo, claro, orientado a mitigación de riesgos',
+          complianceRules: val('thesis-compliance') || '',
+          identityCurrent: val('thesis-identity-current').trim() || undefined,
+          perceptionTarget: val('thesis-perception-target').trim() || undefined,
+          audiences: audiences.length ? audiences : undefined,
+          territories: territories.length ? territories : undefined,
+          objectives: objectives.length ? objectives : undefined,
+          voiceProfile,
+          limits: hardBlocks.length || softAvoid.length ? { hardBlocks, softAvoid } : undefined,
+          priority: num('thesis-priority', 50),
+        };
+
+        if (intent === 'submit_review') {
+          const candidate: PositioningThesis = {
+            id: thesisId,
+            organizationId: client?.organizationId || 'org_aurora_01',
+            clientId,
+            ...editable,
+            status: existing?.status || 'DRAFT',
+            clientApprovalStatus: existing?.clientApprovalStatus || 'PENDING',
+            createdAt: existing?.createdAt || now,
+            createdBy: existing?.createdBy || actor,
+            updatedAt: now,
+            updatedBy: actor,
+          };
+          const readiness = assertThesisReadyForReview(candidate);
+          if (!readiness.ready) {
+            const preview = readiness.blockers.slice(0, 4).join(' · ');
+            this.showToast(
+              `Estructura ${readiness.score}/100. Completa: ${preview}`,
+              'warning'
+            );
+            return;
+          }
+        }
+
+        const plan = planThesisSave(existing, editable, actor, now, intent);
+
         dbService.saveThesis({
           id: thesisId,
           organizationId: client?.organizationId || 'org_aurora_01',
           clientId,
-          title,
-          expertIdentity: val('thesis-expert-identity'),
-          targetAudience: val('thesis-target-audience'),
-          domain: val('thesis-domain'),
-          objective: val('thesis-objective'),
-          proofPoints: val('thesis-proof-points').split('\n').filter((p) => p.trim()),
-          differentiator: val('thesis-differentiator') || undefined,
-          voiceAndTone: 'Autoritativo, claro, orientado a mitigación de riesgos',
-          complianceRules: val('thesis-compliance') || '',
-          status: 'UNDER_REVIEW',
-          clientApprovalStatus: 'PENDING',
-          createdAt: new Date().toISOString(),
-          createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
-          updatedAt: new Date().toISOString(),
-          updatedBy: authService.getCurrentUser()?.uid || 'user_admin_01'
+          ...(plan.keepActive && existing
+            ? {
+                ...existing,
+                pendingRevision: plan.pendingRevision,
+                clientApprovalStatus: plan.clientApprovalStatus,
+                status: plan.status,
+                updatedAt: now,
+                updatedBy: actor,
+              }
+            : {
+                ...editable,
+                status: plan.status,
+                clientApprovalStatus: plan.clientApprovalStatus,
+                pendingRevision: plan.pendingRevision,
+                createdAt: existing?.createdAt || now,
+                createdBy: existing?.createdBy || actor,
+                updatedAt: now,
+                updatedBy: actor,
+              }),
         });
 
-        auditService.log(authService.getCurrentUser(), 'SAVE_THESIS', 'PositioningThesis', thesisId, { title });
-        const notified = notifyClient(clientId, {
-          type: 'THESIS',
-          title: 'Tesis lista para tu aprobación',
-          body: title,
+        auditService.log(authService.getCurrentUser(), 'SAVE_THESIS', 'PositioningThesis', thesisId, {
+          title,
+          keepActive: plan.keepActive,
+          intent,
         });
-        if (!notified) {
-          this.showToast('Tesis guardada. El cliente aún no tiene cuenta para recibir aviso.', 'info');
+
+        if (plan.notifyClient) {
+          const notified = notifyClient(clientId, {
+            type: 'THESIS',
+            title: plan.keepActive ? 'Revisión de tesis pendiente' : 'Tesis lista para tu aprobación',
+            body: title,
+          });
+          if (!notified) {
+            this.showToast('Tesis guardada. El cliente aún no tiene cuenta para recibir aviso.', 'info');
+          }
         }
-        this.showToast('Tesis enviada a revisión del cliente. No se activa sola.', 'success');
+
+        this.showToast(plan.toast, 'success');
         this.closeModal();
       } catch (error) {
         this.showToast(error instanceof Error ? error.message : 'No se pudo guardar la tesis', 'warning');
       }
     });
 
+    document.querySelectorAll('[data-thesis-select]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        this.filterState.thesisId = (e.currentTarget as HTMLElement).getAttribute('data-thesis-select') || '';
+        this.refreshMain();
+      });
+    });
+
+    document.querySelectorAll('[data-thesis-override]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const signalId = target.getAttribute('data-signal-id') || '';
+        const thesisId = target.getAttribute('data-thesis-override') || '';
+        const signal = dbService.getSignalById(signalId);
+        if (!signal || !thesisId) return;
+
+        const clientId = this.resolveClientId(signal.clientId);
+        const thesis = dbService.getThesisById(clientId, thesisId);
+        if (!thesis) return;
+
+        const whyNow = this.whyNowFor(signal, clientId);
+        const evidence = dbService.getEvidenceVaultByClient(clientId);
+        const score = calculateStrategicScore(signal, thesis, {
+          ...this.scoringContext(clientId),
+          whyNow: { score: whyNow.score, reason: whyNow.reason },
+          authorityScore: computeThesisStrength(thesis, evidence).authorityScore,
+        });
+
+        dbService.applyScoreToSignal(signalId, score, {
+          thesisId,
+          thesisScores: signal.thesisScores,
+          whyNow: { score: whyNow.score, band: whyNow.band, reason: whyNow.reason },
+          routingDecision: {
+            contested: signal.routingDecision?.contested,
+            secondaryThesisId: signal.routingDecision?.secondaryThesisId,
+            source: 'MANUAL',
+          },
+        });
+
+        auditService.log(authService.getCurrentUser(), 'THESIS_OVERRIDE', 'Signal', signalId, {
+          thesisId,
+        });
+        this.showToast(`Señal asignada a «${thesis.title}»`, 'success');
+        this.refreshMain();
+      });
+    });
+
+    document.querySelectorAll('[data-evidence-thesis-toggle]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const evidenceId = target.getAttribute('data-evidence-thesis-toggle') || '';
+        const thesisId = target.getAttribute('data-thesis-id') || '';
+        const linked = dbService.toggleEvidenceThesis(evidenceId, thesisId);
+        auditService.log(
+          authService.getCurrentUser(),
+          linked ? 'LINK_EVIDENCE_THESIS' : 'UNLINK_EVIDENCE_THESIS',
+          'EvidenceVaultItem',
+          evidenceId,
+          { thesisId }
+        );
+        this.showToast(
+          linked ? 'Evidencia asignada. El Authority Score se recalcula.' : 'Evidencia desvinculada de la tesis.',
+          'success'
+        );
+        this.refreshMain();
+      });
+    });
+
     document.querySelectorAll('.btn-challenge-thesis').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         const target = e.currentTarget as HTMLButtonElement;
         const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
-        const thesis = dbService.getThesesByClient(clientId)[0];
+        const theses = dbService.getThesesByClient(clientId);
+        const requestedId = target.getAttribute('data-thesis-id');
+        const thesis = theses.find((t) => t.id === requestedId) || theses[0];
         if (!thesis) {
           this.showToast('Este cliente no tiene tesis que someter a prueba.', 'warning');
           return;
@@ -1036,17 +1561,96 @@ class App {
         try {
           const challenge = await aiService.challengeThesis(thesis);
           this.activeModal = 'challenge';
-          this.modalData = { title: thesis.title, challenge };
+          this.modalData = {
+            title: thesis.title,
+            challenge,
+            clientId,
+            thesisId: thesis.id,
+            thesisStatus: thesis.status,
+          };
           this.render();
         } catch (error) {
           this.showToast(error instanceof Error ? error.message : 'No se pudo evaluar la tesis', 'warning');
           this.render();
+        } finally {
+          target.disabled = false;
+          target.textContent = 'Stress-test';
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-activate-thesis').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLButtonElement;
+        const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
+        const thesisId = target.getAttribute('data-thesis-id');
+        const thesis = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
+        if (!thesis) return;
+        try {
+          const actor = authService.getCurrentUser()?.uid || thesis.updatedBy;
+          const activated = activateThesisByManager(
+            { ...thesis, updatedAt: new Date().toISOString(), updatedBy: actor },
+            actor
+          );
+          dbService.saveThesis(activated);
+          auditService.log(authService.getCurrentUser(), 'THESIS_ACTIVATED', 'PositioningThesis', thesis.id, {
+            clientId,
+          });
+          this.showToast('Tesis activada. El radar y el scoring ya la usan.', 'success');
+          this.refreshMain();
+        } catch (error) {
+          this.showToast(error instanceof Error ? error.message : 'No se pudo activar la tesis', 'warning');
         }
       });
     });
 
     ['btn-close-challenge', 'btn-close-challenge-bottom'].forEach((id) => {
       document.getElementById(id)?.addEventListener('click', () => this.closeModal());
+    });
+
+    document.getElementById('btn-challenge-edit-thesis')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      this.closeModal();
+      this.activeModal = 'thesis-editor';
+      this.modalData = {
+        clientId: btn.getAttribute('data-client-id') || this.resolveClientId(),
+        thesisId: btn.getAttribute('data-thesis-id') || undefined,
+      };
+      this.render();
+    });
+
+    document.getElementById('btn-challenge-split-thesis')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      this.closeModal();
+      this.activeModal = 'thesis-editor';
+      this.modalData = {
+        clientId: btn.getAttribute('data-client-id') || this.resolveClientId(),
+        generateProposal: true,
+        splitHint: btn.getAttribute('data-split-hint') || '',
+      };
+      this.render();
+    });
+
+    document.getElementById('btn-challenge-open-vault')?.addEventListener('click', () => {
+      this.closeModal();
+      this.setTab('ws-positioning');
+      window.setTimeout(() => {
+        const panel = document.getElementById('proof-wall-section');
+        if (panel instanceof HTMLDetailsElement) panel.open = true;
+        panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
+    });
+
+    document.getElementById('btn-challenge-submit-thesis')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      this.closeModal();
+      this.activeModal = 'thesis-editor';
+      this.modalData = {
+        clientId: btn.getAttribute('data-client-id') || this.resolveClientId(),
+        thesisId: btn.getAttribute('data-thesis-id') || undefined,
+        focusBlock: 'review',
+      };
+      this.render();
     });
   }
 
@@ -1108,7 +1712,7 @@ class App {
       const name = (document.getElementById('src-name') as HTMLInputElement).value;
       const type = (document.getElementById('src-type') as HTMLSelectElement).value as Source['type'];
       const url = (document.getElementById('src-url') as HTMLInputElement).value;
-      const thesis = dbService.getThesesByClient(clientId).find((t) => t.status === 'ACTIVE');
+      const thesis = dbService.getActiveTheses(clientId)[0];
 
       try {
         dbService.addSource({
@@ -1250,8 +1854,7 @@ class App {
         const client = dbService.getClientById(clientId);
         if (!client || !key) return;
 
-        const theses = dbService.getThesesByClient(clientId);
-        const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+        const thesis = dbService.getPrimaryThesis(clientId);
         const candidate = resolveDiscoveryCandidate(client, thesis, key);
         if (!candidate) return;
 
@@ -1289,8 +1892,7 @@ class App {
       const client = dbService.getClientById(clientId);
       if (!client) return;
 
-      const theses = dbService.getThesesByClient(clientId);
-      const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+      const thesis = dbService.getPrimaryThesis(clientId);
       const lastRun = loadLastAgentRun(clientId);
       const existing = new Set(
         dbService.getSourcesByClient(clientId).map((s) => normalizeSourceUrl(s.url || ''))
@@ -1337,8 +1939,7 @@ class App {
       const client = dbService.getClientById(clientId);
       if (!client) return;
 
-      const theses = dbService.getThesesByClient(clientId);
-      const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+      const thesis = dbService.getPrimaryThesis(clientId);
       const keywords = buildProfileKeywords(client, thesis);
       const profile = dbService.getMasterProfile(clientId);
       const extendedBase = discoverExtendedSources(client, thesis);
@@ -1389,8 +1990,7 @@ class App {
       const client = dbService.getClientById(clientId);
       if (!client) return;
 
-      const theses = dbService.getThesesByClient(clientId);
-      const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+      const thesis = dbService.getPrimaryThesis(clientId);
       if (!thesis) return;
 
       const keywords = buildProfileKeywords(client, thesis);
@@ -1475,8 +2075,7 @@ class App {
       const client = dbService.getClientById(clientId);
       if (!client) return;
 
-      const theses = dbService.getThesesByClient(clientId);
-      const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+      const thesis = dbService.getPrimaryThesis(clientId);
       tavilyRescanBtn.textContent = 'Buscando…';
       tavilyRescanBtn.setAttribute('disabled', 'true');
 
@@ -1557,7 +2156,7 @@ class App {
       const estimatedMinutes = parseInt((document.getElementById('task-minutes') as HTMLInputElement).value || '15', 10);
       const deadlineRaw = (document.getElementById('task-deadline') as HTMLInputElement).value;
 
-      dbService.addTask({
+      const created = dbService.addTask({
         organizationId: client?.organizationId || 'org_aurora_01',
         clientId,
         thesisId,
@@ -1573,6 +2172,8 @@ class App {
         type: 'TASK_ASSIGNED',
         title: 'Nueva tarea asignada',
         body: title,
+        href: 'client-home',
+        targetId: created.id,
       });
       if (!notified) {
         this.showToast('Tarea guardada. El cliente no tiene cuenta vinculada para avisos.', 'info');
@@ -1635,6 +2236,7 @@ class App {
     }
 
     if (task.type === 'RECORD_VIDEO') {
+      this.markVideoCaptureStarted(task);
       this.activeModal = 'teleprompter';
       this.modalData = { taskId };
       this.render();
@@ -1643,8 +2245,15 @@ class App {
 
     if (task.type === 'REVIEW_ARTICLE') {
       if (task.contentItemId) {
-        this.activeModal = 'content-preview';
-        this.modalData = { contentId: task.contentItemId, taskId };
+        const user = authService.getCurrentUser();
+        if (user?.role === 'CLIENT') {
+          this.markArticleReviewStarted(task, task.contentItemId);
+          this.activeModal = 'article-review';
+          this.modalData = { contentId: task.contentItemId, taskId };
+        } else {
+          this.activeModal = 'content-preview';
+          this.modalData = { contentId: task.contentItemId, taskId };
+        }
         this.render();
         return;
       }
@@ -1682,8 +2291,7 @@ class App {
   private scoringContext(clientId: string): ScoringContext {
     const client = dbService.getClientById(clientId);
     if (!client) return {};
-    const theses = dbService.getThesesByClient(clientId);
-    const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+    const thesis = dbService.getPrimaryThesis(clientId);
     const keywords = buildProfileKeywords(client, thesis);
     const dossier = dbService.getMasterDossier(clientId);
     const hints = feedbackScoringHints(
@@ -1697,13 +2305,72 @@ class App {
     };
   }
 
+  /**
+   * Puntúa la señal contra todas las tesis activas y persiste la que la reclama.
+   * Con una sola tesis el resultado es idéntico al de antes del router.
+   */
+  /**
+   * Por qué esta señal merece atención hoy: novedad real, velocidad de la
+   * conversación en el cluster y saturación del ángulo por publicaciones propias.
+   */
+  private whyNowFor(signal: Signal, clientId: string): WhyNowResult {
+    const siblings = dbService.getSignalsByClient(clientId);
+    const cluster = clusterForSignal(signal.id, clusterSimilarSignals(siblings));
+
+    const clusterIds = new Set(cluster?.members.map((m) => m.signalId) || []);
+    const priorCoverageCount = siblings.filter(
+      (s) => s.id !== signal.id && clusterIds.has(s.id) && (s.managerDecision === 'CONVERTED' || s.status === 'CONVERTED')
+    ).length;
+
+    const ownPublishedOnTopic = dbService
+      .getContentByClient(clientId)
+      .filter((item) => item.status === 'PUBLISHED' && titleSimilarity(item.title, signal.title) >= 0.25)
+      .length;
+
+    return computeWhyNow(signal, cluster, { ownPublishedOnTopic, priorCoverageCount });
+  }
+
   private scoreSignal(signalId: string, clientId: string): number | null {
     const signal = dbService.getSignalById(signalId);
-    const theses = dbService.getThesesByClient(clientId);
-    const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
-    if (!signal || !thesis) return null;
-    const score = calculateStrategicScore(signal, thesis, this.scoringContext(clientId));
-    dbService.applyScoreToSignal(signalId, score);
+    if (!signal) return null;
+
+    const whyNow = this.whyNowFor(signal, clientId);
+    const baseContext: ScoringContext = {
+      ...this.scoringContext(clientId),
+      whyNow: { score: whyNow.score, reason: whyNow.reason },
+    };
+    const evidence = dbService.getEvidenceVaultByClient(clientId);
+
+    const active = dbService.getActiveTheses(clientId);
+    if (!active.length) return null;
+    const candidates = active;
+
+    const contextFor = (thesis: PositioningThesis): ScoringContext => ({
+      ...baseContext,
+      authorityScore: computeThesisStrength(thesis, evidence).authorityScore,
+    });
+
+    const routing = routeSignalAcrossTheses(signal, candidates, (s, t) =>
+      calculateStrategicScore(s, t, contextFor(t))
+    );
+    const chosen = candidates.find((t) => t.id === routing.primaryThesisId) || candidates[0];
+    const score = calculateStrategicScore(signal, chosen, contextFor(chosen));
+    if (candidates.length > 1) {
+      score.strategicRationale = `${score.strategicRationale} · ${routing.rationale}`;
+    }
+
+    const patch = routingSignalPatch(routing);
+    dbService.applyScoreToSignal(signalId, score, {
+      ...patch,
+      whyNow: { score: whyNow.score, band: whyNow.band, reason: whyNow.reason },
+      routingDecision: {
+        contested: routing.contested,
+        secondaryThesisId: routing.secondaryThesisId,
+        source: signal.routingDecision?.source === 'MANUAL' && signal.thesisId === routing.primaryThesisId
+          ? 'MANUAL'
+          : 'AUTO',
+      },
+    });
     return score.totalScore;
   }
 
@@ -1781,8 +2448,7 @@ class App {
 
         const signal = dbService.getSignalById(signalId);
         const clientId = this.resolveClientId(signal?.clientId);
-        const theses = dbService.getThesesByClient(clientId);
-        const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+        const thesis = dbService.getPrimaryThesis(clientId);
 
         if (!signal || !thesis) {
           this.showToast('Define una tesis activa para poder puntuar señales.', 'warning');
@@ -1792,10 +2458,14 @@ class App {
         target.disabled = true;
         target.textContent = 'Analizando…';
         try {
-          const rec = await aiService.analyzeSignalAgainstThesis(signal, thesis);
+          const rec = await aiService.analyzeSignalAgainstThesis(
+            signal,
+            thesis,
+            this.scoringContext(clientId)
+          );
           const { usedLiveModel, ...payload } = rec as typeof rec & { usedLiveModel?: boolean };
           dbService.addRecommendation(payload);
-          dbService.applyScoreToSignal(signalId, calculateStrategicScore(signal, thesis, this.scoringContext(clientId)));
+          this.scoreSignal(signalId, clientId);
           this.showToast(
             `Score ${payload.impactScore}/100${usedLiveModel ? ' · con modelo' : ' · scoring local'}`,
             'success'
@@ -1873,6 +2543,7 @@ class App {
           organizationId: signal.organizationId,
           clientId,
           signalId,
+          thesisId: scored?.thesisId || signal.thesisId,
           title: signal.title,
           sourceName: signal.sourceName,
           sourceUrl: signal.sourceUrl,
@@ -2046,8 +2717,12 @@ class App {
       const target = e.currentTarget as HTMLButtonElement;
       const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
       target.disabled = true;
-      const result = runTopicAgent(clientId);
-      this.showToast(`Ranking generado: ${result.items.length} temas`, 'success');
+      try {
+        const result = runTopicAgent(clientId);
+        this.showToast(`Ranking generado: ${result.items.length} temas`, 'success');
+      } finally {
+        target.disabled = false;
+      }
       this.render();
     });
 
@@ -2215,25 +2890,23 @@ class App {
   private async sendDelivery(packageId: string) {
     const pkg = dbService.getDeliveryById(packageId);
     const clientId = pkg?.clientId;
-    const theses = clientId ? dbService.getThesesByClient(clientId) : [];
-    const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+    const fallbackThesis = clientId ? dbService.getPrimaryThesis(clientId) : undefined;
 
     const validation = validateDeliveryForSend(
       pkg,
       (item) => (item.refId ? dbService.getCurationById(item.refId)?.destination : undefined),
-      thesis
+      fallbackThesis
     );
     if (!validation.ok) {
       throw new Error(validation.message);
     }
 
-    const client = dbService.getClientById(clientId!);
     type CurationEntry = ReturnType<typeof dbService.getCurationById>;
     type DraftPlan =
-      | { kind: 'task_content'; item: DeliveryItem; entry?: CurationEntry; destination: 'TASK_VIDEO' | 'TASK_ARTICLE'; draft: Awaited<ReturnType<typeof aiService.generateContentDraft>> }
-      | { kind: 'opportunity'; item: DeliveryItem; entry?: CurationEntry }
-      | { kind: 'evidence'; item: DeliveryItem; entry?: CurationEntry }
-      | { kind: 'reading'; item: DeliveryItem; entry?: CurationEntry };
+      | { kind: 'task_content'; item: DeliveryItem; entry?: CurationEntry; destination: 'TASK_VIDEO' | 'TASK_ARTICLE'; draft: Awaited<ReturnType<typeof aiService.generateContentDraft>>; thesis: PositioningThesis }
+      | { kind: 'opportunity'; item: DeliveryItem; entry?: CurationEntry; thesis: PositioningThesis }
+      | { kind: 'evidence'; item: DeliveryItem; entry?: CurationEntry; thesis: PositioningThesis }
+      | { kind: 'reading'; item: DeliveryItem; entry?: CurationEntry; thesis: PositioningThesis };
 
     const plans: DraftPlan[] = [];
     const briefingItems = pkg!.items;
@@ -2241,17 +2914,23 @@ class App {
     for (const item of briefingItems) {
       const entry = item.refId ? dbService.getCurationById(item.refId) : undefined;
       const destination = entry?.destination;
+      const thesis = dbService.resolveThesisFor({
+        clientId: clientId!,
+        selectedThesisId: this.filterState.thesisId,
+        entityThesisId: entry?.thesisId,
+      }) || fallbackThesis;
+      if (!thesis) continue;
 
       if (destination === 'TASK_VIDEO' || destination === 'TASK_ARTICLE') {
         const format = destination === 'TASK_VIDEO' ? 'VIDEO_SCRIPT' : 'LINKEDIN_ARTICLE';
-        const draft = await aiService.generateContentDraft(thesis!, item.title, format);
-        plans.push({ kind: 'task_content', item, entry, destination, draft });
+        const draft = await aiService.generateContentDraft(thesis, item.title, format);
+        plans.push({ kind: 'task_content', item, entry, destination, draft, thesis });
       } else if (destination === 'OPPORTUNITY') {
-        plans.push({ kind: 'opportunity', item, entry });
+        plans.push({ kind: 'opportunity', item, entry, thesis });
       } else if (destination === 'EVIDENCE') {
-        plans.push({ kind: 'evidence', item, entry });
+        plans.push({ kind: 'evidence', item, entry, thesis });
       } else if (destination === 'REFERENCE_READING' || item.kind === 'READING') {
-        plans.push({ kind: 'reading', item, entry });
+        plans.push({ kind: 'reading', item, entry, thesis });
       }
     }
 
@@ -2260,20 +2939,26 @@ class App {
       for (const plan of plans) {
         if (plan.kind === 'task_content') {
           const contentId = createId('cnt');
-          dbService.saveContent({
-            ...plan.draft,
-            id: contentId,
-            status: 'CLIENT_REVIEW',
-            managerNotes: `${plan.draft.managerNotes || ''} Justificación: ${plan.item.rationale || 'sin nota'}`.trim(),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-          this.syncContentToPipelineStatus(contentId, 'CLIENT_REVIEW', 'Enviado con briefing');
+          const advanced = this.saveContentWithClaimGate(
+            {
+              ...plan.draft,
+              id: contentId,
+              status: 'AI_GENERATED',
+              managerNotes: `${plan.draft.managerNotes || ''} Justificación: ${plan.item.rationale || 'sin nota'}`.trim(),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            'CLIENT_REVIEW',
+            'Enviado con briefing'
+          );
+          if (!advanced) {
+            // El contenido queda en AI_GENERATED con el veredicto; se sigue creando la tarea.
+          }
 
           dbService.addTask({
-            organizationId: thesis!.organizationId,
+            organizationId: plan.thesis.organizationId,
             clientId: clientId!,
-            thesisId: thesis!.id,
+            thesisId: plan.thesis.id,
             type: plan.destination === 'TASK_VIDEO' ? 'RECORD_VIDEO' : 'REVIEW_ARTICLE',
             title: plan.item.title.slice(0, 90),
             description: plan.item.rationale || 'Preparado por tu Brand Manager.',
@@ -2287,9 +2972,9 @@ class App {
           createdTasks += 1;
         } else if (plan.kind === 'opportunity') {
           dbService.addOpportunity({
-            organizationId: thesis!.organizationId,
+            organizationId: plan.thesis.organizationId,
             clientId: clientId!,
-            thesisId: thesis!.id,
+            thesisId: plan.thesis.id,
             title: plan.item.title.slice(0, 120),
             organization: plan.entry?.sourceName || 'Por confirmar',
             type: 'PANEL',
@@ -2300,7 +2985,7 @@ class App {
           });
         } else if (plan.kind === 'evidence') {
           dbService.addEvidenceItem({
-            organizationId: client?.organizationId || 'org_aurora_01',
+            organizationId: plan.thesis.organizationId,
             clientId: clientId!,
             title: plan.item.title.slice(0, 120),
             type: 'DOCUMENT',
@@ -2308,13 +2993,13 @@ class App {
             snippet: plan.item.note || plan.item.title,
             confidenceScore: 70,
             verified: false,
-            associatedThesesIds: thesis ? [thesis.id] : [],
+            associatedThesesIds: [plan.thesis.id],
           });
         } else if (plan.kind === 'reading') {
           dbService.addTask({
-            organizationId: thesis!.organizationId,
+            organizationId: plan.thesis.organizationId,
             clientId: clientId!,
-            thesisId: thesis!.id,
+            thesisId: plan.thesis.id,
             type: 'SUBMIT_INFO',
             title: `Leer: ${plan.item.title.slice(0, 80)}`,
             description: readingTaskDescription(plan.item),
@@ -2383,9 +3068,29 @@ class App {
   }
 
   /** Sincroniza pipelineStatus + legacy status mediante transiciones válidas. */
-  private syncContentToPipelineStatus(contentId: string, legacyStatus: ContentStatus, comment?: string): boolean {
+  private syncContentToPipelineStatus(
+    contentId: string,
+    legacyStatus: ContentStatus,
+    comment?: string,
+    options?: {
+      reviewAcknowledged?: boolean;
+      requireReviewAck?: boolean;
+      claimSafetyOverride?: import('./types').ClaimSafetyVerdictRecord;
+    }
+  ): boolean {
     const content = dbService.getContentById(contentId);
     if (!content) return false;
+
+    const claimSafety = options?.claimSafetyOverride || content.claimSafety;
+    const gate = assertClaimSafeTransition(content.status, legacyStatus, claimSafety, {
+      reviewAcknowledged: options?.reviewAcknowledged,
+      requireReviewAck: options?.requireReviewAck,
+    });
+    if (!gate.allowed) {
+      this.showToast(gate.reason || 'Claim safety bloquea el avance', 'warning');
+      return false;
+    }
+
     const current = content.pipelineStatus || mapLegacyContentStatus(content.status);
     const target = mapLegacyContentStatus(legacyStatus);
     if (current === target) return true;
@@ -2400,6 +3105,34 @@ class App {
       this.showToast(err instanceof Error ? err.message : 'Transición de contenido no permitida', 'warning');
       return false;
     }
+  }
+
+  /** Persiste contenido y solo avanza a estados gated si Claim Safety lo permite. */
+  private saveContentWithClaimGate(
+    content: import('./types').ContentItem,
+    targetStatus: ContentStatus,
+    comment?: string
+  ): boolean {
+    const thesis =
+      dbService.getThesesByClient(content.clientId).find((t) => t.id === content.thesisId) ||
+      dbService.getPrimaryThesis(content.clientId);
+    const claimSafety = thesis
+      ? aiService.reviewDraftClaims(content.body, thesis)
+      : content.claimSafety;
+    const now = new Date().toISOString();
+
+    // Guarda primero como borrador con el veredicto; el avance es un paso aparte.
+    dbService.saveContent({
+      ...content,
+      claimSafety,
+      status: 'AI_GENERATED',
+      createdAt: content.createdAt || now,
+      updatedAt: now,
+    });
+
+    return this.syncContentToPipelineStatus(content.id, targetStatus, comment, {
+      claimSafetyOverride: claimSafety,
+    });
   }
 
   /** Aprueba un artículo del cliente y completa la tarea vinculada. */
@@ -2485,25 +3218,146 @@ class App {
     }
   }
 
-  private bindContent() {
-    document.getElementById('btn-generate-article')?.addEventListener('click', async (e) => {
-      const target = e.currentTarget as HTMLButtonElement;
-      const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
-      const theses = dbService.getThesesByClient(clientId);
-      const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+  private bindClaimLocate(root: ParentNode = document) {
+    root.querySelectorAll('[data-claim-locate]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const claim = (e.currentTarget as HTMLElement).getAttribute('data-claim-locate') || '';
+        const body = document.getElementById('edit-content-body') as HTMLTextAreaElement | null;
+        if (!body || !claim) return;
+        const idx = body.value.indexOf(claim);
+        if (idx < 0) {
+          this.showToast('No se encontró la frase en el borrador actual', 'info');
+          return;
+        }
+        body.focus();
+        body.setSelectionRange(idx, idx + claim.length);
+      });
+    });
+  }
 
+  private refreshClaimSafetyLive() {
+    const form = document.getElementById('form-edit-content');
+    const host = document.getElementById('claim-safety-live');
+    const body = document.getElementById('edit-content-body') as HTMLTextAreaElement | null;
+    if (!form || !host || !body) return;
+
+    const clientId = form.getAttribute('data-client-id') || this.resolveClientId();
+    const thesisId = form.getAttribute('data-thesis-id') || '';
+    const thesis =
+      dbService.resolveThesisFor({ clientId, selectedThesisId: thesisId || this.filterState.thesisId }) ||
+      dbService.getPrimaryThesis(clientId);
+    if (!thesis) return;
+
+    const record = aiService.reviewDraftClaims(body.value, thesis);
+    host.innerHTML = renderClaimSafetyPanel(record);
+    this.bindClaimLocate(host);
+
+    const ackRow = document.getElementById('claim-review-ack-row');
+    ackRow?.classList.toggle('hidden', record.verdict !== 'REVIEW');
+    if (record.verdict !== 'REVIEW') {
+      const ack = document.getElementById('claim-review-ack') as HTMLInputElement | null;
+      if (ack) ack.checked = false;
+    }
+  }
+
+  private bindClaimSafetyLive() {
+    const body = document.getElementById('edit-content-body') as HTMLTextAreaElement | null;
+    if (!body) return;
+    body.addEventListener('input', () => {
+      if (this.claimLiveTimer) window.clearTimeout(this.claimLiveTimer);
+      this.claimLiveTimer = window.setTimeout(() => this.refreshClaimSafetyLive(), 500);
+    });
+  }
+
+  /** Ejecuta una acción del pipeline canónico (finalizar → QA → listo → publicar). */
+  private runContentPipelineAction(contentId: string, action: ContentPipelineAction): boolean {
+    const content = dbService.getContentById(contentId);
+    if (!content) return false;
+
+    const targetPipeline = pipelineActionTarget(action);
+    const targetLegacy = syncLegacyStatusFromPipeline(targetPipeline);
+
+    if (action === 'mark_ready' || action === 'publish') {
+      const gate = assertClaimSafeTransition(content.status, targetLegacy, content.claimSafety, {
+        requireReviewAck: action === 'publish',
+      });
+      if (!gate.allowed) {
+        this.showToast(gate.reason || 'Claim safety bloquea el avance', 'warning');
+        return false;
+      }
+    }
+
+    const comment = PIPELINE_ACTION_LABELS[action];
+    if (!this.advanceContentPipelineTarget(contentId, targetPipeline, comment)) {
+      return false;
+    }
+
+    const user = authService.getCurrentUser();
+    if (action === 'publish') {
+      auditService.log(user, 'CONTENT_PUBLISHED', 'ContentItem', contentId, { title: content.title });
+      notifyClient(content.clientId, {
+        type: 'CONTENT_REVIEW',
+        title: 'Contenido publicado',
+        body: `«${content.title}» ya está en tu biblioteca.`,
+        href: 'client-content',
+        targetId: contentId,
+      });
+      this.showToast('Contenido publicado', 'success');
+    } else {
+      this.showToast(comment, 'success');
+    }
+    this.render();
+    return true;
+  }
+
+  private bindContent() {
+    document.querySelectorAll('.btn-open-generate-content').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
+        this.activeModal = 'generate-content';
+        this.modalData = {
+          clientId,
+          thesisId: target.getAttribute('data-thesis-id') || this.filterState.thesisId || undefined,
+          topic: target.getAttribute('data-topic') || undefined,
+        };
+        this.render();
+      });
+    });
+
+    ['btn-close-generate-content', 'btn-cancel-generate-content'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('click', () => this.closeModal());
+    });
+
+    const formGenerate = document.getElementById('form-generate-content');
+    formGenerate?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const clientId = formGenerate.getAttribute('data-client-id') || this.resolveClientId();
+      const thesisId = (document.getElementById('generate-thesis') as HTMLSelectElement | null)?.value;
+      const thesis =
+        dbService.resolveThesisFor({ clientId, selectedThesisId: thesisId || this.filterState.thesisId }) ||
+        dbService.getPrimaryThesis(clientId);
       if (!thesis) {
         this.showToast('Define una tesis antes de generar contenido.', 'warning');
         return;
       }
 
-      const topic = prompt('¿Sobre qué tema quieres el borrador?');
-      if (!topic?.trim()) return;
+      const topic = (document.getElementById('generate-topic') as HTMLTextAreaElement | null)?.value.trim() || '';
+      if (!topic) {
+        this.showToast('Indica el tema del borrador.', 'warning');
+        return;
+      }
 
-      target.disabled = true;
-      target.textContent = 'Redactando…';
+      const format = ((document.getElementById('generate-format') as HTMLSelectElement | null)?.value ||
+        'LINKEDIN_ARTICLE') as 'VIDEO_SCRIPT' | 'LINKEDIN_ARTICLE' | 'ACADEMIC_PAPER' | 'THOUGHT_LEADERSHIP';
+      const angle = (document.getElementById('generate-angle') as HTMLInputElement | null)?.value.trim();
+      const submit = formGenerate.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = 'Redactando…';
+      }
       try {
-        const draft = await aiService.generateContentDraft(thesis, topic.trim(), 'LINKEDIN_ARTICLE');
+        const draft = await aiService.generateContentDraft(thesis, topic, format, angle ? { angle } : undefined);
         const contentId = createId('cnt');
         dbService.saveContent({
           ...draft,
@@ -2513,10 +3367,14 @@ class App {
         });
         this.syncContentToPipelineStatus(contentId, draft.status);
         this.showToast('Borrador creado. Revísalo antes de enviarlo al cliente.', 'success');
+        this.closeModal();
       } catch (error) {
         this.showToast(error instanceof Error ? error.message : 'No se pudo generar el borrador', 'warning');
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = 'Redactar borrador';
+        }
       }
-      this.render();
     });
 
     document.querySelectorAll('.btn-generate-scientific-article').forEach((btn) => {
@@ -2527,8 +3385,11 @@ class App {
         const why = target.getAttribute('data-sci-why') || '';
         const venue = target.getAttribute('data-sci-venue') || 'Working paper';
         const role = target.getAttribute('data-sci-role') || '';
-        const theses = dbService.getThesesByClient(clientId);
-        const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+        const thesis =
+          dbService.resolveThesisFor({
+            clientId,
+            selectedThesisId: this.filterState.thesisId,
+          }) || dbService.getPrimaryThesis(clientId);
         if (!thesis) {
           this.showToast('Define una tesis antes de generar el artículo científico.', 'warning');
           return;
@@ -2560,6 +3421,10 @@ class App {
 
     document.querySelectorAll('.btn-open-content-editor').forEach((btn) => {
       btn.addEventListener('click', (e) => {
+        if (authService.getCurrentUser()?.role !== 'ADMIN') {
+          this.showToast('Solo el Brand Manager puede abrir el editor de producción.', 'warning');
+          return;
+        }
         const contentId = (e.currentTarget as HTMLElement).getAttribute('data-content-id');
         if (!contentId) return;
         this.activeModal = 'content-editor';
@@ -2600,12 +3465,26 @@ class App {
       });
     });
 
+    document.querySelectorAll('.btn-content-pipeline-action').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const el = e.currentTarget as HTMLElement;
+        const contentId = el.getAttribute('data-content-id');
+        const action = el.getAttribute('data-pipeline-action') as ContentPipelineAction | null;
+        if (!contentId || !action) return;
+        this.runContentPipelineAction(contentId, action);
+      });
+    });
+
     document.querySelectorAll('.btn-open-article-review').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const el = e.currentTarget as HTMLElement;
         const contentId = el.getAttribute('data-content-id');
         const taskId = el.getAttribute('data-task-id') || undefined;
         if (!contentId) return;
+        if (taskId) {
+          const task = dbService.getAllTasks().find((t) => t.id === taskId);
+          if (task) this.markArticleReviewStarted(task, contentId);
+        }
         this.activeModal = 'article-review';
         this.modalData = { contentId, taskId };
         this.render();
@@ -2635,11 +3514,19 @@ class App {
       });
 
       const content = dbService.getContentById(contentId);
-      if (content) {
-        const pipeline = content.pipelineStatus || mapLegacyContentStatus(content.status);
-        if (pipeline === 'sent_to_client') {
-          this.advanceContentPipelineTarget(contentId, 'client_in_progress', 'Cliente editando borrador');
+      if (content && event) {
+        const steps = resolveArticleSavePipelineSteps(content);
+        const actor = this.pipelineActor();
+        for (const step of steps) {
+          dbService.transitionContentPipeline(contentId, step, actor, 'Cliente editando borrador');
         }
+        notifyManager(content.clientId, {
+          type: 'CONTENT_REVIEW',
+          title: 'Cliente editó borrador',
+          body: `«${content.title}»: +${event.diffSummary?.added ?? 0}/−${event.diffSummary?.removed ?? 0} líneas`,
+          href: 'ws-production',
+          targetId: contentId,
+        });
       }
 
       this.showToast(
@@ -2690,26 +3577,42 @@ class App {
 
       const body = (document.getElementById('edit-content-body') as HTMLTextAreaElement).value;
       const type = (document.getElementById('edit-content-type') as HTMLSelectElement).value as typeof content.type;
-      const status = (document.getElementById('edit-content-status') as HTMLSelectElement).value as typeof content.status;
+      const targetStatus = (document.getElementById('edit-content-status') as HTMLSelectElement).value as typeof content.status;
 
-      if (status !== content.status && !this.syncContentToPipelineStatus(content.id, status)) {
-        return;
-      }
+      // El texto pudo cambiar en este mismo formulario, así que se re-evalúa antes de avanzar.
+      const thesis =
+        dbService.getThesesByClient(content.clientId).find((t) => t.id === content.thesisId) ||
+        dbService.getPrimaryThesis(content.clientId);
+      const claimSafety = thesis ? aiService.reviewDraftClaims(body, thesis) : content.claimSafety;
 
-      const refreshed = dbService.getContentById(content.id) || content;
-
+      // Guarda el trabajo del manager aunque el avance se frene.
       dbService.saveContent({
-        ...refreshed,
+        ...content,
         title: (document.getElementById('edit-content-title') as HTMLInputElement).value,
         targetPlatform: (document.getElementById('edit-content-platform') as HTMLSelectElement).value as typeof content.targetPlatform,
         type,
         body,
-        teleprompterScript: type === 'VIDEO_SCRIPT' ? body : refreshed.teleprompterScript,
+        teleprompterScript: type === 'VIDEO_SCRIPT' ? body : content.teleprompterScript,
         managerNotes: (document.getElementById('edit-content-notes') as HTMLInputElement).value,
+        claimSafety,
         updatedAt: new Date().toISOString(),
       });
 
-      auditService.log(authService.getCurrentUser(), 'EDIT_CONTENT', 'ContentItem', content.id, { status });
+      if (targetStatus !== content.status) {
+        const advanced = this.syncContentToPipelineStatus(content.id, targetStatus, undefined, {
+          claimSafetyOverride: claimSafety,
+          requireReviewAck: true,
+          reviewAcknowledged: (document.getElementById('claim-review-ack') as HTMLInputElement | null)?.checked,
+        });
+        if (!advanced) {
+          this.render();
+          return;
+        }
+      }
+
+      auditService.log(authService.getCurrentUser(), 'EDIT_CONTENT', 'ContentItem', content.id, {
+        status: targetStatus,
+      });
       this.showToast('Cambios guardados', 'success');
       this.closeModal();
     });
@@ -2720,8 +3623,7 @@ class App {
         const signalId = target.getAttribute('data-signal-id');
         const signal = signalId ? dbService.getSignalById(signalId) : null;
         const clientId = this.resolveClientId(signal?.clientId);
-        const theses = dbService.getThesesByClient(clientId);
-        const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+        const thesis = dbService.getPrimaryThesis(clientId);
         if (!signal || !thesis) return;
 
         target.disabled = true;
@@ -2754,14 +3656,17 @@ class App {
 
         const draft = await aiService.generateContentDraft(thesis, rec.proposedAngle, 'VIDEO_SCRIPT');
         const contentId = createId('cnt');
-        dbService.saveContent({
-          ...draft,
-          id: contentId,
-          status: 'CLIENT_REVIEW',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        this.syncContentToPipelineStatus(contentId, 'CLIENT_REVIEW', 'Tarea desde recomendación');
+        const advanced = this.saveContentWithClaimGate(
+          {
+            ...draft,
+            id: contentId,
+            status: 'AI_GENERATED',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          'CLIENT_REVIEW',
+          'Tarea desde recomendación'
+        );
         dbService.addTask({
           organizationId: thesis.organizationId,
           clientId: thesis.clientId,
@@ -2775,16 +3680,23 @@ class App {
           scriptPayload: draft.teleprompterScript,
         });
         dbService.updateRecommendationStatus(rec.id, 'CONVERTED_TO_TASK');
-        this.showToast('Guion y tarea generados', 'success');
+        this.showToast(
+          advanced
+            ? 'Guion y tarea generados'
+            : 'Tarea creada; el guion quedó en borrador por Claim Safety',
+          advanced ? 'success' : 'warning'
+        );
         this.setTab('ws-production');
       });
     });
 
-    document.getElementById('btn-add-evidence-vault')?.addEventListener('click', (e) => {
-      const clientId = (e.currentTarget as HTMLElement).getAttribute('data-client-id') || this.resolveClientId();
-      this.activeModal = 'add-evidence';
-      this.modalData = { clientId };
-      this.render();
+    document.querySelectorAll('.btn-add-evidence-vault').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const clientId = (e.currentTarget as HTMLElement).getAttribute('data-client-id') || this.resolveClientId();
+        this.activeModal = 'add-evidence';
+        this.modalData = { clientId };
+        this.render();
+      });
     });
 
     ['btn-close-evidence', 'btn-cancel-evidence'].forEach((id) => {
@@ -2796,6 +3708,18 @@ class App {
       e.preventDefault();
       const clientId = formAddEvidence.getAttribute('data-client-id') || this.resolveClientId();
       const title = (document.getElementById('evidence-title') as HTMLInputElement).value;
+      const supports = (document.getElementById('evidence-supports') as HTMLTextAreaElement | null)
+        ?.value.split('\n').map((line) => line.trim()).filter(Boolean) || [];
+      const authorityRaw = Number.parseInt(
+        (document.getElementById('evidence-authority-weight') as HTMLInputElement | null)?.value || '70',
+        10
+      );
+      const associatedThesesIds = Array.from(
+        document.querySelectorAll<HTMLInputElement>('input[name="evidence-thesis"]:checked')
+      ).map((input) => input.value);
+      if (!associatedThesesIds.length && this.filterState.thesisId) {
+        associatedThesesIds.push(this.filterState.thesisId);
+      }
 
       dbService.addEvidenceItem({
         organizationId: 'org_aurora_01',
@@ -2807,13 +3731,18 @@ class App {
         snippet: (document.getElementById('evidence-snippet') as HTMLTextAreaElement).value,
         verified: true,
         verifiedAt: new Date().toISOString(),
-        associatedThesesIds: []
+        associatedThesesIds,
+        supports: supports.length ? supports : undefined,
+        authorityWeight: Number.isFinite(authorityRaw) ? Math.max(0, Math.min(100, authorityRaw)) : undefined,
       });
 
       auditService.log(authService.getCurrentUser(), 'ADD_EVIDENCE_ITEM', 'EvidenceVault', title);
       this.showToast('Evidencia registrada', 'success');
       this.closeModal();
     });
+
+    this.bindClaimLocate();
+    this.bindClaimSafetyLive();
   }
 
   // ==========================================
@@ -2821,6 +3750,13 @@ class App {
   // ==========================================
 
   private bindClientPortalActions() {
+    document.querySelectorAll('[data-client-thesis-select]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        this.filterState.thesisId = (e.currentTarget as HTMLElement).getAttribute('data-client-thesis-select') || '';
+        this.setTab('client-thesis');
+      });
+    });
+
     document.querySelectorAll('.btn-request-task-changes').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const taskId = (e.currentTarget as HTMLElement).getAttribute('data-task-id');
@@ -3026,8 +3962,31 @@ class App {
         const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
         const thesis = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
         if (!thesis) return;
-        dbService.saveThesis({ ...thesis, clientApprovalStatus: 'APPROVED', status: 'ACTIVE' });
-        this.showToast('Tesis aprobada y activada', 'success');
+        const actor = authService.getCurrentUser()?.uid || thesis.updatedBy;
+        const result = approveThesisByClient(
+          { ...thesis, updatedAt: new Date().toISOString(), updatedBy: actor },
+          actor
+        );
+        dbService.saveThesis(result.thesis);
+        auditService.log(authService.getCurrentUser(), 'THESIS_CLIENT_APPROVED', 'PositioningThesis', thesis.id, {
+          clientId,
+        });
+        if (result.awaitsManagerActivation) {
+          notifyManager(clientId, {
+            type: 'THESIS',
+            title: 'Tesis aprobada por el cliente',
+            body: `«${thesis.title}» — puedes activarla en Identidad.`,
+            href: 'ws-positioning',
+          });
+          this.showToast('Tesis aprobada. Tu Brand Manager la activará.', 'success');
+        } else {
+          this.showToast(
+            result.appliedRevision
+              ? 'Revisión aplicada. La tesis activa queda actualizada.'
+              : 'Tesis aprobada.',
+            'success'
+          );
+        }
         this.render();
       });
     });
@@ -3038,7 +3997,27 @@ class App {
         const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
         const thesis = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
         if (!thesis) return;
-        dbService.saveThesis({ ...thesis, clientApprovalStatus: 'CHANGES_REQUESTED', status: 'DRAFT' });
+        const feedback =
+          (document.getElementById('thesis-change-notes') as HTMLTextAreaElement | null)?.value.trim() || undefined;
+        const actor = authService.getCurrentUser()?.uid || thesis.updatedBy;
+        dbService.saveThesis(
+          rejectThesisByClient(
+            { ...thesis, updatedAt: new Date().toISOString(), updatedBy: actor },
+            feedback,
+            actor
+          )
+        );
+        notifyManager(clientId, {
+          type: 'THESIS',
+          title: 'Cambios solicitados en la tesis',
+          body: feedback
+            ? `«${thesis.title}»: ${feedback.slice(0, 120)}`
+            : `El cliente pidió ajustes en «${thesis.title}».`,
+          href: 'ws-positioning',
+        });
+        auditService.log(authService.getCurrentUser(), 'THESIS_CHANGES_REQUESTED', 'PositioningThesis', thesis.id, {
+          clientId,
+        });
         this.showToast('Cambios solicitados al manager', 'info');
         this.render();
       });
@@ -3216,7 +4195,43 @@ class App {
     }
   }
 
+  private markVideoCaptureStarted(task: import('./types').Task) {
+    if (task.status === 'ASSIGNED' || task.status === 'VIEWED' || task.status === 'DRAFT') {
+      try {
+        dbService.updateTaskStatus(task.id, 'IN_PROGRESS');
+      } catch {
+        /* ya avanzada */
+      }
+    }
+    if (task.contentItemId) {
+      this.advanceContentPipelineTarget(task.contentItemId, 'client_in_progress', 'Cliente en teleprompter');
+    }
+  }
+
+  private markArticleReviewStarted(task: import('./types').Task, contentId: string): void {
+    if (task.status === 'ASSIGNED' || task.status === 'VIEWED' || task.status === 'DRAFT') {
+      try {
+        dbService.updateTaskStatus(task.id, 'IN_PROGRESS');
+      } catch {
+        /* ya avanzada */
+      }
+    }
+    const content = dbService.getContentById(contentId);
+    if (!content) return;
+    const steps = resolveArticleSavePipelineSteps(content);
+    const actor = this.pipelineActor();
+    for (const step of steps) {
+      dbService.transitionContentPipeline(contentId, step, actor, 'Cliente revisando borrador');
+    }
+  }
+
   private async startRecording() {
+    const taskId = this.modalData?.taskId as string | undefined;
+    if (taskId) {
+      const task = dbService.getAllTasks().find((t) => t.id === taskId);
+      if (task) this.markVideoCaptureStarted(task);
+    }
+
     if (!this.cameraStream) {
       await this.initTeleprompterCamera();
     }
@@ -3306,9 +4321,22 @@ class App {
       this.showToast('Graba un video antes de enviar', 'warning');
       return;
     }
-    await this.submitClientVideo(taskId, this.previewBlob);
-    this.stopTeleprompter();
-    this.closeModal();
+    const sendBtn = document.getElementById('btn-confirm-send-recording') as HTMLButtonElement | null;
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Enviando…';
+    }
+    try {
+      await this.submitClientVideo(taskId, this.previewBlob);
+      this.stopTeleprompter();
+      this.closeModal();
+    } catch (error) {
+      this.showToast(error instanceof Error ? error.message : 'No se pudo enviar el video', 'warning');
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Enviar video al manager';
+      }
+    }
   }
 
   private async submitClientVideo(taskId: string, blob: Blob) {
@@ -3324,7 +4352,7 @@ class App {
     if (task?.contentItemId) {
       this.advanceContentPipelineTarget(
         task.contentItemId,
-        'manager_finalizing',
+        VIDEO_SUBMIT_PIPELINE_TARGET,
         'Video enviado por cliente'
       );
     }
@@ -3336,9 +4364,15 @@ class App {
         body: client
           ? `${client.displayName} envió la grabación «${task.title || 'sin título'}».`
           : 'El cliente envió una nueva grabación de video.',
-        href: 'ws-tasks',
+        href: 'ws-production',
+        targetId: taskId,
       });
     }
+
+    auditService.log(authService.getCurrentUser(), 'VIDEO_SUBMITTED', 'Task', taskId, {
+      bytes: blob.size,
+      contentId: task?.contentItemId,
+    });
 
     this.showToast('Video enviado al manager', 'success');
   }
@@ -3416,7 +4450,7 @@ class App {
     this.lastDiscoveryScanAt = now;
 
     for (const client of dbService.getClients()) {
-      const thesis = dbService.getThesesByClient(client.id).find((t) => t.status === 'ACTIVE');
+      const thesis = dbService.getActiveTheses(client.id)[0];
       const lastRun = loadLastAgentRun(client.id);
       const profileChanged = profileChangedSinceLastRun(client, thesis, lastRun);
       const run = profileChanged
@@ -3531,8 +4565,7 @@ class App {
   private profileKeywordsFor(clientId?: string): ProfileKeywords {
     const client = clientId ? dbService.getClientById(clientId) : null;
     if (!client) return { coreEn: [], coreEs: [], strong: [], context: [], negative: [] };
-    const theses = dbService.getThesesByClient(client.id);
-    const thesis = theses.find((t) => t.status === 'ACTIVE') || theses[0];
+    const thesis = dbService.getPrimaryThesis(client.id);
     return buildProfileKeywords(client, thesis);
   }
 
@@ -3621,6 +4654,12 @@ class App {
     });
     return { created: accepted, rejected };
   }
+}
+
+if (import.meta.env.DEV) {
+  (window as unknown as { posturaReseedLocal?: () => void }).posturaReseedLocal = () => {
+    dbService.resetLocalDemoAndReload();
+  };
 }
 
 new App();

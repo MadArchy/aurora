@@ -99,6 +99,8 @@ class AuthService {
     }
     if (this.accounts.length === 0) {
       await this.seedAccounts();
+    } else {
+      await this.ensureElenaLocalAccount();
     }
 
     this.impersonation = this.loadImpersonation();
@@ -144,6 +146,7 @@ class AuthService {
   private async seedAccounts() {
     const managerSalt = createSalt();
     const clientSalt = createSalt();
+    const elenaSalt = createSalt();
     this.accounts = [
       {
         uid: 'user_admin_01',
@@ -162,8 +165,33 @@ class AuthService {
         clientId: 'client_juan_001',
         status: 'ACTIVE',
       },
+      {
+        uid: 'user_client_elena_01',
+        email: 'elena.martinez@lexfirm.com',
+        passwordSalt: elenaSalt,
+        passwordHash: await hashPassword(DEFAULT_PASSWORD, elenaSalt),
+        role: 'CLIENT',
+        clientId: 'client_elena_002',
+        status: 'ACTIVE',
+      },
     ];
     localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(this.accounts));
+  }
+
+  /** Migración: cuentas locales antiguas sin Elena (aislamiento DoD §7). */
+  private async ensureElenaLocalAccount() {
+    if (this.accounts.some((a) => a.email === 'elena.martinez@lexfirm.com')) return;
+    const elenaSalt = createSalt();
+    this.accounts.push({
+      uid: 'user_client_elena_01',
+      email: 'elena.martinez@lexfirm.com',
+      passwordSalt: elenaSalt,
+      passwordHash: await hashPassword(DEFAULT_PASSWORD, elenaSalt),
+      role: 'CLIENT',
+      clientId: 'client_elena_002',
+      status: 'ACTIVE',
+    });
+    this.persistAccounts();
   }
 
   private persistAccounts() {

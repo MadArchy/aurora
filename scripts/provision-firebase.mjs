@@ -35,6 +35,12 @@ const USERS = [
     password: DEFAULT_PASSWORD,
     claims: { role: 'CLIENT', organizationId: ORG_ID, clientId: 'client_juan_001' },
   },
+  {
+    email: 'elena.martinez@lexfirm.com',
+    displayName: 'Elena Martínez',
+    password: DEFAULT_PASSWORD,
+    claims: { role: 'CLIENT', organizationId: ORG_ID, clientId: 'client_elena_002' },
+  },
 ];
 
 function resolveCredentialPath() {

@@ -64,7 +64,7 @@ export const WORKSPACE_TABS: Record<string, TabMeta> = {
   },
   'ws-positioning': {
     title: 'Identidad',
-    subtitle: 'Tesis, dossier, perfil, evidencia y campañas del cliente.',
+    subtitle: 'El motor que decide qué se publica: audiencias, territorios, objetivos y límites por tesis.',
   },
   'ws-production': {
     title: 'Producción',
@@ -105,7 +105,6 @@ export const TAB_ALIASES: Record<string, string> = {
   'ws-results': 'ws-briefing',
   'ws-tasks': 'ws-production',
   'client-feed': 'client-home',
-  'client-profile': 'client-thesis',
   'client-library': 'client-content',
 };
 

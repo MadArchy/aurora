@@ -11,6 +11,15 @@ describe('firestore paths', () => {
   it('builds client document paths', () => {
     expect(clientDocPath('client_juan_001')).toBe('clients/client_juan_001');
     expect(clientSubPath('client_juan_001', 'signals', 'sig_1')).toBe('clients/client_juan_001/signals/sig_1');
+    expect(clientSubPath('client_juan_001', 'recommendations', 'rec_1')).toBe(
+      'clients/client_juan_001/recommendations/rec_1'
+    );
+    expect(clientSubPath('client_juan_001', 'theses', 'thesis_1')).toBe(
+      'clients/client_juan_001/theses/thesis_1'
+    );
+    expect(clientSubPath('client_juan_001', 'aiRuns', 'run_1')).toBe(
+      'clients/client_juan_001/aiRuns/run_1'
+    );
   });
 
   it('builds storage recording paths and parses refs', () => {

@@ -45,4 +45,12 @@ describe('contentPipeline', () => {
       'client_submitted',
     ]);
   });
+
+  it('resolves full video submit path through client_submitted', () => {
+    expect(resolvePipelineStepsToTarget('sent_to_client', 'manager_finalizing')).toEqual([
+      'client_in_progress',
+      'client_submitted',
+      'manager_finalizing',
+    ]);
+  });
 });
