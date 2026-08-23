@@ -7,12 +7,24 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 
 const PROJECT_ID = 'aurora-postura-rules-test';
 const ORG_ID = 'org_aurora_01';
+const OTHER_ORG = 'org_other_99';
 
-describe('firestore.rules (emulator)', () => {
+describe('firestore.rules (emulator) — SPEC-009 Phase 1', () => {
   let testEnv: RulesTestEnvironment;
 
   beforeAll(async () => {
@@ -44,29 +56,203 @@ describe('firestore.rules (emulator)', () => {
         organizationId: ORG_ID,
         displayName: 'Elena',
       });
+      await setDoc(doc(db, 'clients/client_other_org'), {
+        id: 'client_other_org',
+        organizationId: OTHER_ORG,
+        displayName: 'Other Org Client',
+      });
       await setDoc(doc(db, 'clients/client_juan_001/tasks/task_1'), {
         id: 'task_1',
+        organizationId: ORG_ID,
         clientId: 'client_juan_001',
         title: 'Revisar post',
         status: 'ASSIGNED',
       });
+      await setDoc(doc(db, 'clients/client_juan_001/tasks/task_viewed'), {
+        id: 'task_viewed',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        title: 'Vista',
+        status: 'VIEWED',
+      });
       await setDoc(doc(db, 'clients/client_juan_001/deliveries/pkg_1'), {
         id: 'pkg_1',
+        organizationId: ORG_ID,
         clientId: 'client_juan_001',
         status: 'SENT',
         title: 'Briefing',
       });
+      await setDoc(doc(db, 'clients/client_juan_001/contents/c_article'), {
+        id: 'c_article',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        title: 'Artículo',
+        body: 'Draft',
+        pipelineStatus: 'sent_to_client',
+        status: 'CLIENT_REVIEW',
+      });
+      await setDoc(doc(db, 'clients/client_juan_001/contents/c_mgr'), {
+        id: 'c_mgr',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        title: 'Mgr only',
+        pipelineStatus: 'manager_review',
+        status: 'IN_REVIEW',
+      });
+      await setDoc(doc(db, 'clients/client_juan_001/opportunities/opp_1'), {
+        id: 'opp_1',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        status: 'SENT_TO_CLIENT',
+        title: 'Opp',
+      });
+      await setDoc(doc(db, 'clients/client_juan_001/theses/th_1'), {
+        id: 'th_1',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        status: 'UNDER_REVIEW',
+        clientApprovalStatus: 'PENDING',
+        title: 'Tesis',
+        audiences: ['A'],
+      });
+      await setDoc(doc(db, 'clients/client_juan_001/theses/th_rev'), {
+        id: 'th_rev',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        status: 'ACTIVE',
+        clientApprovalStatus: 'PENDING',
+        title: 'Old Title',
+        expertIdentity: 'Old Expert',
+        targetAudience: 'Old Audience',
+        domain: 'Old Domain',
+        objective: 'Old Objective',
+        proofPoints: ['p1'],
+        voiceAndTone: 'authoritative',
+        complianceRules: '',
+        audiences: [{ id: 'a1', name: 'A', tier: 'COMMERCIAL', weight: 50, keywords: [] }],
+        pendingRevision: {
+          proposed: {
+            title: 'Proposed Title',
+            expertIdentity: 'Proposed Expert',
+            targetAudience: 'Proposed Audience',
+            domain: 'Proposed Domain',
+            objective: 'Proposed Objective',
+            proofPoints: ['p2'],
+            voiceAndTone: 'conversational',
+            complianceRules: 'none',
+            audiences: [{ id: 'a1', name: 'Proposed Aud', tier: 'COMMERCIAL', weight: 80, keywords: ['x'] }],
+          },
+          createdAt: '2026-08-01T00:00:00Z',
+          createdBy: 'admin_uid',
+        },
+      });
+      await setDoc(doc(db, 'clients/client_juan_001/profile/data'), {
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        identity: { displayName: 'Juan' },
+        goals: {},
+        audience: {},
+        career: {},
+        education: [],
+        careerHistory: [],
+        ventures: [],
+        keyPublications: [],
+        socialLinks: {},
+        voicePreferences: {
+          tone: 'authoritative',
+          preferredPhrases: [],
+          topicsToAvoid: [],
+          complianceGuidelines: '',
+        },
+        onboardingCompleted: false,
+        updatedAt: '2026-08-01T00:00:00Z',
+      });
+      await setDoc(doc(db, 'clients/client_juan_001/notifications/ntf_unread'), {
+        id: 'ntf_unread',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        userId: 'manager_uid',
+        type: 'BRIEFING',
+        title: 'Ack needed',
+        body: 'Please ack',
+        read: false,
+        createdAt: '2026-08-01T00:00:00Z',
+      });
+      await setDoc(doc(db, 'clients/client_juan_001/signalOutcomes/so_1'), {
+        id: 'so_1',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        signalId: 'sig_1',
+      });
+      await setDoc(doc(db, 'clients/client_other_org/tasks/task_x'), {
+        id: 'task_x',
+        organizationId: OTHER_ORG,
+        clientId: 'client_other_org',
+        title: 'Alien task',
+        status: 'ASSIGNED',
+      });
+      await setDoc(doc(db, 'auditLogs/log_same'), {
+        id: 'log_same',
+        organizationId: ORG_ID,
+        action: 'TEST',
+      });
+      await setDoc(doc(db, 'auditLogs/log_other'), {
+        id: 'log_other',
+        organizationId: OTHER_ORG,
+        action: 'TEST',
+      });
     });
   });
 
-  it('permite al admin leer cualquier cliente', async () => {
+  it('unauthenticated read DENY', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDoc(doc(db, 'clients/client_juan_001')));
+  });
+
+  it('ADMIN same-org read ALLOW', async () => {
     const adminDb = testEnv
       .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
       .firestore();
     await assertSucceeds(getDoc(doc(adminDb, 'clients/client_juan_001')));
   });
 
-  it('impide que un cliente lea datos de otro cliente', async () => {
+  it('ADMIN cross-org read DENY', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    await assertFails(getDoc(doc(adminDb, 'clients/client_other_org')));
+    await assertFails(getDoc(doc(adminDb, 'clients/client_other_org/tasks/task_x')));
+  });
+
+  it('ADMIN cross-org write DENY', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    await assertFails(
+      setDoc(doc(adminDb, 'clients/client_other_org/signals/sig_x'), {
+        id: 'sig_x',
+        clientId: 'client_other_org',
+        title: 'cross',
+      })
+    );
+    await assertFails(
+      updateDoc(doc(adminDb, 'clients/client_other_org'), { displayName: 'Hacked' })
+    );
+  });
+
+  it('CLIENT own client read ALLOW', async () => {
+    const juanDb = testEnv
+      .authenticatedContext('juan_uid', {
+        role: 'CLIENT',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+      })
+      .firestore();
+    await assertSucceeds(getDoc(doc(juanDb, 'clients/client_juan_001')));
+    await assertSucceeds(getDoc(doc(juanDb, 'clients/client_juan_001/tasks/task_1')));
+  });
+
+  it('CLIENT other client read DENY', async () => {
     const elenaDb = testEnv
       .authenticatedContext('elena_uid', {
         role: 'CLIENT',
@@ -75,9 +261,83 @@ describe('firestore.rules (emulator)', () => {
       })
       .firestore();
     await assertFails(getDoc(doc(elenaDb, 'clients/client_juan_001/tasks/task_1')));
+    await assertFails(getDoc(doc(elenaDb, 'clients/client_juan_001')));
   });
 
-  it('permite al cliente actualizar su tarea', async () => {
+  it('CLIENT cross-org read DENY', async () => {
+    const juanDb = testEnv
+      .authenticatedContext('juan_uid', {
+        role: 'CLIENT',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+      })
+      .firestore();
+    await assertFails(getDoc(doc(juanDb, 'clients/client_other_org')));
+  });
+
+  it('CREATE client without organizationId DENY', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    await assertFails(
+      setDoc(doc(adminDb, 'clients/client_no_org'), {
+        id: 'client_no_org',
+        displayName: 'Missing org',
+      })
+    );
+  });
+
+  it('CREATE client with wrong organizationId DENY', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    await assertFails(
+      setDoc(doc(adminDb, 'clients/client_wrong_org'), {
+        id: 'client_wrong_org',
+        organizationId: OTHER_ORG,
+        displayName: 'Wrong org',
+      })
+    );
+  });
+
+  it('UPDATE organizationId DENY', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    await assertFails(
+      updateDoc(doc(adminDb, 'clients/client_juan_001'), { organizationId: OTHER_ORG })
+    );
+    await assertFails(
+      updateDoc(doc(adminDb, 'clients/client_juan_001/tasks/task_1'), {
+        organizationId: OTHER_ORG,
+      })
+    );
+  });
+
+  it('UPDATE clientId on task DENY', async () => {
+    const juanDb = testEnv
+      .authenticatedContext('juan_uid', {
+        role: 'CLIENT',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+      })
+      .firestore();
+    await assertFails(
+      updateDoc(doc(juanDb, 'clients/client_juan_001/tasks/task_1'), {
+        clientId: 'client_elena_002',
+      })
+    );
+  });
+
+  it('DELETE cross-org DENY', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    await assertFails(deleteDoc(doc(adminDb, 'clients/client_other_org/tasks/task_x')));
+    await assertFails(deleteDoc(doc(adminDb, 'clients/client_other_org')));
+  });
+
+  it('permite al cliente actualizar su tarea (same-org)', async () => {
     const juanDb = testEnv
       .authenticatedContext('juan_uid', {
         role: 'CLIENT',
@@ -116,11 +376,14 @@ describe('firestore.rules (emulator)', () => {
       })
       .firestore();
     await assertSucceeds(
-      updateDoc(doc(juanDb, 'clients/client_juan_001/deliveries/pkg_1'), { status: 'ACKNOWLEDGED' })
+      updateDoc(doc(juanDb, 'clients/client_juan_001/deliveries/pkg_1'), {
+        status: 'ACKNOWLEDGED',
+        acknowledgedAt: serverTimestamp(),
+      })
     );
   });
 
-  it('permite al admin escribir aiRuns del cliente', async () => {
+  it('permite al admin escribir aiRuns del cliente (same-org)', async () => {
     const adminDb = testEnv
       .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
       .firestore();
@@ -158,6 +421,385 @@ describe('firestore.rules (emulator)', () => {
         id: 'run_2',
         clientId: 'client_juan_001',
         agent: 'TOPIC_AGENT',
+      })
+    );
+  });
+
+  it('Q1 same-org clients query/list ALLOW', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    const q = query(collection(adminDb, 'clients'), where('organizationId', '==', ORG_ID));
+    await assertSucceeds(getDocs(q));
+  });
+
+  it('Q1 unscoped clients list DENY (Rules are not filters)', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    await assertFails(getDocs(collection(adminDb, 'clients')));
+  });
+
+  it('Q1 cross-org clients query DENY', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    const q = query(collection(adminDb, 'clients'), where('organizationId', '==', OTHER_ORG));
+    await assertFails(getDocs(q));
+  });
+
+  it('auditLogs same-org ADMIN read ALLOW; cross-org DENY', async () => {
+    const adminDb = testEnv
+      .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+      .firestore();
+    await assertSucceeds(getDoc(doc(adminDb, 'auditLogs/log_same')));
+    await assertFails(getDoc(doc(adminDb, 'auditLogs/log_other')));
+  });
+
+  const juanClaims = {
+    role: 'CLIENT' as const,
+    organizationId: ORG_ID,
+    clientId: 'client_juan_001',
+  };
+
+  function juanDb() {
+    return testEnv.authenticatedContext('juan_uid', juanClaims).firestore();
+  }
+
+  it('CLIENT field outside allowlist DENY', async () => {
+    await assertFails(updateDoc(doc(juanDb(), 'clients/client_juan_001/tasks/task_1'), { title: 'Hacked' }));
+  });
+
+  it('CLIENT mutating organizationId DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/tasks/task_1'), { organizationId: OTHER_ORG })
+    );
+  });
+
+  it('CLIENT mutating clientId DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/tasks/task_1'), { clientId: 'client_elena_002' })
+    );
+  });
+
+  it('Delivery invalid transition DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/deliveries/pkg_1'), {
+        status: 'DRAFT',
+        acknowledgedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Task invalid transition DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/tasks/task_1'), { status: 'REJECTED' })
+    );
+  });
+
+  it('Task valid transitions ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/tasks/task_1'), { status: 'VIEWED' })
+    );
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/tasks/task_viewed'), {
+        status: 'COMPLETED',
+        completedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Content valid CLIENT transitions ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/contents/c_article'), {
+        pipelineStatus: 'client_in_progress',
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Content manager-only transition DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/contents/c_mgr'), {
+        pipelineStatus: 'manager_finalizing',
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Opportunity valid accept/reject ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/opportunities/opp_1'), {
+        status: 'IN_PROGRESS',
+        clientDecision: 'ACCEPTED',
+      })
+    );
+  });
+
+  it('Opportunity illegal transition DENY', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'clients/client_juan_001/opportunities/opp_done'), {
+        id: 'opp_done',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        status: 'COMPLETED',
+      });
+    });
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/opportunities/opp_done'), {
+        status: 'IN_PROGRESS',
+      })
+    );
+  });
+
+  it('Thesis approval workflow ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_1'), {
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: 'juan_uid',
+      })
+    );
+  });
+
+  it('Thesis pendingRevision apply ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_rev'), {
+        title: 'Proposed Title',
+        expertIdentity: 'Proposed Expert',
+        targetAudience: 'Proposed Audience',
+        domain: 'Proposed Domain',
+        objective: 'Proposed Objective',
+        proofPoints: ['p2'],
+        voiceAndTone: 'conversational',
+        complianceRules: 'none',
+        audiences: [{ id: 'a1', name: 'Proposed Aud', tier: 'COMMERCIAL', weight: 80, keywords: ['x'] }],
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: 'juan_uid',
+        pendingRevision: null,
+      })
+    );
+  });
+
+  it('Thesis pendingRevision proposes X but CLIENT writes Y DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_rev'), {
+        title: 'Arbitrary Y Title',
+        expertIdentity: 'Proposed Expert',
+        targetAudience: 'Proposed Audience',
+        domain: 'Proposed Domain',
+        objective: 'Proposed Objective',
+        proofPoints: ['p2'],
+        voiceAndTone: 'conversational',
+        complianceRules: 'none',
+        audiences: [{ id: 'a1', name: 'Proposed Aud', tier: 'COMMERCIAL', weight: 80, keywords: ['x'] }],
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: 'juan_uid',
+        pendingRevision: null,
+      })
+    );
+  });
+
+  it('Thesis strategic-field modification DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_1'), {
+        audiences: ['Hacked'],
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Thesis strategic field during invalid approval transition DENY', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'clients/client_juan_001/theses/th_approved'), {
+        id: 'th_approved',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        status: 'ACTIVE',
+        clientApprovalStatus: 'APPROVED',
+        title: 'Locked',
+        audiences: ['A'],
+      });
+    });
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_approved'), {
+        title: 'Hacked after approve',
+        clientApprovalStatus: 'APPROVED',
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Thesis organizationId mutation DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_1'), {
+        organizationId: OTHER_ORG,
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Thesis clientId mutation DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_1'), {
+        clientId: 'client_elena_002',
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Profile CLIENT allowlisted nested update ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/profile/data'), {
+        identity: { displayName: 'Juan Updated', selfDescription: 'Lawyer' },
+        onboardingCurrentStep: 2,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Profile CLIENT organizationId mutation DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/profile/data'), {
+        organizationId: OTHER_ORG,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Profile CLIENT outside allowlist field DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/profile/data'), {
+        managerNotes: 'secret',
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Forged workflow timestamp DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/deliveries/pkg_1'), {
+        status: 'ACKNOWLEDGED',
+        acknowledgedAt: '1999-01-01T00:00:00Z',
+      })
+    );
+  });
+
+  it('Forged stateHistory.at DENY on valid content transition', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/contents/c_article'), {
+        pipelineStatus: 'client_in_progress',
+        updatedAt: serverTimestamp(),
+        stateHistory: [{ to: 'client_in_progress', at: '1999-01-01T00:00:00Z' }],
+      })
+    );
+  });
+
+  it('Content transition without stateHistory mutation ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/contents/c_article'), {
+        pipelineStatus: 'client_in_progress',
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('Forged completedAt DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/tasks/task_viewed'), {
+        status: 'COMPLETED',
+        completedAt: '1999-01-01T00:00:00Z',
+      })
+    );
+  });
+
+  it('Forged clientApprovedAt DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_1'), {
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: '1999-01-01T00:00:00Z',
+        updatedAt: serverTimestamp(),
+        updatedBy: 'juan_uid',
+      })
+    );
+  });
+
+  it('Forged submittedAt DENY', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'clients/client_juan_001/opportunities/opp_prog'), {
+        id: 'opp_prog',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        status: 'IN_PROGRESS',
+        clientDecision: 'ACCEPTED',
+      });
+    });
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/opportunities/opp_prog'), {
+        status: 'COMPLETED',
+        submittedAt: '1999-01-01T00:00:00Z',
+      })
+    );
+  });
+
+  it('Notification mark read ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/notifications/ntf_unread'), { read: true })
+    );
+  });
+
+  it('Arbitrary notification create DENY', async () => {
+    await assertFails(
+      setDoc(doc(juanDb(), 'clients/client_juan_001/notifications/ntf_bad'), {
+        id: 'ntf_bad',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        userId: 'manager_uid',
+        type: 'BRIEFING',
+        title: 'x',
+        body: 'y',
+        read: false,
+        createdAt: '2026-01-01T00:00:00Z',
+        extraField: 'nope',
+      })
+    );
+  });
+
+  it('Approved manager-alert notification create ALLOW', async () => {
+    await assertSucceeds(
+      setDoc(doc(juanDb(), 'clients/client_juan_001/notifications/ntf_ok'), {
+        id: 'ntf_ok',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        userId: 'manager_uid',
+        type: 'BRIEFING',
+        title: 'Cliente acusó recibo',
+        body: 'Juan ACK',
+        href: '/deliveries',
+        read: false,
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('signalOutcomes CLIENT read DENY', async () => {
+    await assertFails(getDoc(doc(juanDb(), 'clients/client_juan_001/signalOutcomes/so_1')));
+  });
+
+  it('signalOutcomes CLIENT write DENY', async () => {
+    await assertFails(
+      setDoc(doc(juanDb(), 'clients/client_juan_001/signalOutcomes/so_2'), {
+        id: 'so_2',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
       })
     );
   });

@@ -1,7 +1,7 @@
 # Tasks 009 — Security Hardening
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED`  
-Spec gate: **`APPROVED`**. Phase 0 **DONE**. **Do not start T-009-01** until new human go-ahead.
+Spec gate: **`APPROVED`**. Phase 0 **DONE**. Phase 1 **PASS**. Phase 2 **DONE** (T-009-04…06b). **Do not start Phase 3 (T-009-07+)** until new human go-ahead.
 
 Requirement IDs: `SEC-009-001` … `SEC-009-020`.  
 Inventory: `specs/009-security-hardening/inventory.md`.  
@@ -19,21 +19,23 @@ Branch: `spec/009-security-hardening`.
 
 ## Phase 1 — Firestore helpers + org + verbs + query isolation
 
-- [ ] **T-009-01** `TODO` — Helpers rules: org-scoped ADMIN/CLIENT; `createEnvelopeValid` / `preservesEnvelope` / delete-on-resource (SEC-009-001…004, SEC-009-015). **Sin ADMIN global.**
-- [ ] **T-009-02** `TODO` — Aplicar verbos CREATE/READ/LIST/UPDATE/DELETE a todos los `match`; `auditLogs` solo ADMIN misma org (SEC-009-010).
-- [ ] **T-009-03** `TODO` — Tests get: ADMIN cross-org FAIL; CLIENT cross-client FAIL; same-org PASS; unauthenticated FAIL.
-- [ ] **T-009-03q** `TODO` — Tests **list/query**: same-org allow; cross-org deny (SEC-009-014). **Implement Q1 fix:** `listFirestoreClientIds` → `where('organizationId','==', authenticatedOrganizationId)` (or equivalent). Rules are not filters.
+- [x] **T-009-01** `DONE` — Helpers: `signedIn`, `tokenOrg`, `isAdmin`, `isClient`, `adminOfOrg`, `envelopeMatches`, `createEnvelopeValid`, `preservesEnvelope`, `ownsClient`/`sameOrgAsClient` (no PLATFORM_ADMIN).
+- [x] **T-009-02** `DONE` — Verbos CREATE/READ/LIST/UPDATE/DELETE + org-scoped ADMIN en todos los `match`; `auditLogs` solo ADMIN misma org.
+- [x] **T-009-03** `DONE` — Emulator tests: unauth deny; ADMIN same/cross-org; CLIENT own/other/cross-org; envelope create/update/delete denies (**21** tests).
+- [x] **T-009-03q** `DONE` — `listFirestoreClientIds` → auth-org `where`; arg must match auth org; unscoped list DENY tests.
+
+**Phase 1 note:** `sameOrgAsClient` uses **TEMPORARY** `get(parent)` through Phases 2–4. **Final rules switch** (denormalized envelope; no primary parent get) = **T-009-14e**, **before** T-009-14 / T-009-15 `CODE_COMPLETE`. **T-009-16** = prod backup/backfill/verify only — must **not** change rules implementation after CODE_COMPLETE.
 
 ## Phase 2 — Field-level, state transitions, timestamps, notifications, outcomes
 
-- [ ] **T-009-04** `TODO` — Implementar allowlists + matrices **frozen** en `spec.md` / `inventory.md` §C–D (SEC-009-005, SEC-009-016). **Freeze exact notification CREATE field allowlist here before T-009-05n.**
-- [ ] **T-009-05** `TODO` — Implementar UPDATE CLIENT: allowlist + state transition + `preservesEnvelope`.
-- [ ] **T-009-05t** `TODO` — Timestamp policy: `acknowledgedAt` / review / `completedAt` / `submittedAt` / `clientApprovedAt` / `updatedAt` vía `request.time` o serverTimestamp; tests forged deny (SEC-009-017).
-- [ ] **T-009-05n** `TODO` — Notifications (SEC-009-018): CLIENT read + update `read` only; CREATE **only** manager-alert flow with exact create allowlist; arbitrary CREATE deny.
-- [ ] **T-009-05o** `TODO` — signalOutcomes: manager/system only writes; CLIENT deny read+write; feedback vía `feedbackEvents` (SEC-009-019).
-- [ ] **T-009-06** `TODO` — Ajustar callers app al menor cambio necesario (Q1 query, notifications envelope, outcomes). **Remove hardcoded `organizationId: 'org_aurora_01'`** from production UI write paths (results/evidence); org from authenticated/session/client context (A22).
-- [ ] **T-009-06p** `TODO` — **Actor-aware persistence (SEC-009-020):** scope CLIENT `importSnapshotToFirestore` / merge batch so it only attempts authorized client-write resources; must not include manager-only collections from memory. Minimal safe change (A21).
-- [ ] **T-009-06b** `TODO` — Tests: field deny; invalid state transition deny; create wrong org deny; update org/clientId deny; delete cross-org deny; thesis strategic-field deny (A23).
+- [x] **T-009-04** `DONE` — Allowlists + matrices frozen; **notification CREATE schema frozen** in `inventory.md` §C.7.
+- [x] **T-009-05** `DONE` — CLIENT UPDATE: allowlist + state transition + `preservesEnvelope`.
+- [x] **T-009-05t** `DONE` — Trusted timestamps via `serverTimestamp`/`request.time`; forged deny tests.
+- [x] **T-009-05n** `DONE` — Notifications: CLIENT read; UPDATE `read` only; CREATE manager-alert allowlist only; DELETE deny.
+- [x] **T-009-05o** `DONE` — signalOutcomes: CLIENT deny read+write; ADMIN same-org only.
+- [x] **T-009-06** `DONE` — Callers: remove hardcoded `org_aurora_01` UI writes; notification `organizationId` from client context (A22).
+- [x] **T-009-06p** `DONE` — Actor-aware CLIENT `importSnapshotToFirestore` (SEC-009-020 / A21).
+- [x] **T-009-06b** `DONE` — Emulator + unit tests for field/state/timestamp/notification/outcomes/persistence.
 
 ## Phase 3 — Storage
 
@@ -50,13 +52,16 @@ Branch: `spec/009-security-hardening`.
 - [ ] **T-009-13** `TODO` — Secret scanning (gitleaks u equiv.); verificar git history / remote / archives; **rotation required** si exposición de credencial válida.
 - [ ] **T-009-13b** `TODO` — Mantener `migration.md` alineado; **no ejecutar** migración hasta autorización de ventana de migración.
 
-## Phase 5 — Verify, code complete, deploy
+## Phase 5 — Finalize envelope rules, verify, code complete, migrate, deploy
 
-- [ ] **T-009-14** `TODO` — `npm run test:rules` PASS (Firestore; Storage si no PARTIAL) (SEC-009-013).
-- [ ] **T-009-15** `TODO` — `npm run check` PASS → candidacy **`CODE_COMPLETE`**.
-- [ ] **T-009-16** `TODO` — Ejecutar `migration.md` (dry-run → backfill → verify) según autorización.
+**SDD gate:** Do **not** change rules/app implementation after declaring **`CODE_COMPLETE`**. Prod backfill (**T-009-16**) and deploy (**T-009-18**) operate on already-finalized repo artifacts.
+
+- [ ] **T-009-14e** `TODO` — **Finalize denormalized security envelope rules:** replace TEMPORARY `get(parent)` in `sameOrgAsClient` / `ownsClient` with primary checks on denormalized `resource.data.organizationId` (+ `clientId` where applicable). Emulator fixtures/tests must use envelope docs. Spec freeze: no primary parent get. **Required before T-009-14 / T-009-15.**
+- [ ] **T-009-14** `TODO` — `npm run test:rules` PASS against **final** envelope rules (Firestore; Storage si no PARTIAL) (SEC-009-013).
+- [ ] **T-009-15** `TODO` — `npm run check` PASS → candidacy **`CODE_COMPLETE`** (only after T-009-14e + T-009-14).
+- [ ] **T-009-16** `TODO` — Ejecutar `migration.md` **data path only** (backup → dry-run → backfill → verify) según autorización. **No rules code change here.**
 - [ ] **T-009-17** `TODO` — Claims reprovision + obligatoriedad re-login / token refresh.
-- [ ] **T-009-18** `TODO` — `firebase deploy --only firestore:rules` → progreso **`DEPLOYED`** (Firestore).
+- [ ] **T-009-18** `TODO` — `firebase deploy --only firestore:rules` (rules already finalized at T-009-14e) → progreso **`DEPLOYED`** (Firestore).
 - [ ] **T-009-18s** `TODO` / `BLOCKED` — `firebase deploy --only storage` cuando Console lo permita.
 - [ ] **T-009-19** `TODO` — Post-deploy verification + smoke; marcar Spec `DONE` o `PARTIAL`; actualizar audit Spec Gaps.
 
@@ -70,7 +75,25 @@ T-009-00 → 00b → 00c
  → 04 → 05 → 05t → 05n → 05o → 06 → 06p → 06b
  → 07 → 08 → 09
  → 10 → 10b → 11 → 12 → 13 → 13b
- → 14 → 15 → 16 → 17 → 18 → 18s → 19
+ → 14e → 14 → 15 → 16 → 17 → 18 → 18s → 19
+```
+
+### Envelope / get(parent) lifecycle (governance)
+
+```text
+TEMPORARY get(parent)  (Phases 1–4)
+        ↓
+T-009-14e  Finalize denormalized envelope rules + fixture tests
+        ↓
+T-009-14   test:rules PASS
+        ↓
+T-009-15   CODE_COMPLETE
+        ↓
+T-009-16   Backup → backfill prod → verify backfill   (data only)
+        ↓
+T-009-17   Claims reprovision
+        ↓
+T-009-18   Deploy final rules (already in repo at CODE_COMPLETE)
 ```
 
 ## Out of this Spec

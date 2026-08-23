@@ -163,14 +163,28 @@ Also: `notifyManager` → notification CREATE under same client.
 |--------|-------------|------------|
 | `clientDecision`, `clientNotes`, `status`, `lifecycleStage`, `submissionChecklist`, `submittedAt` | `SENT_TO_CLIENT`\|`RECOMMENDED` → `IN_PROGRESS` (accept) or `REJECTED`; `IN_PROGRESS` → `COMPLETED` on submit | `submittedAt` ISO |
 
-### C.7 `notifications`
+### C.7 `notifications` — **T-009-04 CREATE schema FROZEN**
 
-| Op | Fields |
+| Op | Policy |
 |----|--------|
-| CREATE | via `notificationService.push` / `notifyManager` (CLIENT flows) — **exception to default DENY** |
-| UPDATE | `read: true` only (`markRead` / `markAllRead`) |
+| CREATE (CLIENT) | **Only manager-alert flow** (`notifyManager` → `notificationService.push`) |
+| UPDATE (CLIENT) | `read: false → true` only |
+| DELETE (CLIENT) | **DENY** |
 
-**Type gap:** `NotificationItem` has **no** `organizationId` (optional `clientId` only).
+**Exact CREATE allowlist (required keys):**  
+`id`, `userId`, `clientId`, `organizationId`, `type`, `title`, `body`, `read`, `createdAt`
+
+**Optional keys:** `href`, `targetId`
+
+**Invariants:**
+- `organizationId` == authenticated token org (== client.organizationId)
+- `clientId` == path clientId == token.clientId
+- `read` initial == `false`
+- `createdAt` == `request.time` (serverTimestamp on write)
+- `type` ∈ `TASK_ASSIGNED` \| `CONTENT_REVIEW` \| `OPPORTUNITY` \| `ONBOARDING` \| `THESIS` \| `SYSTEM` \| `BRIEFING`
+- Arbitrary extra fields → **DENY**
+
+**Type:** `NotificationItem.organizationId` required (Phase 2).
 
 ### C.8 `profile/data`
 
@@ -325,6 +339,17 @@ Legacy: CLIENT_REVIEW ↔ CHANGES_REQUESTED / CLIENT_APPROVED as in `spec.md`.
 | `auditLogs` | org on log or adminOfOrg only | prefer yes | optional | n/a | admin list | if missing | SEC-009-010 |
 
 **Decision frozen:** Prefer **denormalized immutable `organizationId` (+ `clientId` when applicable)** on tenant-scoped docs. **Do not** rely on `get(parent)` as primary envelope for subcollections. Parent get remains emergency fallback only if a collection cannot be backfilled before deploy (document per exception — none accepted at freeze except temporary PARTIAL).
+
+**Phase 1 TEMPORARY exception (documented):** `sameOrgAsClient` / `ownsClient` in `firestore.rules` currently use `get(/clients/{clientId})` for all `clients/{clientId}/**` matches that call those helpers. Allowed through Phases 2–4. **Not** final architecture.
+
+| Step | Task | What changes |
+|------|------|----------------|
+| Finalize rules in repo | **T-009-14e** (before CODE_COMPLETE) | Replace primary `get(parent)` with denormalized envelope checks; tests use envelope fixtures |
+| CODE_COMPLETE | **T-009-15** | No further rules/app implementation changes |
+| Prod backfill | **T-009-16** | Data only (`migration.md`) — **no** rules code change |
+| Deploy | **T-009-18** | Deploy finalized rules after verified backfill |
+
+Must not ship `get(parent)` as permanent without Spec exception.
 
 ---
 

@@ -128,8 +128,13 @@ export async function runResearchSignalsAgent(
     }
   }
 
+  const organizationId = client.organizationId?.trim();
+  if (!organizationId) {
+    throw new Error('Client missing organizationId for Research Signals run');
+  }
+
   const run = dbService.recordAiRun({
-    organizationId: client.organizationId || 'org_aurora_01',
+    organizationId,
     clientId,
     agent: 'RESEARCH_SIGNALS',
     provider: 'AUTOMATIC',

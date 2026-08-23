@@ -63,8 +63,15 @@ class NotificationService {
   }
 
   public push(input: Omit<NotificationItem, 'id' | 'createdAt' | 'read'>): NotificationItem {
+    const client = input.clientId ? dbService.getClientById(input.clientId) : undefined;
+    const organizationId =
+      input.organizationId?.trim() || client?.organizationId?.trim() || '';
+    if (!organizationId) {
+      throw new Error('notification requires organizationId from client/session context');
+    }
     const item: NotificationItem = {
       ...input,
+      organizationId,
       userId: this.resolveUid(input.userId),
       id: createId('ntf'),
       createdAt: new Date().toISOString(),
@@ -123,24 +130,28 @@ export const notificationService = new NotificationService();
 /** Notifica al cliente vinculado; false si aún no tiene userId. */
 export function notifyClient(
   clientId: string,
-  input: Omit<NotificationItem, 'id' | 'createdAt' | 'read' | 'userId' | 'clientId'>
+  input: Omit<NotificationItem, 'id' | 'createdAt' | 'read' | 'userId' | 'clientId' | 'organizationId'>
 ): boolean {
   const client = dbService.getClientById(clientId);
   const userId = resolveClientUserId(client);
   if (!userId) return false;
-  notificationService.push({ ...input, userId, clientId });
+  const organizationId = client?.organizationId?.trim();
+  if (!organizationId) return false;
+  notificationService.push({ ...input, userId, clientId, organizationId });
   return true;
 }
 
 /** Notifica al Brand Manager del cliente (primaryManagerId o alias legacy). */
 export function notifyManager(
   clientId: string,
-  input: Omit<NotificationItem, 'id' | 'createdAt' | 'read' | 'userId' | 'clientId'>
+  input: Omit<NotificationItem, 'id' | 'createdAt' | 'read' | 'userId' | 'clientId' | 'organizationId'>
 ): boolean {
   const client = dbService.getClientById(clientId);
   const raw = resolveManagerUserId(client, LEGACY_MANAGER_UID);
   if (!raw) return false;
-  notificationService.push({ ...input, userId: raw, clientId });
+  const organizationId = client?.organizationId?.trim();
+  if (!organizationId) return false;
+  notificationService.push({ ...input, userId: raw, clientId, organizationId });
   return true;
 }
 

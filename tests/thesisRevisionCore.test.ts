@@ -103,7 +103,7 @@ describe('applyPendingRevision', () => {
     expect(applied.title).toBe('Revised title');
     expect(applied.status).toBe('ACTIVE');
     expect(applied.clientApprovalStatus).toBe('APPROVED');
-    expect(applied.pendingRevision).toBeUndefined();
+    expect(applied.pendingRevision).toBeNull();
   });
 });
 
@@ -120,7 +120,7 @@ describe('rejectThesisByClient', () => {
     const rejected = rejectThesisByClient(thesis, 'Ajusta el territorio de consumer AI');
     expect(rejected.status).toBe('ACTIVE');
     expect(rejected.clientApprovalStatus).toBe('CHANGES_REQUESTED');
-    expect(rejected.pendingRevision).toBeUndefined();
+    expect(rejected.pendingRevision).toBeNull();
     expect(rejected.clientFeedback).toContain('consumer AI');
   });
 

@@ -55,7 +55,9 @@ declare module 'firebase/firestore' {
     callback: (snapshot: QuerySnapshot) => void
   ): () => void;
   export function query(ref: unknown, ...constraints: unknown[]): unknown;
+  export function where(fieldPath: string, opStr: string, value: unknown): unknown;
   export function setDoc(ref: DocumentReference, data: unknown, options?: { merge?: boolean }): Promise<void>;
+  export function serverTimestamp(): unknown;
 }
 
 declare module 'firebase/storage' {

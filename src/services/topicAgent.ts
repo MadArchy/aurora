@@ -22,12 +22,17 @@ export function getLatestTopicAgentRun(clientId: string): TopicAgentRunResult | 
 
 /** Disparo manual del Topic Agent v1 (sin LLM — heurístico + rationale). */
 export function runTopicAgent(clientId: string): TopicAgentRunResult {
+  const client = dbService.getClientById(clientId);
+  const organizationId = client?.organizationId?.trim();
+  if (!organizationId) {
+    throw new Error('Client missing organizationId for Topic Agent run');
+  }
   const signals = dbService.getSignalsByClient(clientId);
   const thesis = dbService.getActiveTheses(clientId)[0];
   const items = rankDailyTopics(clientId, signals, thesis, 5);
 
   const run = dbService.recordAiRun({
-    organizationId: 'org_aurora_01',
+    organizationId,
     clientId,
     agent: 'TOPIC_AGENT',
     provider: 'AUTOMATIC',

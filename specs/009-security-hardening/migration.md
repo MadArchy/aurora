@@ -2,7 +2,7 @@
 
 **Do not execute until Spec status is `APPROVED` and a human authorizes the migration window.**
 
-This document is the runbook. Implementation of rules/app may proceed to `CODE_COMPLETE` only after `APPROVED`; data/claims/deploy steps follow this sequence.
+This document is the **data/deploy runbook** (T-009-16+). Rules/app implementation reaches final denormalized envelope at **T-009-14e**, then **T-009-15 `CODE_COMPLETE`**. This runbook must **not** change rules code after CODE_COMPLETE — only backup, backfill, verify, then deploy already-finalized artifacts.
 
 ---
 
@@ -14,9 +14,11 @@ Habilitar rules org-scoped + envelope denormalizado (si el freeze lo exige) sin 
 
 - Spec `APPROVED`
 - T-009-00 / T-009-00c freeze (envelope strategy) complete
-- Backup completed
+- **T-009-14e DONE** — final denormalized envelope rules in repo (no primary `get(parent)`)
+- **T-009-15 `CODE_COMPLETE`** — tests green against those final rules
+- Backup completed (step 2)
 - SA credential usable vía path **externo** al repo (`GOOGLE_APPLICATION_CREDENTIALS`)
-- JDK + `npm run test:rules` verdes contra rules candidatas (emulator)
+- JDK + `npm run test:rules` verdes against **CODE_COMPLETE** rules (emulator)
 
 ---
 
@@ -91,12 +93,15 @@ Validar claims: `role`, `organizationId`, `clientId` (CLIENT).
 
 ## 8. Rules deployment
 
+Deploy the rules **already finalized at T-009-14e** and locked at CODE_COMPLETE. Do **not** edit `firestore.rules` in this step to remove `get(parent)` — that work is T-009-14e.
+
 Orden recomendado:
 
-1. Confirmar `CODE_COMPLETE` (tests verdes)
-2. `firebase deploy --only firestore:rules`
-3. Si Storage Console activo y tests Storage PASS: `firebase deploy --only storage`
-4. Marcar Spec `DEPLOYED` (o `PARTIAL` si Storage pendiente)
+1. Confirm backfill verification (step 5) PASS
+2. Confirm `CODE_COMPLETE` still green (no post-complete rule edits)
+3. `firebase deploy --only firestore:rules` (**T-009-18**)
+4. Si Storage Console activo y tests Storage PASS: `firebase deploy --only storage`
+5. Marcar Spec `DEPLOYED` (o `PARTIAL` si Storage pendiente)
 
 ---
 

@@ -104,7 +104,7 @@ export function applyPendingRevision(thesis: PositioningThesis): PositioningThes
     return {
       ...thesis,
       clientApprovalStatus: 'APPROVED',
-      pendingRevision: undefined,
+      pendingRevision: null,
       clientFeedback: undefined,
     };
   }
@@ -113,7 +113,7 @@ export function applyPendingRevision(thesis: PositioningThesis): PositioningThes
     ...thesis,
     ...revision.proposed,
     clientApprovalStatus: 'APPROVED',
-    pendingRevision: undefined,
+    pendingRevision: null,
     clientFeedback: undefined,
   };
 }
@@ -240,7 +240,7 @@ export function rejectThesisByClient(
       ...thesis,
       status: 'ACTIVE',
       clientApprovalStatus: 'CHANGES_REQUESTED',
-      pendingRevision: undefined,
+      pendingRevision: null,
       clientFeedback: trimmed || thesis.clientFeedback,
       updatedAt: now,
       updatedBy: actor || thesis.updatedBy,
@@ -251,7 +251,7 @@ export function rejectThesisByClient(
     ...thesis,
     status: 'DRAFT',
     clientApprovalStatus: 'CHANGES_REQUESTED',
-    pendingRevision: undefined,
+    pendingRevision: null,
     clientFeedback: trimmed || thesis.clientFeedback,
     updatedAt: now,
     updatedBy: actor || thesis.updatedBy,

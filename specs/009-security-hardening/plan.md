@@ -231,9 +231,11 @@ Objetivo:
 
 | Gate | Significa |
 |------|-----------|
-| `CODE_COMPLETE` | Rules + callers + tests en repo verdes |
-| `DEPLOYED` | `firebase deploy` rules (+ storage si aplica) + claims reprovision en proyecto |
+| `CODE_COMPLETE` | Rules + callers + tests en repo verdes — **incluye T-009-14e** (final denormalized envelope rules; no primary `get(parent)`) |
+| `DEPLOYED` | After T-009-16 backfill verify: `firebase deploy` rules (+ storage si aplica) + claims reprovision en proyecto |
 | `DONE` | Acceptance Required PASS + DEPLOYED (o `PARTIAL` documentado) |
+
+**SDD:** Do not modify rules/app after `CODE_COMPLETE`. Sequence: **14e → 14 → 15 → 16 (data) → 17 → 18 (deploy)**.
 
 ## Risks & mitigations
 
@@ -275,5 +277,7 @@ Objetivo:
 | 2026-08-22 | Notifications CREATE only manager-alert flow; arbitrary DENY; allowlist in T-009-04/05n | **Frozen** |
 | 2026-08-22 | Thesis CLIENT approval only; deny strategic fields (A23) | **Frozen** |
 | 2026-08-22 | Admin SDK writers must write valid envelopes (T-009-10b) | **Frozen** |
+| 2026-08-22 | Phase 1: `get(parent)` for `sameOrgAsClient` = **TEMPORARY** through Phases 2–4 | **Accepted temporary** |
+| 2026-08-22 | **T-009-14e** finalizes denormalized envelope rules **before** T-009-15 CODE_COMPLETE; T-009-16 = prod backfill only; T-009-18 = deploy | **Governance frozen** |
 | | Recording byte cap numeric | **PENDING measure (Phase 3)** |
 | | Live prod missing-envelope doc counts | **PENDING dry-run** |

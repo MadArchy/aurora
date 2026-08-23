@@ -271,6 +271,16 @@ class App {
     return this.activeClientId !== 'all' ? this.activeClientId : null;
   }
 
+  /** Tenant organization for writes: client record, else session — never a hardcoded id. */
+  private resolveOrganizationId(clientId?: string | null): string | null {
+    if (clientId) {
+      const fromClient = dbService.getClientById(clientId)?.organizationId?.trim();
+      if (fromClient) return fromClient;
+    }
+    const fromSession = authService.getCurrentUser()?.organizationId?.trim();
+    return fromSession || null;
+  }
+
   /** Cliente objetivo de una acción: el del workspace, el de la sesión, o el del elemento pulsado. */
   private resolveClientId(fallback?: string | null): string {
     const user = authService.getCurrentUser();
@@ -819,8 +829,13 @@ class App {
       const email = val('new-client-email');
 
       try {
+        const organizationId = this.resolveOrganizationId();
+        if (!organizationId) {
+          this.showToast('No hay organizationId de sesión para crear el cliente', 'warning');
+          return;
+        }
         const newClient = dbService.createClient({
-          organizationId: 'org_aurora_01',
+          organizationId,
           primaryManagerId: authService.getCurrentUser()?.uid || 'user_admin_01',
           firstName,
           lastName,
@@ -838,6 +853,7 @@ class App {
         authService.createPendingAccount(email, newClient.id);
         notificationService.push({
           userId: authService.getCurrentUser()?.uid || 'user_admin_01',
+          organizationId,
           clientId: newClient.id,
           type: 'ONBOARDING',
           title: 'Cliente invitado',
@@ -1150,7 +1166,7 @@ class App {
       snapshot,
       thesisId,
       clientId,
-      client?.organizationId || 'org_aurora_01'
+      client?.organizationId || this.resolveOrganizationId(clientId) || ''
     );
 
     const valueEl = document.getElementById('thesis-editor-progress-value');
@@ -1331,7 +1347,6 @@ class App {
         const intent = (submitter?.getAttribute('data-thesis-intent') || 'draft') as ThesisSaveIntent;
         const clientId = formSaveThesis.getAttribute('data-client-id') || this.resolveClientId();
         const thesisId = formSaveThesis.getAttribute('data-thesis-id') || createId('thesis');
-        const client = dbService.getClientById(clientId);
 
         const val = (id: string) =>
           (document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? '';
@@ -1403,10 +1418,16 @@ class App {
           priority: num('thesis-priority', 50),
         };
 
+        const organizationId = this.resolveOrganizationId(clientId);
+        if (!organizationId) {
+          this.showToast('Cliente sin organizationId', 'warning');
+          return;
+        }
+
         if (intent === 'submit_review') {
           const candidate: PositioningThesis = {
             id: thesisId,
-            organizationId: client?.organizationId || 'org_aurora_01',
+            organizationId,
             clientId,
             ...editable,
             status: existing?.status || 'DRAFT',
@@ -1431,7 +1452,7 @@ class App {
 
         dbService.saveThesis({
           id: thesisId,
-          organizationId: client?.organizationId || 'org_aurora_01',
+          organizationId,
           clientId,
           ...(plan.keepActive && existing
             ? {
@@ -1715,8 +1736,13 @@ class App {
       const thesis = dbService.getActiveTheses(clientId)[0];
 
       try {
+        const organizationId = this.resolveOrganizationId(clientId);
+        if (!organizationId) {
+          this.showToast('Cliente sin organizationId — no se puede registrar la fuente', 'warning');
+          return;
+        }
         dbService.addSource({
-          organizationId: 'org_aurora_01',
+          organizationId,
           clientId,
           thesisId: thesis?.id,
           name,
@@ -2107,8 +2133,14 @@ class App {
     const title = prompt('Título de la noticia o acontecimiento:');
     if (!title?.trim()) return;
 
+    const organizationId = this.resolveOrganizationId(clientId);
+    if (!organizationId) {
+      this.showToast('Cliente sin organizationId — no se puede crear la señal', 'warning');
+      return;
+    }
+
     const result = dbService.addSignal({
-      organizationId: 'org_aurora_01',
+      organizationId,
       clientId,
       title: title.trim(),
       sourceType: 'MANUAL',
@@ -2148,7 +2180,6 @@ class App {
       const form = e.currentTarget as HTMLFormElement;
       const clientId = form.getAttribute('data-client-id') || this.resolveClientId();
       const thesisId = form.getAttribute('data-thesis-id') || undefined;
-      const client = dbService.getClientById(clientId);
 
       const title = (document.getElementById('task-title') as HTMLInputElement).value.trim();
       const description = (document.getElementById('task-description') as HTMLTextAreaElement).value.trim();
@@ -2156,8 +2187,14 @@ class App {
       const estimatedMinutes = parseInt((document.getElementById('task-minutes') as HTMLInputElement).value || '15', 10);
       const deadlineRaw = (document.getElementById('task-deadline') as HTMLInputElement).value;
 
+      const organizationId = this.resolveOrganizationId(clientId);
+      if (!organizationId) {
+        this.showToast('Cliente sin organizationId — no se puede crear la tarea', 'warning');
+        return;
+      }
+
       const created = dbService.addTask({
-        organizationId: client?.organizationId || 'org_aurora_01',
+        organizationId,
         clientId,
         thesisId,
         type,
@@ -2735,9 +2772,13 @@ class App {
         const action = advice?.actions.find((a) => a.id === actionId);
         if (!action) return;
 
-        const client = dbService.getClientById(clientId);
+        const organizationId = this.resolveOrganizationId(clientId);
+        if (!organizationId) {
+          this.showToast('Cliente sin organizationId', 'warning');
+          return;
+        }
         dbService.addToCuration({
-          organizationId: client?.organizationId || 'org_aurora_01',
+          organizationId,
           clientId,
           title: action.title,
           snippet: `${action.why} ${action.how}`,
@@ -3721,8 +3762,14 @@ class App {
         associatedThesesIds.push(this.filterState.thesisId);
       }
 
+      const organizationId = this.resolveOrganizationId(clientId);
+      if (!organizationId) {
+        this.showToast('Cliente sin organizationId — no se puede registrar evidencia', 'warning');
+        return;
+      }
+
       dbService.addEvidenceItem({
-        organizationId: 'org_aurora_01',
+        organizationId,
         clientId,
         title,
         type: (document.getElementById('evidence-type') as HTMLSelectElement).value as never,
@@ -3879,9 +3926,14 @@ class App {
         const file = el.files?.[0];
         if (!taskId || !file) return;
         const task = dbService.getAllTasks().find((t) => t.id === taskId);
+        const organizationId = this.resolveOrganizationId(task?.clientId);
+        if (!organizationId || !task?.clientId) {
+          this.showToast('Cliente sin organizationId — no se puede subir el video', 'warning');
+          return;
+        }
         const ref = await persistRecording(
-          task ? dbService.getClientById(task.clientId)?.organizationId || 'org_aurora_01' : 'org_aurora_01',
-          task?.clientId || '',
+          organizationId,
+          task.clientId,
           taskId,
           file
         );
@@ -4045,8 +4097,13 @@ class App {
     formAddResult?.addEventListener('submit', (e) => {
       e.preventDefault();
       const clientId = formAddResult.getAttribute('data-client-id') || authService.getCurrentUser()?.clientId || '';
+      const organizationId = this.resolveOrganizationId(clientId);
+      if (!organizationId) {
+        this.showToast('Cliente sin organizationId — no se puede registrar el resultado', 'warning');
+        return;
+      }
       dbService.addResult({
-        organizationId: 'org_aurora_01',
+        organizationId,
         clientId,
         title: (document.getElementById('result-title') as HTMLInputElement).value,
         channel: (document.getElementById('result-channel') as HTMLInputElement).value,
@@ -4064,9 +4121,14 @@ class App {
       e.preventDefault();
       const form = e.currentTarget as HTMLFormElement;
       const clientId = form.getAttribute('data-client-id') || authService.getCurrentUser()?.clientId || '';
+      const organizationId = this.resolveOrganizationId(clientId);
+      if (!organizationId) {
+        this.showToast('Cliente sin organizationId — no se puede registrar la consulta', 'warning');
+        return;
+      }
       const note = (document.getElementById('quick-kpi-note') as HTMLInputElement).value.trim();
       dbService.addResult({
-        organizationId: 'org_aurora_01',
+        organizationId,
         clientId,
         title: note ? `Consulta: ${note}` : 'Consulta recibida',
         channel: 'LinkedIn / Web',
@@ -4342,9 +4404,13 @@ class App {
   private async submitClientVideo(taskId: string, blob: Blob) {
     const task = dbService.getAllTasks().find((t) => t.id === taskId);
     const client = task ? dbService.getClientById(task.clientId) : undefined;
+    const organizationId = this.resolveOrganizationId(task?.clientId);
+    if (!organizationId || !task?.clientId) {
+      throw new Error('Cliente sin organizationId — no se puede enviar el video');
+    }
     const ref = await persistRecording(
-      client?.organizationId || 'org_aurora_01',
-      task?.clientId || '',
+      organizationId,
+      task.clientId,
       taskId,
       blob
     );
@@ -4607,8 +4673,14 @@ class App {
         continue;
       }
 
+      const organizationId =
+        source.organizationId?.trim() || this.resolveOrganizationId(clientId) || '';
+      if (!organizationId) {
+        rejected += 1;
+        continue;
+      }
       const result = dbService.addSignal({
-        organizationId: source.organizationId || 'org_aurora_01',
+        organizationId,
         clientId,
         sourceId: source.id,
         title: item.title,

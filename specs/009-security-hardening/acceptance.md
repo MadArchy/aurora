@@ -6,7 +6,7 @@ Spec **DONE** solo con Required PASS + deploy aplicable.
 
 Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 
-**Governance:** Spec status **`APPROVED`** (human). Phase 0 inventory + final correction **complete**. Implementation criteria below remain ☐ until Phase 1+ execution — **do not** mark implementation PASS here.
+**Governance:** Spec status **`APPROVED`** (human). Phase 0 **complete**. Phase 1 **PASS**. Phase 2 **DONE** (T-009-04…06b). Criteria marked ✅ below are proven by emulator/unit tests. **Do not** mark CODE_COMPLETE / DEPLOYED / DONE until later phases + deploy gates. **Do not start Phase 3** until new human go-ahead.
 
 ---
 
@@ -14,41 +14,72 @@ Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 
 | # | Criterion | Maps to | Status |
 |---|-----------|---------|--------|
-| A1 | Helpers Firestore exigen `organizationId` match; ADMIN org-scoped only (no global) | SEC-009-002, SEC-009-003 | ☐ |
-| A2 | ADMIN otra org: get/list/write deny | SEC-009-003 | ☐ |
-| A3 | CLIENT otro clientId: deny | SEC-009-004 | ☐ |
-| A4 | CLIENT no crea signals/aiRuns/sources (manager-only); theses CREATE/DELETE deny | SEC-009-006 | ☐ |
-| A5 | CLIENT update fuera de allowlist fail | SEC-009-005 | ☐ |
-| A6 | Deliveries CLIENT solo `SENT → ACKNOWLEDGED` (+ keys) | SEC-009-007, SEC-009-016 | ☐ |
+| A1 | Helpers Firestore exigen `organizationId` match; ADMIN org-scoped only (no global) | SEC-009-002, SEC-009-003 | ✅ Phase 1 (rules tests) |
+| A2 | ADMIN otra org: get/list/write deny | SEC-009-003 | ✅ Phase 1 (rules tests) |
+| A3 | CLIENT otro clientId: deny | SEC-009-004 | ✅ Phase 1 (rules tests) |
+| A4 | CLIENT no crea signals/aiRuns/sources (manager-only); theses CREATE/DELETE deny | SEC-009-006 | ✅ Phase 2 (rules tests; thesis CREATE still ADMIN) |
+| A5 | CLIENT update fuera de allowlist fail | SEC-009-005 | ✅ Phase 2 |
+| A6 | Deliveries CLIENT solo `SENT → ACKNOWLEDGED` (+ keys) | SEC-009-007, SEC-009-016 | ✅ Phase 2 |
 | A7 | Storage path exige org + ownsClient; matriz por asset aplicada | SEC-009-008 | ☐ |
 | A8 | **Automated** Storage rules tests PASS (si Storage en scope DONE) | SEC-009-009, SEC-009-013 | ☐ |
 | A9 | Provision **and** `setPosturaClaims` validate `organizationId` (no default tenant); + `clientId` for CLIENT | SEC-009-011 | ☐ |
 | A10 | SA fuera del repo tree; scanning ejecutado; rotation si exposición válida | SEC-009-012 | ☐ |
-| A11 | `npm run test:rules` PASS (Firestore; + Storage si no PARTIAL storage) | SEC-009-013 | ☐ |
-| A12 | `npm run check` PASS → **`CODE_COMPLETE`** elegible | governance | ☐ |
+| A11 | `npm run test:rules` PASS (Firestore; + Storage si no PARTIAL storage) | SEC-009-013 | **Firestore = PASS** · **Overall A11 = PENDING** (Storage Phase 3 not done) |
+| A12 | `npm run check` PASS → **`CODE_COMPLETE`** elegible | governance | ☐ (suite green; CODE_COMPLETE not declared) |
 | A13 | Firestore rules **`DEPLOYED`** en proyecto objetivo | governance | ☐ |
 | A14 | Call sites piloto no rotos (writes/queries allowlisted) | SEC-009-014/015 | ☐ |
-| A14q | **same-org query/list allow** + **cross-org query/list deny**; `listFirestoreClientIds` uses tenant `where` (or equiv.) — **Rules are not filters** | SEC-009-014 | ☐ |
-| A15 | Verbos: create wrong `organizationId` deny; update `organizationId` deny; update `clientId` deny; delete cross-org deny | SEC-009-015 | ☐ |
-| A16 | **unauthenticated deny** | SEC-009-001 | ☐ |
-| A17 | **invalid state transition deny** (CLIENT) en colecciones con status en scope | SEC-009-016 | ☐ |
-| A17t | **forged workflow timestamp deny** cuando la regla aplique | SEC-009-017 | ☐ |
-| A18 | Notifications: CLIENT CREATE **only** manager-alert flow with exact create allowlist; arbitrary CREATE deny; UPDATE only `read` | SEC-009-018 | ☐ |
-| A19 | signalOutcomes: CLIENT write deny (and read deny per freeze) | SEC-009-019 | ☐ |
-| A20 | Spec docs/metadata aligned; Phase 0 complete | governance | ☐ |
-| A21 | CLIENT modifies one allowed task/content/opportunity and the Firestore write batch **does not** include unauthorized manager-only resources | SEC-009-020, T-009-06p | ☐ |
-| A22 | No production UI write path uses a hardcoded tenant `organizationId` | T-009-06 | ☐ |
-| A23 | CLIENT may only execute documented Thesis approval/revision workflow; DENY modify of `organizationId`, `clientId`, audiences, territories, objectives, weights, evidence relationships, authority/scoring, manager-only strategic fields | SEC-009-006, inventory §C.10 | ☐ |
-| A24 | All tenant-scoped Admin SDK Firestore writers persist a valid `organizationId` and `clientId` where required. Server/Admin SDK code must not rely on Firestore Security Rules for tenant isolation | T-009-10b | ☐ |
+| A14q | **same-org query/list allow** + **cross-org query/list deny**; `listFirestoreClientIds` uses tenant `where` (or equiv.) — **Rules are not filters** | SEC-009-014 | ✅ Phase 1 (rules + Q1 unit tests) |
+| A15 | Verbos: create wrong `organizationId` deny; update `organizationId` deny; update `clientId` deny; delete cross-org deny | SEC-009-015 | ✅ Phase 1 (rules tests incl. DELETE) |
+| A16 | **unauthenticated deny** | SEC-009-001 | ✅ Phase 1 (rules tests) |
+| A17 | **invalid state transition deny** (CLIENT) en colecciones con status en scope | SEC-009-016 | ✅ Phase 2 |
+| A17t | **forged workflow timestamp deny** cuando la regla aplique | SEC-009-017 | ✅ Phase 2 |
+| A18 | Notifications: CLIENT CREATE **only** manager-alert flow with exact create allowlist; arbitrary CREATE deny; UPDATE only `read` | SEC-009-018 | ✅ Phase 2 |
+| A19 | signalOutcomes: CLIENT write deny (and read deny per freeze) | SEC-009-019 | ✅ Phase 2 |
+| A20 | Spec docs/metadata aligned; Phase 0 complete | governance | ☐ (docs OK; not automated evidence) |
+| A21 | CLIENT modifies one allowed task/content/opportunity and the Firestore write batch **does not** include unauthorized manager-only resources | SEC-009-020, T-009-06p | ✅ Phase 2 |
+| A22 | No production UI write path uses a hardcoded tenant `organizationId` | T-009-06 | ✅ Phase 2 |
+| A23 | CLIENT may only execute documented Thesis approval/revision workflow; DENY modify of strategic fields | SEC-009-006 | ✅ Phase 2 |
+| A24 | Admin SDK writers persist valid envelope; must not rely on Rules for isolation | T-009-10b | ☐ |
+
+### Phase 1+2 evidence map (automated only)
+
+| ID | Test name(s) | Source |
+|----|--------------|--------|
+| A1 | `ADMIN same-org read ALLOW`; `ADMIN cross-org read DENY` | `tests/firestore.rules.test.ts` |
+| A2 | `ADMIN cross-org read DENY`; `ADMIN cross-org write DENY`; `DELETE cross-org DENY`; `Q1 cross-org clients query DENY` | `tests/firestore.rules.test.ts` |
+| A3 | `CLIENT other client read DENY` | `tests/firestore.rules.test.ts` |
+| A4 | `impide al cliente crear señales (solo manager)`; `permite al cliente leer aiRuns propios pero no escribirlos` | `tests/firestore.rules.test.ts` |
+| A5 | `CLIENT field outside allowlist DENY`; `Profile CLIENT allowlisted nested update ALLOW`; `Profile CLIENT organizationId mutation DENY`; `Profile CLIENT outside allowlist field DENY` | `tests/firestore.rules.test.ts` |
+| A6 | `permite ACK de entrega por el cliente`; `Delivery invalid transition DENY` | `tests/firestore.rules.test.ts` |
+| A14q | `Q1 same-org clients query/list ALLOW`; `Q1 unscoped clients list DENY (Rules are not filters)`; `Q1 cross-org clients query DENY`; `resolveTenantOrganizationIdForQuery rejects mismatched requested org` | `tests/firestore.rules.test.ts`; `tests/listFirestoreClientIds.q1.test.ts` |
+| A15 | `CREATE client with wrong organizationId DENY`; `UPDATE organizationId DENY`; `UPDATE clientId on task DENY`; `DELETE cross-org DENY` | `tests/firestore.rules.test.ts` |
+| A16 | `unauthenticated read DENY` | `tests/firestore.rules.test.ts` |
+| A17 | `Delivery invalid transition DENY`; `Task invalid transition DENY`; `Content manager-only transition DENY`; `Opportunity illegal transition DENY` | `tests/firestore.rules.test.ts` |
+| A17t | `Forged workflow timestamp DENY`; `Forged stateHistory.at DENY on valid content transition`; `Content transition without stateHistory mutation ALLOW`; `Forged completedAt DENY`; `Forged clientApprovedAt DENY`; `Forged submittedAt DENY` | `tests/firestore.rules.test.ts` |
+| A18 | `Notification mark read ALLOW`; `Arbitrary notification create DENY`; `Approved manager-alert notification create ALLOW` | `tests/firestore.rules.test.ts` |
+| A19 | `signalOutcomes CLIENT read DENY`; `signalOutcomes CLIENT write DENY` | `tests/firestore.rules.test.ts` |
+| A21 | `Actor-aware CLIENT persistence excludes manager-only resources` | `tests/actorAwarePersistence.q2.test.ts` |
+| A22 | `production UI write paths do not hardcode org_aurora_01`; `full src/ scan: no write-path module depends on hardcoded org_aurora_01` | `tests/actorAwarePersistence.q2.test.ts` |
+| A23 | `Thesis approval workflow ALLOW`; `Thesis pendingRevision apply ALLOW`; `Thesis pendingRevision proposes X but CLIENT writes Y DENY`; `Thesis strategic-field modification DENY`; `Thesis strategic field during invalid approval transition DENY`; `Thesis organizationId mutation DENY`; `Thesis clientId mutation DENY` | `tests/firestore.rules.test.ts` |
+
+### get(parent) — TEMPORARY (not final architecture)
+
+Phase 1 uses `get(/clients/{clientId})` inside `sameOrgAsClient` / `ownsClient` for **all** `clients/{clientId}/**` matches that call those helpers. Allowed through Phases 2–4.
+
+**Final rules change (repo):** **T-009-14e** — switch to denormalized `resource.data.organizationId` / `clientId`; tests against envelope fixtures. **Must complete before T-009-15 `CODE_COMPLETE`.**
+
+**Prod data (not rules code):** **T-009-16** — backup → backfill → verify.
+
+**Deploy:** **T-009-18** — deploy the already-finalized rules. Must not change implementation after CODE_COMPLETE without Spec exception.
 
 ## Deploy gates (separados)
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| D1 | `CODE_COMPLETE` declarado (A11–A12 + Required code items) | ☐ |
-| D2 | Migration dry-run + backfill + verification (`migration.md`) | ☐ |
+| D1 | `CODE_COMPLETE` declarado (A11–A12 + **T-009-14e** + Required code items) | ☐ |
+| D2 | Migration dry-run + backfill + verification (`migration.md` / **T-009-16** — data only) | ☐ |
 | D3 | Claims reprovision + users re-login / token refresh | ☐ |
-| D4 | Firestore rules deployed (A13) | ☐ |
+| D4 | Firestore rules deployed (A13) — artifacts from T-009-14e | ☐ |
 | D5 | Post-deploy verification | ☐ |
 | D6 | Spec `DEPLOYED` / `DONE` / `PARTIAL` explícito | ☐ |
 

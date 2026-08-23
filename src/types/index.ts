@@ -321,7 +321,7 @@ export interface PositioningThesis {
   /** Desempate cuando varias tesis están activas. Mayor gana. */
   priority?: number;
   /** Cambios propuestos que aún no sustituyen la versión ACTIVE. */
-  pendingRevision?: ThesisPendingRevision;
+  pendingRevision?: ThesisPendingRevision | null;
 }
 
 export type SourceType = 'RSS' | 'WEB' | 'API' | 'REGULATORY' | 'ACADEMIC' | 'BLOG' | 'MEDIA' | 'MANUAL' | 'SOCIAL' | 'VIDEO' | 'OTHER';
@@ -956,6 +956,8 @@ export interface Invitation {
 export interface NotificationItem {
   id: string;
   userId: string;
+  /** Tenant envelope — required for SPEC-009 notification CREATE. */
+  organizationId: string;
   clientId?: string;
   type: 'TASK_ASSIGNED' | 'CONTENT_REVIEW' | 'OPPORTUNITY' | 'ONBOARDING' | 'THESIS' | 'SYSTEM' | 'BRIEFING';
   title: string;

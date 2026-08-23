@@ -1878,8 +1878,11 @@ class DataService {
 
   public applyOnboardingStep(clientId: string, step: number, fields: Record<string, string>): ClientProfile {
     const client = this.getClientById(clientId);
+    if (!client?.organizationId) {
+      throw new Error('Client missing organizationId for onboarding profile');
+    }
     const existing = this.profiles[clientId] || {
-      organizationId: client?.organizationId || 'org_aurora_01',
+      organizationId: client.organizationId,
       clientId,
       identity: {},
       goals: {},
@@ -2005,9 +2008,14 @@ class DataService {
   }
 
   public createInvitation(clientId: string, email: string): Invitation {
+    const client = this.getClientById(clientId);
+    const organizationId = client?.organizationId?.trim();
+    if (!organizationId) {
+      throw new Error('Client missing organizationId for invitation');
+    }
     const invite: Invitation = {
       id: createId('inv'),
-      organizationId: 'org_aurora_01',
+      organizationId,
       clientId,
       email,
       token: createId('tok').replace('tok_', ''),
@@ -2225,10 +2233,15 @@ class DataService {
   public ensureDraftDelivery(clientId: string, createdBy: string): DeliveryPackage {
     const existing = this.getDraftDelivery(clientId);
     if (existing) return existing;
+    const client = this.getClientById(clientId);
+    const organizationId = client?.organizationId?.trim();
+    if (!organizationId) {
+      throw new Error('Client missing organizationId for delivery draft');
+    }
     const now = new Date();
     const pkg: DeliveryPackage = {
       id: createId('pkg'),
-      organizationId: 'org_aurora_01',
+      organizationId,
       clientId,
       title: `Briefing ${now.toLocaleDateString('es', { day: '2-digit', month: 'long' })}`,
       strategicNote: '',

@@ -1,5 +1,5 @@
 import type { LocalV5Snapshot } from './types';
-import { getFirebaseFirestore } from '../../firebase/app';
+import { getFirebaseAuth, getFirebaseFirestore } from '../../firebase/app';
 import { readFirebaseConfig } from '../../firebase/config';
 import { CLIENT_SUBCOLLECTIONS, clientDocPath } from './paths';
 
@@ -27,11 +27,125 @@ const COLLECTION_MAP: Partial<Record<CollectionKey, typeof CLIENT_SUBCOLLECTIONS
   aiRuns: 'aiRuns',
 };
 
+/** Snapshot collection keys CLIENT may persist (SEC-009-020). */
+export const CLIENT_PERSIST_COLLECTION_KEYS = [
+  'tasks',
+  'deliveries',
+  'contents',
+  'opportunities',
+  'results',
+  'theses',
+  'evidenceVault',
+  'feedbackEvents',
+  'notifications',
+] as const satisfies ReadonlyArray<CollectionKey>;
+
+const CLIENT_PERSIST_KEY_SET = new Set<string>(CLIENT_PERSIST_COLLECTION_KEYS);
+
+/** Workflow fields written as serverTimestamp for SEC-009-017. */
+const TRUSTED_SCALAR_TIME_FIELDS = new Set([
+  'acknowledgedAt',
+  'completedAt',
+  'submittedAt',
+  'clientApprovedAt',
+  'createdAt',
+  'updatedAt',
+]);
+
+export type PersistenceActor = {
+  role: string;
+  clientId?: string | null;
+  organizationId?: string | null;
+};
+
 function itemsForClient<T extends { clientId?: string | null; id?: string }>(
   rows: T[],
   clientId: string
 ): T[] {
   return rows.filter((row) => row.clientId === clientId);
+}
+
+/**
+ * SEC-009-020: CLIENT persistence must not attempt manager-only collections.
+ * ADMIN retains full snapshot sync.
+ */
+export function filterSnapshotForPersistenceActor(
+  snapshot: LocalV5Snapshot,
+  actor: PersistenceActor
+): LocalV5Snapshot {
+  if (actor.role !== 'CLIENT') return snapshot;
+
+  const clientId = actor.clientId?.trim() || '';
+  if (!clientId) {
+    return {
+      ...snapshot,
+      clients: [],
+      signals: [],
+      tasks: [],
+      curation: [],
+      deliveries: [],
+      contents: [],
+      opportunities: [],
+      results: [],
+      theses: [],
+      campaigns: [],
+      campaignMilestones: [],
+      evidenceVault: [],
+      advices: [],
+      feedbackEvents: [],
+      signalOutcomes: [],
+      proofWallItems: [],
+      sources: [],
+      notifications: [],
+      recommendations: [],
+      aiRuns: [],
+      profiles: {},
+      dossiers: {},
+    };
+  }
+
+  const filtered: LocalV5Snapshot = {
+    ...snapshot,
+    clients: snapshot.clients.filter((c) => c.id === clientId),
+    signals: [],
+    curation: [],
+    campaigns: [],
+    campaignMilestones: [],
+    advices: [],
+    signalOutcomes: [],
+    proofWallItems: [],
+    sources: [],
+    recommendations: [],
+    aiRuns: [],
+    dossiers: {},
+    profiles: snapshot.profiles[clientId]
+      ? { [clientId]: snapshot.profiles[clientId] }
+      : {},
+    tasks: [],
+    deliveries: [],
+    contents: [],
+    opportunities: [],
+    results: [],
+    theses: [],
+    evidenceVault: [],
+    feedbackEvents: [],
+    notifications: [],
+  };
+
+  for (const key of CLIENT_PERSIST_COLLECTION_KEYS) {
+    const rows = snapshot[key];
+    if (!Array.isArray(rows)) continue;
+    (filtered as unknown as Record<string, unknown>)[key] = itemsForClient(
+      rows as Array<{ clientId?: string | null; id?: string }>,
+      clientId
+    );
+  }
+
+  return filtered;
+}
+
+export function clientPersistIncludesCollection(collectionKey: string): boolean {
+  return CLIENT_PERSIST_KEY_SET.has(collectionKey);
 }
 
 /**
@@ -53,6 +167,69 @@ export function stripUndefinedForFirestore<T>(value: T): T {
   return out as T;
 }
 
+function isFirestoreTimestampLike(value: unknown): boolean {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      typeof (value as { toDate?: unknown }).toDate === 'function'
+  );
+}
+
+/** Convert Timestamps from pull into ISO strings for local domain models. */
+export function normalizeFirestorePulledData<T>(value: T): T {
+  if (value === null || value === undefined) return value;
+  if (isFirestoreTimestampLike(value)) {
+    return (value as unknown as { toDate: () => Date }).toDate().toISOString() as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeFirestorePulledData(item)) as T;
+  }
+  if (typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = normalizeFirestorePulledData(entry);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+/**
+ * Replace trusted workflow clock fields with serverTimestamp so rules can
+ * require request.time (SEC-009-017). Local memory keeps ISO strings.
+ */
+export function applyTrustedServerTimestamps(
+  data: Record<string, unknown>,
+  serverTimestamp: () => unknown
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  for (const key of TRUSTED_SCALAR_TIME_FIELDS) {
+    if (typeof out[key] === 'string') {
+      out[key] = serverTimestamp();
+    }
+  }
+  // Do not convert stateHistory[].at — Firestore rejects serverTimestamp inside arrays.
+  if (Array.isArray(out.stateHistory) && out.stateHistory.length > 0) {
+    /* keep client ISO strings for admin paths; CLIENT persist strips stateHistory */
+  }
+  return out;
+}
+
+function prepareDocForWrite(
+  row: Record<string, unknown>,
+  serverTimestamp: () => unknown,
+  options?: { stripStateHistory?: boolean }
+): Record<string, unknown> {
+  const prepared = applyTrustedServerTimestamps(
+    stripUndefinedForFirestore(row) as Record<string, unknown>,
+    serverTimestamp
+  );
+  if (options?.stripStateHistory && 'stateHistory' in prepared) {
+    delete prepared.stateHistory;
+  }
+  return prepared;
+}
+
 /** Importa snapshot v5 a Firestore (Emulator o producción). */
 export async function importSnapshotToFirestore(
   snapshot: LocalV5Snapshot
@@ -64,7 +241,23 @@ export async function importSnapshotToFirestore(
   const db = await getFirebaseFirestore();
   if (!db) return { ok: false, message: 'Firestore no inicializado.', written: 0 };
 
-  const { doc, writeBatch } = await import('firebase/firestore');
+  const auth = await getFirebaseAuth();
+  const user = auth?.currentUser;
+  let actor: PersistenceActor = { role: 'ADMIN' };
+  if (user) {
+    const token = await user.getIdTokenResult();
+    actor = {
+      role: typeof token.claims.role === 'string' ? token.claims.role : 'ADMIN',
+      clientId: typeof token.claims.clientId === 'string' ? token.claims.clientId : null,
+      organizationId:
+        typeof token.claims.organizationId === 'string' ? token.claims.organizationId : null,
+    };
+  }
+
+  const scoped = filterSnapshotForPersistenceActor(snapshot, actor);
+  const isClientActor = actor.role === 'CLIENT';
+
+  const { doc, writeBatch, serverTimestamp } = await import('firebase/firestore');
   let written = 0;
   let batch = writeBatch(db);
   let ops = 0;
@@ -76,19 +269,28 @@ export async function importSnapshotToFirestore(
     ops = 0;
   };
 
-  for (const client of snapshot.clients) {
-    batch.set(doc(db, clientDocPath(client.id)), stripUndefinedForFirestore(client), { merge: true });
+  for (const client of scoped.clients) {
+    if (isClientActor && actor.clientId && client.id !== actor.clientId) continue;
+
+    batch.set(
+      doc(db, clientDocPath(client.id)),
+      prepareDocForWrite(client as unknown as Record<string, unknown>, serverTimestamp),
+      { merge: true }
+    );
     ops += 1;
     written += 1;
 
     for (const [key, subName] of Object.entries(COLLECTION_MAP)) {
-      const rows = snapshot[key as CollectionKey];
+      if (isClientActor && !CLIENT_PERSIST_KEY_SET.has(key)) continue;
+      const rows = scoped[key as CollectionKey];
       if (!Array.isArray(rows)) continue;
       for (const row of itemsForClient(rows as Array<{ clientId?: string | null; id?: string }>, client.id)) {
         if (!row.id) continue;
         batch.set(
           doc(db, `${clientDocPath(client.id)}/${subName}/${row.id}`),
-          stripUndefinedForFirestore(row),
+          prepareDocForWrite(row as unknown as Record<string, unknown>, serverTimestamp, {
+            stripStateHistory: isClientActor && subName === 'contents',
+          }),
           { merge: true }
         );
         ops += 1;
@@ -97,26 +299,28 @@ export async function importSnapshotToFirestore(
       }
     }
 
-    const profile = snapshot.profiles[client.id];
+    const profile = scoped.profiles[client.id];
     if (profile) {
       batch.set(
         doc(db, `${clientDocPath(client.id)}/profile/data`),
-        stripUndefinedForFirestore(profile),
+        prepareDocForWrite(profile as unknown as Record<string, unknown>, serverTimestamp),
         { merge: true }
       );
       ops += 1;
       written += 1;
     }
 
-    const dossier = snapshot.dossiers[client.id];
-    if (dossier) {
-      batch.set(
-        doc(db, `${clientDocPath(client.id)}/dossier/data`),
-        stripUndefinedForFirestore(dossier),
-        { merge: true }
-      );
-      ops += 1;
-      written += 1;
+    if (!isClientActor) {
+      const dossier = scoped.dossiers[client.id];
+      if (dossier) {
+        batch.set(
+          doc(db, `${clientDocPath(client.id)}/dossier/data`),
+          prepareDocForWrite(dossier as unknown as Record<string, unknown>, serverTimestamp),
+          { merge: true }
+        );
+        ops += 1;
+        written += 1;
+      }
     }
   }
 
@@ -124,11 +328,44 @@ export async function importSnapshotToFirestore(
   return { ok: true, message: `Importados ${written} documentos a Firestore.`, written };
 }
 
-export async function listFirestoreClientIds(): Promise<string[]> {
+
+/**
+ * Resolve the tenant org for Q1 client listing.
+ * Authenticated org always wins; a non-empty requested org must match auth org.
+ * Returns null when the query must not run (fail-closed).
+ */
+export function resolveTenantOrganizationIdForQuery(
+  authenticatedOrganizationId: string | null | undefined,
+  requestedOrganizationId?: string
+): string | null {
+  const authOrg = authenticatedOrganizationId?.trim() || '';
+  if (!authOrg) return null;
+  const requested = requestedOrganizationId?.trim() || '';
+  if (requested && requested !== authOrg) return null;
+  return authOrg;
+}
+
+/**
+ * SPEC-009 Q1: list clients for the authenticated tenant only.
+ * Security Rules are not filters — never unscoped getDocs(collection('clients')).
+ * Optional organizationId arg is validated against the auth token org (no arbitrary tenant).
+ */
+export async function listFirestoreClientIds(organizationId?: string): Promise<string[]> {
   const db = await getFirebaseFirestore();
   if (!db) return [];
-  const { collection, getDocs } = await import('firebase/firestore');
-  const snap = await getDocs(collection(db, 'clients'));
+
+  const auth = await getFirebaseAuth();
+  const user = auth?.currentUser;
+  if (!user) return [];
+  const token = await user.getIdTokenResult();
+  const authOrg =
+    typeof token.claims.organizationId === 'string' ? token.claims.organizationId : '';
+
+  const orgId = resolveTenantOrganizationIdForQuery(authOrg, organizationId);
+  if (!orgId) return [];
+
+  const { collection, getDocs, query, where } = await import('firebase/firestore');
+  const snap = await getDocs(query(collection(db, 'clients'), where('organizationId', '==', orgId)));
   return snap.docs.map((docSnap) => docSnap.id);
 }
 
@@ -168,7 +405,9 @@ export async function pullClientDataFromFirestore(
   for (const clientId of clientIds) {
     const clientSnap = await getDoc(doc(db, clientDocPath(clientId)));
     if (clientSnap.exists()) {
-      partial.clients!.push(clientSnap.data() as unknown as LocalV5Snapshot['clients'][number]);
+      partial.clients!.push(
+        normalizeFirestorePulledData(clientSnap.data()) as unknown as LocalV5Snapshot['clients'][number]
+      );
     }
 
     for (const sub of CLIENT_SUBCOLLECTIONS) {
@@ -176,15 +415,25 @@ export async function pullClientDataFromFirestore(
       const targetKey = Object.entries(COLLECTION_MAP).find(([, v]) => v === sub)?.[0] as CollectionKey | undefined;
       if (!targetKey || !Array.isArray(partial[targetKey])) continue;
       for (const row of snap.docs) {
-        (partial[targetKey] as unknown[]).push({ id: row.id, ...row.data() });
+        (partial[targetKey] as unknown[]).push(
+          normalizeFirestorePulledData({ id: row.id, ...row.data() })
+        );
       }
     }
 
     const profileSnap = await getDoc(doc(db, `${clientDocPath(clientId)}/profile/data`));
-    if (profileSnap.exists()) partial.profiles![clientId] = profileSnap.data() as unknown as LocalV5Snapshot['profiles'][string];
+    if (profileSnap.exists()) {
+      partial.profiles![clientId] = normalizeFirestorePulledData(
+        profileSnap.data()
+      ) as unknown as LocalV5Snapshot['profiles'][string];
+    }
 
     const dossierSnap = await getDoc(doc(db, `${clientDocPath(clientId)}/dossier/data`));
-    if (dossierSnap.exists()) partial.dossiers![clientId] = dossierSnap.data() as unknown as LocalV5Snapshot['dossiers'][string];
+    if (dossierSnap.exists()) {
+      partial.dossiers![clientId] = normalizeFirestorePulledData(
+        dossierSnap.data()
+      ) as unknown as LocalV5Snapshot['dossiers'][string];
+    }
   }
 
   return partial;
