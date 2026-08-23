@@ -182,8 +182,12 @@ describe('SPEC-005 Phase 1H — hexagonal architecture boundaries', () => {
       'services/ai.ts',
       'services/advisor.ts',
       'services/contentDraftGateway.ts',
+      'services/thesisSignalGateway.ts',
       'interfaces/ai/aiCompleteHttpClient.ts',
       'services/mapContentDraftGatewayInput.ts',
+      'services/mapThesisProposalGatewayInput.ts',
+      'services/mapSignalThesisEvalGatewayInput.ts',
+      'services/mapThesisChallengeGatewayInput.ts',
     ];
     const violations: string[] = [];
     for (const rel of browserRoots) {

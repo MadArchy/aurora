@@ -7,7 +7,7 @@ const OPERATION_SCHEMA_GUIDANCE: Record<AiOperation, string> = {
   THESIS_PROPOSAL:
     'Object with title, expertIdentity, identityCurrent, perceptionTarget, targetAudience, domain, objective, differentiator, proofPoints (string[]), audiences, territories, objectives, voiceAndTone, voiceAvoid, hardBlocks, softAvoid, complianceRules. Strict — no extra keys.',
   SIGNAL_THESIS_EVAL:
-    'Object with relevanceScore (number), alignmentSummary (string), recommendedAction (enum), rationale (string). Strict — no extra keys.',
+    'Object with proposedAngle (string), strategicRationale (string), recommendedAction (string). Strict — no extra keys.',
   THESIS_CHALLENGE:
     'Object with outcome (enum), recommendations (string[]), riskScore (number). Strict — no extra keys.',
   ADVISOR_POSITIONING:

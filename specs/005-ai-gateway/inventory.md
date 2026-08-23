@@ -53,6 +53,16 @@
 **Total LLM business call sites:** **9** (6 in `ai.ts` + 2 advisor + 1 generic runner used by advisor)  
 **Live provider HTTP calls:** **2** (OpenAI + Anthropic in dev proxy only)
 
+### Phase 5B inventory delta (2026-08-23)
+
+| Metric | Before 5B | After 5B |
+|--------|-----------|----------|
+| Gateway-migrated ops | 1 (`CONTENT_DRAFT`) | 4 (+ `THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`, `THESIS_CHALLENGE`) |
+| Browser-orchestrated LLM via session `complete`/`runAgentJson` | 8 | 5 remaining (advisor×2 + comparative + shared runner) |
+| Session-key required for thesis/signal/content draft | no (5A/5B) | still required for advisor/comparative |
+
+See `migration-matrix.md`.
+
 ---
 
 ## §2 Provider inventory
@@ -451,16 +461,15 @@ See §10 above.
 
 **Order** (from call graph + risk):
 
-1. Phase 1–3: Gateway + schemas + adapters (no caller migration)
-2. Phase 4: aiRuns schema extension + observability
-3. Phase 5a: `aiComplete` CF — wire OpenAI + Anthropic secrets
-4. Phase 5b: Migrate `generateContentDraft` (isolated, clear schema)
-5. Phase 5c: Migrate thesis proposal + signal eval
-6. Phase 5d: Migrate advisor flows
-7. Phase 5e: Comparative + challenge + remove session key UI
-8. Phase 6: Remove dev proxy LLM paths / deprecate `AIService.complete` direct fetch
+1. Phase 1–3: Gateway + schemas + adapters (no caller migration) ✅
+2. Phase 4: aiRuns schema extension + observability ✅
+3. Phase 5a: `CONTENT_DRAFT` browser → gateway ✅
+4. Phase 5b: thesis proposal + signal eval + challenge ✅
+5. Phase 5c: Migrate advisor flows
+6. Phase 5d: Comparative + remove session key UI
+7. Phase 6: Remove dev proxy LLM paths / deprecate `AIService.complete` direct fetch
 
-Each step: feature flag or env gate; keep heuristic fallbacks.
+Each step: feature flag or env gate; keep heuristic NON_AI fallbacks (never silent provider fallback).
 
 ---
 

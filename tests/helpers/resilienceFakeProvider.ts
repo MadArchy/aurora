@@ -53,6 +53,56 @@ export function invalidContentDraftSchemaResponse() {
   return jsonProviderResponse({ title: 'only title' });
 }
 
+export function validThesisProposalResponse() {
+  return jsonProviderResponse({
+    title: 'Governance thesis',
+    expertIdentity: 'Dr. Analyst',
+    identityCurrent: 'Advisor',
+    perceptionTarget: 'Trusted AI advisor',
+    targetAudience: 'CIOs',
+    domain: 'AI governance',
+    objective: 'Thought leadership',
+    differentiator: 'Evidence-led',
+    proofPoints: ['ISO audit'],
+    audiences: [{ name: 'CIOs', tier: 'COMMERCIAL', weight: 80 }],
+    territories: [{ name: 'Governance', weight: 70, pillar: 'Risk' }],
+    objectives: [{ kind: 'THOUGHT_LEADERSHIP', weight: 70 }],
+    voiceAndTone: 'preciso',
+    voiceAvoid: ['hype'],
+    hardBlocks: ['No medical claims'],
+    softAvoid: [],
+    complianceRules: 'No medical claims',
+  });
+}
+
+export function invalidThesisProposalSchemaResponse() {
+  return jsonProviderResponse({ title: 'only title' });
+}
+
+export function validSignalThesisEvalResponse() {
+  return jsonProviderResponse({
+    proposedAngle: 'Compliance lens for CIOs',
+    strategicRationale: 'Aligns with governance thesis',
+    recommendedAction: 'ARTICLE',
+  });
+}
+
+export function invalidSignalThesisEvalSchemaResponse() {
+  return jsonProviderResponse({ proposedAngle: 'x' });
+}
+
+export function validThesisChallengeResponse() {
+  return jsonProviderResponse({
+    outcome: 'REFINE',
+    recommendations: ['Clarify audience'],
+    riskScore: 42,
+  });
+}
+
+export function invalidThesisChallengeSchemaResponse() {
+  return jsonProviderResponse({ outcome: 'MAYBE', recommendations: ['x'], riskScore: 10 });
+}
+
 export function malformedJsonResponse() {
   return jsonProviderResponse('{not json');
 }

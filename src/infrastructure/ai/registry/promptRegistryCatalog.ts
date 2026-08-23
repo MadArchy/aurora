@@ -4,6 +4,18 @@ import {
   ContentDraftGatewayInputSchema,
   renderContentDraftUserMessage,
 } from '../../../application/ai/schemas/contentDraftInput';
+import {
+  ThesisProposalGatewayInputSchema,
+  renderThesisProposalUserMessage,
+} from '../../../application/ai/schemas/thesisProposalInput';
+import {
+  SignalThesisEvalGatewayInputSchema,
+  renderSignalThesisEvalUserMessage,
+} from '../../../application/ai/schemas/signalThesisEvalInput';
+import {
+  ThesisChallengeGatewayInputSchema,
+  renderThesisChallengeUserMessage,
+} from '../../../application/ai/schemas/thesisChallengeInput';
 
 export interface PromptCatalogEntry {
   operation: AiOperation;
@@ -38,23 +50,28 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     operation: 'THESIS_PROPOSAL',
     identity: { promptId: 'tmpl_thesis_proposal_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
-    userTemplateCanonical: 'Genera una propuesta de tesis de posicionamiento en JSON.\nInput:\n{{INPUT_JSON}}',
-    renderUserMessage: (input) => `Genera una propuesta de tesis de posicionamiento en JSON.\nInput:\n${inputJson(input)}`,
+    userTemplateCanonical:
+      'Genera una propuesta de tesis de posicionamiento. Usa SOLO credenciales del contexto.\nContexto confirmado: {{CONTEXT_JSON}}\nJSON { title, expertIdentity, identityCurrent, perceptionTarget, targetAudience, domain, objective, differentiator, proofPoints, audiences, territories, objectives, voiceAndTone, voiceAvoid, hardBlocks, softAvoid, complianceRules }',
+    renderUserMessage: (input) =>
+      renderThesisProposalUserMessage(ThesisProposalGatewayInputSchema.parse(input)),
   },
   {
     operation: 'SIGNAL_THESIS_EVAL',
     identity: { promptId: 'tmpl_strategist_signal_eval_v2', promptVersion: '2' },
     systemMessage: JSON_SYSTEM,
-    userTemplateCanonical: 'Evalúa la señal contra la tesis. Responde JSON.\nInput:\n{{INPUT_JSON}}',
-    renderUserMessage: (input) => `Evalúa la señal contra la tesis. Responde JSON.\nInput:\n${inputJson(input)}`,
+    userTemplateCanonical:
+      'Tesis: {{THESIS_TITLE}}\nIdentidad: {{EXPERT_IDENTITY}}\nAudiencia: {{TARGET_AUDIENCE}}\nDominio: {{DOMAIN}}\nLímites: {{COMPLIANCE}}\n<UNTRUSTED_SOURCE>\nTítulo: {{SIGNAL_TITLE}}\nFuente: {{SIGNAL_SOURCE}}\n{{SIGNAL_SNIPPET}}\n</UNTRUSTED_SOURCE>\nDevuelve JSON { "proposedAngle": string, "strategicRationale": string, "recommendedAction": string }',
+    renderUserMessage: (input) =>
+      renderSignalThesisEvalUserMessage(SignalThesisEvalGatewayInputSchema.parse(input)),
   },
   {
     operation: 'THESIS_CHALLENGE',
     identity: { promptId: 'tmpl_thesis_challenge_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
     userTemplateCanonical:
-      'Desafía la tesis. Responde JSON con outcome, recommendations, riskScore.\nInput:\n{{INPUT_JSON}}',
-    renderUserMessage: (input) => `Desafía la tesis. Responde JSON con outcome, recommendations, riskScore.\nInput:\n${inputJson(input)}`,
+      'Critica esta tesis de posicionamiento. Responde JSON { outcome, recommendations, riskScore }.\nBusca vaguedad, falta de evidencia, audiencia incorrecta, contradicciones y riesgo de saturación.\n{{THESIS_JSON}}',
+    renderUserMessage: (input) =>
+      renderThesisChallengeUserMessage(ThesisChallengeGatewayInputSchema.parse(input)),
   },
   {
     operation: 'ADVISOR_POSITIONING',

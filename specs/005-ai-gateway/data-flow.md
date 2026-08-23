@@ -117,15 +117,17 @@ Gateway (Phase 4):
 
 ---
 
-## Target flow (SPEC-005 — gateway implemented Phase 2–4)
+## Target flow (SPEC-005 — gateway Phase 2–5B)
+
+Migrated callers (CONTENT_DRAFT, THESIS_PROPOSAL, SIGNAL_THESIS_EVAL, THESIS_CHALLENGE):
 
 ```text
 UI / service
   ▼
-GatewayClient (typed operation id + input)
+AiCompleteHttpClient (Bearer Firebase; no session keys / no model)
   ▼
-Cloud Function / server AiGateway.execute()
-  ├─ resolve tenant from Firebase Auth claims
+/api/ai/gateway-complete (dev) or Cloud Function aiComplete
+  ├─ ADMIN_ONLY auth + trusted tenant
   ├─ ModelRegistry.resolve(operation)
   ├─ PromptRegistry.load(promptId, version)
   ├─ ProviderAdapter.complete()
@@ -136,7 +138,11 @@ Cloud Function / server AiGateway.execute()
   ├─ validateAiOutput() again (same schema)
   ├─ write aiRuns audit (Phase 4 — AiRunRepositoryPort; fail-closed)
   └─ return AiResult<T> — domain-safe output only (after audit policy)
+  ▼
+existing domain/UI flow (proposal form / recommendation / challenge modal)
 ```
+
+Remaining advisor/comparative still use legacy session `complete` / `runAgentJson` (see `migration-matrix.md`).
 
 See `plan.md` §Target Architecture.
 

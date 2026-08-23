@@ -20,17 +20,24 @@ import { calculateStrategicScore, type ScoringContext } from './scoring';
 import { assertAiQuota, assertComparativeAllowed } from './entitlements';
 import { academicDraftSkeleton } from '../domain/scientificFocusCore';
 import { reviewClaims } from '../domain/claimSafetyCore';
-import { normalizeThesis } from '../domain/thesisModelCore';
 import {
   executeContentDraftViaGateway,
   isContentDraftGatewayAvailable,
   mapGatewayErrorToUserMessage,
 } from './contentDraftGateway';
 import { parseContentDraftFormat } from './mapContentDraftGatewayInput';
+import {
+  executeThesisProposalViaGateway,
+  executeSignalThesisEvalViaGateway,
+  executeThesisChallengeViaGateway,
+  isThesisSignalGatewayAvailable,
+} from './thesisSignalGateway';
+import {
+  mapClientToThesisProposalGatewayInput,
+} from './mapThesisProposalGatewayInput';
 import { buildThesisProposalFromProfile } from '../domain/thesisProposalCore';
 import {
   evaluateThesisChallenge,
-  mapLegacyChallengeStatus,
   mergeChallengeWithAi,
   type ThesisChallengeResult,
 } from '../domain/thesisChallengeCore';
@@ -225,40 +232,21 @@ class AIService {
     let proposedAngle = `Impacto: "${signal.title}" para ${thesis.targetAudience}.`;
     let rationale = scoring.strategicRationale;
 
-    try {
-      const live = await this.complete(
-        'POSITIONING_STRATEGIST',
-        `Tesis: ${thesis.title}\nIdentidad: ${thesis.expertIdentity}\nAudiencia: ${thesis.targetAudience}\nDominio: ${thesis.domain}\nLímites: ${thesis.complianceRules}\n<UNTRUSTED_SOURCE>\nTítulo: ${signal.title}\nFuente: ${signal.sourceName}\n${signal.contentSnippet}\n</UNTRUSTED_SOURCE>\nDevuelve JSON { "proposedAngle": string, "strategicRationale": string, "recommendedAction": string }`
-      );
-      if (live) {
+    if (isThesisSignalGatewayAvailable()) {
+      try {
+        const { output } = await executeSignalThesisEvalViaGateway({ signal, thesis });
         usedLiveModel = true;
-        const parsed = JSON.parse(live.text);
-        proposedAngle = parsed.proposedAngle || proposedAngle;
-        rationale = parsed.strategicRationale || rationale;
-        dbService.recordAiRun({
-          organizationId: thesis.organizationId,
-          clientId: thesis.clientId,
-          agent: 'POSITIONING_STRATEGIST',
-          provider: live.provider,
-          modelName: live.modelName,
-          promptTemplateId: 'tmpl_strategist_signal_eval_v2',
-          inputContextSummary: `Señal: "${signal.title}" vs Tesis: "${thesis.title}"`,
-          outputPayload: proposedAngle,
-          promptTokens: live.promptTokens,
-          completionTokens: live.completionTokens,
-          totalCostUsd: 0,
-          latencyMs: live.latencyMs,
-          validationPassed: true,
-          securityCheckPassed: true,
-          status: 'SUCCESS',
+        proposedAngle = output.proposedAngle || proposedAngle;
+        rationale = output.strategicRationale || rationale;
+      } catch (error) {
+        auditService.log(authService.getCurrentUser(), 'AI_ANALYSIS_FAILED', 'Signal', signal.id, {
+          message: error instanceof Error ? error.message : 'error',
         });
+        throw new Error(mapGatewayErrorToUserMessage(error));
       }
-    } catch (error) {
-      auditService.log(authService.getCurrentUser(), 'AI_ANALYSIS_FAILED', 'Signal', signal.id, {
-        message: error instanceof Error ? error.message : 'error',
-      });
     }
 
+    // Domain mutation only after gateway success (or non-AI degraded path).
     dbService.updateSignalStatus(signal.id, 'ANALYZED');
     const full = dbService.getSignals().find((s) => s.id === signal.id);
     if (full) {
@@ -319,127 +307,26 @@ class AIService {
   }
 
   public async generateThesisProposal(clientId: string): Promise<ThesisEditableFields> {
+    const mapped = mapClientToThesisProposalGatewayInput(clientId);
     const client = dbService.getClientById(clientId);
     const profile = dbService.getMasterProfile(clientId);
     const dossier = dbService.getMasterDossier(clientId);
     const evidence = dbService.getEvidenceVaultByClient(clientId);
-    const fallback = buildThesisProposalFromProfile({ client, profile, dossier, evidence });
+    const fallback =
+      mapped?.fallback ?? buildThesisProposalFromProfile({ client, profile, dossier, evidence });
 
     if (!client) return fallback;
 
-    const context = {
-      name: client.displayName || client.firstName,
-      profession: profile?.career?.profession || client.profession,
-      selfDescription: profile?.identity?.selfDescription,
-      primaryGoal: profile?.goals?.primaryGoal,
-      audience: profile?.audience?.targetAudienceDescription,
-      industries: profile?.audience?.targetIndustries,
-      dossierTagline: dossier?.taglineEn,
-      topicsToOwn: dossier?.topicsToOwn,
-      proofPoints: fallback.proofPoints,
-      compliance: profile?.voicePreferences?.complianceGuidelines,
-    };
-
-    try {
-      const live = await this.complete(
-        'POSITIONING_STRATEGIST',
-        `Genera una propuesta de tesis de posicionamiento. Usa SOLO credenciales del contexto.
-Contexto confirmado: ${JSON.stringify(context)}
-JSON {
-  "title": string,
-  "expertIdentity": string,
-  "identityCurrent": string,
-  "perceptionTarget": string,
-  "targetAudience": string,
-  "domain": string,
-  "objective": string,
-  "differentiator": string,
-  "proofPoints": string[],
-  "audiences": [{"name": string, "tier": "COMMERCIAL"|"INFLUENCE"|"AMPLIFICATION", "weight": number}],
-  "territories": [{"name": string, "weight": number, "pillar": string}],
-  "objectives": [{"kind": "BUSINESS"|"THOUGHT_LEADERSHIP"|"SPEAKING"|"INSTITUTIONAL"|"NETWORK", "weight": number}],
-  "voiceAndTone": string,
-  "voiceAvoid": string[],
-  "hardBlocks": string[],
-  "softAvoid": string[],
-  "complianceRules": string
-}`
-      );
-      if (live) {
-        const parsed = JSON.parse(live.text);
-        dbService.recordAiRun({
-          organizationId: client.organizationId,
-          clientId,
-          agent: 'POSITIONING_STRATEGIST',
-          provider: live.provider,
-          modelName: live.modelName,
-          promptTemplateId: 'thesis-generator-v1',
-          inputContextSummary: client.displayName || clientId,
-          outputPayload: (parsed.title || '').slice(0, 120),
-          promptTokens: live.promptTokens,
-          completionTokens: live.completionTokens,
-          totalCostUsd: 0,
-          latencyMs: live.latencyMs,
-          validationPassed: true,
-          securityCheckPassed: true,
-          status: 'SUCCESS',
-        });
-
-        return {
-          title: parsed.title || fallback.title,
-          expertIdentity: parsed.expertIdentity || fallback.expertIdentity,
-          identityCurrent: parsed.identityCurrent || fallback.identityCurrent,
-          perceptionTarget: parsed.perceptionTarget || fallback.perceptionTarget,
-          targetAudience: parsed.targetAudience || fallback.targetAudience,
-          domain: parsed.domain || fallback.domain,
-          objective: parsed.objective || fallback.objective,
-          differentiator: parsed.differentiator || fallback.differentiator,
-          proofPoints: Array.isArray(parsed.proofPoints) && parsed.proofPoints.length
-            ? parsed.proofPoints
-            : fallback.proofPoints,
-          voiceAndTone: parsed.voiceAndTone || fallback.voiceAndTone,
-          complianceRules: parsed.complianceRules || fallback.complianceRules,
-          audiences: Array.isArray(parsed.audiences)
-            ? parsed.audiences.map((a: { name: string; tier?: string; weight?: number }, i: number) => ({
-                id: `aud_prop_${i}`,
-                name: a.name,
-                tier: (a.tier || 'COMMERCIAL') as import('../types').ThesisAudience['tier'],
-                weight: a.weight ?? 70,
-                keywords: [],
-              }))
-            : fallback.audiences,
-          territories: Array.isArray(parsed.territories)
-            ? parsed.territories.map((t: { name: string; weight?: number; pillar?: string }, i: number) => ({
-                id: `ter_prop_${i}`,
-                name: t.name,
-                weight: t.weight ?? 70,
-                pillar: t.pillar || t.name,
-                keywords: [],
-              }))
-            : fallback.territories,
-          objectives: Array.isArray(parsed.objectives)
-            ? parsed.objectives.map((o: { kind: string; weight: number }, i: number) => ({
-                id: `obj_prop_${i}`,
-                kind: o.kind as import('../types').ThesisObjectiveKind,
-                weight: o.weight,
-              }))
-            : fallback.objectives,
-          voiceProfile: {
-            ...fallback.voiceProfile!,
-            style: parsed.voiceAndTone || fallback.voiceAndTone,
-            avoid: Array.isArray(parsed.voiceAvoid) ? parsed.voiceAvoid : fallback.voiceProfile?.avoid,
-          },
-          limits: {
-            hardBlocks: Array.isArray(parsed.hardBlocks) ? parsed.hardBlocks : fallback.limits?.hardBlocks || [],
-            softAvoid: Array.isArray(parsed.softAvoid) ? parsed.softAvoid : fallback.limits?.softAvoid || [],
-          },
-          priority: fallback.priority,
-        };
+    if (isThesisSignalGatewayAvailable()) {
+      try {
+        const { editable } = await executeThesisProposalViaGateway({ clientId });
+        return editable;
+      } catch (error) {
+        throw new Error(mapGatewayErrorToUserMessage(error));
       }
-    } catch {
-      /* degraded */
     }
 
+    // NON_AI_LOCAL_FALLBACK — heuristic proposal; not Gateway-generated.
     return fallback;
   }
 
@@ -447,45 +334,20 @@ JSON {
     const evidence = dbService.getEvidenceVaultByClient(thesis.clientId);
     const heuristic = evaluateThesisChallenge(thesis, evidence);
 
-    try {
-      const live = await this.complete(
-        'POSITIONING_STRATEGIST',
-        `Critica esta tesis de posicionamiento. Responde JSON:
-{
-  "outcome": "READY"|"REFINE"|"SPLIT"|"PAUSE"|"REJECT",
-  "recommendations": string[],
-  "riskScore": number
-}
-Busca vaguedad, falta de evidencia, audiencia incorrecta, contradicciones y riesgo de saturación.
-${JSON.stringify({
-          title: thesis.title,
-          expertIdentity: thesis.expertIdentity,
-          audience: thesis.targetAudience,
-          domain: thesis.domain,
-          proofPoints: thesis.proofPoints,
-          territories: normalizeThesis(thesis).territories.map((t) => t.name),
-        })}`
-      );
-      if (live) {
-        const parsed = JSON.parse(live.text) as {
-          outcome?: ThesisChallengeResult['outcome'];
-          status?: 'SOLID' | 'VULNERABLE' | 'SATURATED';
-          recommendations?: string[];
-          riskScore?: number;
-        };
-        const outcome =
-          parsed.outcome ||
-          (parsed.status ? mapLegacyChallengeStatus(parsed.status) : heuristic.outcome);
+    if (isThesisSignalGatewayAvailable()) {
+      try {
+        const { output } = await executeThesisChallengeViaGateway({ thesis });
         return mergeChallengeWithAi(heuristic, {
-          outcome,
-          recommendations: parsed.recommendations,
-          riskScore: parsed.riskScore,
+          outcome: output.outcome,
+          recommendations: output.recommendations,
+          riskScore: output.riskScore,
         });
+      } catch (error) {
+        throw new Error(mapGatewayErrorToUserMessage(error));
       }
-    } catch {
-      /* fall through */
     }
 
+    // NON_AI_LOCAL_FALLBACK — heuristic challenge; not Gateway-generated.
     return heuristic;
   }
 

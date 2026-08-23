@@ -69,12 +69,22 @@ Phase 1 code moved from monolithic `src/domain/aiGateway/` into domain, applicat
 
 **Pre-provider auth failures** (`handleAiCompleteRequest`): no aiRun (gateway not invoked).
 
-## Deferred (Phase 5+)
+## Phase 5 browser migration (2026-08-23)
+
+| Layer | Path | Status |
+|-------|------|--------|
+| Browser client | `AiCompleteHttpClient` | shared (5A+) |
+| CONTENT_DRAFT | `contentDraftGateway.ts` | **MIGRATED** |
+| Thesis/signal | `thesisSignalGateway.ts` + mappers | **MIGRATED** (5B) |
+| Prompt catalog | legacy-equivalent render for 5A/5B ops | **DONE** |
+| Remaining | advisor + comparative via session | Phase 5C+ |
+
+## Deferred (Phase 5C+)
 
 | Layer | Target path | Status |
 |-------|-------------|--------|
 | INTERFACE | `src/interfaces/ai/` (CLIENT CF access) | Future — aiComplete is ADMIN-only |
-| Browser migration | `src/services/ai.ts` | Phase 5 |
+| Browser migration | advisor / comparative | Phase 5C+ |
 
 ## Dependency rule summary
 

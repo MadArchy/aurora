@@ -148,11 +148,13 @@ src/infrastructure/ai/    — documented; Phase 2+ adapters only
 
 ### Phase 5 — Strangler migration
 
-Sub-phases 5a–5e (see inventory §25). Each sub-phase:
+See `migration-matrix.md`.
 
-- One operation migrated
-- Fallback preserved
-- `npm run check` + `test:rules` green
+- **5A** ✅ `CONTENT_DRAFT`
+- **5B** ✅ `THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`, `THESIS_CHALLENGE`
+- **5C+** Advisor + comparative + session-key removal
+
+Each migrated op: browser Gateway client → `aiComplete` ADMIN_ONLY → audit → domain compatibility. No browser provider fallback.
 
 **Gate per operation:** E2E with mock provider; no regression in UI flows.
 

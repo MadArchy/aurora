@@ -113,9 +113,9 @@
 
 - [x] **T-005-60** Implement `aiComplete` gateway browser client (`AiCompleteHttpClient`)
 - [x] **T-005-61** Migrate `content.draft` / `CONTENT_DRAFT` (`generateContentDraft`)
-- [ ] **T-005-62** Migrate thesis + signal eval
+- [x] **T-005-62** Migrate thesis + signal eval (`THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`)
 - [ ] **T-005-63** Migrate advisor flows
-- [ ] **T-005-64** Migrate comparative + challenge
+- [x] **T-005-64** Migrate thesis challenge (`THESIS_CHALLENGE`; comparative remains)
 - [ ] **T-005-65** Remove prod session-key path
 
 ---

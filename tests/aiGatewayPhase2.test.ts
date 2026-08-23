@@ -6,6 +6,7 @@ import { MODEL_REGISTRY_ENTRIES } from '../src/infrastructure/ai/registry/modelR
 import { PromptRegistryAdapter } from '../src/infrastructure/ai/registry/PromptRegistryAdapter';
 import { computePromptHash } from '../src/infrastructure/ai/registry/promptHash';
 import { minimalContentDraftGatewayInput } from './helpers/contentDraftGatewayInput';
+import { minimalSignalThesisEvalGatewayInput } from './helpers/thesisSignalGatewayInput';
 import { ExecuteAiOperation } from '../src/application/ai/use-cases/ExecuteAiOperation';
 import { handleAiCompleteRequest } from '../src/interfaces/ai/handleAiCompleteRequest';
 import { resolveTrustedTenantForAiComplete } from '../src/interfaces/ai/resolveTrustedTenant';
@@ -176,7 +177,7 @@ describe('SPEC-005 Phase 2 — PromptRegistry', () => {
     const signal = registry.resolve({
       operation: 'SIGNAL_THESIS_EVAL',
       identity: { promptId: 'tmpl_strategist_signal_eval_v2', promptVersion: '2' },
-      input: minimalContentDraftGatewayInput(),
+      input: minimalSignalThesisEvalGatewayInput(),
     });
     expect(signal.identity.promptVersion).toBe('2');
     expect(signal.identity.promptId).toBe('tmpl_strategist_signal_eval_v2');
