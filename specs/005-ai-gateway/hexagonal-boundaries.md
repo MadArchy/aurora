@@ -54,13 +54,27 @@ Phase 1 code moved from monolithic `src/domain/aiGateway/` into domain, applicat
 
 **Global budget:** `MAX_PROVIDER_CALLS_PER_EXECUTION=4`; `MAX_GATEWAY_EXECUTION_MS=270000` (30s below `AI_COMPLETE_FUNCTION_TIMEOUT_SECONDS=300`).
 
-## Deferred (Phase 3+)
+## Phase 4 infrastructure (2026-08-23)
+
+| Layer | Path | Status |
+|-------|------|--------|
+| Application | `src/application/ai/audit/` | buildAiRunPersistenceRecord, sanitize, validateAiRunEnvelope, renderedPromptHash |
+| Infrastructure | `src/infrastructure/ai/persistence/` | FirestoreAiRunRepository, mapAiRunToFirestore |
+| Composition | `serverGatewayComposition.ts` | wires `FirestoreAiRunRepository` into `ExecuteAiOperation` |
+| Tests | `tests/aiGatewayPhase4.test.ts` | 27 deterministic audit/persistence tests |
+
+**Persistence path:** `clients/{clientId}/aiRuns/{runId}` (SPEC-009 tenant envelope).
+
+**Lifecycle:** one aiRun per gateway execution; stable `runId` (UUID); idempotent `save()` overwrites same doc.
+
+**Pre-provider auth failures** (`handleAiCompleteRequest`): no aiRun (gateway not invoked).
+
+## Deferred (Phase 5+)
 
 | Layer | Target path | Status |
 |-------|-------------|--------|
-| INFRASTRUCTURE | `src/infrastructure/ai/persistence/` | Phase 4 |
 | INTERFACE | `src/interfaces/ai/` (CLIENT CF access) | Future — aiComplete is ADMIN-only |
-| COMPOSITION (prod) | `src/composition/ai/serverGatewayComposition.ts` | **DONE** Phase 2 |
+| Browser migration | `src/services/ai.ts` | Phase 5 |
 
 ## Dependency rule summary
 

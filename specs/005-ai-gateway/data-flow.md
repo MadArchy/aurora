@@ -86,10 +86,21 @@ runSourceDiscoveryAgent() → heuristics + Tavily/YouTube  → localStorage only
 ## aiRuns persistence
 
 ```text
-dbService.recordAiRun()
-  ├─ localStorage (postura_ai_runs_v5)
-  └─ Firestore sync: clients/{clientId}/aiRuns/{id}
-       envelope: organizationId + clientId (SPEC-009)
+Legacy browser:
+  dbService.recordAiRun()
+    ├─ localStorage (postura_ai_runs_v5)
+    └─ Firestore sync: clients/{clientId}/aiRuns/{id}
+         envelope: organizationId + clientId (SPEC-009)
+         schema: AIRunRecord (legacy — unchanged Phase 4)
+
+Gateway (Phase 4):
+  ExecuteAiOperation.finalize()
+    └─ AiRunRepositoryPort.save()
+         FirestoreAiRunRepository (Admin SDK)
+           path: clients/{clientId}/aiRuns/{runId}
+           envelope: organizationId + clientId (validated before write)
+           schema: AiRunPersistenceRecord (gateway audit fields)
+           lifecycle: single final write; fail-closed on persistence error
 ```
 
 ---
@@ -106,7 +117,7 @@ dbService.recordAiRun()
 
 ---
 
-## Target flow (SPEC-005 — NOT IMPLEMENTED)
+## Target flow (SPEC-005 — gateway implemented Phase 2–4)
 
 ```text
 UI / service
@@ -123,9 +134,8 @@ Cloud Function / server AiGateway.execute()
   ├─ validateAiOutput() → VALID | REPAIR_REQUIRED | REJECTED
   ├─ resolveRepair() → one repair provider call (if eligible)
   ├─ validateAiOutput() again (same schema)
-  └─ success | REPAIR_FAILED | technical error
-  ├─ write aiRuns (full metadata)
-  └─ return AiResult<T> — domain-safe output only
+  ├─ write aiRuns audit (Phase 4 — AiRunRepositoryPort; fail-closed)
+  └─ return AiResult<T> — domain-safe output only (after audit policy)
 ```
 
 See `plan.md` §Target Architecture.

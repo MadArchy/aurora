@@ -9,12 +9,15 @@ import { resolveProviderTimeoutPolicy, type ProviderTimeoutPolicy } from '../../
 import { ExecuteAiOperation } from '../../application/ai/use-cases/ExecuteAiOperation';
 import type { AiGatewayPort } from '../../application/ai/ports/inbound/AiGatewayPort';
 import type { AiProviderPort } from '../../application/ai/ports/outbound/AiProviderPort';
+import type { AiRunRepositoryPort } from '../../application/ai/ports/outbound/AiRunRepositoryPort';
+import { FirestoreAiRunRepository } from '../../infrastructure/ai/persistence/FirestoreAiRunRepository';
 
 export interface ServerGatewayCompositionOptions {
   secrets?: ProviderSecretConfig;
   timeout?: ProviderTimeoutPolicy;
   fetchFn?: FetchFn;
   providerPort?: AiProviderPort;
+  aiRunRepository?: AiRunRepositoryPort;
 }
 
 /** Production/server composition — never import from browser UI code. */
@@ -34,9 +37,12 @@ export function createServerAiGateway(options: ServerGatewayCompositionOptions =
       ])
     );
 
+  const aiRunRepository = options.aiRunRepository ?? new FirestoreAiRunRepository();
+
   return new ExecuteAiOperation({
     providerPort,
     modelRegistry: new ModelRegistryAdapter(),
     promptRegistry: new PromptRegistryAdapter(),
+    aiRunRepository,
   });
 }

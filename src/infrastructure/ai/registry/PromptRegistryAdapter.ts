@@ -28,7 +28,7 @@ export class PromptRegistryAdapter implements PromptRegistryPort {
       );
     }
     const userMessage = entry.renderUserMessage(params.input);
-    const promptHash = computePromptHash(entry.systemMessage, userMessage);
+    const promptHash = computePromptHash(entry.systemMessage, entry.userTemplateCanonical);
     return {
       identity: { ...entry.identity, promptHash },
       systemMessage: entry.systemMessage,

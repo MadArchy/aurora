@@ -101,11 +101,11 @@
 
 ---
 
-## Phase 4 — aiRuns observability (NOT STARTED)
+## Phase 4 — aiRuns observability ✅
 
-- [ ] **T-005-50** Extend AIRunRecord / Firestore writer
-- [ ] **T-005-51** Gateway aiRuns on all paths
-- [ ] **T-005-52** Rules/tests for new fields
+- [x] **T-005-50** Extend AIRunRecord / Firestore writer
+- [x] **T-005-51** Gateway aiRuns on all paths
+- [x] **T-005-52** Rules/tests for new fields (no rules change required; envelope tests + Phase 4 unit tests)
 
 ---
 

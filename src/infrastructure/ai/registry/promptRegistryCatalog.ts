@@ -5,6 +5,8 @@ export interface PromptCatalogEntry {
   operation: AiOperation;
   identity: PromptIdentity;
   systemMessage: string;
+  /** Canonical user template with stable placeholders — hashed as promptHash identity. */
+  userTemplateCanonical: string;
   renderUserMessage: (input: unknown) => string;
 }
 
@@ -25,42 +27,50 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     operation: 'CONTENT_DRAFT',
     identity: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
+    userTemplateCanonical: 'Genera un borrador de contenido en JSON con title y body.\nInput:\n{{INPUT_JSON}}',
     renderUserMessage: (input) => `Genera un borrador de contenido en JSON con title y body.\nInput:\n${inputJson(input)}`,
   },
   {
     operation: 'THESIS_PROPOSAL',
     identity: { promptId: 'tmpl_thesis_proposal_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
+    userTemplateCanonical: 'Genera una propuesta de tesis de posicionamiento en JSON.\nInput:\n{{INPUT_JSON}}',
     renderUserMessage: (input) => `Genera una propuesta de tesis de posicionamiento en JSON.\nInput:\n${inputJson(input)}`,
   },
   {
     operation: 'SIGNAL_THESIS_EVAL',
     identity: { promptId: 'tmpl_strategist_signal_eval_v2', promptVersion: '2' },
     systemMessage: JSON_SYSTEM,
+    userTemplateCanonical: 'Evalúa la señal contra la tesis. Responde JSON.\nInput:\n{{INPUT_JSON}}',
     renderUserMessage: (input) => `Evalúa la señal contra la tesis. Responde JSON.\nInput:\n${inputJson(input)}`,
   },
   {
     operation: 'THESIS_CHALLENGE',
     identity: { promptId: 'tmpl_thesis_challenge_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
+    userTemplateCanonical:
+      'Desafía la tesis. Responde JSON con outcome, recommendations, riskScore.\nInput:\n{{INPUT_JSON}}',
     renderUserMessage: (input) => `Desafía la tesis. Responde JSON con outcome, recommendations, riskScore.\nInput:\n${inputJson(input)}`,
   },
   {
     operation: 'ADVISOR_POSITIONING',
     identity: { promptId: 'tmpl_positioning_advisor_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
+    userTemplateCanonical: 'Genera consejo de posicionamiento en JSON.\nInput:\n{{INPUT_JSON}}',
     renderUserMessage: (input) => `Genera consejo de posicionamiento en JSON.\nInput:\n${inputJson(input)}`,
   },
   {
     operation: 'ADVISOR_CURATION_ANGLE',
     identity: { promptId: 'tmpl_curation_angle_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
+    userTemplateCanonical: 'Propón un ángulo de curación en JSON con campo angle.\nInput:\n{{INPUT_JSON}}',
     renderUserMessage: (input) => `Propón un ángulo de curación en JSON con campo angle.\nInput:\n${inputJson(input)}`,
   },
   {
     operation: 'ANALYSIS_COMPARATIVE',
     identity: { promptId: 'tmpl_comparative_analysis_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
+    userTemplateCanonical: 'Análisis comparativo en JSON.\nInput:\n{{INPUT_JSON}}',
     renderUserMessage: (input) => `Análisis comparativo en JSON.\nInput:\n${inputJson(input)}`,
   },
 ];

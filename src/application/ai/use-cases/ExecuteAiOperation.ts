@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { AiGatewayPort } from '../ports/inbound/AiGatewayPort';
 import type { AiGatewayRequest } from '../contracts/request';
 import type { AiGatewayResult, AiExecutionMetadata, AiGatewayFailure } from '../contracts/result';
@@ -15,11 +16,14 @@ import {
 import type { AiProviderPort, AiProviderCompletionResponse } from '../ports/outbound/AiProviderPort';
 import type { ModelRegistryPort } from '../ports/outbound/ModelRegistryPort';
 import type { PromptRegistryPort } from '../ports/outbound/PromptRegistryPort';
+import type { AiRunRepositoryPort } from '../ports/outbound/AiRunRepositoryPort';
 import { validateAiOutput } from '../validation/validateOutput';
 import { canAttemptRepair } from '../validation/validationPipeline';
 import { ProviderPortError, PromptResolutionError } from '../errors/providerPortErrors';
 import { isModelConfigurationResolved } from '../validation/modelConfiguration';
 import type { AiOperation } from '../../../domain/ai/operations';
+import type { PromptIdentity } from '../../../domain/ai/promptIdentity';
+import type { SchemaIdentity } from '../../../domain/ai/schemaIdentity';
 import { ProviderCallBudget } from '../resilience/providerCallBudget';
 import { executeProviderWithRetry } from '../resilience/providerRetryPolicy';
 import { isValidationRepairEligible, validationFailureReason } from '../resilience/repairEligibility';
@@ -27,17 +31,35 @@ import {
   createGatewayExecutionDeadline,
   GatewayDeadlineExceededError,
 } from '../resilience/gatewayExecutionDeadline';
+import { buildAiRunPersistenceRecord } from '../audit/buildAiRunPersistenceRecord';
+import { computeRenderedPromptHash } from '../audit/renderedPromptHash';
 
 export interface ExecuteAiOperationDeps {
   providerPort: AiProviderPort;
   modelRegistry: ModelRegistryPort;
   promptRegistry: PromptRegistryPort;
+  aiRunRepository?: AiRunRepositoryPort;
   /** Override retry backoff for deterministic tests (default: PROVIDER_RETRY_BACKOFF_MS). */
   retryBackoffMs?: number;
   sleepFn?: (ms: number) => Promise<void>;
   providerTimeoutMs?: number;
   nowFn?: () => number;
   maxGatewayExecutionMs?: number;
+}
+
+class TokenUsageTracker {
+  promptTokens?: number;
+  completionTokens?: number;
+
+  add(response?: AiProviderCompletionResponse): void {
+    if (!response) return;
+    if (response.promptTokens != null) {
+      this.promptTokens = (this.promptTokens ?? 0) + response.promptTokens;
+    }
+    if (response.completionTokens != null) {
+      this.completionTokens = (this.completionTokens ?? 0) + response.completionTokens;
+    }
+  }
 }
 
 /** Application orchestration — resolves ports, retries transient failures, repairs invalid output. */
@@ -47,14 +69,18 @@ export class ExecuteAiOperation implements AiGatewayPort {
   async execute<K extends AiOperation>(
     request: AiGatewayRequest<unknown>
   ): Promise<AiGatewayResult<AiOperationOutputMap[K]>> {
+    const runId = randomUUID();
+    const startedAt = this.now();
+    const tokenUsage = new TokenUsageTracker();
+
     if (!isOperationSupported(request.operation)) {
-      return aiGatewayFailure(
+      return this.finalize(request, runId, startedAt, undefined, undefined, tokenUsage, aiGatewayFailure(
         createGatewayError({
           code: 'OPERATION_NOT_SUPPORTED',
           message: `Unsupported operation: ${request.operation}`,
           retryable: false,
         })
-      );
+      ));
     }
 
     const operation = request.operation;
@@ -64,13 +90,20 @@ export class ExecuteAiOperation implements AiGatewayPort {
     const modelConfig = this.deps.modelRegistry.resolve(logicalRole, operation);
 
     if (!isModelConfigurationResolved(modelConfig)) {
-      return aiGatewayFailure(
+      return this.finalize(request, runId, startedAt, undefined, schemaIdentity, tokenUsage, aiGatewayFailure(
         createGatewayError({
           code: 'MODEL_NOT_RESOLVED',
           message: `Model not resolved for role ${logicalRole}`,
           retryable: false,
-        })
-      );
+        }),
+        {
+          operation,
+          schema: schemaIdentity,
+          validationStatus: 'REJECTED',
+          repairCount: 0,
+          logicalModelRole: logicalRole,
+        }
+      ));
     }
 
     let resolvedPrompt;
@@ -82,14 +115,26 @@ export class ExecuteAiOperation implements AiGatewayPort {
       });
     } catch (error) {
       const message = error instanceof PromptResolutionError ? error.message : 'Prompt resolution failed';
-      return aiGatewayFailure(
+      return this.finalize(request, runId, startedAt, undefined, schemaIdentity, tokenUsage, aiGatewayFailure(
         createGatewayError({
           code: 'OPERATION_NOT_SUPPORTED',
           message,
           retryable: false,
-        })
-      );
+        }),
+        {
+          operation,
+          schema: schemaIdentity,
+          validationStatus: 'REJECTED',
+          repairCount: 0,
+          logicalModelRole: logicalRole,
+        }
+      ));
     }
+
+    const renderedPromptHash = computeRenderedPromptHash(
+      resolvedPrompt.systemMessage,
+      resolvedPrompt.userMessage
+    );
 
     const budget = new ProviderCallBudget();
     const deadline = createGatewayExecutionDeadline(this.deps.nowFn, this.deps.maxGatewayExecutionMs);
@@ -118,17 +163,27 @@ export class ExecuteAiOperation implements AiGatewayPort {
         },
       });
       totalRetryCount += primaryExecution.retryCount;
+      tokenUsage.add(primaryExecution.response);
     } catch (error) {
-      return this.mapProviderFailure(error, {
-        operation,
-        prompt: resolvedPrompt.identity,
-        schema: schemaIdentity,
-        attemptCount: budget.providerCallCount,
-        retryCount: totalRetryCount,
-        repairCount: 0,
-        providerCallCount: budget.providerCallCount,
-        logicalModelRole: logicalRole,
-      });
+      return this.finalize(
+        request,
+        runId,
+        startedAt,
+        renderedPromptHash,
+        schemaIdentity,
+        tokenUsage,
+        this.mapProviderFailure(error, {
+          operation,
+          prompt: resolvedPrompt.identity,
+          schema: schemaIdentity,
+          attemptCount: budget.providerCallCount,
+          retryCount: totalRetryCount,
+          repairCount: 0,
+          providerCallCount: budget.providerCallCount,
+          logicalModelRole: logicalRole,
+          tokenUsage,
+        })
+      );
     }
 
     const primaryValidation = validateAiOutput({
@@ -137,61 +192,88 @@ export class ExecuteAiOperation implements AiGatewayPort {
     });
 
     if (primaryValidation.status === 'VALID') {
-      return aiGatewaySuccess(
-        markValidatedDomainOutput(primaryValidation.data),
-        this.buildMetadata({
-          operation,
-          prompt: resolvedPrompt.identity,
-          schema: schemaIdentity,
-          validationStatus: 'VALID',
-          repairCount: 0,
-          attemptCount: primaryExecution.attemptCount,
-          retryCount: totalRetryCount,
-          providerCallCount: budget.providerCallCount,
-          response: primaryExecution.response,
-          logicalModelRole: logicalRole,
-        })
-      ) as AiGatewayResult<AiOperationOutputMap[K]>;
+      return this.finalize(
+        request,
+        runId,
+        startedAt,
+        renderedPromptHash,
+        schemaIdentity,
+        tokenUsage,
+        aiGatewaySuccess(
+          markValidatedDomainOutput(primaryValidation.data),
+          this.buildMetadata({
+            operation,
+            prompt: resolvedPrompt.identity,
+            schema: schemaIdentity,
+            validationStatus: 'VALID',
+            repairCount: 0,
+            attemptCount: primaryExecution.attemptCount,
+            retryCount: totalRetryCount,
+            providerCallCount: budget.providerCallCount,
+            response: primaryExecution.response,
+            logicalModelRole: logicalRole,
+            tokenUsage,
+          })
+        ) as AiGatewayResult<AiOperationOutputMap[K]>
+      );
     }
 
     if (!isValidationRepairEligible(primaryValidation) || !canAttemptRepair(0)) {
-      return aiGatewayFailure(
-        createGatewayError({
-          code: 'INVALID_OUTPUT',
-          message:
-            primaryValidation.status === 'REJECTED'
-              ? primaryValidation.reason
-              : 'Schema validation failed',
-          retryable: false,
-        }),
-        this.buildMetadata({
-          operation,
-          prompt: resolvedPrompt.identity,
-          schema: schemaIdentity,
-          validationStatus: 'REJECTED',
-          repairCount: 0,
-          attemptCount: primaryExecution.attemptCount,
-          retryCount: totalRetryCount,
-          providerCallCount: budget.providerCallCount,
-          response: primaryExecution.response,
-          logicalModelRole: logicalRole,
-          validationFailureReason: validationFailureReason(primaryValidation),
-        })
+      return this.finalize(
+        request,
+        runId,
+        startedAt,
+        renderedPromptHash,
+        schemaIdentity,
+        tokenUsage,
+        aiGatewayFailure(
+          createGatewayError({
+            code: 'INVALID_OUTPUT',
+            message:
+              primaryValidation.status === 'REJECTED'
+                ? primaryValidation.reason
+                : 'Schema validation failed',
+            retryable: false,
+          }),
+          this.buildMetadata({
+            operation,
+            prompt: resolvedPrompt.identity,
+            schema: schemaIdentity,
+            validationStatus: 'REJECTED',
+            repairCount: 0,
+            attemptCount: primaryExecution.attemptCount,
+            retryCount: totalRetryCount,
+            providerCallCount: budget.providerCallCount,
+            response: primaryExecution.response,
+            logicalModelRole: logicalRole,
+            validationFailureReason: validationFailureReason(primaryValidation),
+            tokenUsage,
+          })
+        )
       );
     }
 
     if (!deadline.canFitProviderAttempt(providerTimeoutMs)) {
-      return this.gatewayDeadlineFailure({
-        operation,
-        prompt: resolvedPrompt.identity,
-        schema: schemaIdentity,
-        repairCount: 0,
-        attemptCount: primaryExecution.attemptCount,
-        retryCount: totalRetryCount,
-        providerCallCount: budget.providerCallCount,
-        logicalModelRole: logicalRole,
-        validationFailureReason: validationFailureReason(primaryValidation),
-      });
+      return this.finalize(
+        request,
+        runId,
+        startedAt,
+        renderedPromptHash,
+        schemaIdentity,
+        tokenUsage,
+        this.gatewayDeadlineFailure({
+          operation,
+          prompt: resolvedPrompt.identity,
+          schema: schemaIdentity,
+          repairCount: 0,
+          attemptCount: primaryExecution.attemptCount,
+          retryCount: totalRetryCount,
+          providerCallCount: budget.providerCallCount,
+          logicalModelRole: logicalRole,
+          validationFailureReason: validationFailureReason(primaryValidation),
+          tokenUsage,
+        })
+      );
     }
 
     const repairPrompt = this.deps.promptRegistry.resolveRepair({
@@ -203,25 +285,34 @@ export class ExecuteAiOperation implements AiGatewayPort {
 
     const repairModelConfig = this.deps.modelRegistry.resolve(REPAIR_MODEL_ROLE, operation);
     if (!isModelConfigurationResolved(repairModelConfig)) {
-      return aiGatewayFailure(
-        createGatewayError({
-          code: 'MODEL_NOT_RESOLVED',
-          message: `Repair model not resolved for role ${REPAIR_MODEL_ROLE}`,
-          retryable: false,
-        }),
-        this.buildMetadata({
-          operation,
-          prompt: resolvedPrompt.identity,
-          schema: schemaIdentity,
-          validationStatus: 'REPAIR_REQUIRED',
-          repairCount: 0,
-          attemptCount: primaryExecution.attemptCount,
-          retryCount: totalRetryCount,
-          providerCallCount: budget.providerCallCount,
-          response: primaryExecution.response,
-          logicalModelRole: logicalRole,
-          validationFailureReason: validationFailureReason(primaryValidation),
-        })
+      return this.finalize(
+        request,
+        runId,
+        startedAt,
+        renderedPromptHash,
+        schemaIdentity,
+        tokenUsage,
+        aiGatewayFailure(
+          createGatewayError({
+            code: 'MODEL_NOT_RESOLVED',
+            message: `Repair model not resolved for role ${REPAIR_MODEL_ROLE}`,
+            retryable: false,
+          }),
+          this.buildMetadata({
+            operation,
+            prompt: resolvedPrompt.identity,
+            schema: schemaIdentity,
+            validationStatus: 'REPAIR_REQUIRED',
+            repairCount: 0,
+            attemptCount: primaryExecution.attemptCount,
+            retryCount: totalRetryCount,
+            providerCallCount: budget.providerCallCount,
+            response: primaryExecution.response,
+            logicalModelRole: logicalRole,
+            validationFailureReason: validationFailureReason(primaryValidation),
+            tokenUsage,
+          })
+        )
       );
     }
 
@@ -247,18 +338,28 @@ export class ExecuteAiOperation implements AiGatewayPort {
         },
       });
       totalRetryCount += repairExecution.retryCount;
+      tokenUsage.add(repairExecution.response);
     } catch (error) {
-      return this.mapProviderFailure(error, {
-        operation,
-        prompt: resolvedPrompt.identity,
-        schema: schemaIdentity,
-        attemptCount: budget.providerCallCount,
-        retryCount: totalRetryCount,
-        repairCount: 1,
-        providerCallCount: budget.providerCallCount,
-        logicalModelRole: REPAIR_MODEL_ROLE,
-        validationFailureReason: validationFailureReason(primaryValidation),
-      });
+      return this.finalize(
+        request,
+        runId,
+        startedAt,
+        renderedPromptHash,
+        schemaIdentity,
+        tokenUsage,
+        this.mapProviderFailure(error, {
+          operation,
+          prompt: resolvedPrompt.identity,
+          schema: schemaIdentity,
+          attemptCount: budget.providerCallCount,
+          retryCount: totalRetryCount,
+          repairCount: 1,
+          providerCallCount: budget.providerCallCount,
+          logicalModelRole: REPAIR_MODEL_ROLE,
+          validationFailureReason: validationFailureReason(primaryValidation),
+          tokenUsage,
+        })
+      );
     }
 
     const repairValidation = validateAiOutput({
@@ -267,55 +368,144 @@ export class ExecuteAiOperation implements AiGatewayPort {
     });
 
     if (repairValidation.status === 'VALID') {
-      return aiGatewaySuccess(
-        markValidatedDomainOutput(repairValidation.data),
+      return this.finalize(
+        request,
+        runId,
+        startedAt,
+        renderedPromptHash,
+        schemaIdentity,
+        tokenUsage,
+        aiGatewaySuccess(
+          markValidatedDomainOutput(repairValidation.data),
+          this.buildMetadata({
+            operation,
+            prompt: resolvedPrompt.identity,
+            schema: schemaIdentity,
+            validationStatus: 'VALID',
+            repairCount: 1,
+            attemptCount: primaryExecution.attemptCount + repairExecution.attemptCount,
+            retryCount: totalRetryCount,
+            providerCallCount: budget.providerCallCount,
+            response: repairExecution.response,
+            logicalModelRole: REPAIR_MODEL_ROLE,
+            validationFailureReason: validationFailureReason(primaryValidation),
+            tokenUsage,
+          })
+        ) as AiGatewayResult<AiOperationOutputMap[K]>
+      );
+    }
+
+    return this.finalize(
+      request,
+      runId,
+      startedAt,
+      renderedPromptHash,
+      schemaIdentity,
+      tokenUsage,
+      aiGatewayFailure(
+        createGatewayError({
+          code: 'REPAIR_FAILED',
+          message:
+            repairValidation.status === 'REJECTED'
+              ? `Repair output still invalid: ${repairValidation.reason}`
+              : 'Repair validation failed',
+          retryable: false,
+        }),
         this.buildMetadata({
           operation,
           prompt: resolvedPrompt.identity,
           schema: schemaIdentity,
-          validationStatus: 'VALID',
+          validationStatus: 'REJECTED',
           repairCount: 1,
           attemptCount: primaryExecution.attemptCount + repairExecution.attemptCount,
           retryCount: totalRetryCount,
           providerCallCount: budget.providerCallCount,
           response: repairExecution.response,
           logicalModelRole: REPAIR_MODEL_ROLE,
-          validationFailureReason: validationFailureReason(primaryValidation),
+          validationFailureReason: validationFailureReason(repairValidation),
+          tokenUsage,
         })
-      ) as AiGatewayResult<AiOperationOutputMap[K]>;
+      )
+    );
+  }
+
+  private now(): number {
+    return this.deps.nowFn?.() ?? Date.now();
+  }
+
+  private async finalize<K extends AiOperation>(
+    request: AiGatewayRequest<unknown>,
+    runId: string,
+    startedAt: number,
+    renderedPromptHash: string | undefined,
+    schemaIdentity: SchemaIdentity | undefined,
+    tokenUsage: TokenUsageTracker,
+    outcome: AiGatewayResult<AiOperationOutputMap[K]>
+  ): Promise<AiGatewayResult<AiOperationOutputMap[K]>> {
+    const repository = this.deps.aiRunRepository;
+    if (!repository) return outcome;
+
+    const clientId = request.tenant.clientId?.trim();
+    if (!clientId) {
+      if (outcome.ok) {
+        return aiGatewayFailure(
+          createGatewayError({
+            code: 'PERSISTENCE_ERROR',
+            message: 'clientId is required for aiRun persistence',
+            retryable: false,
+          }),
+          outcome.metadata
+        );
+      }
+      return outcome;
     }
 
-    return aiGatewayFailure(
-      createGatewayError({
-        code: 'REPAIR_FAILED',
-        message:
-          repairValidation.status === 'REJECTED'
-            ? `Repair output still invalid: ${repairValidation.reason}`
-            : 'Repair validation failed',
-        retryable: false,
-      }),
-      this.buildMetadata({
-        operation,
-        prompt: resolvedPrompt.identity,
-        schema: schemaIdentity,
-        validationStatus: 'REJECTED',
-        repairCount: 1,
-        attemptCount: primaryExecution.attemptCount + repairExecution.attemptCount,
-        retryCount: totalRetryCount,
-        providerCallCount: budget.providerCallCount,
-        response: repairExecution.response,
-        logicalModelRole: REPAIR_MODEL_ROLE,
-        validationFailureReason: validationFailureReason(repairValidation),
-      })
-    );
+    const latencyMs = this.now() - startedAt;
+    const metadata = outcome.ok
+      ? { ...outcome.metadata, promptTokens: tokenUsage.promptTokens, completionTokens: tokenUsage.completionTokens, latencyMs }
+      : {
+          ...outcome.metadata,
+          promptTokens: tokenUsage.promptTokens ?? outcome.metadata?.promptTokens,
+          completionTokens: tokenUsage.completionTokens ?? outcome.metadata?.completionTokens,
+          latencyMs,
+        };
+
+    const record = buildAiRunPersistenceRecord({
+      id: runId,
+      tenant: request.tenant,
+      requestMetadata: request.metadata,
+      operation: request.operation,
+      executionStatus: outcome.ok ? 'SUCCESS' : 'FAILED',
+      metadata,
+      prompt: metadata.prompt ?? request.prompt,
+      renderedPromptHash,
+      schema: metadata.schema ?? schemaIdentity,
+      error: outcome.ok ? undefined : outcome.error,
+      latencyMs,
+    });
+
+    try {
+      await repository.save(record);
+    } catch {
+      return aiGatewayFailure(
+        createGatewayError({
+          code: 'PERSISTENCE_ERROR',
+          message: 'Failed to persist aiRun audit record',
+          retryable: false,
+        }),
+        metadata
+      );
+    }
+
+    return outcome;
   }
 
   private mapProviderFailure(
     error: unknown,
     partial: {
       operation: AiOperation;
-      prompt: AiExecutionMetadata['prompt'];
-      schema: AiExecutionMetadata['schema'];
+      prompt: PromptIdentity;
+      schema: SchemaIdentity;
       validationStatus?: AiExecutionMetadata['validationStatus'];
       repairCount: number;
       attemptCount: number;
@@ -323,6 +513,7 @@ export class ExecuteAiOperation implements AiGatewayPort {
       providerCallCount: number;
       logicalModelRole?: string;
       validationFailureReason?: AiExecutionMetadata['validationFailureReason'];
+      tokenUsage: TokenUsageTracker;
     }
   ): AiGatewayFailure {
     const metadata = this.buildMetadata({
@@ -366,14 +557,15 @@ export class ExecuteAiOperation implements AiGatewayPort {
 
   private gatewayDeadlineFailure(partial: {
     operation: AiOperation;
-    prompt: AiExecutionMetadata['prompt'];
-    schema: AiExecutionMetadata['schema'];
+    prompt: PromptIdentity;
+    schema: SchemaIdentity;
     repairCount: number;
     attemptCount: number;
     retryCount: number;
     providerCallCount: number;
     logicalModelRole?: string;
     validationFailureReason?: AiExecutionMetadata['validationFailureReason'];
+    tokenUsage: TokenUsageTracker;
   }): AiGatewayFailure {
     return aiGatewayFailure(
       createGatewayError({
@@ -391,8 +583,8 @@ export class ExecuteAiOperation implements AiGatewayPort {
 
   private buildMetadata(params: {
     operation: AiOperation;
-    prompt: AiExecutionMetadata['prompt'];
-    schema: AiExecutionMetadata['schema'];
+    prompt: PromptIdentity;
+    schema: SchemaIdentity;
     validationStatus: AiExecutionMetadata['validationStatus'];
     repairCount: number;
     attemptCount: number;
@@ -401,6 +593,7 @@ export class ExecuteAiOperation implements AiGatewayPort {
     response?: AiProviderCompletionResponse;
     logicalModelRole?: string;
     validationFailureReason?: AiExecutionMetadata['validationFailureReason'];
+    tokenUsage?: TokenUsageTracker;
   }): AiExecutionMetadata {
     return {
       operation: params.operation,
@@ -416,8 +609,8 @@ export class ExecuteAiOperation implements AiGatewayPort {
       providerName: params.response?.providerName,
       providerModelId: params.response?.providerModelId,
       latencyMs: params.response?.latencyMs,
-      promptTokens: params.response?.promptTokens,
-      completionTokens: params.response?.completionTokens,
+      promptTokens: params.tokenUsage?.promptTokens ?? params.response?.promptTokens,
+      completionTokens: params.tokenUsage?.completionTokens ?? params.response?.completionTokens,
     };
   }
 }

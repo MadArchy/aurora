@@ -4,24 +4,35 @@ import type { ValidationStatus } from '../../../../domain/ai/validationState';
 import type { PromptIdentity } from '../../../../domain/ai/promptIdentity';
 import type { SchemaIdentity } from '../../../../domain/ai/schemaIdentity';
 
-/** Minimum persistence contract for gateway audit runs (Phase 4 implementation). */
+/** Storage-neutral gateway audit record (Phase 4). */
 export interface AiRunPersistenceRecord {
-  id?: string;
+  id: string;
   organizationId: string;
-  clientId?: string | null;
+  clientId: string;
+  userId?: string;
+  correlationId?: string;
   operation: AiOperation;
   providerName?: string;
   providerModelId?: string;
-  prompt: PromptIdentity;
-  schema: SchemaIdentity;
-  validationStatus: ValidationStatus;
+  modelRole?: string;
+  prompt?: PromptIdentity;
+  renderedPromptHash?: string;
+  schema?: SchemaIdentity;
+  executionStatus: 'SUCCESS' | 'FAILED';
+  validationStatus?: ValidationStatus;
+  validationFailureReason?: 'INVALID_JSON' | 'SCHEMA_MISMATCH';
+  attemptCount?: number;
+  retryCount?: number;
   repairCount: number;
+  providerCallCount?: number;
   promptTokens?: number;
   completionTokens?: number;
+  totalTokens?: number;
   latencyMs?: number;
-  status: 'SUCCESS' | 'FAILURE';
-  errorCode?: AiGatewayErrorCode;
-  createdAt?: string;
+  errorClass?: AiGatewayErrorCode;
+  errorMessageSanitized?: string;
+  source: 'AI_GATEWAY';
+  costStatus: 'NOT_CALCULATED';
 }
 
 export interface AiRunRepositoryPort {

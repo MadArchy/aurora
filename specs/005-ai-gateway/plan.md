@@ -134,13 +134,17 @@ src/infrastructure/ai/    — documented; Phase 2+ adapters only
 - Worst-case wall clock: 4 × 60s provider + 500ms backoff ≈ 240.5s < 270s
 - Retry backoff: 250ms per sequence (one sleep per `MAX_PROVIDER_RETRIES=1`)
 
-### Phase 4 — aiRuns + observability
+### Phase 4 — aiRuns + observability ✅
 
-- Extend `AIRunRecord` / Firestore write with gap fields (§inventory)
-- Gateway writes aiRuns on every execution (success + failure)
-- Token + latency always; cost optional
+- `AiRunPersistenceRecord` (storage-neutral application contract)
+- `FirestoreAiRunRepository` at `clients/{clientId}/aiRuns/{runId}`
+- Single final write after execution (success or failure)
+- Fail-closed persistence: `PERSISTENCE_ERROR` if audit save fails after provider success
+- `promptHash` = canonical template; `renderedPromptHash` = execution-specific SHA-256
+- `costStatus = NOT_CALCULATED` (no fake `totalCostUsd: 0`)
+- Gateway wired via `serverGatewayComposition` → `AiRunRepositoryPort`
 
-**Gate:** aiRuns rules tests updated; envelope preserved.
+**Gate:** `tests/aiGatewayPhase4.test.ts` (27 tests); rules unchanged; envelope validated in adapter.
 
 ### Phase 5 — Strangler migration
 

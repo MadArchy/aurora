@@ -25,10 +25,10 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | A13 | Repair bounded (default max 1) — no infinite loop | AI-005-011 | ✅ Phase 3 (`MAX_REPAIR_ATTEMPTS=1`; repair execution + test O/N) |
 | A14 | Provider call timeout enforced | AI-005-012 | ✅ Phase 2 (`DEFAULT_PROVIDER_TIMEOUT_MS=60000`) |
 | A15 | Transient 429/5xx retried with cap | AI-005-013 | ✅ Phase 3 (`MAX_PROVIDER_RETRIES=1`; tests A–F) |
-| A16 | Token counts persisted per run | AI-005-014 | ☐ |
-| A17 | Latency persisted per run | AI-005-015 | ☐ |
-| A18 | `aiRuns` written on success and failure | AI-005-017 | ☐ |
-| A19 | aiRuns Firestore docs include SPEC-009 envelope | AI-005-022 | ☐ |
+| A16 | Token counts persisted per run | AI-005-014 | ✅ Phase 4 (nullable; no fake zeros) |
+| A17 | Latency persisted per run | AI-005-015 | ✅ Phase 4 (`latencyMs` = gateway wall-clock) |
+| A18 | `aiRuns` written on success and failure | AI-005-017 | ✅ Phase 4 (`ExecuteAiOperation` + `AiRunRepositoryPort`) |
+| A19 | aiRuns Firestore docs include SPEC-009 envelope | AI-005-022 | ✅ Phase 4 (`organizationId` + `clientId`; Admin SDK validation) |
 | A20 | Stable `errorClass` on failures | AI-005-018 | ✅ Phase 1 foundation (`AiGatewayErrorCode`; test P) |
 | A21 | CI tests use mock provider — no paid API | AI-005-021 | ✅ Phase 1 (deterministic unit tests only) |
 | A22 | Migrated operations pass schema fixture tests | AI-005-020 | ☐ |
@@ -37,7 +37,7 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | A25 | Inbound/outbound ports defined for gateway | AI-005-027, AI-005-028 | ✅ Phase 1H (ports under `src/application/ai/ports/`) |
 | A26 | Architecture import tests pass in CI | AI-005-029 | ✅ Phase 1H (`tests/aiGatewayArchitecture.test.ts`) |
 | A27 | Hexagonal migration matrix documented | AI-005-025 | ✅ `hexagonal-boundaries.md` |
-| A28 | `npm run check` PASS | governance | ✅ **380/380** (341 baseline + 39 Phase 3) |
+| A28 | `npm run check` PASS | governance | ✅ **407/407** (380 baseline + 27 Phase 4) |
 | A29 | `npm run test:rules` PASS | governance | ✅ **91/91** |
 
 ---
@@ -77,9 +77,10 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | Phase 2 providers | 2026-08-23 | **DONE** |
 | Phase 3 resilience | 2026-08-23 | **DONE** |
 | Phase 3C contracts | 2026-08-23 | **DONE** |
+| Phase 4 aiRuns audit | 2026-08-23 | **DONE** |
 | Human approver | | ☐ APPROVED (Spec) |
 
-**Implementation:** `IN PROGRESS` (Phase 2 complete; Phase 3 not started)
+**Implementation:** `IN PROGRESS` (Phase 4 complete; Phase 5 not started)
 
 ## aiComplete authorization (Phase 2)
 

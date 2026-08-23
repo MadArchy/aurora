@@ -201,19 +201,44 @@ Reusable schema candidates for Phase 1: signal eval, thesis proposal, content dr
 
 | Field | Status |
 |-------|--------|
-| operation (gateway op id) | **MISSING** |
-| promptVersion | **MISSING** |
-| promptHash | **MISSING** |
-| schemaVersion | **MISSING** |
-| validationStatus (VALID/REPAIR/REJECT) | **PARTIAL** (boolean only) |
-| repairCount | **Phase 3** (0 or 1 in gateway metadata) |
-| attemptCount / retryCount / providerCallCount | **Phase 3** (gateway metadata; aiRuns Phase 4) |
-| errorClass | **MISSING** |
-| estimatedCost (real) | **MISSING** |
-| userId / role | **MISSING** |
-| providerRequestId | **MISSING** |
+| operation (gateway op id) | **Phase 4** (`AiRunPersistenceRecord.operation`) |
+| promptVersion | **Phase 4** |
+| promptHash | **Phase 4** (canonical template SHA-256) |
+| renderedPromptHash | **Phase 4** (execution-specific SHA-256) |
+| schemaVersion | **Phase 4** |
+| validationStatus (VALID/REPAIR/REJECT) | **Phase 4** |
+| repairCount | **Phase 4** (persisted from gateway metadata) |
+| attemptCount / retryCount / providerCallCount | **Phase 4** |
+| errorClass | **Phase 4** (`errorClass` from `AiGatewayErrorCode`) |
+| estimatedCost (real) | **DEFERRED** (`costStatus: NOT_CALCULATED`) |
+| userId / role | **Phase 4** (`userId` when auth provides it) |
+| providerRequestId | **NOT NEEDED** (Phase 4) |
 
 SPEC-009 envelope: `organizationId` + `clientId` on Firestore path — **compatible** (`sync.ts`, rules L644).
+
+### Gateway audit record (`AiRunPersistenceRecord` — Phase 4)
+
+Written by `FirestoreAiRunRepository` to `clients/{clientId}/aiRuns/{runId}`:
+
+| Field | Status |
+|-------|--------|
+| id, organizationId, clientId | REQUIRED (tenant envelope) |
+| userId, correlationId | optional (trusted auth / request metadata) |
+| operation, providerName, providerModelId, modelRole | from gateway resolution |
+| promptId, promptVersion, promptHash | canonical template identity |
+| renderedPromptHash | execution-specific SHA-256 |
+| schemaId, schemaVersion | from output registry |
+| executionStatus | SUCCESS \| FAILED |
+| validationStatus, validationFailureReason | bounded validation audit |
+| attemptCount, retryCount, repairCount, providerCallCount | from execution metadata |
+| promptTokens, completionTokens, totalTokens | nullable (no fake zero) |
+| latencyMs | gateway wall-clock |
+| errorClass, errorMessageSanitized | sanitized taxonomy |
+| source | `AI_GATEWAY` |
+| costStatus | `NOT_CALCULATED` |
+| createdAt, completedAt | Firestore server timestamps |
+
+**Not persisted:** full prompts, raw provider output, API keys, `totalCostUsd: 0`.
 
 ---
 
