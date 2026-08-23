@@ -177,7 +177,14 @@ describe('SPEC-005 Phase 1H — hexagonal architecture boundaries', () => {
   });
 
   it('K: browser UI/services do not import server AI infrastructure', () => {
-    const browserRoots = ['main.ts', 'services/ai.ts', 'services/advisor.ts'];
+    const browserRoots = [
+      'main.ts',
+      'services/ai.ts',
+      'services/advisor.ts',
+      'services/contentDraftGateway.ts',
+      'interfaces/ai/aiCompleteHttpClient.ts',
+      'services/mapContentDraftGatewayInput.ts',
+    ];
     const violations: string[] = [];
     for (const rel of browserRoots) {
       const content = readFileSync(join(SRC_ROOT, rel), 'utf8');

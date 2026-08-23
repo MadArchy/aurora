@@ -109,10 +109,10 @@
 
 ---
 
-## Phase 5 — Migration (NOT STARTED)
+## Phase 5 — Migration (IN PROGRESS)
 
-- [ ] **T-005-60** Implement `aiComplete` gateway
-- [ ] **T-005-61** Migrate `content.draft`
+- [x] **T-005-60** Implement `aiComplete` gateway browser client (`AiCompleteHttpClient`)
+- [x] **T-005-61** Migrate `content.draft` / `CONTENT_DRAFT` (`generateContentDraft`)
 - [ ] **T-005-62** Migrate thesis + signal eval
 - [ ] **T-005-63** Migrate advisor flows
 - [ ] **T-005-64** Migrate comparative + challenge

@@ -1,5 +1,9 @@
 import type { AiOperation } from '../../../domain/ai/operations';
 import type { PromptIdentity } from '../../../domain/ai/promptIdentity';
+import {
+  ContentDraftGatewayInputSchema,
+  renderContentDraftUserMessage,
+} from '../../../application/ai/schemas/contentDraftInput';
 
 export interface PromptCatalogEntry {
   operation: AiOperation;
@@ -27,8 +31,8 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     operation: 'CONTENT_DRAFT',
     identity: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
-    userTemplateCanonical: 'Genera un borrador de contenido en JSON con title y body.\nInput:\n{{INPUT_JSON}}',
-    renderUserMessage: (input) => `Genera un borrador de contenido en JSON con title y body.\nInput:\n${inputJson(input)}`,
+    userTemplateCanonical: 'Redacta {{FORMAT}} en voz {{VOICE_HINT}}.\nPercepción objetivo: {{PERCEPTION_TARGET}}.\nNo inventes credenciales fuera de: {{EVIDENCE_HINT}}.\nLímites duros (nunca violar): {{HARD_BLOCKS}}.\nEvitar en voz: {{VOICE_AVOID}}.\nTema: {{TOPIC_TITLE}}\nIdentidad: {{EXPERT_IDENTITY}}\nJSON { "title": string, "body": string }',
+    renderUserMessage: (input) => renderContentDraftUserMessage(ContentDraftGatewayInputSchema.parse(input)),
   },
   {
     operation: 'THESIS_PROPOSAL',

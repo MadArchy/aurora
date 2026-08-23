@@ -31,6 +31,7 @@ import { ProviderCallBudget } from '../src/application/ai/resilience/providerCal
 import { isValidationRepairEligible } from '../src/application/ai/resilience/repairEligibility';
 import { validateAiOutput, ContentDraftOutputSchema } from '../src/application/ai';
 import { readFileSync } from 'node:fs';
+import { minimalContentDraftGatewayInput } from './helpers/contentDraftGatewayInput';
 
 const noSleep = async () => undefined;
 
@@ -47,7 +48,7 @@ function createGateway(handler: SequenceFakeProvider['handler']) {
 const baseRequest = {
   operation: 'CONTENT_DRAFT' as const,
   clientId: 'client_a',
-  input: { topic: 'AI' },
+  input: minimalContentDraftGatewayInput(),
   prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
 };
 
@@ -67,7 +68,7 @@ describe('SPEC-005 Phase 3 — retry (A–I)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(true);
@@ -89,7 +90,7 @@ describe('SPEC-005 Phase 3 — retry (A–I)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(true);
@@ -108,7 +109,7 @@ describe('SPEC-005 Phase 3 — retry (A–I)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(true);
@@ -126,7 +127,7 @@ describe('SPEC-005 Phase 3 — retry (A–I)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(true);
@@ -143,7 +144,7 @@ describe('SPEC-005 Phase 3 — retry (A–I)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -165,7 +166,7 @@ describe('SPEC-005 Phase 3 — retry (A–I)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -215,7 +216,7 @@ describe('SPEC-005 Phase 3 — retry (A–I)', () => {
     await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(seq.callCount).toBe(2);
@@ -255,7 +256,7 @@ describe('SPEC-005 Phase 3 — repair (J–S)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(true);
@@ -268,7 +269,7 @@ describe('SPEC-005 Phase 3 — repair (J–S)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(true);
@@ -285,7 +286,7 @@ describe('SPEC-005 Phase 3 — repair (J–S)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(true);
@@ -301,7 +302,7 @@ describe('SPEC-005 Phase 3 — repair (J–S)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -315,7 +316,7 @@ describe('SPEC-005 Phase 3 — repair (J–S)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -332,7 +333,7 @@ describe('SPEC-005 Phase 3 — repair (J–S)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -346,7 +347,7 @@ describe('SPEC-005 Phase 3 — repair (J–S)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(true);
@@ -362,7 +363,7 @@ describe('SPEC-005 Phase 3 — repair (J–S)', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(seq.callCount).toBe(2);
@@ -479,7 +480,7 @@ describe('SPEC-005 Phase 3C — global execution deadline', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -511,7 +512,7 @@ describe('SPEC-005 Phase 3C — global execution deadline', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -543,7 +544,7 @@ describe('SPEC-005 Phase 3C — global execution deadline', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -578,7 +579,7 @@ describe('SPEC-005 Phase 3 — global provider-call budget', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -603,7 +604,7 @@ describe('SPEC-005 Phase 3 — error separation', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -619,7 +620,7 @@ describe('SPEC-005 Phase 3 — error separation', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -642,7 +643,7 @@ describe('SPEC-005 Phase 3 — error separation', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);
@@ -669,7 +670,7 @@ describe('SPEC-005 Phase 3 — error separation', () => {
     const result = await gateway.execute({
       operation: 'CONTENT_DRAFT',
       tenant: { organizationId: 'org', clientId: 'c1', userId: 'u1', role: 'ADMIN' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
       prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
     });
     expect(result.ok).toBe(false);

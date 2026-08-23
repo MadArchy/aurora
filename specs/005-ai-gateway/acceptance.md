@@ -10,7 +10,7 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 
 | # | Criterion | Maps to | Phase 0 |
 |---|-----------|---------|---------|
-| A1 | Zero production LLM calls from browser to provider URLs | AI-005-001, AI-005-003 | ☐ |
+| A1 | Zero production LLM calls from browser to provider URLs | AI-005-001, AI-005-003 | ☐ (CONTENT_DRAFT migrated; 6 LLM ops remain) |
 | A2 | Zero `VITE_*` provider secrets | AI-005-002 | ☐ |
 | A3 | `aiComplete` (or successor) returns validated results — not 501 | AI-005-003 | ✅ Phase 2 code (`functions/src/index.ts` wired; not deployed) |
 | A4 | Gateway requires authenticated Firebase session | AI-005-004 | ✅ Phase 2 (`requirePosturaAuth` on aiComplete) |
@@ -37,7 +37,7 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | A25 | Inbound/outbound ports defined for gateway | AI-005-027, AI-005-028 | ✅ Phase 1H (ports under `src/application/ai/ports/`) |
 | A26 | Architecture import tests pass in CI | AI-005-029 | ✅ Phase 1H (`tests/aiGatewayArchitecture.test.ts`) |
 | A27 | Hexagonal migration matrix documented | AI-005-025 | ✅ `hexagonal-boundaries.md` |
-| A28 | `npm run check` PASS | governance | ✅ **407/407** (380 baseline + 27 Phase 4) |
+| A28 | `npm run check` PASS | governance | ✅ **419/419** (407 baseline + 12 Phase 5A) |
 | A29 | `npm run test:rules` PASS | governance | ✅ **91/91** |
 
 ---

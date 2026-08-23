@@ -2,6 +2,7 @@ import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { callTavilySearch, fetchRssFeed } from './sourceFeedCore';
 import { resolveYoutubeChannel, searchYoutubeChannels, searchYoutubeVideos } from './youtubeCore';
+import { handleDevGatewayComplete } from './aiGatewayDevRoute';
 
 type Session = { openai?: string; claude?: string; createdAt: number };
 
@@ -140,6 +141,12 @@ export function posturaApiPlugin(): Plugin {
             const sessionId = String(req.headers['x-ai-session'] || '');
             sessions.delete(sessionId);
             return json(res, 200, { ok: true });
+          }
+
+          if (req.method === 'POST' && url.startsWith('/api/ai/gateway-complete')) {
+            if (!isLoopbackOrigin(req)) return json(res, 403, { error: 'ORIGIN_DENIED' });
+            await handleDevGatewayComplete(req, res);
+            return;
           }
 
           if (req.method === 'POST' && url.startsWith('/api/ai/complete')) {

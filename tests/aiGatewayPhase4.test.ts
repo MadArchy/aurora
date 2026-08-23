@@ -17,6 +17,7 @@ import {
   invalidContentDraftSchemaResponse,
 } from './helpers/resilienceFakeProvider';
 import { FakeAiProviderPort, jsonProviderResponse } from './helpers/fakeAiProvider';
+import { minimalContentDraftGatewayInput } from './helpers/contentDraftGatewayInput';
 import { markTenantValidated } from '../src/domain/ai/tenantContext';
 
 const noSleep = async () => undefined;
@@ -50,7 +51,7 @@ const tenant = markTenantValidated({
 const baseRequest = {
   operation: 'CONTENT_DRAFT' as const,
   tenant,
-  input: { topic: 'AI' },
+  input: minimalContentDraftGatewayInput(),
   prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
   metadata: { correlationId: 'corr-123' },
 };
@@ -385,7 +386,7 @@ describe('SPEC-005 Phase 4 — renderedPromptHash', () => {
     await gateway.execute(baseRequest);
     await gateway.execute({
       ...baseRequest,
-      input: { topic: 'Different topic' },
+      input: minimalContentDraftGatewayInput({ topicTitle: 'Different topic' }),
     });
     const [first, second] = repo.saved;
     expect(first.renderedPromptHash).not.toBe(second.renderedPromptHash);

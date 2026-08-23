@@ -5,6 +5,7 @@ import { ModelRegistryAdapter } from '../src/infrastructure/ai/registry/ModelReg
 import { MODEL_REGISTRY_ENTRIES } from '../src/infrastructure/ai/registry/modelRegistryConfig';
 import { PromptRegistryAdapter } from '../src/infrastructure/ai/registry/PromptRegistryAdapter';
 import { computePromptHash } from '../src/infrastructure/ai/registry/promptHash';
+import { minimalContentDraftGatewayInput } from './helpers/contentDraftGatewayInput';
 import { ExecuteAiOperation } from '../src/application/ai/use-cases/ExecuteAiOperation';
 import { handleAiCompleteRequest } from '../src/interfaces/ai/handleAiCompleteRequest';
 import { resolveTrustedTenantForAiComplete } from '../src/interfaces/ai/resolveTrustedTenant';
@@ -164,7 +165,7 @@ describe('SPEC-005 Phase 2 — PromptRegistry', () => {
     const resolved = registry.resolve({
       operation: 'CONTENT_DRAFT',
       identity: { promptId: 'tmpl_content_v1', promptVersion: '1' },
-      input: { topic: 'test' },
+      input: minimalContentDraftGatewayInput({ topicTitle: 'test' }),
     });
     expect(resolved.identity.promptId).toBe('tmpl_content_v1');
     expect(resolved.identity.promptVersion).toBe('1');
@@ -175,7 +176,7 @@ describe('SPEC-005 Phase 2 — PromptRegistry', () => {
     const signal = registry.resolve({
       operation: 'SIGNAL_THESIS_EVAL',
       identity: { promptId: 'tmpl_strategist_signal_eval_v2', promptVersion: '2' },
-      input: {},
+      input: minimalContentDraftGatewayInput(),
     });
     expect(signal.identity.promptVersion).toBe('2');
     expect(signal.identity.promptId).toBe('tmpl_strategist_signal_eval_v2');
@@ -186,7 +187,7 @@ describe('SPEC-005 Phase 2 — PromptRegistry', () => {
       registry.resolve({
         operation: 'CONTENT_DRAFT',
         identity: { promptId: 'unknown', promptVersion: '9' },
-        input: {},
+        input: minimalContentDraftGatewayInput(),
       })
     ).toThrow(/Unknown prompt/);
   });
@@ -298,7 +299,7 @@ describe('SPEC-005 Phase 2 — end-to-end hexagonal (CONTENT_DRAFT)', () => {
       body: {
         operation: 'CONTENT_DRAFT',
         clientId: 'client_a',
-        input: { topic: 'AI' },
+        input: minimalContentDraftGatewayInput(),
         prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
       },
     });
@@ -325,7 +326,7 @@ describe('SPEC-005 Phase 2 — end-to-end hexagonal (CONTENT_DRAFT)', () => {
       body: {
         operation: 'CONTENT_DRAFT',
         clientId: 'client_a',
-        input: {},
+        input: minimalContentDraftGatewayInput(),
         prompt: { promptId: 'tmpl_content_v1', promptVersion: '1' },
       },
     });

@@ -21,6 +21,12 @@ import { assertAiQuota, assertComparativeAllowed } from './entitlements';
 import { academicDraftSkeleton } from '../domain/scientificFocusCore';
 import { reviewClaims } from '../domain/claimSafetyCore';
 import { normalizeThesis } from '../domain/thesisModelCore';
+import {
+  executeContentDraftViaGateway,
+  isContentDraftGatewayAvailable,
+  mapGatewayErrorToUserMessage,
+} from './contentDraftGateway';
+import { parseContentDraftFormat } from './mapContentDraftGatewayInput';
 import { buildThesisProposalFromProfile } from '../domain/thesisProposalCore';
 import {
   evaluateThesisChallenge,
@@ -511,75 +517,42 @@ ${JSON.stringify({
     format: 'VIDEO_SCRIPT' | 'LINKEDIN_ARTICLE' | 'ACADEMIC_PAPER' | 'THOUGHT_LEADERSHIP',
     extras?: { roleAngle?: string; venueLabel?: string; why?: string; angle?: string }
   ): Promise<Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>> {
-    let body = '';
-    const structured = normalizeThesis(thesis);
-    const evidence = dbService
-      .getEvidenceVaultByClient(thesis.clientId)
-      .filter((item) => item.verified)
-      .slice(0, 6);
-    const voiceHint = structured.voiceProfile.style || thesis.voiceAndTone;
-    const hardBlocks = structured.limits.hardBlocks.join(' | ') || thesis.complianceRules || 'sin límites duros';
-    const evidenceHint = evidence.length
-      ? evidence.map((item) => `${item.title}: ${item.snippet.slice(0, 80)}`).join(' · ')
-      : thesis.proofPoints.join(' | ');
-    const academicHint =
-      format === 'ACADEMIC_PAPER'
-        ? `\nFormato: artículo científico / working paper (${extras?.venueLabel || 'working paper'}).\nÁngulo de rol: ${extras?.roleAngle || thesis.expertIdentity}.\nPor qué centrarnos aquí: ${extras?.why || 'inteligencia del radar + tesis'}.\nEstructura: abstract, problema, marco, evidencia verificable, implicaciones, límites, referencias. No inventes citas.`
-        : '';
-    try {
-      const live = await this.complete(
-        'CONTENT_TASKS',
-        `Redacta ${format} en voz ${voiceHint}.
-Percepción objetivo: ${structured.perceptionTarget || thesis.expertIdentity}.
-No inventes credenciales fuera de: ${evidenceHint}.
-Límites duros (nunca violar): ${hardBlocks}.
-Evitar en voz: ${(structured.voiceProfile.avoid || []).join(', ') || 'hype'}.
-Tema: ${topicTitle}${extras?.angle ? `\nÁngulo: ${extras.angle}` : ''}
-Identidad: ${thesis.expertIdentity}${academicHint}
-JSON { "title": string, "body": string }`
-      );
-      if (live) {
-        const parsed = JSON.parse(live.text);
-        body = parsed.body || '';
-        dbService.recordAiRun({
-          organizationId: thesis.organizationId,
-          clientId: thesis.clientId,
-          agent: 'CONTENT_TASKS',
-          provider: live.provider,
-          modelName: live.modelName,
-          promptTemplateId: 'tmpl_content_v1',
-          inputContextSummary: topicTitle,
-          outputPayload: body.slice(0, 200),
-          promptTokens: live.promptTokens,
-          completionTokens: live.completionTokens,
-          totalCostUsd: 0,
-          latencyMs: live.latencyMs,
-          validationPassed: true,
-          securityCheckPassed: true,
-          status: 'SUCCESS',
+    const quota = assertAiQuota(dbService.getSubscription());
+    if (!quota.ok) throw new Error(quota.message);
+
+    const parsedFormat = parseContentDraftFormat(format);
+
+    if (isContentDraftGatewayAvailable()) {
+      try {
+        const { output } = await executeContentDraftViaGateway({
+          thesis,
+          topicTitle,
+          format: parsedFormat,
+          extras,
         });
+        const body = output.body;
         const claimSafety = this.reviewDraftClaims(body, thesis);
         return {
           organizationId: thesis.organizationId,
           clientId: thesis.clientId,
           thesisId: thesis.id,
           type: format,
-          title: parsed.title || topicTitle,
+          title: output.title || topicTitle,
           body,
           teleprompterScript: format === 'VIDEO_SCRIPT' ? body : undefined,
           targetPlatform: format === 'ACADEMIC_PAPER' ? 'LegalJournal' : 'LinkedIn',
           status: 'AI_GENERATED',
           managerNotes: claimSafety.verdict === 'PASS'
-            ? 'Generado con modelo conectado. Revisión humana obligatoria.'
-            : `Generado con modelo conectado. Claim safety ${claimSafety.verdict}: ${claimSafety.summary}`,
+            ? 'Generado vía AI Gateway. Revisión humana obligatoria.'
+            : `Generado vía AI Gateway. Claim safety ${claimSafety.verdict}: ${claimSafety.summary}`,
           claimSafety,
         };
+      } catch (error) {
+        throw new Error(mapGatewayErrorToUserMessage(error));
       }
-    } catch {
-      /* degraded */
     }
 
-    body =
+    const body =
       format === 'VIDEO_SCRIPT'
         ? `[GANCHO]\n${topicTitle}\n\n[NÚCLEO]\nDesde la práctica en ${thesis.domain}, tres puntos no negociables para ${thesis.targetAudience}.\n\n[CIERRE]\n${thesis.expertIdentity}.`
         : format === 'ACADEMIC_PAPER'
