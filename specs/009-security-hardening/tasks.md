@@ -64,7 +64,7 @@ Branch: `spec/009-security-hardening`.
 
 - [x] **T-009-14e** `DONE` — **Finalize denormalized security envelope rules:** existing-resource auth = envelope only (no parent get). **ADMIN CREATE** adds narrowly scoped `get(clients/{clientId})` referential-integrity check (`adminCreateParentClientOrgOk`). CLIENT CREATE = token/path/request envelope only. Helpers: `rootClientReadable`, `existingSubEnvelopeValid`, `createSubEnvelopeValid`, `adminCreateSub`, `clientCreateSub`, `adminWriteSub`, `adminDeleteSub`, `ownsSubResource`. **91** rules tests PASS. **Repo rules ≠ production deployed rules** until T-009-18.
 - [x] **T-009-14** `DONE` — Final security verification audit: SEC-009-001..020 traceability PASS (automated where required); acceptance A1–A11, A14q, A15–A24 PASS; A12/A13/A14 not declared; **91/91** `test:rules` + **286/286** `check` green; no implementation blockers before T-009-15.
-- [x] **T-009-15** `DONE` — **`CODE_COMPLETE` declared** on branch `spec/009-security-hardening`. Frozen suites: **91/91** `test:rules`, **286/286** `check`. **No further normal SPEC-009 implementation** without classified blocker fix + full security suite rerun.
+- [x] **T-009-15** `DONE` — **`CODE_COMPLETE` declared** · frozen SHA `9c351ef7ac6fafdbce8ff8b8eb5a5678e2ceae99` · **91/91** `test:rules` · **286/286** `check`.
 - [ ] **T-009-16** `TODO` — Ejecutar `migration.md` **data path only** (backup → dry-run → backfill → verify) según autorización. **No rules code change here.**
 - [ ] **T-009-17** `TODO` — Claims reprovision + obligatoriedad re-login / token refresh.
 - [ ] **T-009-18** `TODO` — `firebase deploy --only firestore:rules` (rules already finalized at T-009-14e) → progreso **`DEPLOYED`** (Firestore).

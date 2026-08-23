@@ -256,7 +256,7 @@ Objetivo:
 | Branch | `spec/009-security-hardening` |
 | Status | **CODE_COMPLETE** |
 | Frozen suites | `test:rules` **91/91** · `check` **286/286** |
-| Frozen commit SHA | *(recorded at checkpoint commit)* |
+| Frozen commit SHA | `9c351ef7ac6fafdbce8ff8b8eb5a5678e2ceae99` |
 | Post-freeze changes | Only **CODE_COMPLETE BLOCKER FIX**, **MIGRATION DEFECT FIX**, **DEPLOYMENT DEFECT FIX**, **ROLLBACK FIX** — each requires full security suite rerun |
 
 **CODE_COMPLETE ≠ DEPLOYED.** Repo rules = final post-backfill model; production may still run prior deployed rules until T-009-16 + T-009-18.

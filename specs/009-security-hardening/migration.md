@@ -181,7 +181,7 @@ Si falla post-deploy:
 | Dry run | NOT EXECUTED |
 | Backfill | NOT EXECUTED |
 | Verification (pre-deploy rules) | NOT EXECUTED (T-009-16) |
-| CODE_COMPLETE checkpoint (T-009-15) | **DONE** — implementation frozen; migration/deploy **NOT EXECUTED** |
+| CODE_COMPLETE checkpoint (T-009-15) | **DONE** — frozen SHA `9c351ef7ac6fafdbce8ff8b8eb5a5678e2ceae99` |
 | Claims reprovision (prod) | NOT EXECUTED |
 | Token refresh (prod users) | NOT EXECUTED |
 | Rules deployment | NOT EXECUTED |

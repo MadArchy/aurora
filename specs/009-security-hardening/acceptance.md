@@ -102,20 +102,33 @@ Phase 1–4 used `get(/clients/{clientId})` inside `sameOrgAsClient` / `ownsClie
 
 **Repo state:** final envelope rules in git. **Production:** still on prior deployed rules until T-009-16 backfill + T-009-18 deploy.
 
-### T-009-14 final security verification (2026-08-23)
+### CODE_COMPLETE checkpoint (T-009-15)
+
+| Field | Value |
+|-------|--------|
+| Branch | `spec/009-security-hardening` |
+| **FROZEN COMMIT SHA** | `9c351ef7ac6fafdbce8ff8b8eb5a5678e2ceae99` |
+| Date | 2026-08-23 |
+| `test:rules` | **91/91 PASS** |
+| `npm run check` | **286/286 PASS** |
+| Prior HEAD (pre-checkpoint) | `e47f552` |
+
+**Freeze rule:** No normal SPEC-009 implementation changes after this SHA without classified blocker fix + full security suite rerun.
+
+**CODE_COMPLETE ≠ DEPLOYED.** Production may still use prior deployed rules until T-009-16 backfill + T-009-18.
 
 | Gate | Result |
 |------|--------|
 | SEC-009-001..020 | **PASS** (automated evidence where required) |
 | Acceptance A1–A11, A14q, A15–A24 | **PASS** |
-| A12 CODE_COMPLETE | **NOT declared** (T-009-15) |
+| A12 CODE_COMPLETE | ✅ **PASS** (T-009-15 declared) |
 | A13 DEPLOYED | **NOT declared** |
 | A14 pilot call sites | **PENDING** (post-deploy smoke; non-blocking for code) |
 | A20 docs | **PASS** (spec/plan/inventory/migration aligned) |
 | `test:rules` | **91/91 PASS** |
 | `check` | **286/286 PASS** |
 | `secret:scan` | **rotation_required_overall=NO** |
-| CODE_COMPLETE readiness | **READY** (no implementation blockers) |
+| CODE_COMPLETE readiness | **CODE_COMPLETE** (frozen at `9c351ef`) |
 
 ## Deploy gates (separados)
 
