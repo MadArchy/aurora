@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `001-strategic-signal-routing` |
-| **Phase** | **0B APPROVED** · Phase 1 **AUTHORIZED** |
-| **Status** | `APPROVED` · `READY_FOR_IMPLEMENTATION` |
+| **Phase** | **1 COMPLETE** · Phase 2 **NOT STARTED** |
+| **Status** | `APPROVED` · Phase 1 domain contracts landed |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
 ---

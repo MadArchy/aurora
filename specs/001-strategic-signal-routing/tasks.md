@@ -1,7 +1,7 @@
 # Tasks 001 — Strategic Signal Routing
 
 **Spec status:** `APPROVED` · **READY_FOR_IMPLEMENTATION**  
-**Implementation:** Phase 1 **AUTHORIZED** (not complete)  
+**Implementation:** Phase 1 **COMPLETE** · Phase 2 **NOT STARTED**  
 **Branch:** `spec/001-strategic-signal-routing`
 
 ---
@@ -22,16 +22,37 @@
 
 ---
 
-## Phase 1 — Contracts / domain foundation
+## Phase 1 — Contracts / domain foundation ✅
 
-- [ ] **T-001-101** Add `LEGACY` to `ThesisStatus` (constitution alignment)
-- [ ] **T-001-102** Domain eligibility helper: production routing = ACTIVE only; exclude DRAFT/UNDER_REVIEW/PAUSED/ARCHIVED/LEGACY
-- [ ] **T-001-103** Freeze routing result conceptual contract (states CLEAR/CONTESTED/UNROUTED; source AUTO/MANUAL; version; timestamp)
-- [ ] **T-001-104** Introduce `routingAlgorithmVersion` (or equivalent) constant
-- [ ] **T-001-105** Align/extend `thesisRoutingCore` without gratuitous rewrite
-- [ ] **T-001-106** Domain unit tests: 1 / 2 / N ACTIVE; eligibility exclusions; contested margin
+- [x] **T-001-101** Add `LEGACY` to `ThesisStatus` (constitution alignment)
+- [x] **T-001-102** Domain eligibility helper: production routing = ACTIVE only; exclude DRAFT/UNDER_REVIEW/PAUSED/ARCHIVED/LEGACY
+- [x] **T-001-103** Freeze routing result conceptual contract (states CLEAR/CONTESTED/UNROUTED; source AUTO/MANUAL; version; timestamp)
+- [x] **T-001-104** Introduce `routingAlgorithmVersion` (or equivalent) constant
+- [x] **T-001-105** Align/extend `thesisRoutingCore` without gratuitous rewrite
+- [x] **T-001-106** Domain unit tests: 1 / 2 / N ACTIVE; eligibility exclusions; contested margin
 
-**Exit:** Typecheck + domain tests PASS; no strategic behavior change required yet beyond contracts.
+**Exit:** ✅ Typecheck + domain tests PASS (Phase 1 checkpoint).
+
+### Phase 1 implementation notes
+
+| Artifact | Location |
+|----------|----------|
+| `LEGACY` status | `src/types/index.ts` `ThesisStatus` |
+| Eligibility | `src/domain/thesisRoutingEligibility.ts` |
+| Router + contracts | `src/domain/thesisRoutingCore.ts` (`ROUTING_ALGORITHM_VERSION = routing-v1`) |
+| Domain tests | `tests/thesisRoutingCore.test.ts` |
+| Architecture tests | `tests/thesisRoutingArchitecture.test.ts` |
+
+**Contract decisions:**
+- CONTESTED does **not** set `selectedThesisId` / `primaryThesisId` (no silent attribution).
+- Exact score tie + unequal thesis priority → CLEAR via priority (deterministic).
+- Near-score within `ROUTING_CONTEST_MARGIN` → CONTESTED.
+- Router filters ACTIVE-only before scoring.
+- `routingSignalPatch` writes `thesisId` only when CLEAR.
+- Manual override / history: domain draft types only (`ManualRoutingOverrideDraft`, `MaterialRoutingDecision`); no persistence.
+- Call sites **not** migrated (Phase 4).
+
+**Acceptance advanced (not full PASS):** A3, A8, A10, A15 (domain); A1/A4/A5/A11 partial (domain only).
 
 ---
 

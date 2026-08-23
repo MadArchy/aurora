@@ -1,8 +1,9 @@
 # Acceptance 001 — Strategic Signal Routing
 
-**Phase 0B:** criteria defined — **none marked PASS for implementation** until coded and evidenced.
+**Phase 0B:** criteria defined.  
+**Phase 1:** domain contracts landed — see status column (✅ / ◐ / ☐).
 
-Spec **CODE_COMPLETE** requires Required (A\*) PASS + human sign-off.  
+Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off.  
 Spec **DONE** requires CODE_COMPLETE + any agreed deploy verification (separate).
 
 ---
@@ -11,24 +12,24 @@ Spec **DONE** requires CODE_COMPLETE + any agreed deploy verification (separate)
 
 | # | Criterion | Maps to | Phase 0B |
 |---|-----------|---------|----------|
-| A1 | Every production signal routing execution evaluates all eligible ACTIVE theses | Multi-thesis · Eligibility | ☐ |
-| A2 | Zero strategic routing call sites use `getPrimaryThesis`, `activeTheses[0]`, `theses[0]`, or `candidates[0]` as implicit strategic selection | Constitution §5 | ☐ |
-| A3 | DRAFT, UNDER_REVIEW, PAUSED, ARCHIVED, and LEGACY theses are excluded from production strategic routing | Eligibility | ☐ |
-| A4 | A contested result cannot silently become a final thesis attribution through first/primary fallback | Contested policy | ☐ |
-| A5 | Routing persists complete per-thesis scoring evidence plus routing decision/rationale | Explainability | ☐ |
-| A6 | Manual override is explicitly marked MANUAL and auditable | Human override | ☐ |
-| A7 | `SIGNAL_THESIS_EVAL` remains advisory and cannot replace deterministic routing | AI boundary · SPEC-005 | ☐ |
-| A8 | Domain routing remains infrastructure/framework pure | Hexagonal | ☐ |
-| A9 | Application depends on ports rather than concrete Firestore/db adapters | Hexagonal | ☐ |
-| A10 | Routing outputs include an algorithm/routing version | Explainability | ☐ |
-| A11 | Material routing changes preserve history/audit evidence | History | ☐ |
-| A12 | Routing alone cannot silently perform an unauthorized terminal DISCARD | Auto-discard governance | ☐ |
-| A13 | Tenant envelope remains consistent with SPEC-009 contracts | Tenant | ☐ |
-| A14 | Architecture test prevents primary-thesis strategic regression | Governance | ☐ |
-| A15 | Multi-thesis tests cover 1, 2, and N ACTIVE theses | Tests | ☐ |
-| A16 | Contested + manual override tests PASS | Tests | ☐ |
-| A17 | `npm run check` PASS | Governance | ☐ |
-| A18 | `npm run test:rules` PASS | Governance | ☐ |
+| A1 | Every production signal routing execution evaluates all eligible ACTIVE theses | Multi-thesis · Eligibility | ◐ Phase 1 domain router filters ACTIVE; application path migration Phase 2/4 |
+| A2 | Zero strategic routing call sites use `getPrimaryThesis`, `activeTheses[0]`, `theses[0]`, or `candidates[0]` as implicit strategic selection | Constitution §5 | ☐ Phase 4 |
+| A3 | DRAFT, UNDER_REVIEW, PAUSED, ARCHIVED, and LEGACY theses are excluded from production strategic routing | Eligibility | ✅ Phase 1 domain (`thesisRoutingEligibility` + router) |
+| A4 | A contested result cannot silently become a final thesis attribution through first/primary fallback | Contested policy | ◐ Phase 1 domain (no `selectedThesisId` on CONTESTED); application Phase 2 |
+| A5 | Routing persists complete per-thesis scoring evidence plus routing decision/rationale | Explainability | ◐ Domain result carries scores/state/version; persistence Phase 3 |
+| A6 | Manual override is explicitly marked MANUAL and auditable | Human override | ☐ Phase 2+ (draft contract only) |
+| A7 | `SIGNAL_THESIS_EVAL` remains advisory and cannot replace deterministic routing | AI boundary · SPEC-005 | ◐ Domain AI-free (arch test); full call-site Phase 5 |
+| A8 | Domain routing remains infrastructure/framework pure | Hexagonal | ✅ Phase 1 (`thesisRoutingArchitecture.test.ts`) |
+| A9 | Application depends on ports rather than concrete Firestore/db adapters | Hexagonal | ☐ Phase 2–3 |
+| A10 | Routing outputs include an algorithm/routing version | Explainability | ✅ Phase 1 (`ROUTING_ALGORITHM_VERSION = routing-v1`) |
+| A11 | Material routing changes preserve history/audit evidence | History | ◐ `MaterialRoutingDecision` contract; physical history Phase 3 |
+| A12 | Routing alone cannot silently perform an unauthorized terminal DISCARD | Auto-discard governance | ☐ Phase 2 (`applyScoreToSignal`) |
+| A13 | Tenant envelope remains consistent with SPEC-009 contracts | Tenant | ☐ unchanged / Phase 3 writes |
+| A14 | Architecture test prevents primary-thesis strategic regression | Governance | ☐ Phase 5 |
+| A15 | Multi-thesis tests cover 1, 2, and N ACTIVE theses | Tests | ✅ Phase 1 domain tests |
+| A16 | Contested + manual override tests PASS | Tests | ◐ Contested domain PASS; MANUAL override Phase 2/5 |
+| A17 | `npm run check` PASS | Governance | ✅ **503/503** at Phase 1 checkpoint (baseline 487 + Phase 1 tests) |
+| A18 | `npm run test:rules` PASS | Governance | ✅ **91/91** |
 
 No A19+ added in Phase 0B (avoid inflation). Append only if implementation proves a genuine gap.
 

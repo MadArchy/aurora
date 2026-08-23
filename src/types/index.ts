@@ -191,7 +191,13 @@ export interface ProofWallItem {
   sortOrder: number;
 }
 
-export type ThesisStatus = 'DRAFT' | 'UNDER_REVIEW' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+export type ThesisStatus =
+  | 'DRAFT'
+  | 'UNDER_REVIEW'
+  | 'ACTIVE'
+  | 'PAUSED'
+  | 'ARCHIVED'
+  | 'LEGACY';
 export type ThesisApprovalStatus = 'PENDING' | 'APPROVED' | 'CHANGES_REQUESTED';
 
 /**
