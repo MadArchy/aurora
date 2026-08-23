@@ -1,5 +1,6 @@
 import type { AiOperation } from '../../../../domain/ai/operations';
 import type { AiModelRole } from '../../../../domain/ai/modelRole';
+import type { ModelConfiguration } from './ModelRegistryPort';
 
 export interface AiProviderMessage {
   role: 'system' | 'user';
@@ -10,6 +11,8 @@ export interface AiProviderMessage {
 export interface AiProviderCompletionRequest {
   operation: AiOperation;
   logicalModelRole: AiModelRole;
+  /** Application-resolved model configuration from ModelRegistryPort. */
+  model: ModelConfiguration;
   messages: AiProviderMessage[];
   structuredJsonRequired: boolean;
 }
@@ -19,8 +22,11 @@ export interface AiProviderCompletionResponse {
   rawText: string;
   providerName: string;
   providerModelId: string;
-  promptTokens: number;
-  completionTokens: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  finishReason?: string;
+  providerRequestId?: string;
   latencyMs: number;
 }
 

@@ -12,18 +12,18 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 |---|-----------|---------|---------|
 | A1 | Zero production LLM calls from browser to provider URLs | AI-005-001, AI-005-003 | ☐ |
 | A2 | Zero `VITE_*` provider secrets | AI-005-002 | ☐ |
-| A3 | `aiComplete` (or successor) returns validated results — not 501 | AI-005-003 | ☐ |
-| A4 | Gateway requires authenticated Firebase session | AI-005-004 | ☐ |
-| A5 | Tenant `organizationId` from auth claims — not unvalidated body | AI-005-005 | ☐ |
-| A6 | CLIENT role cannot invoke ADMIN-only operations | AI-005-023 | ☐ |
-| A7 | OpenAI adapter with server secret only | AI-005-006 | ☐ |
-| A8 | Anthropic adapter with server secret only | AI-005-006 | ☐ |
-| A9 | ModelRegistry resolves logical role → provider model deterministically | AI-005-007 | ☐ |
-| A10 | Every run records `promptId` + `promptVersion` | AI-005-008 | ☐ |
+| A3 | `aiComplete` (or successor) returns validated results — not 501 | AI-005-003 | ✅ Phase 2 code (`functions/src/index.ts` wired; not deployed) |
+| A4 | Gateway requires authenticated Firebase session | AI-005-004 | ✅ Phase 2 (`requirePosturaAuth` on aiComplete) |
+| A5 | Tenant `organizationId` from auth claims — not unvalidated body | AI-005-005 | ✅ Phase 2 (`resolveTrustedTenantForAiComplete`; ADMIN path) |
+| A6 | CLIENT role cannot invoke ADMIN-only operations | AI-005-023 | ✅ Phase 2 aiComplete (`AICOMPLETE_ADMIN_ONLY`; CLIENT gets 403) |
+| A7 | OpenAI adapter with server secret only | AI-005-006 | ✅ Phase 2 (`OpenAiAdapter` + `OPENAI_API_KEY`) |
+| A8 | Anthropic adapter with server secret only | AI-005-006 | ✅ Phase 2 (`AnthropicAdapter` + `ANTHROPIC_API_KEY`) |
+| A9 | ModelRegistry resolves logical role → provider model deterministically | AI-005-007 | ✅ Phase 2 (`ModelRegistryAdapter` + tests) |
+| A10 | Every run records `promptId` + `promptVersion` | AI-005-008 | ✅ Phase 2 (`PromptRegistryAdapter`; `promptHash` full SHA-256 64 hex) |
 | A11 | Every structured operation validates with Zod (or equivalent) | AI-005-009 | ✅ Phase 1 (`tests/aiGatewayPhase1.test.ts` G–L) |
 | A12 | Invalid schema → REJECTED (no domain write) | AI-005-010, AI-005-019 | ☐ |
 | A13 | Repair bounded (default max 1) — no infinite loop | AI-005-011 | ✅ Phase 1 (`MAX_REPAIR_ATTEMPTS=1`; test O) |
-| A14 | Provider call timeout enforced | AI-005-012 | ☐ |
+| A14 | Provider call timeout enforced | AI-005-012 | ✅ Phase 2 (`DEFAULT_PROVIDER_TIMEOUT_MS=60000`) |
 | A15 | Transient 429/5xx retried with cap | AI-005-013 | ☐ |
 | A16 | Token counts persisted per run | AI-005-014 | ☐ |
 | A17 | Latency persisted per run | AI-005-015 | ☐ |
@@ -37,7 +37,7 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | A25 | Inbound/outbound ports defined for gateway | AI-005-027, AI-005-028 | ✅ Phase 1H (ports under `src/application/ai/ports/`) |
 | A26 | Architecture import tests pass in CI | AI-005-029 | ✅ Phase 1H (`tests/aiGatewayArchitecture.test.ts`) |
 | A27 | Hexagonal migration matrix documented | AI-005-025 | ✅ `hexagonal-boundaries.md` |
-| A28 | `npm run check` PASS | governance | ✅ **316/316** (305 baseline + 11 architecture tests) |
+| A28 | `npm run check` PASS | governance | ✅ **341/341** (316 baseline + 25 Phase 2) |
 | A29 | `npm run test:rules` PASS | governance | ✅ **91/91** |
 
 ---
@@ -74,6 +74,16 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | Phase 0 inventory | 2026-08-23 | **APPROVED** |
 | Phase 1 contracts | 2026-08-23 | **DONE** |
 | Phase 1H hexagonal | 2026-08-23 | **DONE** |
+| Phase 2 providers | 2026-08-23 | **DONE** |
 | Human approver | | ☐ APPROVED (Spec) |
 
-**Implementation:** `IN PROGRESS` (Phase 1 + Phase 1H complete; Phase 2 not started)
+**Implementation:** `IN PROGRESS` (Phase 2 complete; Phase 3 not started)
+
+## aiComplete authorization (Phase 2)
+
+| Policy | Value |
+|--------|-------|
+| Endpoint | `AICOMPLETE_ADMIN_ONLY` |
+| Enforcement | `requirePosturaAuth({ adminOnly: true })` on `aiComplete` |
+| CLIENT via aiComplete | **Not reachable** — blocked at auth before tenant resolution |
+| Tenant resolution | ADMIN path uses auth-derived `organizationId`; `clientId` from body for scoped ops |

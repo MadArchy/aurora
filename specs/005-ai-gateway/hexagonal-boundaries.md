@@ -33,15 +33,30 @@ Phase 1 code moved from monolithic `src/domain/aiGateway/` into domain, applicat
 | Test composition root | COMPOSITION | `src/composition/ai/testGatewayComposition.ts` | Deterministic wiring without live adapters |
 | Architecture tests | TEST | `tests/aiGatewayArchitecture.test.ts` | Enforce import boundaries |
 
-## Deferred (Phase 2+)
+## Phase 2 infrastructure (2026-08-23)
+
+| Layer | Path | Status |
+|-------|------|--------|
+| Infrastructure | `src/infrastructure/ai/providers/` | OpenAiAdapter, AnthropicAdapter, RoutingAiProviderPort |
+| Infrastructure | `src/infrastructure/ai/registry/` | ModelRegistryAdapter, PromptRegistryAdapter |
+| Infrastructure | `src/infrastructure/ai/configuration/` | providerSecrets, providerTimeout |
+| Interface | `src/interfaces/ai/` | aiComplete handler, tenant resolution, `AICOMPLETE_ADMIN_ONLY` |
+| Composition | `src/composition/ai/serverGatewayComposition.ts` | Production server wiring |
+| Functions | `functions/src/ai/runAiComplete.ts` | CF bridge |
+
+**Provider routing (production registry):** all logical roles → `openai` / `gpt-4o-mini`. Anthropic adapter implemented + tested but not selected by default registry.
+
+**promptHash:** full SHA-256 hex digest (64 characters), per Phase-1 `PromptIdentitySchema`.
+
+**Retry:** Phase 2 classifies `retryable` metadata only; execution retry deferred to Phase 3.
+
+## Deferred (Phase 3+)
 
 | Layer | Target path | Status |
 |-------|-------------|--------|
-| INFRASTRUCTURE | `src/infrastructure/ai/providers/` | Not created — no live adapters |
-| INFRASTRUCTURE | `src/infrastructure/ai/registry/` | Not created |
-| INFRASTRUCTURE | `src/infrastructure/ai/persistence/` | Not created |
-| INTERFACE | `src/interfaces/ai/` | Documented only — no HTTP/CF migration |
-| COMPOSITION (prod) | `src/composition/ai/` (prod wiring) | Test composition only |
+| INFRASTRUCTURE | `src/infrastructure/ai/persistence/` | Phase 4 |
+| INTERFACE | `src/interfaces/ai/` (CLIENT CF access) | Future — aiComplete is ADMIN-only |
+| COMPOSITION (prod) | `src/composition/ai/serverGatewayComposition.ts` | **DONE** Phase 2 |
 
 ## Dependency rule summary
 

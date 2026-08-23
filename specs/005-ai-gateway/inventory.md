@@ -14,7 +14,7 @@
 |----|------|----------|---------|----------|-------|----------|--------|
 | CS-001 | `server/postura-api.ts` | `/api/ai/complete` OpenAI branch | server (Vite dev) | OpenAI | body or `gpt-4o-mini` | `api.openai.com/v1/chat/completions` | **ACTIVE** (loopback) |
 | CS-002 | `server/postura-api.ts` | `/api/ai/complete` Claude branch | server (Vite dev) | Anthropic | body or `claude-3-5-haiku-20241022` | `api.anthropic.com/v1/messages` | **ACTIVE** (loopback) |
-| CS-005 | `functions/src/index.ts` | `aiComplete` | Cloud Function | OpenAI (planned) | n/a | n/a | **STUB 501** |
+| CS-005 | `functions/src/index.ts` | `aiComplete` | Cloud Function | OpenAI (+ Anthropic secret declared) | via ModelRegistry | n/a | **Phase 2 wired** (ADMIN-only; not deployed) |
 
 ### Browser orchestration → `/api/ai/complete`
 
@@ -101,7 +101,7 @@
 
 | Export | Auth | App Check | Tenant | Schema | Status |
 |--------|------|-----------|--------|--------|--------|
-| `aiComplete` | ADMIN Bearer | no | org from token (unused) | none | **501 STUB** |
+| `aiComplete` | ADMIN Bearer | no | org from token; clientId from body (scoped ops) | gateway execute | **Phase 2** (not deployed) |
 | `tavilySearch` | ADMIN Bearer | no | uid rate limit | n/a | ACTIVE |
 | `youtubeApi` | ADMIN Bearer | no | uid rate limit | n/a | ACTIVE |
 | `topicAgentRun` | callable | no | echo | none | STUB |

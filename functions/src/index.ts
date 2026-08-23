@@ -17,6 +17,7 @@ import { buildPosturaClaimsOrThrow, ClaimsProvisionError } from './lib/posturaCl
 initializeApp();
 
 const openAiKey = defineSecret('OPENAI_API_KEY');
+const anthropicKey = defineSecret('ANTHROPIC_API_KEY');
 const tavilyKey = defineSecret('TAVILY_API_KEY');
 const youtubeKey = defineSecret('YOUTUBE_API_KEY');
 
@@ -57,7 +58,7 @@ export const setPosturaClaims = onCall(async (request) => {
 });
 
 /** Proxy IA autenticado: secretos en Secret Manager, nunca en Firestore ni frontend. */
-export const aiComplete = onRequest({ secrets: [openAiKey], cors: false }, async (req, res) => {
+export const aiComplete = onRequest({ secrets: [openAiKey, anthropicKey], cors: false }, async (req, res) => {
   const user = await requirePosturaAuth(req, res, { adminOnly: true, rateLimit: 'ai' });
   if (!user) return;
 
@@ -65,7 +66,48 @@ export const aiComplete = onRequest({ secrets: [openAiKey], cors: false }, async
     res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
     return;
   }
-  res.status(501).json({ error: 'NOT_IMPLEMENTED', message: 'Wire OpenAI via Secret Manager before pilot.' });
+
+  const body = (req.body || {}) as {
+    operation?: string;
+    clientId?: string;
+    input?: unknown;
+    prompt?: { promptId: string; promptVersion: string };
+  };
+  const operation = String(body.operation || '').trim();
+  if (!operation) {
+    res.status(400).json({ ok: false, error: { code: 'OPERATION_NOT_SUPPORTED', message: 'operation required', retryable: false } });
+    return;
+  }
+  if (!body.prompt?.promptId || !body.prompt?.promptVersion) {
+    res.status(400).json({ ok: false, error: { code: 'OPERATION_NOT_SUPPORTED', message: 'prompt identity required', retryable: false } });
+    return;
+  }
+
+  try {
+    const { runAiCompleteHttp } = await import('./ai/runAiComplete');
+    const { status, payload } = await runAiCompleteHttp({
+      auth: {
+        uid: user.uid,
+        role: user.role,
+        organizationId: user.organizationId,
+        clientId: user.clientId,
+      },
+      body: {
+        operation: operation as 'CONTENT_DRAFT',
+        clientId: body.clientId,
+        input: body.input,
+        prompt: body.prompt,
+      },
+      secrets: {
+        openAiApiKey: openAiKey.value() || null,
+        anthropicApiKey: anthropicKey.value() || null,
+      },
+    });
+    res.status(status).json(payload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'AI_GATEWAY_ERROR';
+    res.status(500).json({ ok: false, error: { code: 'PROVIDER_ERROR', message, retryable: false } });
+  }
 });
 
 /** Ingesta RSS server-side con validación SSRF. GET ?url= — solo ADMIN autenticado. */

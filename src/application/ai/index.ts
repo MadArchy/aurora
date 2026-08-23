@@ -96,3 +96,5 @@ export type { ModelRegistryPort, ModelConfiguration } from './ports/outbound/Mod
 export type { PromptRegistryPort, ResolvedPrompt } from './ports/outbound/PromptRegistryPort';
 export type { AiRunRepositoryPort, AiRunPersistenceRecord } from './ports/outbound/AiRunRepositoryPort';
 export { UnimplementedAiGateway } from './use-cases/UnimplementedAiGateway';
+export { ExecuteAiOperation } from './use-cases/ExecuteAiOperation';
+export { ProviderPortError, PromptResolutionError } from './errors/providerPortErrors';

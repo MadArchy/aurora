@@ -47,9 +47,11 @@ fetch VITE_POSTURA_FUNCTIONS_BASE/aiComplete  ──►  501 NOT_IMPLEMENTED
 
 Cloud Function `aiComplete` (`functions/src/index.ts`):
 
-- Auth: `requirePosturaAuth` ADMIN + rate limit
-- Secret: `OPENAI_API_KEY` declared, **never read**
-- Body: stub only
+- Auth: **`AICOMPLETE_ADMIN_ONLY`** — `requirePosturaAuth({ adminOnly: true })` + rate limit
+- Secrets: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (read via `runAiCompleteHttp` → `createServerAiGateway`)
+- Handler: hexagonal gateway (`ExecuteAiOperation`)
+- **Phase 2:** returns validated results when secrets configured — **code only, not deployed**
+- CLIENT role: **not reachable** on this endpoint (403 before handler)
 
 ---
 

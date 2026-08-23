@@ -1,7 +1,7 @@
 # Tasks 005 — AI Gateway
 
 **Spec status:** `APPROVED`  
-**Implementation:** `IN PROGRESS` (Phase 1 + Phase 1H complete)  
+**Implementation:** `IN PROGRESS` (Phase 2 complete; Phase 3 not started)  
 **Branch:** `spec/005-ai-gateway` @ `04e65ff` + Phase 1 commits
 
 ---
@@ -57,13 +57,23 @@
 
 ---
 
-## Phase 2 — Adapters + ModelRegistry (NOT STARTED)
+## Phase 2 — Adapters + ModelRegistry ✅
 
-- [ ] **T-005-30** OpenAI adapter + timeout
-- [ ] **T-005-31** Anthropic adapter + CF secret
-- [ ] **T-005-32** ModelRegistry config
-- [ ] **T-005-33** Mock provider for tests
-- [ ] **T-005-34** Replace `UnimplementedAiGateway` with production `ExecuteAiOperationUseCase` wired to outbound ports (remove stub from composition root)
+- [x] **T-005-30** OpenAI adapter + timeout
+- [x] **T-005-31** Anthropic adapter + CF secret
+- [x] **T-005-32** ModelRegistry config
+- [x] **T-005-33** Mock provider for tests
+- [x] **T-005-34** Replace `UnimplementedAiGateway` with `ExecuteAiOperation` in server composition (`UnimplementedAiGateway` retained for test composition only)
+
+---
+
+## Phase 2C — Contract verification + checkpoint ✅
+
+- [x] **T-005-35** Fix `promptHash` to full 64-char SHA-256 (Phase-1 contract)
+- [x] **T-005-36** Document `AICOMPLETE_ADMIN_ONLY` policy + tests
+- [x] **T-005-37** Document OpenAI-only production registry routing; Anthropic adapter tested separately
+
+**Stop respected:** No browser call-site migration; no production deploy; no Firestore aiRuns.
 
 ---
 

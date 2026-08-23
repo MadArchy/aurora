@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `005-ai-gateway` |
-| **Phase** | **1 + 1H DONE** · Phase 2 NOT STARTED |
+| **Phase** | **2 DONE** · Phase 3 NOT STARTED |
 | **Branch** | `spec/005-ai-gateway` @ `04e65ff` |
 
 ---
@@ -103,18 +103,19 @@ src/infrastructure/ai/    — documented; Phase 2+ adapters only
 
 **Stop:** Do not deploy Functions.
 
-### Phase 2 — Provider adapters + ModelRegistry
+### Phase 2 — Provider adapters + ModelRegistry ✅
 
-- `OpenAiAdapter`, `AnthropicAdapter` (fetch + timeout)
-- `ModelRegistry` config (roles → model IDs)
-- Secret Manager wiring for both providers in Functions
-- Mock adapter for tests
+- `OpenAiAdapter`, `AnthropicAdapter` (fetch + timeout; no SDK)
+- `ModelRegistryAdapter`, `PromptRegistryAdapter`
+- `ExecuteAiOperation` + `serverGatewayComposition`
+- `aiComplete` Cloud Function wired (not deployed)
+- `FakeAiProviderPort` for deterministic tests
 
-**Gate:** Adapter unit tests pass; secrets not in repo.
+**Gate:** Adapter unit tests pass; secrets not in repo; browser bundle isolation verified.
 
-**Stop:** Do not migrate callers.
+**Stop respected:** No browser call-site migration; no production deploy.
 
-### Phase 3 — Validation + repair + errors
+### Phase 3 — Validation + repair + errors (NOT STARTED)
 
 - `SchemaValidator` + bounded repair loop
 - Timeout (default 60s) + retry (429/5xx, max 2)

@@ -168,10 +168,27 @@ describe('SPEC-005 Phase 1H — hexagonal architecture boundaries', () => {
   });
 
   it('J: composition may depend on application + infrastructure', () => {
-    const compositionFile = join(SRC_ROOT, 'composition', 'ai', 'testGatewayComposition.ts');
-    const content = readFileSync(compositionFile, 'utf8');
-    expect(content).toMatch(/application\/ai/);
-    expect(importsLayer('composition/ai/testGatewayComposition.ts', content, 'infrastructure')).toEqual([]);
+    const testComposition = readFileSync(join(SRC_ROOT, 'composition', 'ai', 'testGatewayComposition.ts'), 'utf8');
+    expect(testComposition).toMatch(/application\/ai/);
+    expect(importsLayer('composition/ai/testGatewayComposition.ts', testComposition, 'infrastructure')).toEqual([]);
+
+    const serverComposition = readFileSync(join(SRC_ROOT, 'composition', 'ai', 'serverGatewayComposition.ts'), 'utf8');
+    expect(serverComposition).toMatch(/infrastructure\/ai/);
+  });
+
+  it('K: browser UI/services do not import server AI infrastructure', () => {
+    const browserRoots = ['main.ts', 'services/ai.ts', 'services/advisor.ts'];
+    const violations: string[] = [];
+    for (const rel of browserRoots) {
+      const content = readFileSync(join(SRC_ROOT, rel), 'utf8');
+      const hits = importsLayer(rel, content, 'infrastructure');
+      if (hits.length) violations.push(`${rel}: ${hits.join(', ')}`);
+      if (content.includes('serverGatewayComposition')) violations.push(`${rel}: serverGatewayComposition`);
+      if (content.includes('OPENAI_API_KEY') || content.includes('ANTHROPIC_API_KEY')) {
+        violations.push(`${rel}: server secret env reference`);
+      }
+    }
+    expect(violations).toEqual([]);
   });
 
   it('domain purity: domain/ai does not import zod', () => {

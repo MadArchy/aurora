@@ -4,6 +4,7 @@
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "outDir": "lib",
+    "rootDir": "..",
     "sourceMap": true,
     "strict": true,
     "target": "ES2022",
@@ -11,5 +12,13 @@
     "skipLibCheck": true
   },
   "compileOnSave": true,
-  "include": ["src"]
+  "include": [
+    "src/**/*.ts",
+    "../src/domain/ai/**/*.ts",
+    "../src/application/ai/**/*.ts",
+    "../src/infrastructure/ai/**/*.ts",
+    "../src/interfaces/ai/**/*.ts",
+    "../src/composition/ai/serverGatewayComposition.ts"
+  ],
+  "exclude": ["../src/composition/ai/testGatewayComposition.ts"]
 }
