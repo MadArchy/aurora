@@ -17,7 +17,9 @@ import { FIREBASE_ENABLED } from './firebase/config';
 import { runTopicAgent } from './services/topicAgent';
 import { formatDossierMarkdown, downloadDossierMarkdown } from './services/dossierExport';
 import { generatePositioningAdvice, proposeAngle } from './services/advisor';
-import { calculateStrategicScore, ScoringContext } from './services/scoring';
+import { ScoringContext } from './services/scoring';
+import { createStrategicSignalRoutingUseCases } from './composition/strategicSignalRouting/composeStrategicSignalRouting';
+import { StrategicRoutingError } from './application/strategicSignalRouting';
 import {
   buildProfileKeywords,
   discoverSources,
@@ -84,9 +86,6 @@ import {
   type ThesisEditorFormSnapshot,
   type ThesisEditorStep,
 } from './domain/thesisEditorCore';
-import { routeSignalAcrossTheses, routingSignalPatch } from './domain/thesisRoutingCore';
-import { clusterForSignal, clusterSimilarSignals, titleSimilarity } from './domain/signalClusterCore';
-import { computeWhyNow, type WhyNowResult } from './domain/whyNowCore';
 import {
   activateThesisByManager,
   approveThesisByClient,
@@ -94,12 +93,10 @@ import {
   rejectThesisByClient,
   type ThesisSaveIntent,
 } from './domain/thesisRevisionCore';
-import { computeThesisStrength } from './domain/thesisStrengthCore';
 import { resolveArticleSavePipelineSteps } from './domain/articleReviewCore';
 import { VIDEO_SUBMIT_PIPELINE_TARGET } from './domain/videoSubmitCore';
 import type {
   PositioningThesis,
-  Signal,
   ProfileFactSection,
   ThesisObjective,
   ThesisObjectiveKind,
@@ -157,6 +154,7 @@ class App {
   private previewBlob: Blob | null = null;
   private previewBlobUrl: string | null = null;
   private toasts: ToastItem[] = [];
+  private readonly strategicRouting = createStrategicSignalRoutingUseCases(dbService);
   private filterState = {
     searchQuery: '',
     contentSearch: '',
@@ -1518,33 +1516,37 @@ class App {
         if (!signal || !thesisId) return;
 
         const clientId = this.resolveClientId(signal.clientId);
-        const thesis = dbService.getThesisById(clientId, thesisId);
-        if (!thesis) return;
+        const organizationId = this.resolveOrganizationId(clientId);
+        const user = authService.getCurrentUser();
+        if (!organizationId || !user) {
+          this.showToast('Sesión sin organizationId — no se puede asignar tesis', 'warning');
+          return;
+        }
 
-        const whyNow = this.whyNowFor(signal, clientId);
-        const evidence = dbService.getEvidenceVaultByClient(clientId);
-        const score = calculateStrategicScore(signal, thesis, {
-          ...this.scoringContext(clientId),
-          whyNow: { score: whyNow.score, reason: whyNow.reason },
-          authorityScore: computeThesisStrength(thesis, evidence).authorityScore,
-        });
-
-        dbService.applyScoreToSignal(signalId, score, {
-          thesisId,
-          thesisScores: signal.thesisScores,
-          whyNow: { score: whyNow.score, band: whyNow.band, reason: whyNow.reason },
-          routingDecision: {
-            contested: signal.routingDecision?.contested,
-            secondaryThesisId: signal.routingDecision?.secondaryThesisId,
-            source: 'MANUAL',
-          },
-        });
-
-        auditService.log(authService.getCurrentUser(), 'THESIS_OVERRIDE', 'Signal', signalId, {
-          thesisId,
-        });
-        this.showToast(`Señal asignada a «${thesis.title}»`, 'success');
-        this.refreshMain();
+        try {
+          const result = this.strategicRouting.overrideSignalThesis({
+            signalId,
+            clientId,
+            organizationId,
+            selectedThesisId: thesisId,
+            actorId: user.uid,
+            actorRole: user.role,
+          });
+          const title =
+            dbService.getThesisById(clientId, result.routing.selectedThesisId || thesisId)?.title ||
+            thesisId;
+          auditService.log(user, 'THESIS_OVERRIDE', 'Signal', signalId, { thesisId });
+          this.showToast(`Señal asignada a «${title}»`, 'success');
+          this.refreshMain();
+        } catch (error) {
+          const message =
+            error instanceof StrategicRoutingError
+              ? error.message
+              : error instanceof Error
+                ? error.message
+                : 'No se pudo asignar la tesis';
+          this.showToast(message, 'warning');
+        }
       });
     });
 
@@ -2326,11 +2328,11 @@ class App {
   // Radar
   // ==========================================
 
-  /** Calcula y persiste el score de una señal contra la tesis activa del cliente. */
-  /** Términos del perfil y del dossier que permiten puntuar contenido bilingüe. */
+  /** Términos del perfil y del dossier que permiten puntuar contenido bilingüe (advisory AI context). */
   private scoringContext(clientId: string): ScoringContext {
     const client = dbService.getClientById(clientId);
     if (!client) return {};
+    // Phase 4: replace primary helper for advisory context; not central strategic routing.
     const thesis = dbService.getPrimaryThesis(clientId);
     const keywords = buildProfileKeywords(client, thesis);
     const dossier = dbService.getMasterDossier(clientId);
@@ -2346,72 +2348,29 @@ class App {
   }
 
   /**
-   * Puntúa la señal contra todas las tesis activas y persiste la que la reclama.
-   * Con una sola tesis el resultado es idéntico al de antes del router.
+   * SPEC-001 Phase 2 — central strategic routing via ScoreAndRouteSignal.
+   * No getPrimaryThesis / candidates[0] attribution.
    */
-  /**
-   * Por qué esta señal merece atención hoy: novedad real, velocidad de la
-   * conversación en el cluster y saturación del ángulo por publicaciones propias.
-   */
-  private whyNowFor(signal: Signal, clientId: string): WhyNowResult {
-    const siblings = dbService.getSignalsByClient(clientId);
-    const cluster = clusterForSignal(signal.id, clusterSimilarSignals(siblings));
-
-    const clusterIds = new Set(cluster?.members.map((m) => m.signalId) || []);
-    const priorCoverageCount = siblings.filter(
-      (s) => s.id !== signal.id && clusterIds.has(s.id) && (s.managerDecision === 'CONVERTED' || s.status === 'CONVERTED')
-    ).length;
-
-    const ownPublishedOnTopic = dbService
-      .getContentByClient(clientId)
-      .filter((item) => item.status === 'PUBLISHED' && titleSimilarity(item.title, signal.title) >= 0.25)
-      .length;
-
-    return computeWhyNow(signal, cluster, { ownPublishedOnTopic, priorCoverageCount });
-  }
-
   private scoreSignal(signalId: string, clientId: string): number | null {
-    const signal = dbService.getSignalById(signalId);
-    if (!signal) return null;
+    const organizationId = this.resolveOrganizationId(clientId);
+    if (!organizationId) return null;
 
-    const whyNow = this.whyNowFor(signal, clientId);
-    const baseContext: ScoringContext = {
-      ...this.scoringContext(clientId),
-      whyNow: { score: whyNow.score, reason: whyNow.reason },
-    };
-    const evidence = dbService.getEvidenceVaultByClient(clientId);
-
-    const active = dbService.getActiveTheses(clientId);
-    if (!active.length) return null;
-    const candidates = active;
-
-    const contextFor = (thesis: PositioningThesis): ScoringContext => ({
-      ...baseContext,
-      authorityScore: computeThesisStrength(thesis, evidence).authorityScore,
-    });
-
-    const routing = routeSignalAcrossTheses(signal, candidates, (s, t) =>
-      calculateStrategicScore(s, t, contextFor(t))
-    );
-    const chosen = candidates.find((t) => t.id === routing.primaryThesisId) || candidates[0];
-    const score = calculateStrategicScore(signal, chosen, contextFor(chosen));
-    if (candidates.length > 1) {
-      score.strategicRationale = `${score.strategicRationale} · ${routing.rationale}`;
+    try {
+      const result = this.strategicRouting.scoreAndRouteSignal({
+        signalId,
+        clientId,
+        organizationId,
+      });
+      if (result.routing.routingState === 'UNROUTED' && result.routing.eligibleThesisCount === 0) {
+        return null;
+      }
+      return result.scoreResult.totalScore;
+    } catch (error) {
+      if (error instanceof StrategicRoutingError && error.code === 'SIGNAL_NOT_FOUND') {
+        return null;
+      }
+      throw error;
     }
-
-    const patch = routingSignalPatch(routing);
-    dbService.applyScoreToSignal(signalId, score, {
-      ...patch,
-      whyNow: { score: whyNow.score, band: whyNow.band, reason: whyNow.reason },
-      routingDecision: {
-        contested: routing.contested,
-        secondaryThesisId: routing.secondaryThesisId,
-        source: signal.routingDecision?.source === 'MANUAL' && signal.thesisId === routing.primaryThesisId
-          ? 'MANUAL'
-          : 'AUTO',
-      },
-    });
-    return score.totalScore;
   }
 
   private bindRadar() {

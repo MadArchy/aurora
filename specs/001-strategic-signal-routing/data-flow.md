@@ -109,16 +109,17 @@ AI SUGGESTS → SOFTWARE ROUTES → HUMAN DECIDES WHERE REQUIRED
 
 ---
 
-## D. Central score path today (as-is, Phase 0) → target
+## D. Central score path — Phase 2 landed
 
-| Step | As-is (Phase 0) | Target (SPEC-001) |
-|------|-----------------|-------------------|
-| Eligible theses | `getActiveTheses` | Same eligibility; + LEGACY exclude once enum exists |
-| Router | `routeSignalAcrossTheses` | Retained |
-| Fallback | `candidates[0]` if no primary | **Removed** |
-| Contested | Still sets primaryThesisId | **CONTESTED** until MANUAL / explicit policy |
-| Persist | `applyScoreToSignal` | Via `SignalWritePort`; **no silent DISCARD** |
-| Orchestration | `main.scoreSignal` | `ScoreAndRouteSignal` use case |
+| Step | Phase 2 |
+|------|---------|
+| Eligible theses | ThesisQueryPort → Domain ACTIVE filter |
+| Router | `routeSignalAcrossTheses` via `ScoreAndRouteSignal` |
+| Fallback | **Removed** (`candidates[0]` / primary) |
+| Contested | CONTESTED persisted; no `thesisId` |
+| Persist | `SignalWritePort` → `applyStrategicRoutingToSignal` (**no silent DISCARD**) |
+| Orchestration | `main.scoreSignal` → Application use case |
+| Manual | `OverrideSignalThesis` (ADMIN + ACTIVE only) |
 
 ---
 

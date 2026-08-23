@@ -1,7 +1,7 @@
 # Tasks 001 — Strategic Signal Routing
 
 **Spec status:** `APPROVED` · **READY_FOR_IMPLEMENTATION**  
-**Implementation:** Phase 1 **COMPLETE** · Phase 2 **NOT STARTED**  
+**Implementation:** Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **NOT STARTED**  
 **Branch:** `spec/001-strategic-signal-routing`
 
 ---
@@ -56,16 +56,32 @@
 
 ---
 
-## Phase 2 — Application / use cases
+## Phase 2 — Application / use cases ✅
 
-- [ ] **T-001-201** Implement `ScoreAndRouteSignal` application use case
-- [ ] **T-001-202** Implement `OverrideSignalThesis` application use case
-- [ ] **T-001-203** Contested policy: no silent first/primary attribution
-- [ ] **T-001-204** Eliminate primary/`candidates[0]` fallback in central `scoreSignal` flow
-- [ ] **T-001-205** Terminal discard governance: routing persist path MUST NOT silent-DISCARD
-- [ ] **T-001-206** Optional: `GetSignalRoutingExplanation` / `RecomputeSignalRouting` only if needed
+- [x] **T-001-201** Implement `ScoreAndRouteSignal` application use case
+- [x] **T-001-202** Implement `OverrideSignalThesis` application use case
+- [x] **T-001-203** Contested policy: no silent first/primary attribution
+- [x] **T-001-204** Eliminate primary/`candidates[0]` fallback in central `scoreSignal` flow
+- [x] **T-001-205** Terminal discard governance: routing persist path MUST NOT silent-DISCARD
+- [ ] **T-001-206** Optional: `GetSignalRoutingExplanation` / `RecomputeSignalRouting` only if needed — **deferred** (not required)
 
-**Exit:** Central score/route path obeys CLEAR/CONTESTED/UNROUTED; discard side effect removed/relocated.
+**Exit:** ✅ Central score/route path obeys CLEAR/CONTESTED/UNROUTED; discard side effect removed from routing writer.
+
+### Phase 2 implementation notes
+
+| Artifact | Location |
+|----------|----------|
+| Application | `src/application/strategicSignalRouting/` |
+| Ports | ThesisQuery / SignalRead / SignalWrite / StrategicScoring |
+| Infra adapter (strangler) | `src/infrastructure/strategicSignalRouting/DbStrategicSignalRoutingAdapter.ts` |
+| Composition | `src/composition/strategicSignalRouting/composeStrategicSignalRouting.ts` |
+| Central UI glue | `main.scoreSignal` → `scoreAndRouteSignal`; override → `overrideSignalThesis` |
+| Persistence | `db.applyStrategicRoutingToSignal` (no auto-DISCARD) |
+| Tests | `tests/strategicSignalRoutingPhase2.test.ts`, `strategicSignalRoutingArchitecture.test.ts` |
+
+**Manual override eligibility:** ACTIVE theses only (SPEC-aligned).  
+**Stale attribution:** CONTESTED/UNROUTED clears `thesisId` (false current attribution); `thesisScores` retained; physical history Phase 3.  
+**T-001-206:** not implemented (optional).
 
 ---
 

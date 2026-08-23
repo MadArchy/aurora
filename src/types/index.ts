@@ -423,6 +423,12 @@ export interface Signal {
     contested?: boolean;
     secondaryThesisId?: string;
     source: 'AUTO' | 'MANUAL';
+    /** SPEC-001 Phase 2 — authoritative routing classification. */
+    routingState?: 'CLEAR' | 'CONTESTED' | 'UNROUTED';
+    algorithmVersion?: string;
+    rationale?: string;
+    actorId?: string;
+    routedAt?: string;
   };
 }
 

@@ -2098,12 +2098,44 @@ class DataService {
     sig.recommendedAction = score.recommendedAction;
     sig.scoreRationale = score.strategicRationale;
     sig.scoreBreakdown = buildScoreBreakdown(score);
-    // Ruido claro: sin acción y score bajo → descartar automáticamente (auditable).
+    // Legacy path — prefer applyStrategicRoutingToSignal for SPEC-001 governed routing
+    // (no silent DISCARD). Retained for non-routing callers until Phase 4 cleanup.
     if (score.recommendedAction === 'NO_ACTION' && score.totalScore < 40) {
       sig.status = 'DISCARDED';
       sig.managerDecision = 'DISCARDED';
       sig.discardReason = 'Auto-descartada: score bajo y sin acción recomendada.';
     }
+    this.saveAll();
+  }
+
+  /**
+   * SPEC-001 Phase 2 — persist strategic routing WITHOUT silent terminal DISCARD.
+   * Clears thesisId when undefined (CONTESTED / UNROUTED) so stale attribution is not implied.
+   */
+  public applyStrategicRoutingToSignal(
+    signalId: string,
+    score: StrategicScoreResult,
+    extras: {
+      thesisId: string | undefined;
+      thesisScores: Signal['thesisScores'];
+      whyNow?: Signal['whyNow'];
+      routingDecision: NonNullable<Signal['routingDecision']>;
+    }
+  ): void {
+    const sig = this.signals.find((s) => s.id === signalId);
+    if (!sig) {
+      throw new Error(`Signal not found for strategic routing: ${signalId}`);
+    }
+    sig.thesisId = extras.thesisId;
+    sig.thesisScores = extras.thesisScores;
+    if (extras.whyNow) sig.whyNow = extras.whyNow;
+    sig.routingDecision = extras.routingDecision;
+    sig.relevanceScore = score.totalScore;
+    sig.priorityBand = score.priorityBand;
+    sig.recommendedAction = score.recommendedAction;
+    sig.scoreRationale = score.strategicRationale;
+    sig.scoreBreakdown = buildScoreBreakdown(score);
+    // Intentionally NO auto-DISCARD — routing ≠ terminal disposition (SPEC-001 A12).
     this.saveAll();
   }
 

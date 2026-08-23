@@ -41,10 +41,16 @@ Composition root wires ports → adapters.
 |-------|------|--------------|
 | **Domain** | Routing calculation, eligibility, contested/clear/unrouted rules, versioned rationale helpers | Firebase, HTTP, UI, AI SDKs, concrete DB |
 | **Application** | Use-case orchestration, policy enforcement (no silent discard; contested gate), port calls | Firestore SDK, DOM |
-| **Ports** | Neutral query/write/history contracts | Collection path strings as domain law |
-| **Infrastructure** | Persistence, envelope preservation, scoreFn bridge to `scoring.ts` | Business routing policy |
-| **Interfaces** | Triggers, contested UI, MANUAL override UX | Direct provider/AI gateway composition for routing authority |
-| **Composition** | Wiring only | Business rules |
+| **Ports** | Neutral query/write/scoring contracts | Collection path strings as domain law |
+| **Infrastructure** | Persistence, envelope preservation, scoreFn bridge to `scoring.ts` (`DbStrategicSignalRoutingAdapter`) | Business routing policy |
+| **Interfaces** | Triggers, contested UI, MANUAL override UX (`main.ts` strangler) | Direct provider/AI for routing authority |
+| **Composition** | `composeStrategicSignalRouting` wiring | Business rules |
+
+### Phase 2 landed modules
+
+- `src/application/strategicSignalRouting/` — use cases + ports + errors
+- `src/infrastructure/strategicSignalRouting/DbStrategicSignalRoutingAdapter.ts` — transitional bridge
+- `src/composition/strategicSignalRouting/composeStrategicSignalRouting.ts`
 
 ---
 

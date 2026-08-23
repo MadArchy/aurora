@@ -42,9 +42,9 @@ Phase 0 inventory baseline: 2026-08-23.
 | Location | Pattern | Class | Migration | Notes |
 |----------|---------|-------|-----------|-------|
 | `src/domain/thesisRoutingCore.ts` | `routeSignalAcrossTheses` | STRATEGIC_ROUTING | **ALLOWED** (core) | Retain; evolve contract Phase 1 |
-| `src/main.ts` ~2393–2413 `scoreSignal` | Router + `candidates[0]` fallback | STRATEGIC_ROUTING | **MIGRATE** | Remove `[0]`; contested policy |
-| `src/main.ts` ~1512–1548 thesis override | MANUAL path | STRATEGIC_ROUTING | **MIGRATE** | Wire `OverrideSignalThesis`; keep scores |
-| `src/main.ts` ~2491 AI analyze | `getPrimaryThesis` then `scoreSignal` | ADVISORY_AI + STRATEGIC | **MIGRATE** | AI context explicit; router remains authority |
+| `src/main.ts` `scoreSignal` | Router via Application | STRATEGIC_ROUTING | **MIGRATED** (Phase 2) | `ScoreAndRouteSignal`; primary/`candidates[0]` **REMOVED** |
+| `src/main.ts` thesis override | MANUAL path | STRATEGIC_ROUTING | **MIGRATED** (Phase 2) | `OverrideSignalThesis` |
+| `src/main.ts` ~2491 AI analyze | `getPrimaryThesis` then `scoreSignal` | ADVISORY_AI + STRATEGIC | **MIGRATE** Phase 4 | AI context still primary; scoreSignal now governed |
 | `src/main.ts` ~1886, 1924, 1971, 2022, 2107, 2334 | `getPrimaryThesis` | THESIS_CONTEXT_ONLY | **REVIEW** / likely **MIGRATE** | Radar / ingest adjacent — require explicit thesis or routed signal |
 | `src/main.ts` ~2937, 3162, 3292, 3383, 3436, 3629, 3670, 4633 | `getPrimaryThesis` | THESIS_CONTEXT_ONLY | **REVIEW** | Content / portfolio — not all are routing; ban if strategic attribution |
 | `src/main.ts` ~1578, 3698 | `theses[0]` fallback | THESIS_CONTEXT_ONLY | **MIGRATE** if selection drives strategy | Prefer fail-closed / explicit id |
