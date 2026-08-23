@@ -1,5 +1,6 @@
 import type { Signal, StrategicScoreResult } from '../../../types';
 import type { ThesisRoutingResult } from '../../../domain/thesisRoutingCore';
+import type { SignalRoutingHistoryEntry } from '../../../domain/routingHistoryCore';
 
 export interface PersistStrategicRoutingParams {
   signalId: string;
@@ -16,6 +17,11 @@ export interface PersistStrategicRoutingParams {
    * Never derived via first-item strategic selection.
    */
   scoreResult: StrategicScoreResult;
+  /**
+   * When set, infrastructure MUST append this history entry in the same
+   * logical persistence unit as the current-state update (atomic locally).
+   */
+  historyEntry?: SignalRoutingHistoryEntry;
 }
 
 /**

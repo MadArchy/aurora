@@ -1,7 +1,7 @@
 # Tasks 001 — Strategic Signal Routing
 
 **Spec status:** `APPROVED` · **READY_FOR_IMPLEMENTATION**  
-**Implementation:** Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **NOT STARTED**  
+**Implementation:** Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **COMPLETE** · Phase 4 **NOT STARTED**  
 **Branch:** `spec/001-strategic-signal-routing`
 
 ---
@@ -85,15 +85,38 @@
 
 ---
 
-## Phase 3 — Persistence / history
+## Phase 3 — Persistence / history ✅
 
-- [ ] **T-001-301** `ThesisQueryPort` / `SignalWritePort` (+ read/history ports as needed)
-- [ ] **T-001-302** Infrastructure adapters over `dbService` / Firestore sync
-- [ ] **T-001-303** Persist full `thesisScores` + routing decision/rationale/version/source
-- [ ] **T-001-304** Material history representation (bounded; no unbounded array by default)
-- [ ] **T-001-305** Tenant-safe writes: preserve SPEC-009 envelope; never invent `organizationId`
+- [x] **T-001-301** `ThesisQueryPort` / `SignalWritePort` (+ read/history ports as needed)
+- [x] **T-001-302** Infrastructure adapters over `dbService` / Firestore sync
+- [x] **T-001-303** Persist full `thesisScores` + routing decision/rationale/version/source
+- [x] **T-001-304** Material history representation (bounded; no unbounded array by default)
+- [x] **T-001-305** Tenant-safe writes: preserve SPEC-009 envelope; never invent `organizationId`
 
-**Exit:** Persistence tests PASS; history reconstructs material changes.
+**Exit:** ✅ Persistence tests PASS; history reconstructs material changes.
+
+### Phase 3 implementation notes
+
+| Artifact | Location |
+|----------|----------|
+| Material change + history types | `src/domain/routingHistoryCore.ts` |
+| History read port | `RoutingHistoryPort` |
+| Atomic write | `SignalWritePort.persistStrategicRouting` (+ optional `historyEntry`) |
+| Local store | `db.signalRoutingHistory` → `postura_signal_routing_history_v1` |
+| Logical Firestore path (future) | `clients/{clientId}/signals/{signalId}/routingHistory/{id}` |
+| Tests | `tests/strategicSignalRoutingPhase3.test.ts` |
+
+**Material fields:** `routingState`, `selectedThesisId`, `source`, `algorithmVersion`  
+**Not material:** `routedAt`, rationale-only changes  
+
+**First assignment:** no history entry (INITIAL without prior).  
+**Algorithm version change:** material (YES history).  
+**AUTO→MANUAL same thesis:** material.  
+**Equivalent reroute:** no history growth.
+
+**SPEC-001 ROUTING HISTORY RULES CONTRACT GAP:** nested `routingHistory` under signals is **not** covered by current `firestore.rules`. History is **local-authoritative** for Phase 3; remote sync deferred with SPEC-009 (production unchanged). Current Signal routing fields continue to sync via existing `signals` path.
+
+**Atomicity:** local single `saveAll` unit for history append + current update = PASS. Cross-network Firestore batch for history = BLOCKED until rules (documented gap).
 
 ---
 

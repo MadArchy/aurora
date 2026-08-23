@@ -40,17 +40,24 @@ Composition root wires ports → adapters.
 | Layer | Owns | Must not own |
 |-------|------|--------------|
 | **Domain** | Routing calculation, eligibility, contested/clear/unrouted rules, versioned rationale helpers | Firebase, HTTP, UI, AI SDKs, concrete DB |
-| **Application** | Use-case orchestration, policy enforcement (no silent discard; contested gate), port calls | Firestore SDK, DOM |
-| **Ports** | Neutral query/write/scoring contracts | Collection path strings as domain law |
-| **Infrastructure** | Persistence, envelope preservation, scoreFn bridge to `scoring.ts` (`DbStrategicSignalRoutingAdapter`) | Business routing policy |
+| **Application** | Use-case orchestration, policy enforcement (no silent discard; contested gate), material-change → history, port calls | Firestore SDK, DOM |
+| **Ports** | Neutral query/write/scoring/history contracts | Collection path strings as domain law |
+| **Infrastructure** | Persistence, envelope preservation, scoreFn bridge; local history store (`DbStrategicSignalRoutingAdapter`) | Business routing policy |
 | **Interfaces** | Triggers, contested UI, MANUAL override UX (`main.ts` strangler) | Direct provider/AI for routing authority |
 | **Composition** | `composeStrategicSignalRouting` wiring | Business rules |
 
-### Phase 2 landed modules
+### Phase 2–3 landed modules
 
 - `src/application/strategicSignalRouting/` — use cases + ports + errors
+- `src/domain/routingHistoryCore.ts` — material change + history entry (pure)
 - `src/infrastructure/strategicSignalRouting/DbStrategicSignalRoutingAdapter.ts` — transitional bridge
 - `src/composition/strategicSignalRouting/composeStrategicSignalRouting.ts`
+
+### History storage note
+
+Logical target: `clients/{clientId}/signals/{signalId}/routingHistory/{revisionId}`  
+Phase 3 physical: local `postura_signal_routing_history_v1` (not Firestore-synced — SPEC-009 rules gap).  
+Current Signal routing fields remain on the Signal document (existing rules path).
 
 ---
 

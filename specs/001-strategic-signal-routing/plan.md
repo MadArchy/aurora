@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `001-strategic-signal-routing` |
-| **Phase** | **2 COMPLETE** · Phase 3 **NOT STARTED** |
-| **Status** | `APPROVED` · Application use cases + central path migrated |
+| **Phase** | **3 COMPLETE** · Phase 4 **NOT STARTED** |
+| **Status** | `APPROVED` · Persistence + material routing history |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
 ---

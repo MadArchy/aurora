@@ -73,5 +73,12 @@ describe('SPEC-001 Phase 2 — application hexagonal + central fallback ban', ()
     expect(adapter).toMatch(/applyStrategicRoutingToSignal/);
     expect(adapter).not.toMatch(/applyScoreToSignal\(/);
     expect(adapter).not.toMatch(/\.getPrimaryThesis\(/);
+    expect(adapter).toMatch(/historyEntry/);
+    expect(adapter).toMatch(/RoutingHistoryPort/);
+  });
+
+  it('Domain routingHistoryCore has no Firebase/db imports', () => {
+    const content = readFileSync(join(ROOT, 'src/domain/routingHistoryCore.ts'), 'utf8');
+    expect(content).not.toMatch(/firebase|firestore|dbService|localStorage/i);
   });
 });

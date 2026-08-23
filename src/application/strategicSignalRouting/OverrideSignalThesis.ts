@@ -6,7 +6,13 @@ import {
   type ThesisRoutingResult,
 } from '../../domain/thesisRoutingCore';
 import { isThesisEligibleForStrategicRouting } from '../../domain/thesisRoutingEligibility';
+import {
+  createRoutingHistoryEntry,
+  isMaterialRoutingChange,
+  toRoutingHistorySnapshot,
+} from '../../domain/routingHistoryCore';
 import { StrategicRoutingError } from './errors';
+import { previousMaterialFromSignal } from './previousMaterial';
 import type { SignalReadPort } from './ports/SignalReadPort';
 import type { SignalWritePort } from './ports/SignalWritePort';
 import type { StrategicScoringPort } from './ports/StrategicScoringPort';
@@ -30,6 +36,7 @@ export interface OverrideSignalThesisResult {
   materialDecision: MaterialRoutingDecision;
   previous?: MaterialRoutingDecision;
   scoreResult: StrategicScoreResult;
+  historyWritten: boolean;
 }
 
 export interface OverrideSignalThesisDeps {
@@ -37,18 +44,6 @@ export interface OverrideSignalThesisDeps {
   theses: ThesisQueryPort;
   writer: SignalWritePort;
   scoring: StrategicScoringPort;
-}
-
-function previousFromSignal(signal: Signal): MaterialRoutingDecision | undefined {
-  const rd = signal.routingDecision;
-  if (!rd?.routingState && !rd?.source && !signal.thesisId) return undefined;
-  return {
-    routingState: rd?.routingState ?? (signal.thesisId ? 'CLEAR' : 'UNROUTED'),
-    selectedThesisId: signal.thesisId,
-    source: rd?.source ?? 'AUTO',
-    algorithmVersion: (rd?.algorithmVersion as typeof ROUTING_ALGORITHM_VERSION) || ROUTING_ALGORITHM_VERSION,
-    rationale: rd?.rationale ?? signal.scoreRationale ?? '',
-  };
 }
 
 /**
@@ -69,6 +64,12 @@ export function createOverrideSignalThesis(deps: OverrideSignalThesisDeps) {
       throw new StrategicRoutingError(
         'UNAUTHORIZED_OVERRIDE',
         'Manual thesis override requires ADMIN role.'
+      );
+    }
+    if (!input.actorId?.trim()) {
+      throw new StrategicRoutingError(
+        'UNAUTHORIZED_OVERRIDE',
+        'Manual override requires a trusted actorId.'
       );
     }
 
@@ -104,7 +105,7 @@ export function createOverrideSignalThesis(deps: OverrideSignalThesisDeps) {
       );
     }
 
-    const previous = previousFromSignal(signal);
+    const previous = previousMaterialFromSignal(signal);
     const routedAt = input.now ?? new Date().toISOString();
     const scoreResult = deps.scoring.scoreThesis(signal, thesis, input.clientId);
     const whyNow = deps.scoring.computeWhyNow(input.clientId, signal);
@@ -142,6 +143,8 @@ export function createOverrideSignalThesis(deps: OverrideSignalThesisDeps) {
       routedAt,
     };
 
+    const materialDecision = toMaterialRoutingDecision(routing);
+
     const routingDecision: NonNullable<Signal['routingDecision']> = {
       contested: false,
       secondaryThesisId: routing.secondaryThesisId,
@@ -152,6 +155,28 @@ export function createOverrideSignalThesis(deps: OverrideSignalThesisDeps) {
       actorId: input.actorId,
       routedAt,
     };
+
+    let historyEntry = undefined;
+    let historyWritten = false;
+    if (
+      previous &&
+      isMaterialRoutingChange(
+        toRoutingHistorySnapshot(previous),
+        toRoutingHistorySnapshot(materialDecision)
+      )
+    ) {
+      historyEntry = createRoutingHistoryEntry({
+        organizationId: input.organizationId,
+        clientId: input.clientId,
+        signalId: signal.id,
+        previous: toRoutingHistorySnapshot(previous),
+        next: toRoutingHistorySnapshot(materialDecision),
+        actorId: input.actorId,
+        changedAt: routedAt,
+        rationale,
+      });
+      historyWritten = true;
+    }
 
     try {
       deps.writer.persistStrategicRouting({
@@ -168,8 +193,10 @@ export function createOverrideSignalThesis(deps: OverrideSignalThesisDeps) {
           reason: whyNow.reason,
         },
         scoreResult,
+        historyEntry,
       });
     } catch (err) {
+      if (err instanceof StrategicRoutingError) throw err;
       throw new StrategicRoutingError(
         'PERSISTENCE_ERROR',
         err instanceof Error ? err.message : 'Failed to persist manual override.'
@@ -178,9 +205,10 @@ export function createOverrideSignalThesis(deps: OverrideSignalThesisDeps) {
 
     return {
       routing,
-      materialDecision: toMaterialRoutingDecision(routing),
+      materialDecision,
       previous,
       scoreResult,
+      historyWritten,
     };
   };
 }

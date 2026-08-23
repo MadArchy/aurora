@@ -20,4 +20,6 @@ export type {
 export type { ThesisQueryPort } from './ports/ThesisQueryPort';
 export type { SignalReadPort } from './ports/SignalReadPort';
 export type { SignalWritePort, PersistStrategicRoutingParams } from './ports/SignalWritePort';
+export type { RoutingHistoryPort } from './ports/RoutingHistoryPort';
 export type { StrategicScoringPort, WhyNowSnapshot } from './ports/StrategicScoringPort';
+export { previousMaterialFromSignal } from './previousMaterial';

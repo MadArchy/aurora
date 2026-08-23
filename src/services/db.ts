@@ -74,6 +74,7 @@ import { buildJuanMasterDossier } from '../data/juanMasterDossier';
 import { FIREBASE_ENABLED } from '../firebase/config';
 import type { LocalV5Snapshot } from './firestore/types';
 import { buildScoreBreakdown } from '../domain/scoreExplainCore';
+import type { SignalRoutingHistoryEntry } from '../domain/routingHistoryCore';
 
 export type { LocalV5Snapshot } from './firestore/types';
 
@@ -104,6 +105,12 @@ class DataService {
   private signalOutcomes: SignalOutcome[] = [];
   private proofWallItems: ProofWallItem[] = [];
   private notifications: NotificationItem[] = [];
+  /**
+   * SPEC-001 Phase 3 — local-authoritative routing history.
+   * Logical Firestore shape: clients/{clientId}/signals/{signalId}/routingHistory/{id}
+   * Not remote-synced until SPEC-009 covers that path (RULES CONTRACT GAP).
+   */
+  private signalRoutingHistory: SignalRoutingHistoryEntry[] = [];
   private changeListeners: Array<() => void> = [];
   /** >0 mientras se aplique un lote de escrituras (p. ej. send briefing). */
   private saveBatchDepth = 0;
@@ -144,6 +151,9 @@ class DataService {
         this.signalOutcomes = JSON.parse(localStorage.getItem('postura_signal_outcomes_v1') || '[]');
         this.proofWallItems = JSON.parse(localStorage.getItem('postura_proof_wall_v1') || '[]');
         this.notifications = JSON.parse(localStorage.getItem('postura_notifications_db_v1') || '[]');
+        this.signalRoutingHistory = JSON.parse(
+          localStorage.getItem('postura_signal_routing_history_v1') || '[]'
+        );
         this.ensureSeedDossiers();
         this.ensureJuanCampaignSeed();
         this.repairKnownBrokenSources();
@@ -1007,6 +1017,10 @@ class DataService {
       localStorage.setItem('postura_signal_outcomes_v1', JSON.stringify(this.signalOutcomes));
       localStorage.setItem('postura_proof_wall_v1', JSON.stringify(this.proofWallItems));
       localStorage.setItem('postura_notifications_db_v1', JSON.stringify(this.notifications));
+      localStorage.setItem(
+        'postura_signal_routing_history_v1',
+        JSON.stringify(this.signalRoutingHistory)
+      );
     }
 
     if (!options?.skipRemote && FIREBASE_ENABLED) {
@@ -2109,8 +2123,9 @@ class DataService {
   }
 
   /**
-   * SPEC-001 Phase 2 — persist strategic routing WITHOUT silent terminal DISCARD.
+   * SPEC-001 Phase 2/3 — persist strategic routing WITHOUT silent terminal DISCARD.
    * Clears thesisId when undefined (CONTESTED / UNROUTED) so stale attribution is not implied.
+   * When historyEntry is provided, appends it in the same saveAll unit (local atomicity).
    */
   public applyStrategicRoutingToSignal(
     signalId: string,
@@ -2120,11 +2135,37 @@ class DataService {
       thesisScores: Signal['thesisScores'];
       whyNow?: Signal['whyNow'];
       routingDecision: NonNullable<Signal['routingDecision']>;
+      organizationId?: string;
+      clientId?: string;
+      historyEntry?: SignalRoutingHistoryEntry;
     }
   ): void {
     const sig = this.signals.find((s) => s.id === signalId);
     if (!sig) {
       throw new Error(`Signal not found for strategic routing: ${signalId}`);
+    }
+    if (extras.clientId && sig.clientId !== extras.clientId) {
+      throw new Error('Strategic routing tenant mismatch: clientId');
+    }
+    if (
+      extras.organizationId &&
+      sig.organizationId &&
+      sig.organizationId !== extras.organizationId
+    ) {
+      throw new Error('Strategic routing tenant mismatch: organizationId');
+    }
+    if (extras.historyEntry) {
+      const h = extras.historyEntry;
+      if (h.signalId !== signalId) {
+        throw new Error('Routing history signalId mismatch');
+      }
+      if (extras.clientId && h.clientId !== extras.clientId) {
+        throw new Error('Routing history clientId mismatch');
+      }
+      if (extras.organizationId && h.organizationId !== extras.organizationId) {
+        throw new Error('Routing history organizationId mismatch');
+      }
+      this.signalRoutingHistory.push(h);
     }
     sig.thesisId = extras.thesisId;
     sig.thesisScores = extras.thesisScores;
@@ -2137,6 +2178,16 @@ class DataService {
     sig.scoreBreakdown = buildScoreBreakdown(score);
     // Intentionally NO auto-DISCARD — routing ≠ terminal disposition (SPEC-001 A12).
     this.saveAll();
+  }
+
+  /** SPEC-001 Phase 3 — read routing history for a signal (local authority). */
+  public getSignalRoutingHistory(signalId: string): SignalRoutingHistoryEntry[] {
+    return this.signalRoutingHistory.filter((e) => e.signalId === signalId);
+  }
+
+  /** Test / admin helper — all routing history entries. */
+  public getAllSignalRoutingHistory(): SignalRoutingHistoryEntry[] {
+    return [...this.signalRoutingHistory];
   }
 
   /** Adjunta evidencia Tavily (agente RESEARCH_SIGNALS) a la señal. */

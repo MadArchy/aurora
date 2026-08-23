@@ -109,17 +109,33 @@ AI SUGGESTS → SOFTWARE ROUTES → HUMAN DECIDES WHERE REQUIRED
 
 ---
 
-## D. Central score path — Phase 2 landed
+## D. Central score path — Phase 2/3 landed
 
-| Step | Phase 2 |
+| Step | Phase 2–3 |
 |------|---------|
 | Eligible theses | ThesisQueryPort → Domain ACTIVE filter |
 | Router | `routeSignalAcrossTheses` via `ScoreAndRouteSignal` |
 | Fallback | **Removed** (`candidates[0]` / primary) |
 | Contested | CONTESTED persisted; no `thesisId` |
-| Persist | `SignalWritePort` → `applyStrategicRoutingToSignal` (**no silent DISCARD**) |
+| Persist current | `SignalWritePort` → `applyStrategicRoutingToSignal` (**no silent DISCARD**) |
+| Persist history | Material transitions → `signalRoutingHistory` (local authority) |
+| Material fields | state / selectedThesisId / source / algorithmVersion |
+| First assignment | No history entry |
 | Orchestration | `main.scoreSignal` → Application use case |
-| Manual | `OverrideSignalThesis` (ADMIN + ACTIVE only) |
+| Manual | `OverrideSignalThesis` (ADMIN + ACTIVE only) + history when material |
+
+### Persistence inventory (Signal document)
+
+| Field | Classification |
+|-------|----------------|
+| `organizationId`, `clientId` | AUTHORITATIVE (SPEC-009 envelope) |
+| `routingDecision.*` | ROUTING_OWNED (current state) |
+| `thesisScores` | ROUTING_OWNED (per-thesis evidence) |
+| `thesisId` | LEGACY_COMPATIBILITY (mirror CLEAR selected only) |
+| `relevanceScore`, `priorityBand`, `scoreRationale`, `scoreBreakdown` | DERIVED (score snapshot) |
+| `whyNow` | DERIVED (adjacent explainability) |
+| `status`, `managerDecision` | OTHER_SPEC_OWNED (not set by routing writer) |
+| History store | Separate local collection — not embedded unbounded array |
 
 ---
 

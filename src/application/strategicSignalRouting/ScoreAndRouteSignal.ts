@@ -6,7 +6,14 @@ import {
   type MaterialRoutingDecision,
   type ThesisRoutingResult,
 } from '../../domain/thesisRoutingCore';
+import {
+  ROUTING_SYSTEM_ACTOR_ID,
+  createRoutingHistoryEntry,
+  isMaterialRoutingChange,
+  toRoutingHistorySnapshot,
+} from '../../domain/routingHistoryCore';
 import { StrategicRoutingError } from './errors';
+import { previousMaterialFromSignal } from './previousMaterial';
 import type { SignalReadPort } from './ports/SignalReadPort';
 import type { SignalWritePort } from './ports/SignalWritePort';
 import type { StrategicScoringPort } from './ports/StrategicScoringPort';
@@ -25,6 +32,7 @@ export interface ScoreAndRouteSignalResult {
   routing: ThesisRoutingResult;
   materialDecision: MaterialRoutingDecision;
   scoreResult: StrategicScoreResult;
+  historyWritten: boolean;
 }
 
 export interface ScoreAndRouteSignalDeps {
@@ -121,6 +129,7 @@ export function createScoreAndRouteSignal(deps: ScoreAndRouteSignalDeps) {
     }
     assertTenant(signal, input);
 
+    const previous = previousMaterialFromSignal(signal);
     const theses = deps.theses.getThesesForClient(input.clientId);
     const scoreFn = deps.scoring.createScoreFn(input.clientId, signal);
     const routing = routeSignalAcrossTheses(signal, theses, scoreFn, {
@@ -138,6 +147,7 @@ export function createScoreAndRouteSignal(deps: ScoreAndRouteSignalDeps) {
 
     const patch = routingSignalPatch(routing);
     const whyNow = deps.scoring.computeWhyNow(input.clientId, signal);
+    const materialDecision = toMaterialRoutingDecision(routing);
 
     const routingDecision: NonNullable<Signal['routingDecision']> = {
       contested: routing.contested,
@@ -148,6 +158,28 @@ export function createScoreAndRouteSignal(deps: ScoreAndRouteSignalDeps) {
       rationale: routing.rationale,
       routedAt: routing.routedAt,
     };
+
+    let historyEntry = undefined;
+    let historyWritten = false;
+    if (
+      previous &&
+      isMaterialRoutingChange(
+        toRoutingHistorySnapshot(previous),
+        toRoutingHistorySnapshot(materialDecision)
+      )
+    ) {
+      historyEntry = createRoutingHistoryEntry({
+        organizationId: input.organizationId,
+        clientId: input.clientId,
+        signalId: signal.id,
+        previous: toRoutingHistorySnapshot(previous),
+        next: toRoutingHistorySnapshot(materialDecision),
+        actorId: ROUTING_SYSTEM_ACTOR_ID,
+        changedAt: routing.routedAt,
+        rationale: routing.rationale,
+      });
+      historyWritten = true;
+    }
 
     try {
       deps.writer.persistStrategicRouting({
@@ -164,6 +196,7 @@ export function createScoreAndRouteSignal(deps: ScoreAndRouteSignalDeps) {
           reason: whyNow.reason,
         },
         scoreResult,
+        historyEntry,
       });
     } catch (err) {
       if (err instanceof StrategicRoutingError) throw err;
@@ -175,8 +208,9 @@ export function createScoreAndRouteSignal(deps: ScoreAndRouteSignalDeps) {
 
     return {
       routing,
-      materialDecision: toMaterialRoutingDecision(routing),
+      materialDecision,
       scoreResult,
+      historyWritten,
     };
   };
 }

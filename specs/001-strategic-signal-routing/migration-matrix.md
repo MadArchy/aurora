@@ -37,6 +37,17 @@ Phase 0 inventory baseline: 2026-08-23.
 
 ---
 
+## Persistence (Phase 3)
+
+| Surface | Status | Notes |
+|---------|--------|-------|
+| Signal current routing fields | **MIGRATED** | `routingDecision` + `thesisScores` + compatibility `thesisId` |
+| Material routing history | **IMPLEMENTED (local)** | `postura_signal_routing_history_v1`; Firestore path deferred (rules gap) |
+| Auto-DISCARD on routing write | **REMOVED** | `applyStrategicRoutingToSignal` |
+| UI/agent strategic consumers | **Phase 4** | unchanged |
+
+---
+
 ## Call-site matrix
 
 | Location | Pattern | Class | Migration | Notes |

@@ -11,5 +11,6 @@ export function createStrategicSignalRoutingUseCases(db: typeof dbService = dbSe
   return {
     scoreAndRouteSignal: createScoreAndRouteSignal(ports),
     overrideSignalThesis: createOverrideSignalThesis(ports),
+    history: ports.history,
   };
 }

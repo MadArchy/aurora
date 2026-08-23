@@ -1,5 +1,6 @@
 import type {
   PersistStrategicRoutingParams,
+  RoutingHistoryPort,
   SignalReadPort,
   SignalWritePort,
   StrategicScoringPort,
@@ -20,13 +21,18 @@ type DbFacade = typeof dbService;
 
 /**
  * Transitional strangler adapter: Application sees only ports.
- * Concrete dbService stays behind this infrastructure boundary (Phase 2).
+ * Concrete dbService stays behind this infrastructure boundary.
+ *
+ * Phase 3: current routing state syncs with Signal docs (existing SPEC-009 path).
+ * Routing history is local-authoritative (`postura_signal_routing_history_v1`)
+ * until SPEC-009 covers clients/{clientId}/signals/{signalId}/routingHistory/*.
  */
 export function createDbStrategicSignalRoutingPorts(db: DbFacade = dbService): {
   signals: SignalReadPort;
   theses: ThesisQueryPort;
   writer: SignalWritePort;
   scoring: StrategicScoringPort;
+  history: RoutingHistoryPort;
 } {
   const signals: SignalReadPort = {
     getSignalById: (signalId) => db.getSignalById(signalId),
@@ -44,8 +50,15 @@ export function createDbStrategicSignalRoutingPorts(db: DbFacade = dbService): {
         thesisScores: params.thesisScores,
         whyNow: params.whyNow,
         routingDecision: params.routingDecision,
+        organizationId: params.organizationId,
+        clientId: params.clientId,
+        historyEntry: params.historyEntry,
       });
     },
+  };
+
+  const history: RoutingHistoryPort = {
+    listHistoryForSignal: (signalId) => db.getSignalRoutingHistory(signalId),
   };
 
   function buildScoringContext(clientId: string): ScoringContext {
@@ -121,5 +134,5 @@ export function createDbStrategicSignalRoutingPorts(db: DbFacade = dbService): {
     },
   };
 
-  return { signals, theses, writer, scoring };
+  return { signals, theses, writer, scoring, history };
 }
