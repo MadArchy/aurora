@@ -6,7 +6,7 @@ Spec **DONE** solo con Required PASS + deploy aplicable.
 
 Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 
-**Governance:** Spec status **`APPROVED`** (human). Phase 0 **complete**. Phase 1–3 **PASS**. Phase 4 claims/SA/docs/scan **PASS**. Criteria marked ✅ below are proven by automated evidence and/or sanitized scan docs. **Do not** mark CODE_COMPLETE / DEPLOYED / DONE until later phases + deploy gates. **Do not start T-009-14e** until new human go-ahead.
+**Governance:** Spec status **`APPROVED`**. Implementation **`CODE_COMPLETE`** (T-009-15). Phases 0–4.1 **PASS**. F-009-A/B **RESOLVED**. **Repo rules ≠ production deployed rules** until T-009-16 backfill + T-009-18 deploy.
 
 ---
 
@@ -24,8 +24,8 @@ Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 | A8 | **Automated** Storage rules tests PASS (si Storage en scope DONE) | SEC-009-009, SEC-009-013 | ✅ Phase 3 (emulator) |
 | A9 | Provision **and** `setPosturaClaims` validate `organizationId` (no default tenant); + `clientId` for CLIENT | SEC-009-011 | ✅ Phase 4 |
 | A10 | SA fuera del repo tree; scanning ejecutado; rotation si exposición válida | SEC-009-012 | ✅ Phase 4.1 (external SA + in-repo copy removed; prep PASS; `secret:scan` rotation=NO) |
-| A11 | `npm run test:rules` PASS (Firestore; + Storage si no PARTIAL storage) | SEC-009-013 | **Firestore + Storage = PASS** · **Overall A11 = PASS** (emulator suite) |
-| A12 | `npm run check` PASS → **`CODE_COMPLETE`** elegible | governance | ☐ (CODE_COMPLETE not declared) |
+| A11 | `npm run test:rules` PASS (Firestore; + Storage si no PARTIAL storage) | SEC-009-013 | **Firestore 73 + Storage 18 = 91 PASS** · **Overall A11 = PASS** (incl. T-009-14e envelope + ADMIN CREATE integrity) |
+| A12 | `npm run check` PASS → **`CODE_COMPLETE`** elegible | governance | ✅ **PASS** (T-009-15; **286/286** check + **91/91** test:rules) |
 | A13 | Firestore rules **`DEPLOYED`** en proyecto objetivo | governance | ☐ |
 | A14 | Call sites piloto no rotos (writes/queries allowlisted) | SEC-009-014/015 | ☐ |
 | A14q | **same-org query/list allow** + **cross-org query/list deny**; `listFirestoreClientIds` uses tenant `where` (or equiv.) — **Rules are not filters** | SEC-009-014 | ✅ Phase 1 (rules + Q1 unit tests) |
@@ -35,7 +35,7 @@ Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 | A17t | **forged workflow timestamp deny** cuando la regla aplique | SEC-009-017 | ✅ Phase 2 |
 | A18 | Notifications: CLIENT CREATE **only** manager-alert flow with exact create allowlist; arbitrary CREATE deny; UPDATE only `read` | SEC-009-018 | ✅ Phase 2 |
 | A19 | signalOutcomes: CLIENT write deny (and read deny per freeze) | SEC-009-019 | ✅ Phase 2 |
-| A20 | Spec docs/metadata aligned; Phase 0 complete | governance | ☐ (docs OK; not automated evidence) |
+| A20 | Spec docs/metadata aligned; Phase 0 complete | governance | ✅ PASS (T-009-15 governance freeze) |
 | A21 | CLIENT modifies one allowed task/content/opportunity and the Firestore write batch **does not** include unauthorized manager-only resources | SEC-009-020, T-009-06p | ✅ Phase 2 |
 | A22 | No production UI write path uses a hardcoded tenant `organizationId` | T-009-06 | ✅ Phase 2 |
 | A23 | CLIENT may only execute documented Thesis approval/revision workflow; DENY modify of strategic fields | SEC-009-006 | ✅ Phase 2 |
@@ -70,29 +70,58 @@ Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 | A10 | prep-check PASS with external SA; in-repo SA absent; `npm run secret:scan` sanitized report | `scripts/firebase-prep-check.mjs`; `scripts/secret-scan.mjs`; `secret-exposure-review.md`; `docs/ops/firebase.md` |
 | A24 | `requires explicit organizationId`; `does not fall back to org_aurora_01`; writer matrix in inventory §H.2 | `tests/adminTenantEnvelope.test.ts`; `functions/src/lib/scheduledIngest.ts` |
 
-### Phase 3 evidence map (Storage automated)
+### Pre–CODE_COMPLETE follow-ups evidence
+
+| ID | Evidence | Source |
+|----|----------|--------|
+| F-009-A | MODEL B freeze; strip policy; content transition without stateHistory ALLOW; forged stateHistory DENY | `src/domain/contentHistoryPolicy.ts`; `tests/contentHistoryPolicy.test.ts`; `tests/firestore.rules.test.ts` |
+| F-009-B | single-diff thesis strategic helpers; multi-field pendingRevision ALLOW/DENY; A23 suite retained | `firestore.rules`; `tests/firestore.rules.test.ts` (`Thesis F-009-B …`) |
+
+### T-009-14e final envelope evidence
 
 | ID | Test name(s) | Source |
 |----|--------------|--------|
-| A7 | matrix in `storage.rules` + path/MIME/size/role cases below | `storage.rules`; `tests/storage.rules.test.ts` |
-| A8 / O2 | all `storage.rules (emulator) — SPEC-009 Phase 3` cases | `tests/storage.rules.test.ts` |
-| A11 | Firestore 52 + Storage 18 under `npm run test:rules` | `vitest.rules.config.ts` |
+| Envelope | `T-009-14e denormalized envelope` block | `tests/firestore.rules.test.ts` |
+| ADMIN CREATE integrity | `T-009-14e ADMIN CREATE referential integrity` (A–I): alien-path forged-org DENY; same-org ALLOW; CLIENT paths | `tests/firestore.rules.test.ts` |
+| Parent get classification | Normal tenant auth: **0** `get(`; ADMIN CREATE integrity: **1** (`parentClientDoc` → `clients/{clientId}`) | `firestore.rules` |
 
-### get(parent) — TEMPORARY (not final architecture)
+### Final authorization model (T-009-14e)
 
-Phase 1 uses `get(/clients/{clientId})` inside `sameOrgAsClient` / `ownsClient` for **all** `clients/{clientId}/**` matches that call those helpers. Allowed through Phases 2–4.
+| Operation | Model |
+|-----------|--------|
+| READ / UPDATE / DELETE (existing resources) | Denormalized immutable envelope on `resource.data` — **no parent get** |
+| CLIENT CREATE (subcollections) | `token.organizationId` + `token.clientId` + path + `request.resource` envelope — **no parent get** |
+| ADMIN CREATE (subcollections) | Request envelope + **`get(clients/{clientId}).organizationId == tokenOrg()`** (referential integrity only) |
+| Root `clients/{clientId}` CREATE | `organizationId` on request; no duplicated `clientId`; **no parent get** |
 
-**Final rules change (repo):** **T-009-14e** — switch to denormalized `resource.data.organizationId` / `clientId`; tests against envelope fixtures. **Must complete before T-009-15 `CODE_COMPLETE`.**
+Zero-lookups cannot prove path `clientId` ∈ token org at ADMIN CREATE time with the current Firestore path model; the parent lookup is an **explicit architectural exception**, not primary tenant authorization.
 
-**Prod data (not rules code):** **T-009-16** — backup → backfill → verify.
+### get(parent) — REMOVED for normal tenant auth (T-009-14e)
 
-**Deploy:** **T-009-18** — deploy the already-finalized rules. Must not change implementation after CODE_COMPLETE without Spec exception.
+Phase 1–4 used `get(/clients/{clientId})` inside `sameOrgAsClient` / `ownsClient`. **Removed.** Tenant authorization is denormalized: `resource.data.organizationId` (+ `clientId` on subcollections). Root `clients/{clientId}` uses path id for CLIENT ownership; no duplicated `clientId` field required.
+
+**Repo state:** final envelope rules in git. **Production:** still on prior deployed rules until T-009-16 backfill + T-009-18 deploy.
+
+### T-009-14 final security verification (2026-08-23)
+
+| Gate | Result |
+|------|--------|
+| SEC-009-001..020 | **PASS** (automated evidence where required) |
+| Acceptance A1–A11, A14q, A15–A24 | **PASS** |
+| A12 CODE_COMPLETE | **NOT declared** (T-009-15) |
+| A13 DEPLOYED | **NOT declared** |
+| A14 pilot call sites | **PENDING** (post-deploy smoke; non-blocking for code) |
+| A20 docs | **PASS** (spec/plan/inventory/migration aligned) |
+| `test:rules` | **91/91 PASS** |
+| `check` | **286/286 PASS** |
+| `secret:scan` | **rotation_required_overall=NO** |
+| CODE_COMPLETE readiness | **READY** (no implementation blockers) |
 
 ## Deploy gates (separados)
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| D1 | `CODE_COMPLETE` declarado (A11–A12 + **T-009-14e** + Required code items) | ☐ |
+| D1 | `CODE_COMPLETE` declarado (A11–A12 + **T-009-14e** + Required code items) | ✅ T-009-15 |
 | D2 | Migration dry-run + backfill + verification (`migration.md` / **T-009-16** — data only) | ☐ |
 | D3 | Claims reprovision + users re-login / token refresh | ☐ |
 | D4 | Firestore rules deployed (A13) — artifacts from T-009-14e | ☐ |
@@ -126,7 +155,7 @@ Phase 1 uses `get(/clients/{clientId})` inside `sameOrgAsClient` / `ownsClient` 
 | Reviewer | | | |
 
 **Result options (implementation):** `PASS` · `PARTIAL` · `FAIL` · `BLOCKED`  
-**Current:** Spec APPROVED · Phases 0–4 PASS · Phase 4.1 SA ops closure PASS (A10). T-009-14e / CODE_COMPLETE / DEPLOY not started. O1 Storage deploy PENDING.
+**Current:** Spec APPROVED · **Implementation CODE_COMPLETE** (T-009-15) · A13 DEPLOY / A14 smoke / O1 deploy **PENDING** · T-009-16 **NOT STARTED**.
 
 ### PARTIAL allowed when
 

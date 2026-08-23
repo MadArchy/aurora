@@ -2,7 +2,7 @@
 
 **Do not execute until Spec status is `APPROVED` and a human authorizes the migration window.**
 
-This document is the **data/deploy runbook** (T-009-16+). Rules/app implementation reaches final denormalized envelope at **T-009-14e**, then **T-009-15 `CODE_COMPLETE`**. This runbook must **not** change rules code after CODE_COMPLETE — only backup, backfill, verify, then deploy already-finalized artifacts.
+This document is the **data/deploy runbook** (T-009-16+). Rules/app implementation reached **`CODE_COMPLETE` at T-009-15**. This runbook must **not** change rules code — only backup, backfill, verify, then deploy already-finalized artifacts.
 
 ---
 
@@ -14,7 +14,7 @@ Habilitar rules org-scoped + envelope denormalizado (si el freeze lo exige) sin 
 
 - Spec `APPROVED`
 - T-009-00 / T-009-00c freeze (envelope strategy) complete
-- **T-009-14e DONE** — final denormalized envelope rules in repo (no primary `get(parent)`)
+- **T-009-14e DONE** — final denormalized envelope in repo; normal tenant auth has **no** parent get; **ADMIN CREATE** uses one referential-integrity `get(clients/{clientId})`
 - **T-009-15 `CODE_COMPLETE`** — tests green against those final rules
 - Backup completed (step 2)
 - SA credential usable vía path **externo** al repo (`GOOGLE_APPLICATION_CREDENTIALS`)
@@ -55,6 +55,41 @@ Deliverable for migration window: checklist de paths a backfillear + Firestore i
 ---
 
 ## 4. organizationId (envelope) backfill
+
+Backfill must produce documents matching **T-009-14e final rules** before deploy (T-009-18). Do **not** deploy strict final rules against unbackfilled production documents.
+
+### Backfill matrix (T-009-16)
+
+| Collection / path | organizationId | clientId | Derive organizationId from | Derive clientId from | Validation | Rollback |
+|-------------------|----------------|----------|----------------------------|----------------------|------------|----------|
+| `clients/{clientId}` | **required** | n/a (path id) | existing field; else claims/demo fixture org for that client | n/a | spot-check Q1 query; deny if null | redeploy old rules; extra fields usually safe |
+| `clients/{id}/sources` | **required** | **required** == path | parent `clients/{id}.organizationId` | path `{id}` | rules emulator sample post-backfill | same |
+| `clients/{id}/signals` | required | required | parent client doc | path | same | same |
+| `clients/{id}/curation` | required | required | parent | path | same | same |
+| `clients/{id}/theses` | required | required | parent | path | same | same |
+| `clients/{id}/recommendations` | **required (type gap)** | required | parent | path | count missing orgId | same |
+| `clients/{id}/campaigns` | required | required | parent | path | same | same |
+| `clients/{id}/campaignMilestones` | required | required | parent | path | same | same |
+| `clients/{id}/advices` | required | required | parent | path | same | same |
+| `clients/{id}/deliveries` | required | required | parent | path | same | same |
+| `clients/{id}/notifications` | **required (type gap)** | **required** | parent | path | CREATE rules require both | same |
+| `clients/{id}/tasks` | required | required | parent | path | same | same |
+| `clients/{id}/contents` | required | required | parent | path | same | same |
+| `clients/{id}/opportunities` | required | required | parent | path | same | same |
+| `clients/{id}/profile/data` | required | required | parent | path | same | same |
+| `clients/{id}/dossier/data` | required | required | parent | path | same | same |
+| `clients/{id}/evidence` | required | required | parent | path | same | same |
+| `clients/{id}/results` | required | required | parent | path | same | same |
+| `clients/{id}/feedbackEvents` | required | required | parent | path | same | same |
+| `clients/{id}/signalOutcomes` | required | required | parent | path | same | same |
+| `clients/{id}/proofWallItems` | required | required | parent | path | same | same |
+| `clients/{id}/aiRuns` | required | required | parent | path | same | same |
+
+**Strategy:** Idempotent merge-set `organizationId` and `clientId` where missing; never overwrite a correct value with a cross-org value. Dry-run reports: scanned / updated / skipped / errors.
+
+**CREATE parent integrity check:** independent of T-009-16 backfill (validates live parent client doc at ADMIN CREATE time).
+
+**Repo vs production:** Final rules exist in git after T-009-14e. Production deployment waits for backfill verification (step 5) then T-009-18.
 
 - Escribir `organizationId` (y `clientId` cuando aplique) en documentos tenant-scoped según freeze
 - Preservar valores existentes correctos; no overwrite cross-org
@@ -141,11 +176,12 @@ Si falla post-deploy:
 | External SA + prep-check | **COMPLETE** Phase 4 (T-009-11) |
 | Ops docs (refresh / gates) | **COMPLETE** Phase 4 (T-009-12) |
 | Secret scan (local) | **COMPLETE** Phase 4 (T-009-13) — see scan report; rotation decision documented |
-| Final envelope rules (no parent get) | **PENDING** T-009-14e |
+| Final envelope rules | **DONE** T-009-14e (repo only; not deployed; ADMIN CREATE integrity get documented) |
 | Backup | NOT EXECUTED |
 | Dry run | NOT EXECUTED |
 | Backfill | NOT EXECUTED |
-| Verification | NOT EXECUTED |
+| Verification (pre-deploy rules) | NOT EXECUTED (T-009-16) |
+| CODE_COMPLETE checkpoint (T-009-15) | **DONE** — implementation frozen; migration/deploy **NOT EXECUTED** |
 | Claims reprovision (prod) | NOT EXECUTED |
 | Token refresh (prod users) | NOT EXECUTED |
 | Rules deployment | NOT EXECUTED |

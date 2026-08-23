@@ -146,6 +146,45 @@ describe('firestore.rules (emulator) — SPEC-009 Phase 1', () => {
           createdBy: 'admin_uid',
         },
       });
+      await setDoc(doc(db, 'clients/client_juan_001/theses/th_rev_multi'), {
+        id: 'th_rev_multi',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        status: 'ACTIVE',
+        clientApprovalStatus: 'PENDING',
+        title: 'Multi Old',
+        expertIdentity: 'Multi Expert',
+        targetAudience: 'Multi Audience',
+        secondaryAudience: 'Sec Old',
+        domain: 'Multi Domain',
+        objective: 'Multi Objective',
+        differentiator: 'Diff Old',
+        voiceAndTone: 'formal',
+        complianceRules: 'old',
+        identityCurrent: 'Id Old',
+        perceptionTarget: 'Perc Old',
+        priority: 'MEDIUM',
+        audiences: [{ id: 'a1', name: 'A', tier: 'COMMERCIAL', weight: 40, keywords: [] }],
+        pendingRevision: {
+          proposed: {
+            title: 'Multi Proposed',
+            expertIdentity: 'Multi Expert New',
+            targetAudience: 'Multi Audience New',
+            secondaryAudience: 'Sec New',
+            domain: 'Multi Domain New',
+            objective: 'Multi Objective New',
+            differentiator: 'Diff New',
+            voiceAndTone: 'warm',
+            complianceRules: 'new',
+            identityCurrent: 'Id New',
+            perceptionTarget: 'Perc New',
+            priority: 'HIGH',
+            audiences: [{ id: 'a1', name: 'A New', tier: 'COMMERCIAL', weight: 70, keywords: ['k'] }],
+          },
+          createdAt: '2026-08-01T00:00:00Z',
+          createdBy: 'admin_uid',
+        },
+      });
       await setDoc(doc(db, 'clients/client_juan_001/profile/data'), {
         organizationId: ORG_ID,
         clientId: 'client_juan_001',
@@ -390,6 +429,7 @@ describe('firestore.rules (emulator) — SPEC-009 Phase 1', () => {
     await assertSucceeds(
       setDoc(doc(adminDb, 'clients/client_juan_001/aiRuns/run_1'), {
         id: 'run_1',
+        organizationId: ORG_ID,
         clientId: 'client_juan_001',
         agent: 'TOPIC_AGENT',
         status: 'SUCCESS',
@@ -401,6 +441,7 @@ describe('firestore.rules (emulator) — SPEC-009 Phase 1', () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'clients/client_juan_001/aiRuns/run_1'), {
         id: 'run_1',
+        organizationId: ORG_ID,
         clientId: 'client_juan_001',
         agent: 'TOPIC_AGENT',
         status: 'SUCCESS',
@@ -605,6 +646,97 @@ describe('firestore.rules (emulator) — SPEC-009 Phase 1', () => {
     );
   });
 
+  it('Thesis F-009-B single strategic field valid apply ALLOW', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'clients/client_juan_001/theses/th_one'), {
+        id: 'th_one',
+        organizationId: ORG_ID,
+        clientId: 'client_juan_001',
+        status: 'ACTIVE',
+        clientApprovalStatus: 'PENDING',
+        title: 'One Old',
+        audiences: ['A'],
+        pendingRevision: {
+          proposed: { title: 'One Proposed' },
+          createdAt: '2026-08-01T00:00:00Z',
+          createdBy: 'admin_uid',
+        },
+      });
+    });
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_one'), {
+        title: 'One Proposed',
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: 'juan_uid',
+        pendingRevision: null,
+      })
+    );
+  });
+
+  it('Thesis F-009-B multi-field apply with one mismatch DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_rev_multi'), {
+        title: 'Multi Proposed',
+        expertIdentity: 'Multi Expert New',
+        targetAudience: 'Multi Audience New',
+        secondaryAudience: 'Sec New',
+        domain: 'Multi Domain New',
+        objective: 'HACKED OBJECTIVE',
+        differentiator: 'Diff New',
+        voiceAndTone: 'warm',
+        complianceRules: 'new',
+        identityCurrent: 'Id New',
+        perceptionTarget: 'Perc New',
+        priority: 'HIGH',
+        audiences: [{ id: 'a1', name: 'A New', tier: 'COMMERCIAL', weight: 70, keywords: ['k'] }],
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: 'juan_uid',
+        pendingRevision: null,
+      })
+    );
+  });
+
+  it('Thesis F-009-B multiple strategic fields valid apply ALLOW', async () => {
+    await assertSucceeds(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_rev_multi'), {
+        title: 'Multi Proposed',
+        expertIdentity: 'Multi Expert New',
+        targetAudience: 'Multi Audience New',
+        secondaryAudience: 'Sec New',
+        domain: 'Multi Domain New',
+        objective: 'Multi Objective New',
+        differentiator: 'Diff New',
+        voiceAndTone: 'warm',
+        complianceRules: 'new',
+        identityCurrent: 'Id New',
+        perceptionTarget: 'Perc New',
+        priority: 'HIGH',
+        audiences: [{ id: 'a1', name: 'A New', tier: 'COMMERCIAL', weight: 70, keywords: ['k'] }],
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: 'juan_uid',
+        pendingRevision: null,
+      })
+    );
+  });
+
+  it('Thesis F-009-B no pendingRevision strategic edit DENY', async () => {
+    await assertFails(
+      updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_1'), {
+        title: 'No revision title',
+        clientApprovalStatus: 'APPROVED',
+        clientApprovedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: 'juan_uid',
+      })
+    );
+  });
+
   it('Thesis strategic-field modification DENY', async () => {
     await assertFails(
       updateDoc(doc(juanDb(), 'clients/client_juan_001/theses/th_1'), {
@@ -802,5 +934,226 @@ describe('firestore.rules (emulator) — SPEC-009 Phase 1', () => {
         clientId: 'client_juan_001',
       })
     );
+  });
+
+  describe('T-009-14e denormalized envelope', () => {
+    it('root clients/{clientId} read ALLOW without duplicated clientId field', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertSucceeds(getDoc(doc(adminDb, 'clients/client_juan_001')));
+    });
+
+    it('CREATE subcollection missing organizationId DENY', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(
+        setDoc(doc(adminDb, 'clients/client_juan_001/sources/src_no_org'), {
+          id: 'src_no_org',
+          clientId: 'client_juan_001',
+          title: 'No org',
+        })
+      );
+    });
+
+    it('CREATE subcollection missing clientId DENY', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(
+        setDoc(doc(adminDb, 'clients/client_juan_001/sources/src_no_client'), {
+          id: 'src_no_client',
+          organizationId: ORG_ID,
+          title: 'No clientId',
+        })
+      );
+    });
+
+    it('CREATE subcollection path clientId != document clientId DENY', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(
+        setDoc(doc(adminDb, 'clients/client_juan_001/sources/src_mismatch'), {
+          id: 'src_mismatch',
+          organizationId: ORG_ID,
+          clientId: 'client_elena_002',
+          title: 'Mismatch',
+        })
+      );
+    });
+
+    it('CREATE subcollection wrong organizationId DENY', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(
+        setDoc(doc(adminDb, 'clients/client_juan_001/sources/src_wrong_org'), {
+          id: 'src_wrong_org',
+          organizationId: OTHER_ORG,
+          clientId: 'client_juan_001',
+          title: 'Wrong org',
+        })
+      );
+    });
+
+    it('READ subcollection missing organizationId DENY', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'clients/client_juan_001/tasks/task_no_org'), {
+          id: 'task_no_org',
+          clientId: 'client_juan_001',
+          status: 'ASSIGNED',
+        });
+      });
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(getDoc(doc(adminDb, 'clients/client_juan_001/tasks/task_no_org')));
+    });
+
+    it('READ subcollection missing clientId DENY', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'clients/client_juan_001/tasks/task_no_client'), {
+          id: 'task_no_client',
+          organizationId: ORG_ID,
+          status: 'ASSIGNED',
+        });
+      });
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(getDoc(doc(adminDb, 'clients/client_juan_001/tasks/task_no_client')));
+    });
+
+    it('DELETE cross-org subcollection DENY (envelope on resource)', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(deleteDoc(doc(adminDb, 'clients/client_other_org/tasks/task_x')));
+    });
+  });
+
+  describe('T-009-14e ADMIN CREATE referential integrity', () => {
+    it('A: ADMIN same-org CREATE under own client path ALLOW', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertSucceeds(
+        setDoc(doc(adminDb, 'clients/client_juan_001/sources/src_ok'), {
+          id: 'src_ok',
+          organizationId: ORG_ID,
+          clientId: 'client_juan_001',
+          title: 'Valid same-org',
+        })
+      );
+    });
+
+    it('B: ADMIN org_A CREATE under alien client_B path DENY (forged token org in envelope)', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(
+        setDoc(doc(adminDb, 'clients/client_other_org/signals/sig_alien'), {
+          id: 'sig_alien',
+          organizationId: ORG_ID,
+          clientId: 'client_other_org',
+          title: 'Alien path forged org',
+        })
+      );
+    });
+
+    it('C: ADMIN cross-org CREATE with correct alien envelope DENY', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(
+        setDoc(doc(adminDb, 'clients/client_other_org/tasks/task_alien'), {
+          id: 'task_alien',
+          organizationId: OTHER_ORG,
+          clientId: 'client_other_org',
+          title: 'Cross-org honest envelope',
+          status: 'ASSIGNED',
+        })
+      );
+    });
+
+    it('D: CLIENT own-path CREATE ALLOW (manager-alert notification)', async () => {
+      await assertSucceeds(
+        setDoc(doc(juanDb(), 'clients/client_juan_001/notifications/ntf_client_ok'), {
+          id: 'ntf_client_ok',
+          organizationId: ORG_ID,
+          clientId: 'client_juan_001',
+          userId: 'manager_uid',
+          type: 'BRIEFING',
+          title: 'Cliente alerta',
+          body: 'OK',
+          read: false,
+          createdAt: serverTimestamp(),
+        })
+      );
+    });
+
+    it('E: CLIENT other-client path CREATE DENY', async () => {
+      const elenaDb = testEnv
+        .authenticatedContext('elena_uid', {
+          role: 'CLIENT',
+          organizationId: ORG_ID,
+          clientId: 'client_elena_002',
+        })
+        .firestore();
+      await assertFails(
+        setDoc(doc(elenaDb, 'clients/client_juan_001/feedbackEvents/fe_bad'), {
+          id: 'fe_bad',
+          organizationId: ORG_ID,
+          clientId: 'client_juan_001',
+          createdAt: serverTimestamp(),
+        })
+      );
+    });
+
+    it('F: READ remains envelope-only (no parent get on read)', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertSucceeds(getDoc(doc(adminDb, 'clients/client_juan_001/tasks/task_1')));
+    });
+
+    it('G: UPDATE remains envelope-only', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertSucceeds(
+        updateDoc(doc(adminDb, 'clients/client_juan_001/tasks/task_1'), { title: 'Admin edit' })
+      );
+    });
+
+    it('H: DELETE remains envelope-only', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'clients/client_juan_001/sources/src_del'), {
+          id: 'src_del',
+          organizationId: ORG_ID,
+          clientId: 'client_juan_001',
+          title: 'Delete me',
+        });
+      });
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertSucceeds(deleteDoc(doc(adminDb, 'clients/client_juan_001/sources/src_del')));
+    });
+
+    it('I: malformed envelope ADMIN CREATE DENY', async () => {
+      const adminDb = testEnv
+        .authenticatedContext('admin_uid', { role: 'ADMIN', organizationId: ORG_ID })
+        .firestore();
+      await assertFails(
+        setDoc(doc(adminDb, 'clients/client_juan_001/campaigns/cmp_bad'), {
+          id: 'cmp_bad',
+          clientId: 'client_juan_001',
+          title: 'Missing org',
+        })
+      );
+    });
   });
 });

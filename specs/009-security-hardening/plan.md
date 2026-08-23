@@ -243,11 +243,23 @@ Objetivo:
 
 | Gate | Significa |
 |------|-----------|
-| `CODE_COMPLETE` | Rules + callers + tests en repo verdes — **incluye T-009-14e** (final denormalized envelope rules; no primary `get(parent)`) |
+| `CODE_COMPLETE` | Rules + callers + tests en repo verdes — **incluye T-009-14e** (final envelope; normal auth without parent get; ADMIN CREATE integrity get only) |
 | `DEPLOYED` | After T-009-16 backfill verify: `firebase deploy` rules (+ storage si aplica) + claims reprovision en proyecto |
 | `DONE` | Acceptance Required PASS + DEPLOYED (o `PARTIAL` documentado) |
 
 **SDD:** Do not modify rules/app after `CODE_COMPLETE`. Sequence: **14e → 14 → 15 → 16 (data) → 17 → 18 (deploy)**.
+
+### CODE_COMPLETE freeze (T-009-15)
+
+| Field | Value |
+|-------|--------|
+| Branch | `spec/009-security-hardening` |
+| Status | **CODE_COMPLETE** |
+| Frozen suites | `test:rules` **91/91** · `check` **286/286** |
+| Frozen commit SHA | *(recorded at checkpoint commit)* |
+| Post-freeze changes | Only **CODE_COMPLETE BLOCKER FIX**, **MIGRATION DEFECT FIX**, **DEPLOYMENT DEFECT FIX**, **ROLLBACK FIX** — each requires full security suite rerun |
+
+**CODE_COMPLETE ≠ DEPLOYED.** Repo rules = final post-backfill model; production may still run prior deployed rules until T-009-16 + T-009-18.
 
 ## Risks & mitigations
 
@@ -288,8 +300,11 @@ Objetivo:
 | 2026-08-22 | setPosturaClaims/provision: missing organizationId → fail; no default tenant | **Frozen** |
 | 2026-08-22 | Notifications CREATE only manager-alert flow; arbitrary DENY; allowlist in T-009-04/05n | **Frozen** |
 | 2026-08-22 | Thesis CLIENT approval only; deny strategic fields (A23) | **Frozen** |
+| 2026-08-22 | **F-009-A MODEL B:** `pipelineStatus` + `updatedAt` canonical; `stateHistory` non-authoritative for CLIENT | **Frozen** |
+| 2026-08-22 | **F-009-B:** Thesis CLIENT UPDATE uses single `clientThesisUpdateOk()` (one diff); proposed-key-only value match; A23 multi-field regression; DENY by policy not expression-budget | **Frozen** |
 | 2026-08-22 | Admin SDK writers must write valid envelopes (T-009-10b) | **Frozen** |
-| 2026-08-22 | Phase 1: `get(parent)` for `sameOrgAsClient` = **TEMPORARY** through Phases 2–4 | **Accepted temporary** |
+| 2026-08-23 | **T-009-15 CODE_COMPLETE** declared on `spec/009-security-hardening` | **DONE** |
+| 2026-08-23 | **T-009-14e DONE:** denormalized envelope in repo; normal tenant auth parent get = 0 | **DONE (repo)** |
+| 2026-08-22 | Phase 1: `get(parent)` for `sameOrgAsClient` = **TEMPORARY** through Phases 2–4 | **Removed at T-009-14e** |
 | 2026-08-22 | **T-009-14e** finalizes denormalized envelope rules **before** T-009-15 CODE_COMPLETE; T-009-16 = prod backfill only; T-009-18 = deploy | **Governance frozen** |
-| | Recording byte cap numeric | **PENDING measure (Phase 3)** |
 | | Live prod missing-envelope doc counts | **PENDING dry-run** |

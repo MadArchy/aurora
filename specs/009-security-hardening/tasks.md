@@ -1,7 +1,7 @@
 # Tasks 009 — Security Hardening
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED`  
-Spec gate: **`APPROVED`**. Phase 0 **DONE**. Phase 1 **PASS**. Phase 2 **PASS**. Phase 3 **PASS**. Phase 4 **PASS** (claims/SA/docs/scan). **Do not start T-009-14e / Phase 5** until new human go-ahead.
+Spec gate: **`APPROVED`**. **Implementation `CODE_COMPLETE`** (T-009-15). Phases 0–4.1 **PASS**. **T-009-14e/14 DONE**. **Do not start T-009-16** without authorization.
 
 Requirement IDs: `SEC-009-001` … `SEC-009-020`.  
 Inventory: `specs/009-security-hardening/inventory.md`.  
@@ -24,7 +24,7 @@ Branch: `spec/009-security-hardening`.
 - [x] **T-009-03** `DONE` — Emulator tests: unauth deny; ADMIN same/cross-org; CLIENT own/other/cross-org; envelope create/update/delete denies (**21** tests).
 - [x] **T-009-03q** `DONE` — `listFirestoreClientIds` → auth-org `where`; arg must match auth org; unscoped list DENY tests.
 
-**Phase 1 note:** `sameOrgAsClient` uses **TEMPORARY** `get(parent)` through Phases 2–4. **Final rules switch** (denormalized envelope; no primary parent get) = **T-009-14e**, **before** T-009-14 / T-009-15 `CODE_COMPLETE`. **T-009-16** = prod backup/backfill/verify only — must **not** change rules implementation after CODE_COMPLETE.
+**Phase 1 note (historical):** `sameOrgAsClient` used **TEMPORARY** `get(parent)` through Phases 2–4. **Removed at T-009-14e** — denormalized envelope is final in repo. **T-009-16** = prod backfill only; **T-009-18** = deploy.
 
 ## Phase 2 — Field-level, state transitions, timestamps, notifications, outcomes
 
@@ -45,8 +45,8 @@ Branch: `spec/009-security-hardening`.
 
 ### Pre–CODE_COMPLETE follow-ups (mandatory — do not skip before T-009-14/15)
 
-- [ ] **F-009-A** `TODO` — **Trusted content history:** decide before CODE_COMPLETE whether (1) a trusted server/system writer persists `stateHistory`, or (2) `stateHistory` is formally not required for CLIENT transitions and `updatedAt` is the canonical audit clock. No silent history loss (Phase 2 stripped CLIENT `stateHistory` writes).
-- [ ] **F-009-B** `TODO` — **Firestore rule complexity:** simplify Thesis rule helpers before CODE_COMPLETE so DENY/ALLOW paths stay under evaluation limits; add regression tests (Phase 2 hit ~1000-expression cap on some DENY paths).
+- [x] **F-009-A** `RESOLVED` — **MODEL B:** `pipelineStatus` = canonical workflow state; `updatedAt` = trusted audit clock; `stateHistory` non-authoritative / not CLIENT-persisted. Evidence: usage inventory + `tests/contentHistoryPolicy.test.ts` + existing content transition without stateHistory ALLOW.
+- [x] **F-009-B** `RESOLVED` — Thesis strategic helpers use **one** `changedKeys()`/diff; approval transition checked before strategic apply; multi-field pendingRevision regression tests added (A23 preserved).
 - [x] **F-009-C** `DONE` (Phase 4 / T-009-10) — No default tenant: `parsePosturaClaims` / `auth.toUser` / provision / `setPosturaClaims` fail closed when `organizationId` missing.
 
 ## Phase 4 — Claims, secrets, scanning, docs
@@ -62,9 +62,9 @@ Branch: `spec/009-security-hardening`.
 
 **SDD gate:** Do **not** change rules/app implementation after declaring **`CODE_COMPLETE`**. Prod backfill (**T-009-16**) and deploy (**T-009-18**) operate on already-finalized repo artifacts.
 
-- [ ] **T-009-14e** `TODO` — **Finalize denormalized security envelope rules:** replace TEMPORARY `get(parent)` in `sameOrgAsClient` / `ownsClient` with primary checks on denormalized `resource.data.organizationId` (+ `clientId` where applicable). Emulator fixtures/tests must use envelope docs. Spec freeze: no primary parent get. **Required before T-009-14 / T-009-15.**
-- [ ] **T-009-14** `TODO` — `npm run test:rules` PASS against **final** envelope rules (Firestore; Storage si no PARTIAL) (SEC-009-013).
-- [ ] **T-009-15** `TODO` — `npm run check` PASS → candidacy **`CODE_COMPLETE`** (only after T-009-14e + T-009-14).
+- [x] **T-009-14e** `DONE` — **Finalize denormalized security envelope rules:** existing-resource auth = envelope only (no parent get). **ADMIN CREATE** adds narrowly scoped `get(clients/{clientId})` referential-integrity check (`adminCreateParentClientOrgOk`). CLIENT CREATE = token/path/request envelope only. Helpers: `rootClientReadable`, `existingSubEnvelopeValid`, `createSubEnvelopeValid`, `adminCreateSub`, `clientCreateSub`, `adminWriteSub`, `adminDeleteSub`, `ownsSubResource`. **91** rules tests PASS. **Repo rules ≠ production deployed rules** until T-009-18.
+- [x] **T-009-14** `DONE` — Final security verification audit: SEC-009-001..020 traceability PASS (automated where required); acceptance A1–A11, A14q, A15–A24 PASS; A12/A13/A14 not declared; **91/91** `test:rules` + **286/286** `check` green; no implementation blockers before T-009-15.
+- [x] **T-009-15** `DONE` — **`CODE_COMPLETE` declared** on branch `spec/009-security-hardening`. Frozen suites: **91/91** `test:rules`, **286/286** `check`. **No further normal SPEC-009 implementation** without classified blocker fix + full security suite rerun.
 - [ ] **T-009-16** `TODO` — Ejecutar `migration.md` **data path only** (backup → dry-run → backfill → verify) según autorización. **No rules code change here.**
 - [ ] **T-009-17** `TODO` — Claims reprovision + obligatoriedad re-login / token refresh.
 - [ ] **T-009-18** `TODO` — `firebase deploy --only firestore:rules` (rules already finalized at T-009-14e) → progreso **`DEPLOYED`** (Firestore).

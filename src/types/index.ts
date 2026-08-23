@@ -566,6 +566,11 @@ export interface ContentStateHistoryEntry {
   comment?: string;
 }
 
+/**
+ * ContentItem.stateHistory is **non-authoritative** (SPEC-009 F-009-A MODEL B).
+ * Canonical workflow = pipelineStatus; trusted clock = updatedAt.
+ * Optional local/admin memory only; CLIENT Firestore writes strip it.
+ */
 export interface ContentItem {
   id: string;
   organizationId: string;

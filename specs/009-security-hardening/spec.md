@@ -345,4 +345,13 @@ Ver `migration.md` (inventory → backfill → claims → deploy → rollback). 
 | Hardcoded org removal | inventory §I | T-009-06 | A22 |
 | Admin SDK envelope | scheduledIngest et al. | T-009-10b | **A24** |
 | Governance CODE_COMPLETE vs DEPLOYED | lifecycle | T-009-14e → 14 → 15 → 16..19 | A12–A13, deploy section |
-| Finalize denormalized envelope (remove primary get(parent)) | before CODE_COMPLETE | T-009-14e | inventory §F |
+| Finalize denormalized envelope + ADMIN CREATE integrity | before CODE_COMPLETE | T-009-14e | inventory §F |
+
+### Final authorization model (T-009-14e)
+
+- **Existing resources:** denormalized immutable `organizationId` (+ `clientId` on subs) on `resource.data` — no parent get.
+- **CLIENT CREATE:** token org + token clientId + path + request envelope must agree — no parent get.
+- **ADMIN CREATE (subs):** request envelope + `get(clients/{clientId}).organizationId == tokenOrg()` — referential integrity only; not primary tenant auth.
+- **Root client CREATE:** `organizationId` required; no duplicated `clientId`; no parent get.
+
+Why: zero lookups cannot prove path `clientId` belongs to ADMIN org at CREATE time with the current path model.

@@ -1,14 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // --- SPEC-009 Phase 1+2 helpers ---
+    // --- SPEC-009 T-009-14e: denormalized envelope + ADMIN CREATE integrity ---
     //
-    // TEMPORARY: sameOrgAsClient / ownsClient resolve organization via
-    // get(/clients/{clientId}) (parent lookup). Allowed through Phases 2–4.
-    // FINAL rules switch = T-009-14e (denormalized organizationId (+ clientId)
-    // on resource.data) BEFORE T-009-15 CODE_COMPLETE. T-009-16 = prod backfill
-    // only; T-009-18 = deploy. Parent get must NOT remain primary after 14e
-    // without a documented Spec exception.
+    // Existing resources (READ/UPDATE/DELETE): resource.data envelope only — no parent get.
+    // CLIENT CREATE: token + path + request.resource envelope — no parent get.
+    // ADMIN CREATE (subcollections): request envelope + one parent get proving
+    // clients/{clientId}.organizationId == tokenOrg() (referential integrity only).
+    // Root clients/{clientId} CREATE: no parent (no parent client document).
 
     function signedIn() {
       return request.auth != null;
@@ -30,27 +29,65 @@ service cloud.firestore {
       return isAdmin() && tokenOrg() != null && tokenOrg() == orgId;
     }
 
-    function clientDoc(clientId) {
+    /** Root clients/{clientId}: organizationId only (clientId = path id). */
+    function rootClientReadable(clientId) {
+      return signedIn() && tokenOrg() != null
+        && resource.data.keys().hasAll(['organizationId'])
+        && resource.data.organizationId == tokenOrg()
+        && (isAdmin() || (isClient() && request.auth.token.clientId == clientId));
+    }
+
+    /** Subcollection doc envelope on existing resource (READ/UPDATE/DELETE). */
+    function existingSubEnvelopeValid(pathClientId) {
+      return signedIn() && tokenOrg() != null
+        && resource.data.keys().hasAll(['organizationId', 'clientId'])
+        && resource.data.organizationId == tokenOrg()
+        && resource.data.clientId == pathClientId
+        && (isAdmin() || (isClient() && request.auth.token.clientId == pathClientId));
+    }
+
+    /** CREATE envelope for clients/{clientId}/... subcollections. */
+    function createSubEnvelopeValid(pathClientId) {
+      return signedIn() && tokenOrg() != null
+        && request.resource.data.keys().hasAll(['organizationId', 'clientId'])
+        && request.resource.data.organizationId == tokenOrg()
+        && request.resource.data.clientId == pathClientId
+        && (isAdmin() || (isClient() && request.auth.token.clientId == pathClientId));
+    }
+
+    /** ADMIN CREATE referential integrity: path client belongs to token org. */
+    function parentClientDoc(clientId) {
       return get(/databases/$(database)/documents/clients/$(clientId));
     }
 
-    function clientOrg(clientId) {
-      return clientDoc(clientId).data.organizationId;
+    function adminCreateParentClientOrgOk(clientId) {
+      return parentClientDoc(clientId).data.keys().hasAll(['organizationId'])
+        && parentClientDoc(clientId).data.organizationId == tokenOrg();
     }
 
-    function sameOrgAsClient(clientId) {
-      return signedIn()
-        && tokenOrg() != null
-        && clientDoc(clientId).data.keys().hasAll(['organizationId'])
-        && tokenOrg() == clientOrg(clientId);
+    /** ADMIN subcollection CREATE: envelope + parent-client org integrity. */
+    function adminCreateSub(pathClientId) {
+      return isAdmin()
+        && createSubEnvelopeValid(pathClientId)
+        && adminCreateParentClientOrgOk(pathClientId);
     }
 
-    /** ADMIN same-org, or CLIENT owning this clientId within same org. */
-    function ownsClient(clientId) {
-      return sameOrgAsClient(clientId) && (
-        isAdmin()
-        || (isClient() && request.auth.token.clientId == clientId)
-      );
+    /** CLIENT subcollection CREATE: token/path/request envelope only. */
+    function clientCreateSub(pathClientId) {
+      return isClient()
+        && createSubEnvelopeValid(pathClientId);
+    }
+
+    function adminWriteSub(pathClientId) {
+      return isAdmin() && existingSubEnvelopeValid(pathClientId) && preservesEnvelope();
+    }
+
+    function adminDeleteSub(pathClientId) {
+      return isAdmin() && existingSubEnvelopeValid(pathClientId);
+    }
+
+    function ownsSubResource(pathClientId) {
+      return existingSubEnvelopeValid(pathClientId);
     }
 
     function envelopeMatches(data) {
@@ -64,6 +101,14 @@ service cloud.firestore {
             && data.clientId == request.auth.token.clientId
           )
         );
+    }
+
+    /** Root clients/{clientId} CREATE (organizationId required; no duplicated clientId). */
+    function createRootClientEnvelopeValid() {
+      return isAdmin()
+        && tokenOrg() != null
+        && request.resource.data.keys().hasAll(['organizationId'])
+        && request.resource.data.organizationId == tokenOrg();
     }
 
     function createEnvelopeValid() {
@@ -92,14 +137,6 @@ service cloud.firestore {
         || request.resource.data[field] == request.time;
     }
 
-    function adminWriteClientScoped(clientId) {
-      return isAdmin() && sameOrgAsClient(clientId) && preservesEnvelope();
-    }
-
-    function adminCreateClientScoped(clientId) {
-      return isAdmin() && sameOrgAsClient(clientId);
-    }
-
     // --- Phase 2: CLIENT field allowlists (T-009-04) ---
 
     function clientClientDocKeys() {
@@ -122,8 +159,8 @@ service cloud.firestore {
       return [
         'title', 'body', 'clientFeedback', 'clientReviewBaseline',
         'pipelineStatus', 'status', 'updatedAt'
-        // stateHistory: CLIENT cannot mutate (Firestore forbids serverTimestamp in arrays;
-        // trusted audit clock is document updatedAt). Stripped on CLIENT persist.
+        // F-009-A MODEL B: stateHistory is non-authoritative; CLIENT must not mutate.
+        // Canonical workflow = pipelineStatus; trusted clock = updatedAt.
       ];
     }
 
@@ -205,8 +242,7 @@ service cloud.firestore {
     }
 
     function clientContentStateHistoryOk() {
-      // CLIENT must not change stateHistory. Platform cannot embed serverTimestamp in arrays;
-      // forged history clocks are denied by excluding the field from the CLIENT allowlist.
+      // F-009-A MODEL B: stateHistory non-authoritative; deny any CLIENT mutation.
       return !changedKeys().hasAny(['stateHistory']);
     }
 
@@ -242,39 +278,55 @@ service cloud.firestore {
         );
     }
 
-    /** Changed strategic fields must equal pendingRevision.proposed (no arbitrary Y). */
-    function thesisStrategicFieldMatchesProposed(field) {
-      return !changedKeys().hasAny([field])
-        || (
-          resource.data.pendingRevision.proposed.keys().hasAny([field])
-          && request.resource.data[field] == resource.data.pendingRevision.proposed[field]
-        );
+    /** Strategic keys changed outside pendingRevision.proposed → DENY. */
+    function thesisNoStrategicOutsideProposed(ch, pk) {
+      return (!ch.hasAny(['title']) || pk.hasAny(['title']))
+        && (!ch.hasAny(['expertIdentity']) || pk.hasAny(['expertIdentity']))
+        && (!ch.hasAny(['targetAudience']) || pk.hasAny(['targetAudience']))
+        && (!ch.hasAny(['secondaryAudience']) || pk.hasAny(['secondaryAudience']))
+        && (!ch.hasAny(['domain']) || pk.hasAny(['domain']))
+        && (!ch.hasAny(['objective']) || pk.hasAny(['objective']))
+        && (!ch.hasAny(['proofPoints']) || pk.hasAny(['proofPoints']))
+        && (!ch.hasAny(['differentiator']) || pk.hasAny(['differentiator']))
+        && (!ch.hasAny(['voiceAndTone']) || pk.hasAny(['voiceAndTone']))
+        && (!ch.hasAny(['complianceRules']) || pk.hasAny(['complianceRules']))
+        && (!ch.hasAny(['identityCurrent']) || pk.hasAny(['identityCurrent']))
+        && (!ch.hasAny(['perceptionTarget']) || pk.hasAny(['perceptionTarget']))
+        && (!ch.hasAny(['audiences']) || pk.hasAny(['audiences']))
+        && (!ch.hasAny(['territories']) || pk.hasAny(['territories']))
+        && (!ch.hasAny(['objectives']) || pk.hasAny(['objectives']))
+        && (!ch.hasAny(['voiceProfile']) || pk.hasAny(['voiceProfile']))
+        && (!ch.hasAny(['limits']) || pk.hasAny(['limits']))
+        && (!ch.hasAny(['priority']) || pk.hasAny(['priority']));
     }
 
-    function thesisStrategicApplyMatchesProposed() {
-      return thesisStrategicFieldMatchesProposed('title')
-        && thesisStrategicFieldMatchesProposed('expertIdentity')
-        && thesisStrategicFieldMatchesProposed('targetAudience')
-        && thesisStrategicFieldMatchesProposed('secondaryAudience')
-        && thesisStrategicFieldMatchesProposed('domain')
-        && thesisStrategicFieldMatchesProposed('objective')
-        && thesisStrategicFieldMatchesProposed('proofPoints')
-        && thesisStrategicFieldMatchesProposed('differentiator')
-        && thesisStrategicFieldMatchesProposed('voiceAndTone')
-        && thesisStrategicFieldMatchesProposed('complianceRules')
-        && thesisStrategicFieldMatchesProposed('identityCurrent')
-        && thesisStrategicFieldMatchesProposed('perceptionTarget')
-        && thesisStrategicFieldMatchesProposed('audiences')
-        && thesisStrategicFieldMatchesProposed('territories')
-        && thesisStrategicFieldMatchesProposed('objectives')
-        && thesisStrategicFieldMatchesProposed('voiceProfile')
-        && thesisStrategicFieldMatchesProposed('limits')
-        && thesisStrategicFieldMatchesProposed('priority');
+    /** Only keys present in proposed are value-checked (no arbitrary Y). */
+    function thesisAllProposedApplied(p, pk) {
+      return (!pk.hasAny(['title']) || request.resource.data.title == p.title)
+        && (!pk.hasAny(['expertIdentity']) || request.resource.data.expertIdentity == p.expertIdentity)
+        && (!pk.hasAny(['targetAudience']) || request.resource.data.targetAudience == p.targetAudience)
+        && (!pk.hasAny(['secondaryAudience']) || request.resource.data.secondaryAudience == p.secondaryAudience)
+        && (!pk.hasAny(['domain']) || request.resource.data.domain == p.domain)
+        && (!pk.hasAny(['objective']) || request.resource.data.objective == p.objective)
+        && (!pk.hasAny(['proofPoints']) || request.resource.data.proofPoints == p.proofPoints)
+        && (!pk.hasAny(['differentiator']) || request.resource.data.differentiator == p.differentiator)
+        && (!pk.hasAny(['voiceAndTone']) || request.resource.data.voiceAndTone == p.voiceAndTone)
+        && (!pk.hasAny(['complianceRules']) || request.resource.data.complianceRules == p.complianceRules)
+        && (!pk.hasAny(['identityCurrent']) || request.resource.data.identityCurrent == p.identityCurrent)
+        && (!pk.hasAny(['perceptionTarget']) || request.resource.data.perceptionTarget == p.perceptionTarget)
+        && (!pk.hasAny(['audiences']) || request.resource.data.audiences == p.audiences)
+        && (!pk.hasAny(['territories']) || request.resource.data.territories == p.territories)
+        && (!pk.hasAny(['objectives']) || request.resource.data.objectives == p.objectives)
+        && (!pk.hasAny(['voiceProfile']) || request.resource.data.voiceProfile == p.voiceProfile)
+        && (!pk.hasAny(['limits']) || request.resource.data.limits == p.limits)
+        && (!pk.hasAny(['priority']) || request.resource.data.priority == p.priority);
     }
 
-    function clientThesisStrategicOk() {
-      return !changedKeys().hasAny(thesisStrategicKeys())
-        || (thesisApplyingRevision() && thesisStrategicApplyMatchesProposed());
+    function thesisStrategicApplyMatchesProposed(ch) {
+      let p = resource.data.pendingRevision.proposed;
+      let pk = p.keys();
+      return thesisNoStrategicOutsideProposed(ch, pk)
+        && thesisAllProposedApplied(p, pk);
     }
 
     function clientThesisApprovalTransitionOk() {
@@ -291,6 +343,22 @@ service cloud.firestore {
         || (oldA == 'PENDING' && newA == 'CHANGES_REQUESTED')
         || (oldS == 'UNDER_REVIEW' && newS == 'DRAFT' && newA == 'CHANGES_REQUESTED')
         || (oldS == newS && oldA == newA);
+    }
+
+    /**
+     * F-009-B: one affectedKeys() for the whole CLIENT thesis UPDATE path.
+     * Avoids repeated diff() from onlyChanged + strategic + trustedTime helpers.
+     */
+    function clientThesisUpdateOk() {
+      let ch = request.resource.data.diff(resource.data).affectedKeys();
+      return ch.hasOnly(clientThesisKeys())
+        && clientThesisApprovalTransitionOk()
+        && (
+          !ch.hasAny(thesisStrategicKeys())
+          || (thesisApplyingRevision() && thesisStrategicApplyMatchesProposed(ch))
+        )
+        && (!ch.hasAny(['clientApprovedAt']) || request.resource.data.clientApprovedAt == request.time)
+        && (!ch.hasAny(['updatedAt']) || request.resource.data.updatedAt == request.time);
     }
 
     function clientProfileKeys() {
@@ -343,18 +411,19 @@ service cloud.firestore {
     }
 
     match /clients/{clientId} {
-      allow get: if ownsClient(clientId);
+      allow get: if rootClientReadable(clientId);
       allow list: if signedIn()
         && tokenOrg() != null
         && resource.data.organizationId == tokenOrg()
         && (isAdmin() || request.auth.token.clientId == clientId);
-      allow create: if isAdmin() && createEnvelopeValid();
+      allow create: if createRootClientEnvelopeValid();
       allow update: if preservesEnvelope() && (
         (isAdmin() && adminOfOrg(resource.data.organizationId))
         || (
           isClient()
           && request.auth.token.clientId == clientId
-          && sameOrgAsClient(clientId)
+          && resource.data.keys().hasAll(['organizationId'])
+          && resource.data.organizationId == tokenOrg()
           && onlyChanged(clientClientDocKeys())
           && trustedTimeOrUnchanged('updatedAt')
         )
@@ -362,71 +431,63 @@ service cloud.firestore {
       allow delete: if isAdmin() && adminOfOrg(resource.data.organizationId);
     }
 
-    // --- Manager-only (radar, curación, fuentes) ---
     match /clients/{clientId}/sources/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/signals/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/curation/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/theses/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
-      allow update: if ownsClient(clientId) && preservesEnvelope() && (
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
+      allow update: if ownsSubResource(clientId) && preservesEnvelope() && (
         isAdmin()
-        || (
-          isClient()
-          && onlyChanged(clientThesisKeys())
-          && clientThesisStrategicOk()
-          && clientThesisApprovalTransitionOk()
-          && trustedTimeOrUnchanged('clientApprovedAt')
-          && trustedTimeOrUnchanged('updatedAt')
-        )
+        || (isClient() && clientThesisUpdateOk())
       );
     }
     match /clients/{clientId}/recommendations/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/campaigns/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/campaignMilestones/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/advices/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
 
     match /clients/{clientId}/deliveries/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
-      allow update: if ownsClient(clientId) && preservesEnvelope() && (
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
+      allow update: if ownsSubResource(clientId) && preservesEnvelope() && (
         isAdmin()
         || (
           isClient()
@@ -437,28 +498,27 @@ service cloud.firestore {
     }
 
     match /clients/{clientId}/notifications/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if ownsClient(clientId) && (
-        (isAdmin() && sameOrgAsClient(clientId)
-          && request.resource.data.keys().hasAll(['organizationId', 'clientId', 'type', 'title', 'body', 'read', 'createdAt'])
-          && request.resource.data.organizationId == tokenOrg()
-          && request.resource.data.clientId == clientId
+      allow read: if ownsSubResource(clientId);
+      allow create: if createSubEnvelopeValid(clientId) && (
+        (isAdmin()
+          && adminCreateParentClientOrgOk(clientId)
+          && request.resource.data.keys().hasAll(['type', 'title', 'body', 'read', 'createdAt'])
           && request.resource.data.read == false
           && request.resource.data.createdAt == request.time)
         || (isClient() && managerAlertNotificationCreate(clientId))
       );
-      allow update: if ownsClient(clientId) && (
-        (isAdmin() && sameOrgAsClient(clientId) && preservesEnvelope())
+      allow update: if ownsSubResource(clientId) && (
+        (isAdmin() && preservesEnvelope())
         || (isClient() && clientNotificationUpdateOk())
       );
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
 
     match /clients/{clientId}/tasks/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
-      allow update: if ownsClient(clientId) && preservesEnvelope() && (
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
+      allow update: if ownsSubResource(clientId) && preservesEnvelope() && (
         isAdmin()
         || (
           isClient()
@@ -472,10 +532,10 @@ service cloud.firestore {
     }
 
     match /clients/{clientId}/contents/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
-      allow update: if ownsClient(clientId) && preservesEnvelope() && (
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
+      allow update: if ownsSubResource(clientId) && preservesEnvelope() && (
         isAdmin()
         || (
           isClient()
@@ -489,10 +549,10 @@ service cloud.firestore {
     }
 
     match /clients/{clientId}/opportunities/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
-      allow update: if ownsClient(clientId) && preservesEnvelope() && (
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
+      allow update: if ownsSubResource(clientId) && preservesEnvelope() && (
         isAdmin()
         || (
           isClient()
@@ -506,8 +566,20 @@ service cloud.firestore {
     }
 
     match /clients/{clientId}/profile/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create, update: if ownsClient(clientId) && preservesEnvelope() && (
+      allow read: if ownsSubResource(clientId);
+      allow create: if createSubEnvelopeValid(clientId) && (
+        (isAdmin() && adminCreateParentClientOrgOk(clientId))
+        || (
+          isClient()
+          && request.auth.token.clientId == clientId
+          && request.resource.data.keys().hasOnly(clientProfileKeys())
+          && request.resource.data.keys().hasAll(['organizationId', 'clientId'])
+          && request.resource.data.organizationId == tokenOrg()
+          && request.resource.data.clientId == clientId
+          && trustedTimeOrUnchanged('updatedAt')
+        )
+      );
+      allow update: if existingSubEnvelopeValid(clientId) && preservesEnvelope() && (
         isAdmin()
         || (
           isClient()
@@ -516,66 +588,64 @@ service cloud.firestore {
           && request.resource.data.keys().hasAll(['organizationId', 'clientId'])
           && request.resource.data.organizationId == tokenOrg()
           && request.resource.data.clientId == clientId
-          && (!resource.data.keys().hasAny(['organizationId'])
-            || request.resource.data.organizationId == resource.data.organizationId)
-          && (!resource.data.keys().hasAny(['clientId'])
-            || request.resource.data.clientId == resource.data.clientId)
+          && request.resource.data.organizationId == resource.data.organizationId
+          && request.resource.data.clientId == resource.data.clientId
           && trustedTimeOrUnchanged('updatedAt')
         )
       );
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/dossier/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
 
     match /clients/{clientId}/evidence/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if ownsClient(clientId) && createEnvelopeValid()
-        && request.resource.data.clientId == clientId
-        && request.resource.data.createdAt == request.time;
-      allow update: if isAdmin() && sameOrgAsClient(clientId) && preservesEnvelope();
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if request.resource.data.createdAt == request.time && (
+        adminCreateSub(clientId) || clientCreateSub(clientId)
+      );
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/results/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if ownsClient(clientId) && createEnvelopeValid()
-        && request.resource.data.clientId == clientId
-        && request.resource.data.createdAt == request.time;
-      allow update: if isAdmin() && sameOrgAsClient(clientId) && preservesEnvelope();
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if request.resource.data.createdAt == request.time && (
+        adminCreateSub(clientId) || clientCreateSub(clientId)
+      );
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/feedbackEvents/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if ownsClient(clientId) && createEnvelopeValid()
-        && request.resource.data.clientId == clientId
-        && request.resource.data.createdAt == request.time;
-      allow update: if isAdmin() && sameOrgAsClient(clientId) && preservesEnvelope();
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if request.resource.data.createdAt == request.time && (
+        adminCreateSub(clientId) || clientCreateSub(clientId)
+      );
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
 
     // SEC-009-019: CLIENT deny read + write; feedback via feedbackEvents
     match /clients/{clientId}/signalOutcomes/{docId} {
-      allow read: if isAdmin() && sameOrgAsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if isAdmin() && existingSubEnvelopeValid(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
     match /clients/{clientId}/proofWallItems/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
 
     match /clients/{clientId}/aiRuns/{docId} {
-      allow read: if ownsClient(clientId);
-      allow create: if adminCreateClientScoped(clientId);
-      allow update: if adminWriteClientScoped(clientId);
-      allow delete: if isAdmin() && sameOrgAsClient(clientId);
+      allow read: if ownsSubResource(clientId);
+      allow create: if adminCreateSub(clientId);
+      allow update: if adminWriteSub(clientId);
+      allow delete: if adminDeleteSub(clientId);
     }
 
     match /auditLogs/{logId} {

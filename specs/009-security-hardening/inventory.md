@@ -149,7 +149,22 @@ Also: `notifyManager` → notification CREATE under same client.
 
 | Fields | Pipeline transitions CLIENT | Timestamps |
 |--------|----------------------------|------------|
-| `title`, `body`, `clientFeedback`, `clientReviewBaseline`, `pipelineStatus`, `status`, `stateHistory`, `updatedAt` | article: `sent_to_client`↔`client_in_progress`/`client_submitted`; video submit from `sent_to_client`\|`client_in_progress`\|`client_submitted` → `manager_finalizing` (see frozen matrix in `spec.md`) | `updatedAt`, history `at` ISO |
+| `title`, `body`, `clientFeedback`, `clientReviewBaseline`, `pipelineStatus`, `status`, `updatedAt` | article: `sent_to_client`↔`client_in_progress`/`client_submitted`; video submit from `sent_to_client`\|`client_in_progress`\|`client_submitted` → `manager_finalizing` | `updatedAt` (trusted serverTimestamp) |
+
+**F-009-A MODEL B (frozen):** `stateHistory` is **non-authoritative**. Canonical workflow state = `pipelineStatus`; trusted audit clock = `updatedAt`. CLIENT Firestore persist strips `stateHistory`; Rules deny CLIENT mutation. Local `db.transitionContentPipeline` may still append history in-memory for admin/local UX only — not a CLIENT security audit trail. Future server-managed append-only transitions are out of SPEC-009 scope unless product requires them later.
+
+#### stateHistory usage inventory (F-009-A)
+
+| File | Function / site | R/W | UI dep | Business dep | Audit dep |
+|------|-----------------|-----|--------|--------------|-----------|
+| `src/types/index.ts` | `ContentStateHistoryEntry`, `ContentItem.stateHistory?` | type | no | optional field | schema only |
+| `src/services/db.ts` | `transitionContentPipeline` | W (local append) | no | local memory only | local ISO clock (not trusted Firestore) |
+| `src/services/db.ts` | `migrateContentPipelineFields` | W (backfill empty) | no | legacy local migrate | no |
+| `src/data/juanCampaignSeed.ts` | seed contents | W (fixture) | no | demo seed | demo |
+| `src/services/firestore/sync.ts` | CLIENT prepareDoc strip | W deny / strip | no | CLIENT persist | strips before write |
+| `firestore.rules` | `clientContentStateHistoryOk` / allowlist | DENY mutate | n/a | security | deny forge |
+| `src/main.ts` / UI | — | none found | **no reads** | uses `pipelineStatus` | — |
+| `tests/firestore.rules.test.ts` | forged history DENY; transition without history ALLOW | test | n/a | n/a | evidence |
 
 ### C.5 `feedbackEvents`
 
@@ -289,7 +304,7 @@ Legacy: CLIENT_REVIEW ↔ CHANGES_REQUESTED / CLIENT_APPROVED as in `spec.md`.
 | `createdAt` | feedbackEvents, notifications, results, evidence | yes on create | ISO | CREATE: allow request.time equality or accept create-time server policy in Phase 2 |
 | `submittedAt` | opportunities | yes | ISO | forged deny / request.time |
 | `clientApprovedAt` | theses | yes | ISO (`now` in helper) | forged deny / request.time |
-| stateHistory[].at | contents | yes | ISO | treat as workflow audit; prefer request.time |
+| stateHistory[].at | contents | n/a (F-009-A MODEL B) | local ISO only | **non-authoritative**; CLIENT strip + Rules deny mutate |
 | `decidedAt` | — | **not found** in types/call sites | — | **n/a** (do not invent) |
 | `reviewedAt` / `clientReviewedAt` | — | **not found** as field name | — | **n/a**; content uses `updatedAt` + history |
 
@@ -340,11 +355,28 @@ Legacy: CLIENT_REVIEW ↔ CHANGES_REQUESTED / CLIENT_APPROVED as in `spec.md`.
 
 **Decision frozen:** Prefer **denormalized immutable `organizationId` (+ `clientId` when applicable)** on tenant-scoped docs. **Do not** rely on `get(parent)` as primary envelope for subcollections. Parent get remains emergency fallback only if a collection cannot be backfilled before deploy (document per exception — none accepted at freeze except temporary PARTIAL).
 
-**Phase 1 TEMPORARY exception (documented):** `sameOrgAsClient` / `ownsClient` in `firestore.rules` currently use `get(/clients/{clientId})` for all `clients/{clientId}/**` matches that call those helpers. Allowed through Phases 2–4. **Not** final architecture.
+**Phase 1 TEMPORARY exception (resolved T-009-14e):** Former `sameOrgAsClient` / `ownsClient` used `get(/clients/{clientId})` for **all** CRUD. **Removed for normal auth.**
+
+**T-009-14e final model:** Existing-resource auth = denormalized envelope only. **ADMIN CREATE exception:** one `get(clients/{clientId})` via `adminCreateParentClientOrgOk` / `parentClientDoc` to prove path client ∈ token org. CLIENT CREATE = token/path/request only.
+
+Final helpers: `rootClientReadable`, `existingSubEnvelopeValid`, `createSubEnvelopeValid`, `clientCreateSub`, `adminCreateSub` (+ integrity get), `adminWriteSub`, `adminDeleteSub`, `ownsSubResource`.
+
+### T-009-14e final envelope matrix (rules authorization)
+
+| Path | Parent get (before) | Normal auth parent get (after) | ADMIN CREATE integrity get | CREATE rule |
+|------|---------------------|-------------------------------|----------------------------|-------------|
+| `clients/{clientId}` | yes (all CRUD) | **no** | **no** (no parent client doc) | `createRootClientEnvelopeValid` |
+| Subcollections (22) | yes (all CRUD) | **no** on READ/UPDATE/DELETE | **yes** on ADMIN CREATE only | `adminCreateSub` / `clientCreateSub` |
+| `profile/data` | same | **no** on READ/UPDATE/DELETE | **yes** on ADMIN CREATE | split create/update |
+| `signalOutcomes` | same | **no** on READ/UPDATE/DELETE | **yes** on ADMIN CREATE | admin-only read |
+| `auditLogs` | n/a | n/a | **no** | admin org on request |
+
+**Transition safety:** Repo `firestore.rules` = post-backfill final state. Production keeps prior deployed rules until T-009-16 backfill verified + T-009-18 deploy.
 
 | Step | Task | What changes |
 |------|------|----------------|
-| Finalize rules in repo | **T-009-14e** (before CODE_COMPLETE) | Replace primary `get(parent)` with denormalized envelope checks; tests use envelope fixtures |
+| Finalize rules in repo | **T-009-14e** ✅ | Envelope + ADMIN CREATE integrity get; tests + sync envelope stamp |
+| Final security verification | **T-009-14** ✅ | SEC-009 + acceptance audit; 91/286 green |
 | CODE_COMPLETE | **T-009-15** | No further rules/app implementation changes |
 | Prod backfill | **T-009-16** | Data only (`migration.md`) — **no** rules code change |
 | Deploy | **T-009-18** | Deploy finalized rules after verified backfill |

@@ -2,6 +2,7 @@ import type { LocalV5Snapshot } from './types';
 import { getFirebaseAuth, getFirebaseFirestore } from '../../firebase/app';
 import { readFirebaseConfig } from '../../firebase/config';
 import { CLIENT_SUBCOLLECTIONS, clientDocPath } from './paths';
+import { stripNonAuthoritativeContentHistory } from '../../domain/contentHistoryPolicy';
 
 type CollectionKey = keyof LocalV5Snapshot;
 
@@ -218,16 +219,34 @@ export function applyTrustedServerTimestamps(
 function prepareDocForWrite(
   row: Record<string, unknown>,
   serverTimestamp: () => unknown,
-  options?: { stripStateHistory?: boolean }
+  options?: { stripStateHistory?: boolean; client?: { id: string; organizationId?: string | null } }
 ): Record<string, unknown> {
-  const prepared = applyTrustedServerTimestamps(
-    stripUndefinedForFirestore(row) as Record<string, unknown>,
-    serverTimestamp
-  );
+  let base = stripUndefinedForFirestore(row) as Record<string, unknown>;
+  if (options?.client) {
+    base = ensureSubcollectionEnvelope(base, options.client);
+  }
+  const prepared = applyTrustedServerTimestamps(base, serverTimestamp);
   if (options?.stripStateHistory && 'stateHistory' in prepared) {
-    delete prepared.stateHistory;
+    return stripNonAuthoritativeContentHistory(prepared);
   }
   return prepared;
+}
+
+/** T-009-14e: stamp denormalized tenant envelope on subcollection writes. */
+export function ensureSubcollectionEnvelope(
+  row: Record<string, unknown>,
+  client: { id: string; organizationId?: string | null }
+): Record<string, unknown> {
+  const out = { ...row };
+  const clientOrg =
+    typeof client.organizationId === 'string' ? client.organizationId.trim() : '';
+  if (clientOrg && typeof out.organizationId !== 'string') {
+    out.organizationId = clientOrg;
+  }
+  if (typeof out.clientId !== 'string' || !out.clientId.trim()) {
+    out.clientId = client.id;
+  }
+  return out;
 }
 
 /** Importa snapshot v5 a Firestore (Emulator o producción). */
@@ -290,6 +309,7 @@ export async function importSnapshotToFirestore(
           doc(db, `${clientDocPath(client.id)}/${subName}/${row.id}`),
           prepareDocForWrite(row as unknown as Record<string, unknown>, serverTimestamp, {
             stripStateHistory: isClientActor && subName === 'contents',
+            client: { id: client.id, organizationId: client.organizationId },
           }),
           { merge: true }
         );
@@ -303,7 +323,9 @@ export async function importSnapshotToFirestore(
     if (profile) {
       batch.set(
         doc(db, `${clientDocPath(client.id)}/profile/data`),
-        prepareDocForWrite(profile as unknown as Record<string, unknown>, serverTimestamp),
+        prepareDocForWrite(profile as unknown as Record<string, unknown>, serverTimestamp, {
+          client: { id: client.id, organizationId: client.organizationId },
+        }),
         { merge: true }
       );
       ops += 1;
@@ -315,7 +337,9 @@ export async function importSnapshotToFirestore(
       if (dossier) {
         batch.set(
           doc(db, `${clientDocPath(client.id)}/dossier/data`),
-          prepareDocForWrite(dossier as unknown as Record<string, unknown>, serverTimestamp),
+          prepareDocForWrite(dossier as unknown as Record<string, unknown>, serverTimestamp, {
+            client: { id: client.id, organizationId: client.organizationId },
+          }),
           { merge: true }
         );
         ops += 1;
