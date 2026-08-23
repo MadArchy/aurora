@@ -44,7 +44,7 @@ export async function handleAiCompleteRequest(params: {
 
   const result = await params.gateway.execute(request);
   if (!result.ok) {
-    return { ok: false, error: result.error };
+    return { ok: false, error: result.error, metadata: result.metadata };
   }
 
   return {

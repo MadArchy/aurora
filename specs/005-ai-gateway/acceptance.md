@@ -21,10 +21,10 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | A9 | ModelRegistry resolves logical role → provider model deterministically | AI-005-007 | ✅ Phase 2 (`ModelRegistryAdapter` + tests) |
 | A10 | Every run records `promptId` + `promptVersion` | AI-005-008 | ✅ Phase 2 (`PromptRegistryAdapter`; `promptHash` full SHA-256 64 hex) |
 | A11 | Every structured operation validates with Zod (or equivalent) | AI-005-009 | ✅ Phase 1 (`tests/aiGatewayPhase1.test.ts` G–L) |
-| A12 | Invalid schema → REJECTED (no domain write) | AI-005-010, AI-005-019 | ☐ |
-| A13 | Repair bounded (default max 1) — no infinite loop | AI-005-011 | ✅ Phase 1 (`MAX_REPAIR_ATTEMPTS=1`; test O) |
+| A12 | Invalid schema → REJECTED (no domain write) | AI-005-010, AI-005-019 | ✅ Phase 3 (repair attempt; `REPAIR_FAILED` / `INVALID_OUTPUT`; no trusted write) |
+| A13 | Repair bounded (default max 1) — no infinite loop | AI-005-011 | ✅ Phase 3 (`MAX_REPAIR_ATTEMPTS=1`; repair execution + test O/N) |
 | A14 | Provider call timeout enforced | AI-005-012 | ✅ Phase 2 (`DEFAULT_PROVIDER_TIMEOUT_MS=60000`) |
-| A15 | Transient 429/5xx retried with cap | AI-005-013 | ☐ |
+| A15 | Transient 429/5xx retried with cap | AI-005-013 | ✅ Phase 3 (`MAX_PROVIDER_RETRIES=1`; tests A–F) |
 | A16 | Token counts persisted per run | AI-005-014 | ☐ |
 | A17 | Latency persisted per run | AI-005-015 | ☐ |
 | A18 | `aiRuns` written on success and failure | AI-005-017 | ☐ |
@@ -37,7 +37,7 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | A25 | Inbound/outbound ports defined for gateway | AI-005-027, AI-005-028 | ✅ Phase 1H (ports under `src/application/ai/ports/`) |
 | A26 | Architecture import tests pass in CI | AI-005-029 | ✅ Phase 1H (`tests/aiGatewayArchitecture.test.ts`) |
 | A27 | Hexagonal migration matrix documented | AI-005-025 | ✅ `hexagonal-boundaries.md` |
-| A28 | `npm run check` PASS | governance | ✅ **341/341** (316 baseline + 25 Phase 2) |
+| A28 | `npm run check` PASS | governance | ✅ **380/380** (341 baseline + 39 Phase 3) |
 | A29 | `npm run test:rules` PASS | governance | ✅ **91/91** |
 
 ---
@@ -75,6 +75,8 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | Phase 1 contracts | 2026-08-23 | **DONE** |
 | Phase 1H hexagonal | 2026-08-23 | **DONE** |
 | Phase 2 providers | 2026-08-23 | **DONE** |
+| Phase 3 resilience | 2026-08-23 | **DONE** |
+| Phase 3C contracts | 2026-08-23 | **DONE** |
 | Human approver | | ☐ APPROVED (Spec) |
 
 **Implementation:** `IN PROGRESS` (Phase 2 complete; Phase 3 not started)

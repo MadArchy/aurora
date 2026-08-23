@@ -3,7 +3,8 @@ import { OpenAiAdapter } from '../src/infrastructure/ai/providers/OpenAiAdapter'
 import { AnthropicAdapter } from '../src/infrastructure/ai/providers/AnthropicAdapter';
 import { ModelRegistryAdapter } from '../src/infrastructure/ai/registry/ModelRegistryAdapter';
 import { MODEL_REGISTRY_ENTRIES } from '../src/infrastructure/ai/registry/modelRegistryConfig';
-import { PromptRegistryAdapter, computePromptHash } from '../src/infrastructure/ai/registry/PromptRegistryAdapter';
+import { PromptRegistryAdapter } from '../src/infrastructure/ai/registry/PromptRegistryAdapter';
+import { computePromptHash } from '../src/infrastructure/ai/registry/promptHash';
 import { ExecuteAiOperation } from '../src/application/ai/use-cases/ExecuteAiOperation';
 import { handleAiCompleteRequest } from '../src/interfaces/ai/handleAiCompleteRequest';
 import { resolveTrustedTenantForAiComplete } from '../src/interfaces/ai/resolveTrustedTenant';
@@ -306,6 +307,8 @@ describe('SPEC-005 Phase 2 — end-to-end hexagonal (CONTENT_DRAFT)', () => {
     if (result.ok) {
       expect(result.data).toMatchObject({ title: 'Hello', body: 'World content' });
       expect(result.metadata.validationStatus).toBe('VALID');
+      expect(result.metadata.repairCount).toBe(0);
+      expect(result.metadata.providerCallCount).toBe(1);
     }
   });
 
@@ -328,7 +331,8 @@ describe('SPEC-005 Phase 2 — end-to-end hexagonal (CONTENT_DRAFT)', () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe('INVALID_OUTPUT');
+    if (!result.ok) expect(result.error.code).toBe('REPAIR_FAILED');
+    if (!result.ok) expect(result.metadata?.repairCount).toBe(1);
   });
 });
 

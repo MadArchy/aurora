@@ -48,7 +48,11 @@ Phase 1 code moved from monolithic `src/domain/aiGateway/` into domain, applicat
 
 **promptHash:** full SHA-256 hex digest (64 characters), per Phase-1 `PromptIdentitySchema`.
 
-**Retry:** Phase 2 classifies `retryable` metadata only; execution retry deferred to Phase 3.
+**Retry:** Phase 3 executes bounded retry in Application (`MAX_PROVIDER_RETRIES=1`). Adapters remain single-attempt.
+
+**Repair:** Phase 3 executes one repair provider call via registered prompt `ai_output_repair@1` using `FAST_STRUCTURED` model role. `promptHash` = SHA-256 of canonical template (placeholders), not rendered execution. Same Zod pipeline after repair.
+
+**Global budget:** `MAX_PROVIDER_CALLS_PER_EXECUTION=4`; `MAX_GATEWAY_EXECUTION_MS=270000` (30s below `AI_COMPLETE_FUNCTION_TIMEOUT_SECONDS=300`).
 
 ## Deferred (Phase 3+)
 

@@ -206,7 +206,8 @@ Reusable schema candidates for Phase 1: signal eval, thesis proposal, content dr
 | promptHash | **MISSING** |
 | schemaVersion | **MISSING** |
 | validationStatus (VALID/REPAIR/REJECT) | **PARTIAL** (boolean only) |
-| repairCount | **MISSING** |
+| repairCount | **Phase 3** (0 or 1 in gateway metadata) |
+| attemptCount / retryCount / providerCallCount | **Phase 3** (gateway metadata; aiRuns Phase 4) |
 | errorClass | **MISSING** |
 | estimatedCost (real) | **MISSING** |
 | userId / role | **MISSING** |

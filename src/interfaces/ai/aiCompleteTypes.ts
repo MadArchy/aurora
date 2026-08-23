@@ -1,5 +1,6 @@
 import type { AiOperation } from '../../domain/ai/operations';
 import type { PromptIdentity } from '../../domain/ai/promptIdentity';
+import type { AiExecutionMetadata } from '../../application/ai/contracts/result';
 
 export interface AiCompleteRequestBody {
   operation: AiOperation;
@@ -12,16 +13,7 @@ export interface AiCompleteRequestBody {
 export interface AiCompleteSuccessResponse {
   ok: true;
   data: unknown;
-  metadata: {
-    operation: string;
-    prompt: PromptIdentity;
-    schema: { schemaId: string; schemaVersion: string };
-    validationStatus: string;
-    repairCount: number;
-    latencyMs?: number;
-    promptTokens?: number;
-    completionTokens?: number;
-  };
+  metadata: AiExecutionMetadata;
 }
 
 export interface AiCompleteErrorResponse {
@@ -31,6 +23,7 @@ export interface AiCompleteErrorResponse {
     message: string;
     retryable: boolean;
   };
+  metadata?: Partial<AiExecutionMetadata>;
 }
 
 export type AiCompleteHttpResponse = AiCompleteSuccessResponse | AiCompleteErrorResponse;

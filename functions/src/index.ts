@@ -4,6 +4,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { AI_COMPLETE_FUNCTION_TIMEOUT_SECONDS } from '../../src/domain/ai/constants';
 import { callTavilySearch, fetchRssFeed } from './lib/sourceFeedCore';
 import {
   resolveYoutubeChannel,
@@ -58,7 +59,9 @@ export const setPosturaClaims = onCall(async (request) => {
 });
 
 /** Proxy IA autenticado: secretos en Secret Manager, nunca en Firestore ni frontend. */
-export const aiComplete = onRequest({ secrets: [openAiKey, anthropicKey], cors: false }, async (req, res) => {
+export const aiComplete = onRequest(
+  { secrets: [openAiKey, anthropicKey], cors: false, timeoutSeconds: AI_COMPLETE_FUNCTION_TIMEOUT_SECONDS },
+  async (req, res) => {
   const user = await requirePosturaAuth(req, res, { adminOnly: true, rateLimit: 'ai' });
   if (!user) return;
 

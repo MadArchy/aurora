@@ -115,13 +115,24 @@ src/infrastructure/ai/    — documented; Phase 2+ adapters only
 
 **Stop respected:** No browser call-site migration; no production deploy.
 
-### Phase 3 — Validation + repair + errors (NOT STARTED)
+### Phase 3 — Validation + repair + resilience ✅
 
-- `SchemaValidator` + bounded repair loop
-- Timeout (default 60s) + retry (429/5xx, max 2)
-- Map provider errors → `errorClass`
+- Bounded provider retry (`MAX_PROVIDER_RETRIES=1`) in Application layer
+- Structured-output repair execution (`ai_output_repair@1`, `MAX_REPAIR_ATTEMPTS=1`)
+- Global provider-call ceiling (`MAX_PROVIDER_CALLS_PER_EXECUTION=4`)
+- Retry vs repair separation + resilience metadata on results
+- Deterministic tests: `tests/aiGatewayPhase3.test.ts` (30 cases)
 
-**Gate:** VALID / REPAIR / REJECT paths tested with mock malformed JSON.
+**Gate:** Retry/repair/budget paths tested with fake provider; architecture tests unchanged.
+
+**Stop respected:** No aiRuns persistence; no browser migration; no production deploy.
+
+### Phase 3C — Contract verification ✅
+
+- Repair `promptHash` hashes canonical template (`REPAIR_USER_TEMPLATE_CANONICAL`), not runtime values
+- `MAX_GATEWAY_EXECUTION_MS = 270_000` (270s) with 30s margin below function timeout (300s)
+- Worst-case wall clock: 4 × 60s provider + 500ms backoff ≈ 240.5s < 270s
+- Retry backoff: 250ms per sequence (one sleep per `MAX_PROVIDER_RETRIES=1`)
 
 ### Phase 4 — aiRuns + observability
 

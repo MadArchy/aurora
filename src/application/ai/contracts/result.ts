@@ -9,6 +9,13 @@ export interface AiExecutionMetadata {
   schema: SchemaIdentity;
   validationStatus: ValidationStatus;
   repairCount: number;
+  attemptCount: number;
+  retryCount: number;
+  providerCallCount: number;
+  validationFailureReason?: 'INVALID_JSON' | 'SCHEMA_MISMATCH';
+  logicalModelRole?: string;
+  providerName?: string;
+  providerModelId?: string;
   latencyMs?: number;
   promptTokens?: number;
   completionTokens?: number;

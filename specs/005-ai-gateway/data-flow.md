@@ -118,7 +118,12 @@ Cloud Function / server AiGateway.execute()
   ├─ ModelRegistry.resolve(operation)
   ├─ PromptRegistry.load(promptId, version)
   ├─ ProviderAdapter.complete()
-  ├─ SchemaValidator.validate() → repair? → reject?
+  ├─ GatewayExecutionDeadline (wall-clock budget)
+  ├─ executeProviderWithRetry() — bounded technical retry (Application)
+  ├─ validateAiOutput() → VALID | REPAIR_REQUIRED | REJECTED
+  ├─ resolveRepair() → one repair provider call (if eligible)
+  ├─ validateAiOutput() again (same schema)
+  └─ success | REPAIR_FAILED | technical error
   ├─ write aiRuns (full metadata)
   └─ return AiResult<T> — domain-safe output only
 ```

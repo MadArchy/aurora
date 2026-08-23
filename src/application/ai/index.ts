@@ -98,3 +98,17 @@ export type { AiRunRepositoryPort, AiRunPersistenceRecord } from './ports/outbou
 export { UnimplementedAiGateway } from './use-cases/UnimplementedAiGateway';
 export { ExecuteAiOperation } from './use-cases/ExecuteAiOperation';
 export { ProviderPortError, PromptResolutionError } from './errors/providerPortErrors';
+export {
+  MAX_PROVIDER_RETRIES,
+  MAX_PROVIDER_CALLS_PER_EXECUTION,
+  PROVIDER_RETRY_BACKOFF_MS,
+  REPAIR_MODEL_ROLE,
+  DEFAULT_PROVIDER_TIMEOUT_MS,
+  MAX_GATEWAY_EXECUTION_MS,
+  AI_COMPLETE_FUNCTION_TIMEOUT_SECONDS,
+  GATEWAY_EXECUTION_SAFETY_MARGIN_MS,
+} from '../../domain/ai/constants';
+export { executeProviderWithRetry, isRetryableProviderError, maxBackoffPerProviderSequence } from './resilience/providerRetryPolicy';
+export { isValidationRepairEligible } from './resilience/repairEligibility';
+export { ProviderCallBudget } from './resilience/providerCallBudget';
+export { GatewayExecutionDeadline, GatewayDeadlineExceededError, createGatewayExecutionDeadline } from './resilience/gatewayExecutionDeadline';

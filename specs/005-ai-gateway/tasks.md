@@ -1,7 +1,7 @@
 # Tasks 005 — AI Gateway
 
 **Spec status:** `APPROVED`  
-**Implementation:** `IN PROGRESS` (Phase 2 complete; Phase 3 not started)  
+**Implementation:** `IN PROGRESS` (Phase 3 complete; Phase 4 not started)  
 **Branch:** `spec/005-ai-gateway` @ `04e65ff` + Phase 1 commits
 
 ---
@@ -77,11 +77,27 @@
 
 ---
 
-## Phase 3 — Validation + repair (NOT STARTED)
+## Phase 3 — Validation + repair + resilience ✅
 
-- [ ] **T-005-40** SchemaValidator + repair policy
-- [ ] **T-005-41** Retry policy (429/5xx)
-- [ ] **T-005-42** Error taxonomy
+- [x] **T-005-40** SchemaValidator + bounded repair execution (`ExecuteAiOperation` + `ai_output_repair@1`)
+- [x] **T-005-41** Bounded provider retry policy (`MAX_PROVIDER_RETRIES=1`, Application layer)
+- [x] **T-005-42** Error taxonomy separation (retry vs repair vs reject; `tests/aiGatewayPhase3.test.ts`)
+
+## Phase 3C — Contract verification + checkpoint ✅
+
+- [x] **T-005-43** Repair promptHash = canonical template hash (not rendered execution)
+- [x] **T-005-44** Global gateway execution deadline (`MAX_GATEWAY_EXECUTION_MS`)
+- [x] **T-005-45** aiComplete function timeout compatibility (`AI_COMPLETE_FUNCTION_TIMEOUT_SECONDS=300`)
+
+**Frozen Phase-3 policy:**
+- `MAX_PROVIDER_RETRIES = 1` (one optional retry after initial attempt)
+- `MAX_REPAIR_ATTEMPTS = 1` (unchanged from Phase 1)
+- `MAX_PROVIDER_CALLS_PER_EXECUTION = 4` (2 primary + 2 repair worst-case)
+- `MAX_GATEWAY_EXECUTION_MS = 270_000` (30s margin below function timeout)
+- `AI_COMPLETE_FUNCTION_TIMEOUT_SECONDS = 300` (aiComplete code config)
+- Repair `promptHash` = SHA-256 of canonical template (`ai_output_repair@1`)
+- Repair model role: `FAST_STRUCTURED` (same provider registry routing)
+- Retry location: Application (`providerRetryPolicy.ts`), adapters remain single-attempt
 
 ---
 
