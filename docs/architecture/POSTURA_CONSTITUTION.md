@@ -677,6 +677,46 @@ Los nombres de modelos no deben quedar hardcoded en componentes de UI.
 
 ---
 
+# 22A. HEXAGONAL BOUNDARIES
+
+POSTURA adopta arquitectura hexagonal de forma incremental.
+
+El dominio y la capa de aplicación **no deben depender** directamente de:
+
+- Firebase / Firestore / Firebase Admin;
+- SDKs de proveedores de IA (OpenAI, Anthropic, etc.);
+- transporte HTTP concreto;
+- frameworks de UI;
+- infraestructura específica del entorno.
+
+Las capacidades externas se acceden mediante **ports** explícitos.
+
+La infraestructura implementa esos ports mediante **adapters**.
+
+**Las dependencias apuntan hacia adentro.**
+
+SPEC-005 (`src/domain/ai`, `src/application/ai`) es el primer módulo completamente alineado.
+
+---
+
+# 22B. DOMAIN PURITY
+
+La capa Domain (`src/domain/**`) debe permanecer libre de:
+
+- imports de Firebase o Firebase Admin;
+- SDKs de proveedores de IA;
+- frameworks de transporte o UI;
+- infraestructura específica del entorno;
+- Zod u otros validadores de runtime cuando representen transporte AI, no invariantes intrínsecos.
+
+La validación de salidas AI estructuradas pertenece a Application (`src/application/**`).
+
+Solo Application puede producir salida **confiable** (`ValidatedDomainOutput`) tras validación.
+
+La salida cruda del proveedor es **no confiable** hasta pasar por Application.
+
+---
+
 # 23. TECNOLOGÍA OBJETIVO
 
 La migración debe ser INCREMENTAL.
