@@ -58,9 +58,19 @@ describe('resolveThesisContext', () => {
     expect(result.thesis?.id).toBe('t2');
   });
 
-  it('falls back to the primary thesis', () => {
+  it('does NOT fall back to primary without allowPrimaryFallback (SPEC-001 Phase 4)', () => {
     const result = resolveThesisContext({
       clientId: 'client',
+      ...helpers,
+    });
+    expect(result.source).toBe('none');
+    expect(result.thesis).toBeUndefined();
+  });
+
+  it('primary fallback only when allowPrimaryFallback (presentation legacy)', () => {
+    const result = resolveThesisContext({
+      clientId: 'client',
+      allowPrimaryFallback: true,
       ...helpers,
     });
     expect(result.source).toBe('primary');

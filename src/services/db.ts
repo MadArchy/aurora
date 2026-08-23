@@ -1351,7 +1351,10 @@ class DataService {
   }
 
   /**
-   * Tesis ACTIVE de mayor prioridad. Sin fallback a borradores: el scoring no opera sin ACTIVE.
+   * PRESENTATION_ONLY / LEGACY_COMPATIBILITY (SPEC-001 Phase 4).
+   * First ACTIVE by priority — MUST NOT be used for strategic attribution,
+   * routing, scoring authority, or agent thesis context.
+   * Prefer: explicit selection, routed signal.thesisId, or all ACTIVE theses.
    */
   public getPrimaryThesis(clientId: string): PositioningThesis | undefined {
     return this.getActiveTheses(clientId)[0];
@@ -1362,7 +1365,8 @@ class DataService {
   }
 
   /**
-   * Contexto único de tesis: selección del manager → entidad → primaria.
+   * Strategic thesis context: explicit selection → entity attribution.
+   * No primary/[0] fallback (SPEC-001 Phase 4).
    */
   public resolveThesisFor(params: {
     clientId: string;
@@ -1373,7 +1377,6 @@ class DataService {
       clientId: params.clientId,
       selectedThesisId: params.selectedThesisId,
       entityThesisId: params.entityThesisId,
-      getPrimary: (id) => this.getPrimaryThesis(id),
       getById: (cid, tid) => this.getThesisById(cid, tid),
     });
   }

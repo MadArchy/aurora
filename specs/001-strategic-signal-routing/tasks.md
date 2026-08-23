@@ -1,7 +1,7 @@
 # Tasks 001 — Strategic Signal Routing
 
 **Spec status:** `APPROVED` · **READY_FOR_IMPLEMENTATION**  
-**Implementation:** Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **COMPLETE** · Phase 4 **NOT STARTED**  
+**Implementation:** Phase 1–4 **COMPLETE** · Phase 5 **NOT STARTED**  
 **Branch:** `spec/001-strategic-signal-routing`
 
 ---
@@ -120,16 +120,34 @@
 
 ---
 
-## Phase 4 — Interface / call-site migration
+## Phase 4 — Interface / call-site migration ✅
 
-- [ ] **T-001-401** Migrate STRATEGIC_ROUTING rows in `migration-matrix.md`
-- [ ] **T-001-402** Explicit routed thesis context in UI (no strategic primary collapse)
-- [ ] **T-001-403** Contested UI: human MANUAL resolution path
-- [ ] **T-001-404** Wire OverrideSignalThesis to existing override controls
-- [ ] **T-001-405** REVIEW rows: classify remain PRESENTATION vs MIGRATE
-- [ ] **T-001-406** Agents (`advisor`, `topicAgent`, `researchSignalsAgent`) — explicit thesisId or multi-eval; no silent `[0]` for strategic attribution
+- [x] **T-001-401** Migrate STRATEGIC_ROUTING rows in `migration-matrix.md`
+- [x] **T-001-402** Explicit routed thesis context in UI (no strategic primary collapse)
+- [x] **T-001-403** Contested UI: human MANUAL resolution path
+- [x] **T-001-404** Wire OverrideSignalThesis to existing override controls
+- [x] **T-001-405** REVIEW rows: classify remain PRESENTATION vs MIGRATE
+- [x] **T-001-406** Agents (`advisor`, `topicAgent`, `researchSignalsAgent`) — explicit thesisId or multi-eval; no silent `[0]` for strategic attribution
 
-**Exit:** Strategic matrix rows = MIGRATE complete; presentation ALLOWED only where classified.
+**Exit:** ✅ Strategic matrix rows migrated; presentation ALLOWED only where classified.
+
+### Phase 4 implementation notes
+
+| Area | Disposition |
+|------|-------------|
+| `main.scoreSignal` / override | Already MIGRATED (Phase 2) |
+| `main` analyze / discovery / content fallbacks | MIGRATED — fail-closed or multi-ACTIVE |
+| `advisor` | Client-wide without primary; `proposeAngle` needs explicit `thesisId` |
+| `topicAgent` | ALL ACTIVE theses |
+| `researchSignalsAgent` | Per-signal routed CLEAR only |
+| `ClientWorkspace` radar | `canScore` via ACTIVE count — no `[0]` |
+| `SourceRegistryModal` | Multi-thesis discovery; no silent source↔thesis bind |
+| `ClientPortal` `theses[0]` | **ALLOWED_PRESENTATION_ONLY** |
+| `ManagerCockpit` chip | **ALLOWED_PRESENTATION_ONLY** |
+| `getPrimaryThesis` | PRESENTATION_ONLY / LEGACY — portfolio metrics only |
+| `thesisContextCore` | No primary fallback unless `allowPrimaryFallback` |
+
+**Debt:** D-001-02 strategic primary/[0] = **RESOLVED** · D-001-06 candidates[0] = **RESOLVED**
 
 ---
 

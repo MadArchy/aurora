@@ -1,6 +1,7 @@
 import { dbService } from './db';
 import { buildProfileKeywords } from './sourceDiscovery';
 import { buildResearchQuery, synthesizeResearchSummary } from '../domain/researchSignalsCore';
+import { resolveThesisForSignalOperation } from '../domain/routedThesisContext';
 import {
   filterTavilyResults,
   searchTavilyWeb,
@@ -95,7 +96,10 @@ export async function runResearchForSignal(
   return brief;
 }
 
-/** Agente RESEARCH_SIGNALS: Tavily por señales RESEARCH_REQUIRED (máx. 3 por corrida). */
+/** Agente RESEARCH_SIGNALS: Tavily por señales RESEARCH_REQUIRED (máx. 3 por corrida).
+ * Signal-specific: uses routed CLEAR thesis — never primary/[0].
+ * CONTESTED / UNROUTED → controlled error (no fabricated thesis).
+ */
 export async function runResearchSignalsAgent(
   clientId: string,
   options?: { maxSignals?: number; signalId?: string }
@@ -103,8 +107,9 @@ export async function runResearchSignalsAgent(
   const client = dbService.getClientById(clientId);
   if (!client) throw new Error('CLIENT_NOT_FOUND');
 
-  const thesis = dbService.getActiveTheses(clientId)[0];
-  if (!thesis) throw new Error('THESIS_REQUIRED');
+  const theses = dbService.getThesesByClient(clientId);
+  const activeCount = dbService.getActiveTheses(clientId).length;
+  if (!activeCount) throw new Error('THESIS_REQUIRED');
 
   const max = options?.maxSignals ?? 3;
   let targets: Signal[];
@@ -120,7 +125,20 @@ export async function runResearchSignalsAgent(
   const started = Date.now();
 
   for (const signal of targets) {
-    const result = await runResearchForSignal(client, signal, thesis);
+    const resolved = resolveThesisForSignalOperation(signal, theses);
+    if (!resolved.ok) {
+      errors.push({
+        signalId: signal.id,
+        error:
+          resolved.error === 'CONTESTED'
+            ? 'CONTESTED'
+            : resolved.error === 'UNROUTED'
+              ? 'UNROUTED_SIGNAL'
+              : resolved.error,
+      });
+      continue;
+    }
+    const result = await runResearchForSignal(client, signal, resolved.thesis);
     if ('error' in result) {
       errors.push({ signalId: signal.id, error: result.error });
     } else {
@@ -140,7 +158,7 @@ export async function runResearchSignalsAgent(
     provider: 'AUTOMATIC',
     modelName: 'research-signals-tavily-v1',
     promptTemplateId: 'research_signals_v1',
-    inputContextSummary: `${targets.length} señal(es) · tesis ${thesis.title}`,
+    inputContextSummary: `${targets.length} señal(es) · ${activeCount} tesis ACTIVE · routed context`,
     outputPayload: JSON.stringify({ briefs, errors }),
     promptTokens: 0,
     completionTokens: 0,

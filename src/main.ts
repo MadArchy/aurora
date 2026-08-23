@@ -21,11 +21,12 @@ import { ScoringContext } from './services/scoring';
 import { createStrategicSignalRoutingUseCases } from './composition/strategicSignalRouting/composeStrategicSignalRouting';
 import { StrategicRoutingError } from './application/strategicSignalRouting';
 import {
-  buildProfileKeywords,
+  buildMergedProfileKeywords,
   discoverSources,
   normalizeSourceUrl,
   ProfileKeywords,
 } from './services/sourceDiscovery';
+import { resolveThesisForSignalOperation } from './domain/routedThesisContext';
 import { assessSourceQuality, gateItem, FeedItem } from './services/ingestFilter';
 import { renderAppShell, renderBriefingBar } from './components/AppShell';
 import { renderManagerCockpit } from './components/ManagerCockpit';
@@ -1577,9 +1578,9 @@ class App {
         const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
         const theses = dbService.getThesesByClient(clientId);
         const requestedId = target.getAttribute('data-thesis-id');
-        const thesis = theses.find((t) => t.id === requestedId) || theses[0];
+        const thesis = requestedId ? theses.find((t) => t.id === requestedId) : undefined;
         if (!thesis) {
-          this.showToast('Este cliente no tiene tesis que someter a prueba.', 'warning');
+          this.showToast('Selecciona una tesis válida para someterla a prueba.', 'warning');
           return;
         }
         target.disabled = true;
@@ -1738,7 +1739,7 @@ class App {
       const name = (document.getElementById('src-name') as HTMLInputElement).value;
       const type = (document.getElementById('src-type') as HTMLSelectElement).value as Source['type'];
       const url = (document.getElementById('src-url') as HTMLInputElement).value;
-      const thesis = dbService.getActiveTheses(clientId)[0];
+      // Client-wide source — no silent thesisId attribution to primary/[0].
 
       try {
         const organizationId = this.resolveOrganizationId(clientId);
@@ -1749,7 +1750,7 @@ class App {
         dbService.addSource({
           organizationId,
           clientId,
-          thesisId: thesis?.id,
+          thesisId: undefined,
           name,
           type,
           url: url || undefined,
@@ -1885,15 +1886,13 @@ class App {
         const client = dbService.getClientById(clientId);
         if (!client || !key) return;
 
-        const thesis = dbService.getPrimaryThesis(clientId);
-        const candidate = resolveDiscoveryCandidate(client, thesis, key);
+        const candidate = resolveDiscoveryCandidate(client, undefined, key);
         if (!candidate) return;
 
         try {
           dbService.addSource({
             organizationId: client.organizationId,
             clientId,
-            thesisId: thesis?.id,
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
@@ -1923,7 +1922,6 @@ class App {
       const client = dbService.getClientById(clientId);
       if (!client) return;
 
-      const thesis = dbService.getPrimaryThesis(clientId);
       const lastRun = loadLastAgentRun(clientId);
       const existing = new Set(
         dbService.getSourcesByClient(clientId).map((s) => normalizeSourceUrl(s.url || ''))
@@ -1931,7 +1929,7 @@ class App {
       const candidates = (
         lastRun?.recommendations.length
           ? lastRun.recommendations
-          : discoverSources(client, thesis)
+          : discoverSources(client, undefined)
       ).filter((d) => !existing.has(normalizeSourceUrl(d.url)));
 
       let added = 0;
@@ -1940,7 +1938,6 @@ class App {
           dbService.addSource({
             organizationId: client.organizationId,
             clientId,
-            thesisId: thesis?.id,
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
@@ -1970,10 +1967,10 @@ class App {
       const client = dbService.getClientById(clientId);
       if (!client) return;
 
-      const thesis = dbService.getPrimaryThesis(clientId);
-      const keywords = buildProfileKeywords(client, thesis);
+      const active = dbService.getActiveTheses(clientId);
+      const keywords = buildMergedProfileKeywords(client, active);
       const profile = dbService.getMasterProfile(clientId);
-      const extendedBase = discoverExtendedSources(client, thesis);
+      const extendedBase = discoverExtendedSources(client, undefined);
       const enriched = await enrichYoutubeDiscoverySources(extendedBase, keywords, profile || undefined);
       const existing = new Set(
         dbService.getSourcesByClient(clientId).map((s) => normalizeSourceUrl(s.url || ''))
@@ -1991,7 +1988,6 @@ class App {
           dbService.addSource({
             organizationId: client.organizationId,
             clientId,
-            thesisId: thesis?.id,
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
@@ -2021,14 +2017,12 @@ class App {
       const client = dbService.getClientById(clientId);
       if (!client) return;
 
-      const thesis = dbService.getPrimaryThesis(clientId);
-      if (!thesis) return;
-
-      const keywords = buildProfileKeywords(client, thesis);
+      const active = dbService.getActiveTheses(clientId);
+      const keywords = buildMergedProfileKeywords(client, active);
       const existing = new Set(
         dbService.getSourcesByClient(clientId).map((s) => normalizeSourceUrl(s.url || ''))
       );
-      const candidates = buildCuratedPresetsForProfile(client, thesis, keywords).filter(
+      const candidates = buildCuratedPresetsForProfile(client, undefined, keywords).filter(
         (d) => !existing.has(normalizeSourceUrl(d.url))
       );
 
@@ -2043,7 +2037,6 @@ class App {
           dbService.addSource({
             organizationId: client.organizationId,
             clientId,
-            thesisId: thesis?.id,
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
@@ -2106,12 +2099,11 @@ class App {
       const client = dbService.getClientById(clientId);
       if (!client) return;
 
-      const thesis = dbService.getPrimaryThesis(clientId);
       tavilyRescanBtn.textContent = 'Buscando…';
       tavilyRescanBtn.setAttribute('disabled', 'true');
 
       try {
-        const run = await runSourceDiscoveryAgentAsync(client, thesis, { forceTavily: true });
+        const run = await runSourceDiscoveryAgentAsync(client, undefined, { forceTavily: true });
         saveAgentRun(run);
         const tavilyCount = run.recommendations.filter((r) => r.kind === 'TAVILY').length;
         if (run.tavilyError === 'TAVILY_KEY_MISSING') {
@@ -2184,7 +2176,11 @@ class App {
       e.preventDefault();
       const form = e.currentTarget as HTMLFormElement;
       const clientId = form.getAttribute('data-client-id') || this.resolveClientId();
-      const thesisId = form.getAttribute('data-thesis-id') || undefined;
+      const thesisId = (document.getElementById('task-thesis') as HTMLSelectElement | null)?.value || undefined;
+      if (!thesisId) {
+        this.showToast('Selecciona una tesis ACTIVE para la tarea.', 'warning');
+        return;
+      }
 
       const title = (document.getElementById('task-title') as HTMLInputElement).value.trim();
       const description = (document.getElementById('task-description') as HTMLTextAreaElement).value.trim();
@@ -2328,13 +2324,11 @@ class App {
   // Radar
   // ==========================================
 
-  /** Términos del perfil y del dossier que permiten puntuar contenido bilingüe (advisory AI context). */
+  /** Términos del perfil y del dossier — multi-tesis ACTIVE (no primary). */
   private scoringContext(clientId: string): ScoringContext {
     const client = dbService.getClientById(clientId);
     if (!client) return {};
-    // Phase 4: replace primary helper for advisory context; not central strategic routing.
-    const thesis = dbService.getPrimaryThesis(clientId);
-    const keywords = buildProfileKeywords(client, thesis);
+    const keywords = buildMergedProfileKeywords(client, dbService.getActiveTheses(clientId));
     const dossier = dbService.getMasterDossier(clientId);
     const hints = feedbackScoringHints(
       dbService.getSignalsByClient(clientId),
@@ -2447,24 +2441,41 @@ class App {
 
         const signal = dbService.getSignalById(signalId);
         const clientId = this.resolveClientId(signal?.clientId);
-        const thesis = dbService.getPrimaryThesis(clientId);
-
-        if (!signal || !thesis) {
-          this.showToast('Define una tesis activa para poder puntuar señales.', 'warning');
+        if (!signal) {
+          this.showToast('Señal no encontrada.', 'warning');
           return;
         }
+
+        // Deterministic routing first; advisory AI only on CLEAR routed thesis.
+        this.scoreSignal(signalId, clientId);
+        const routedSignal = dbService.getSignalById(signalId) || signal;
+        const resolved = resolveThesisForSignalOperation(
+          routedSignal,
+          dbService.getThesesByClient(clientId)
+        );
+        if (!resolved.ok) {
+          const msg =
+            resolved.error === 'CONTESTED'
+              ? 'Conflicto entre tesis — resuelve manualmente antes del análisis AI.'
+              : resolved.error === 'UNROUTED'
+                ? 'Señal sin tesis enrutada — no se puede analizar.'
+                : 'No hay tesis válida para analizar esta señal.';
+          this.showToast(msg, 'warning');
+          this.render();
+          return;
+        }
+        const thesis = resolved.thesis;
 
         target.disabled = true;
         target.textContent = 'Analizando…';
         try {
           const rec = await aiService.analyzeSignalAgainstThesis(
-            signal,
+            routedSignal,
             thesis,
             this.scoringContext(clientId)
           );
           const { usedLiveModel, ...payload } = rec as typeof rec & { usedLiveModel?: boolean };
           dbService.addRecommendation(payload);
-          this.scoreSignal(signalId, clientId);
           this.showToast(
             `Score ${payload.impactScore}/100${usedLiveModel ? ' · con modelo' : ' · scoring local'}`,
             'success'
@@ -2657,6 +2668,7 @@ class App {
             clientId: entry.clientId,
             title: entry.title,
             snippet: entry.snippet,
+            thesisId: entry.thesisId || this.filterState.thesisId || undefined,
           });
           dbService.setCurationAngle(curationId, angle);
           this.showToast(usedLiveModel ? 'Ángulo propuesto con modelo' : 'Ángulo propuesto con reglas locales', 'success');
@@ -2893,12 +2905,22 @@ class App {
   private async sendDelivery(packageId: string) {
     const pkg = dbService.getDeliveryById(packageId);
     const clientId = pkg?.clientId;
-    const fallbackThesis = clientId ? dbService.getPrimaryThesis(clientId) : undefined;
+    const validationThesis = clientId
+      ? pkg?.items
+          .map((item) => (item.refId ? dbService.getCurationById(item.refId) : undefined))
+          .map((entry) =>
+            dbService.resolveThesisFor({
+              clientId,
+              entityThesisId: entry?.thesisId,
+            })
+          )
+          .find((thesis) => thesis !== undefined)
+      : undefined;
 
     const validation = validateDeliveryForSend(
       pkg,
       (item) => (item.refId ? dbService.getCurationById(item.refId)?.destination : undefined),
-      fallbackThesis
+      validationThesis
     );
     if (!validation.ok) {
       throw new Error(validation.message);
@@ -2919,10 +2941,14 @@ class App {
       const destination = entry?.destination;
       const thesis = dbService.resolveThesisFor({
         clientId: clientId!,
-        selectedThesisId: this.filterState.thesisId,
         entityThesisId: entry?.thesisId,
-      }) || fallbackThesis;
-      if (!thesis) continue;
+      });
+      if (!thesis) {
+        if (destination || item.kind === 'READING') {
+          throw new Error('El ítem no tiene una tesis explícita válida para materializarse.');
+        }
+        continue;
+      }
 
       if (destination === 'TASK_VIDEO' || destination === 'TASK_ARTICLE') {
         const format = destination === 'TASK_VIDEO' ? 'VIDEO_SCRIPT' : 'LINKEDIN_ARTICLE';
@@ -3116,12 +3142,12 @@ class App {
     targetStatus: ContentStatus,
     comment?: string
   ): boolean {
-    const thesis =
-      dbService.getThesesByClient(content.clientId).find((t) => t.id === content.thesisId) ||
-      dbService.getPrimaryThesis(content.clientId);
-    const claimSafety = thesis
-      ? aiService.reviewDraftClaims(content.body, thesis)
-      : content.claimSafety;
+    const thesis = dbService.getThesesByClient(content.clientId).find((t) => t.id === content.thesisId);
+    if (!thesis) {
+      this.showToast('No se encontró la tesis asociada al contenido.', 'warning');
+      return false;
+    }
+    const claimSafety = aiService.reviewDraftClaims(content.body, thesis);
     const now = new Date().toISOString();
 
     // Guarda primero como borrador con el veredicto; el avance es un paso aparte.
@@ -3246,9 +3272,10 @@ class App {
 
     const clientId = form.getAttribute('data-client-id') || this.resolveClientId();
     const thesisId = form.getAttribute('data-thesis-id') || '';
-    const thesis =
-      dbService.resolveThesisFor({ clientId, selectedThesisId: thesisId || this.filterState.thesisId }) ||
-      dbService.getPrimaryThesis(clientId);
+    const thesis = dbService.resolveThesisFor({
+      clientId,
+      selectedThesisId: thesisId || this.filterState.thesisId,
+    });
     if (!thesis) return;
 
     const record = aiService.reviewDraftClaims(body.value, thesis);
@@ -3337,9 +3364,10 @@ class App {
       e.preventDefault();
       const clientId = formGenerate.getAttribute('data-client-id') || this.resolveClientId();
       const thesisId = (document.getElementById('generate-thesis') as HTMLSelectElement | null)?.value;
-      const thesis =
-        dbService.resolveThesisFor({ clientId, selectedThesisId: thesisId || this.filterState.thesisId }) ||
-        dbService.getPrimaryThesis(clientId);
+      const thesis = dbService.resolveThesisFor({
+        clientId,
+        selectedThesisId: thesisId || this.filterState.thesisId,
+      });
       if (!thesis) {
         this.showToast('Define una tesis antes de generar contenido.', 'warning');
         return;
@@ -3392,7 +3420,7 @@ class App {
           dbService.resolveThesisFor({
             clientId,
             selectedThesisId: this.filterState.thesisId,
-          }) || dbService.getPrimaryThesis(clientId);
+          });
         if (!thesis) {
           this.showToast('Define una tesis antes de generar el artículo científico.', 'warning');
           return;
@@ -3583,10 +3611,12 @@ class App {
       const targetStatus = (document.getElementById('edit-content-status') as HTMLSelectElement).value as typeof content.status;
 
       // El texto pudo cambiar en este mismo formulario, así que se re-evalúa antes de avanzar.
-      const thesis =
-        dbService.getThesesByClient(content.clientId).find((t) => t.id === content.thesisId) ||
-        dbService.getPrimaryThesis(content.clientId);
-      const claimSafety = thesis ? aiService.reviewDraftClaims(body, thesis) : content.claimSafety;
+      const thesis = dbService.getThesesByClient(content.clientId).find((t) => t.id === content.thesisId);
+      if (!thesis) {
+        this.showToast('No se encontró la tesis asociada al contenido.', 'warning');
+        return;
+      }
+      const claimSafety = aiService.reviewDraftClaims(body, thesis);
 
       // Guarda el trabajo del manager aunque el avance se frene.
       dbService.saveContent({
@@ -3626,8 +3656,17 @@ class App {
         const signalId = target.getAttribute('data-signal-id');
         const signal = signalId ? dbService.getSignalById(signalId) : null;
         const clientId = this.resolveClientId(signal?.clientId);
-        const thesis = dbService.getPrimaryThesis(clientId);
-        if (!signal || !thesis) return;
+        const thesis = signal
+          ? dbService.resolveThesisFor({
+              clientId,
+              selectedThesisId: this.filterState.thesisId,
+              entityThesisId: signal.thesisId,
+            })
+          : undefined;
+        if (!signal || !thesis) {
+          this.showToast('Selecciona una tesis válida antes del análisis comparativo.', 'warning');
+          return;
+        }
 
         target.disabled = true;
         target.textContent = 'Sintetizando…';
@@ -3654,8 +3693,11 @@ class App {
         if (!rec) return;
 
         const theses = dbService.getThesesByClient(rec.clientId);
-        const thesis = theses.find((t) => t.id === rec.thesisId) || theses[0];
-        if (!thesis) return;
+        const thesis = theses.find((t) => t.id === rec.thesisId);
+        if (!thesis) {
+          this.showToast('No se encontró la tesis asociada a la recomendación.', 'warning');
+          return;
+        }
 
         const draft = await aiService.generateContentDraft(thesis, rec.proposedAngle, 'VIDEO_SCRIPT');
         const contentId = createId('cnt');
@@ -4474,12 +4516,11 @@ class App {
     this.lastDiscoveryScanAt = now;
 
     for (const client of dbService.getClients()) {
-      const thesis = dbService.getActiveTheses(client.id)[0];
       const lastRun = loadLastAgentRun(client.id);
-      const profileChanged = profileChangedSinceLastRun(client, thesis, lastRun);
+      const profileChanged = profileChangedSinceLastRun(client, undefined, lastRun);
       const run = profileChanged
-        ? await runSourceDiscoveryAgentAsync(client, thesis)
-        : runSourceDiscoveryAgent(client, thesis);
+        ? await runSourceDiscoveryAgentAsync(client, undefined)
+        : runSourceDiscoveryAgent(client, undefined);
       const previousKeys = new Set(lastRun?.recommendations.map((r) => r.key) || []);
       const freshHigh = run.recommendations.filter(
         (r) => r.priority === 'HIGH' && !previousKeys.has(r.key)
@@ -4589,8 +4630,7 @@ class App {
   private profileKeywordsFor(clientId?: string): ProfileKeywords {
     const client = clientId ? dbService.getClientById(clientId) : null;
     if (!client) return { coreEn: [], coreEs: [], strong: [], context: [], negative: [] };
-    const thesis = dbService.getPrimaryThesis(client.id);
-    return buildProfileKeywords(client, thesis);
+    return buildMergedProfileKeywords(client, dbService.getActiveTheses(client.id));
   }
 
   private async pollOneSource(source: Source): Promise<{ created: number; rejected: number }> {

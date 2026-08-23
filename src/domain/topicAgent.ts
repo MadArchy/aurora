@@ -45,13 +45,20 @@ function buildRationale(topic: Topic, thesis?: PositioningThesis): string {
   return `${momentumText.charAt(0).toUpperCase()}${momentumText.slice(1)} — conviene monitorear antes de convertir en entrega.`;
 }
 
-/** Topic Agent v1 — ranking diario determinista con rationale (Oleada 7.5). */
+/** Topic Agent v1 — ranking diario determinista con rationale (Oleada 7.5).
+ * Accepts one thesis or many ACTIVE theses (client-wide; no primary collapse).
+ */
 export function rankDailyTopics(
   clientId: string,
   signals: Signal[],
-  thesis?: PositioningThesis,
+  thesisOrTheses?: PositioningThesis | PositioningThesis[],
   limit = 5
 ): TopicAgentRankedItem[] {
+  const theses = Array.isArray(thesisOrTheses)
+    ? thesisOrTheses
+    : thesisOrTheses
+      ? [thesisOrTheses]
+      : [];
   const topics = buildTopics(clientId, signals);
   return topics
     .sort((a, b) => {
@@ -67,6 +74,22 @@ export function rankDailyTopics(
       score: topic.topScore,
       momentum: topic.momentum,
       signalCount: topic.signalCount,
-      rationale: buildRationale(topic, thesis),
+      rationale: buildRationaleMulti(topic, theses),
     }));
+}
+
+function buildRationaleMulti(topic: Topic, theses: PositioningThesis[]): string {
+  if (!theses.length) return buildRationale(topic, undefined);
+  // Prefer the thesis with most keyword overlap; do not invent a "primary".
+  let best: PositioningThesis | undefined;
+  let bestOverlap = -1;
+  for (const thesis of theses) {
+    const keys = thesisKeywordSet(thesis);
+    const overlap = topic.keywords.filter((k) => keys.has(k.toLowerCase())).length;
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap;
+      best = thesis;
+    }
+  }
+  return buildRationale(topic, best);
 }

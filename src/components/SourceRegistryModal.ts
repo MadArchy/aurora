@@ -6,8 +6,9 @@ function renderSuggestionHint(clientId: string): string {
   const client = dbService.getClientById(clientId);
   if (!client) return '';
 
-  const thesis = dbService.getActiveTheses(clientId)[0];
-  const agentRun = runSourceDiscoveryAgent(client, thesis);
+  // Client-wide discovery — all ACTIVE keywords; no primary/[0] binding (SPEC-001 Phase 4).
+  const activeTheses = dbService.getActiveTheses(clientId);
+  const agentRun = runSourceDiscoveryAgent(client, undefined);
   const top = agentRun.recommendations.slice(0, 4);
 
   return `
@@ -15,8 +16,8 @@ function renderSuggestionHint(clientId: string): string {
       <div class="source-suggestion-hint-head">
         <div>
           <p class="form-label" style="margin-bottom: 0.2rem;">Agente de fuentes</p>
-          ${thesis
-            ? `<p class="muted small">${esc(thesis.domain)} · ${esc(thesis.title.slice(0, 55))}${thesis.title.length > 55 ? '…' : ''}</p>`
+          ${activeTheses.length
+            ? `<p class="muted small">${activeTheses.length} tesis ACTIVE · descubrimiento multi-tesis</p>`
             : `<p class="muted small">Sin tesis activa. <button type="button" class="link-btn" data-tab="ws-positioning">Completar perfil</button></p>`}
         </div>
       </div>
@@ -40,7 +41,6 @@ function renderSuggestionHint(clientId: string): string {
 export function renderSourceRegistryModal(clientId?: string): string {
   const client = clientId ? dbService.getClientById(clientId) : null;
   const sources = clientId ? dbService.getSourcesByClient(clientId) : dbService.getSources();
-  const thesis = clientId ? dbService.getActiveTheses(clientId)[0] : undefined;
 
   return `
     <div id="source-registry-modal" class="modal-overlay">
@@ -50,7 +50,7 @@ export function renderSourceRegistryModal(clientId?: string): string {
             <h3>${client ? `Nueva fuente para ${esc(client.displayName)}` : 'Registro de fuentes'}</h3>
             <p style="font-size: 0.85rem; color: var(--text-secondary);">
               ${client
-                ? `La fuente quedará ligada a este cliente${thesis ? ` y su tesis «${esc(thesis.title)}»` : ''}.`
+                ? 'La fuente quedará ligada a este cliente (monitoreo multi-tesis; sin atribución automática a una tesis).'
                 : 'Catálogo de orígenes de información (RSS, regulatorio, académico).'}
             </p>
           </div>

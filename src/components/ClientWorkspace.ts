@@ -894,12 +894,8 @@ function renderTriageColumn(
 function renderRadar(client: Client, thesis: PositioningThesis | undefined, filters: WorkspaceFilters): string {
   const clientId = client.id;
   const activeTheses = dbService.getActiveTheses(clientId);
-  const scoringThesis =
-    thesis?.status === 'ACTIVE'
-      ? thesis
-      : filters.thesisId
-        ? activeTheses.find((t) => t.id === filters.thesisId)
-        : activeTheses[0];
+  // Multi-thesis ScoreAndRouteSignal needs any ACTIVE thesis — not a primary/[0] pick.
+  const canScore = activeTheses.length > 0;
   const allSignals = dbService.getSignalsByClient(clientId);
   const topics = buildTopics(clientId, allSignals);
   const radarView = filters.radarView === 'list' ? 'list' : 'triage';
@@ -940,7 +936,7 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
            ${conversion.usefulRate !== null ? `<span class="muted small">Tasa útil: ${conversion.usefulRate}%</span>` : ''}
          </div>`
       : ''}
-    ${!scoringThesis
+    ${!canScore
       ? `<div class="info-strip warn">
            <span>Sin tesis <strong>ACTIVE</strong> el radar no puntuará señales. Activa una tesis en Identidad o completa y envía una al cliente.</span>
            <button type="button" class="btn btn-secondary btn-sm" data-tab="ws-positioning">Ir a Identidad</button>
@@ -948,8 +944,7 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
       : unscored > 0
         ? `<div class="info-strip">
              <span>${unscored} señal(es) sin puntuar.</span>
-             <button id="btn-score-all-signals" class="btn btn-secondary btn-sm" data-client-id="${esc(clientId)}"
-                     ${scoringThesis ? '' : 'disabled title="Requiere una tesis ACTIVE"'}>
+             <button id="btn-score-all-signals" class="btn btn-secondary btn-sm" data-client-id="${esc(clientId)}">
                Puntuar todas
              </button>
            </div>`

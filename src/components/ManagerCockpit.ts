@@ -202,6 +202,7 @@ function renderClientDirectoryRow(summary: ClientPortfolioSummary): string {
   const lastDelivery = summary.lastDeliveryAt
     ? new Date(summary.lastDeliveryAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })
     : 'sin entregas';
+  // ALLOWED_PRESENTATION_ONLY — directory chip label; does not persist or route.
   const thesis = dbService.getActiveTheses(client.id)[0];
   const statusNote =
     client.onboardingStatus !== 'COMPLETED'

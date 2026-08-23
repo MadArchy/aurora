@@ -6,8 +6,13 @@ export interface ThesisContextInput {
   selectedThesisId?: string | null;
   /** Tesis ya atribuida a la entidad (señal, contenido, curación…). */
   entityThesisId?: string | null;
-  /** Resolver de tesis primaria del cliente (inyectado para mantener el core puro). */
-  getPrimary: (clientId: string) => PositioningThesis | undefined;
+  /**
+   * @deprecated SPEC-001 Phase 4 — primary fallback is PRESENTATION_ONLY.
+   * Do not inject for strategic callers. Optional and off by default.
+   */
+  getPrimary?: (clientId: string) => PositioningThesis | undefined;
+  /** When true, allows legacy primary fallback (presentation only). Default false. */
+  allowPrimaryFallback?: boolean;
   /** Lookup por id dentro del cliente. */
   getById: (clientId: string, thesisId: string) => PositioningThesis | undefined;
 }
@@ -18,13 +23,22 @@ export interface ThesisContextResult {
 }
 
 /**
- * Prioridad única en todo el workspace:
- * 1. tesis seleccionada por el manager
- * 2. tesis atribuida a la entidad
- * 3. tesis primaria del cliente
+ * Prioridad:
+ * 1. tesis seleccionada por el manager (explícita)
+ * 2. tesis atribuida a la entidad (routed / content)
+ * 3. primary — ONLY if allowPrimaryFallback (presentation legacy)
+ *
+ * Strategic callers MUST leave allowPrimaryFallback false/omitted.
  */
 export function resolveThesisContext(input: ThesisContextInput): ThesisContextResult {
-  const { clientId, selectedThesisId, entityThesisId, getPrimary, getById } = input;
+  const {
+    clientId,
+    selectedThesisId,
+    entityThesisId,
+    getPrimary,
+    getById,
+    allowPrimaryFallback = false,
+  } = input;
 
   if (selectedThesisId) {
     const selected = getById(clientId, selectedThesisId);
@@ -36,8 +50,10 @@ export function resolveThesisContext(input: ThesisContextInput): ThesisContextRe
     if (entity) return { thesis: entity, source: 'entity' };
   }
 
-  const primary = getPrimary(clientId);
-  if (primary) return { thesis: primary, source: 'primary' };
+  if (allowPrimaryFallback && getPrimary) {
+    const primary = getPrimary(clientId);
+    if (primary) return { thesis: primary, source: 'primary' };
+  }
 
   return { source: 'none' };
 }

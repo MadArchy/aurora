@@ -652,7 +652,8 @@ export function renderContentPreviewModal(contentId: string): string {
 
 export function renderAddTaskModal(clientId: string): string {
   const client = dbService.getClientById(clientId);
-  const thesis = dbService.getPrimaryThesis(clientId);
+  // Explicit thesis required — empty until manager selects (no primary default).
+  const theses = dbService.getActiveTheses(clientId);
 
   return `
     <div id="add-task-modal" class="modal-overlay">
@@ -667,7 +668,14 @@ export function renderAddTaskModal(clientId: string): string {
           <button id="btn-close-add-task" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
-        <form id="form-add-task" data-client-id="${esc(clientId)}" data-thesis-id="${esc(thesis?.id || '')}">
+        <form id="form-add-task" data-client-id="${esc(clientId)}">
+          <div class="form-group">
+            <label class="form-label" for="task-thesis">Tesis (explícita)</label>
+            <select id="task-thesis" class="form-input" required>
+              <option value="">Selecciona una tesis ACTIVE…</option>
+              ${theses.map((t) => `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join('')}
+            </select>
+          </div>
           <div class="form-group">
             <label class="form-label" for="task-title">Título</label>
             <input type="text" id="task-title" class="form-input" required placeholder="Ej. Grabar video sobre el nuevo marco regulatorio de IA" />
@@ -751,11 +759,11 @@ export function renderGenerateContentModal(
   options?: { thesisId?: string; topic?: string }
 ): string {
   const theses = dbService.getThesesByClient(clientId);
+  // ALLOWED_PRESENTATION_ONLY — <select> default; strategic generate uses selected value.
   const preferred =
     (options?.thesisId && theses.find((t) => t.id === options.thesisId)) ||
-    dbService.resolveThesisFor({ clientId, selectedThesisId: options?.thesisId }) ||
-    dbService.getPrimaryThesis(clientId);
-  const selectedId = preferred?.id || theses[0]?.id || '';
+    dbService.resolveThesisFor({ clientId, selectedThesisId: options?.thesisId });
+  const selectedId = preferred?.id || '';
   const topic = options?.topic || '';
 
   return `

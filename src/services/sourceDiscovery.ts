@@ -215,6 +215,25 @@ export function buildProfileKeywords(client: Client, thesis?: PositioningThesis)
   };
 }
 
+/**
+ * SPEC-001 Phase 4 — client-wide keyword context from ALL ACTIVE theses.
+ * Does not collapse to primary/[0].
+ */
+export function buildMergedProfileKeywords(
+  client: Client,
+  theses: PositioningThesis[]
+): ProfileKeywords {
+  if (!theses.length) return buildProfileKeywords(client, undefined);
+  const sets = theses.map((t) => buildProfileKeywords(client, t));
+  return {
+    coreEn: uniq(sets.flatMap((s) => s.coreEn)).slice(0, 12),
+    coreEs: uniq(sets.flatMap((s) => s.coreEs)).slice(0, 12),
+    strong: uniq(sets.flatMap((s) => s.strong)),
+    context: uniq(sets.flatMap((s) => s.context)).slice(0, 12),
+    negative: uniq(sets.flatMap((s) => s.negative)),
+  };
+}
+
 function googleNewsUrl(query: string, locale: DiscoveryLocale): string {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&${LOCALE_PARAMS[locale]}`;
 }

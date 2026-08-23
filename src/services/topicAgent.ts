@@ -28,8 +28,9 @@ export function runTopicAgent(clientId: string): TopicAgentRunResult {
     throw new Error('Client missing organizationId for Topic Agent run');
   }
   const signals = dbService.getSignalsByClient(clientId);
-  const thesis = dbService.getActiveTheses(clientId)[0];
-  const items = rankDailyTopics(clientId, signals, thesis, 5);
+  // Client-wide: ALL ACTIVE theses — no primary/[0] collapse (SPEC-001 Phase 4).
+  const activeTheses = dbService.getActiveTheses(clientId);
+  const items = rankDailyTopics(clientId, signals, activeTheses, 5);
 
   const run = dbService.recordAiRun({
     organizationId,
@@ -38,7 +39,7 @@ export function runTopicAgent(clientId: string): TopicAgentRunResult {
     provider: 'AUTOMATIC',
     modelName: 'topic-agent-v1',
     promptTemplateId: 'topic_agent_daily_v1',
-    inputContextSummary: `${signals.length} señales · tesis ${thesis?.title || 'sin activa'}`,
+    inputContextSummary: `${signals.length} señales · ${activeTheses.length} tesis ACTIVE`,
     outputPayload: JSON.stringify(items),
     promptTokens: 0,
     completionTokens: 0,

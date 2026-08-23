@@ -276,16 +276,25 @@ function normalizeLiveActions(raw: Array<Partial<AdviceAction>>): AdviceAction[]
 
 /**
  * Genera el diagnóstico de imagen y el plan de mejora del cliente.
- * Con sesión de IA activa enriquece el resultado; sin ella devuelve el análisis heurístico.
+ * Client-wide: uses ALL ACTIVE theses (no primary collapse). Optional explicit thesisId.
  */
-export async function generatePositioningAdvice(clientId: string): Promise<PositioningAdvice> {
+export async function generatePositioningAdvice(
+  clientId: string,
+  options?: { thesisId?: string }
+): Promise<PositioningAdvice> {
   const client = dbService.getClientById(clientId);
   if (!client) throw new Error('Cliente no encontrado.');
 
-  const thesis = dbService.getPrimaryThesis(clientId);
+  const activeTheses = dbService.getActiveTheses(clientId);
+  const thesis = options?.thesisId
+    ? activeTheses.find((t) => t.id === options.thesisId) ||
+      dbService.getThesisById(clientId, options.thesisId)
+    : undefined;
+  // Multi-thesis client-wide context when no explicit selection — do not invent primary.
+  const thesisForInput = thesis;
   const input: AdvisorInput = {
     client,
-    thesis,
+    thesis: thesisForInput,
     profile: dbService.getMasterProfile(clientId),
     evidence: dbService.getEvidenceVaultByClient(clientId),
     results: dbService.getResultsByClient(clientId),
@@ -294,9 +303,11 @@ export async function generatePositioningAdvice(clientId: string): Promise<Posit
 
   const diagnosis = computeDiagnosis(input);
   let actions = computeHeuristicActions(input, diagnosis);
-  let summary = thesis
-    ? `Autoridad ${diagnosis.authorityScore}/100 y visibilidad ${diagnosis.visibilityScore}/100 frente a la tesis "${thesis.title}". ${actions.length} acción(es) priorizada(s).`
-    : `Sin tesis activa. Autoridad estimada ${diagnosis.authorityScore}/100. Definir el posicionamiento es el primer paso.`;
+  let summary = thesisForInput
+    ? `Autoridad ${diagnosis.authorityScore}/100 y visibilidad ${diagnosis.visibilityScore}/100 frente a la tesis "${thesisForInput.title}". ${actions.length} acción(es) priorizada(s).`
+    : activeTheses.length
+      ? `Autoridad ${diagnosis.authorityScore}/100 y visibilidad ${diagnosis.visibilityScore}/100 con ${activeTheses.length} tesis ACTIVE (sin selección explícita). ${actions.length} acción(es) priorizada(s).`
+      : `Sin tesis activa. Autoridad estimada ${diagnosis.authorityScore}/100. Definir el posicionamiento es el primer paso.`;
   let usedLiveModel = false;
 
   if (isAdvisorGatewayAvailable()) {
@@ -324,7 +335,7 @@ export async function generatePositioningAdvice(clientId: string): Promise<Posit
     id: createId('advice'),
     organizationId: client.organizationId,
     clientId,
-    thesisId: thesis?.id,
+    thesisId: thesisForInput?.id,
     summary: usedLiveModel ? summary : `${summary} Análisis heurístico: conecta la IA para un diagnóstico más profundo.`,
     diagnosis,
     actions,
@@ -343,14 +354,20 @@ export async function generatePositioningAdvice(clientId: string): Promise<Posit
   return advice;
 }
 
-/** Propone el ángulo editorial de un ítem en la mesa de curación. */
+/** Propone el ángulo editorial de un ítem en la mesa de curación.
+ * Requires explicit thesisId — no primary fallback (SPEC-001 Phase 4).
+ */
 export async function proposeAngle(params: {
   clientId: string;
   title: string;
   snippet: string;
+  /** Explicit thesis — required for strategic curation angle. */
+  thesisId?: string;
 }): Promise<{ angle: string; usedLiveModel: boolean }> {
   const client = dbService.getClientById(params.clientId);
-  const thesis = dbService.getPrimaryThesis(params.clientId);
+  const thesis = params.thesisId
+    ? dbService.getThesisById(params.clientId, params.thesisId)
+    : undefined;
 
   if (client && thesis && isAdvisorGatewayAvailable()) {
     try {

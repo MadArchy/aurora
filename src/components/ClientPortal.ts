@@ -525,6 +525,7 @@ function renderClientThesisBody(
 ): string {
   const awaiting = thesesAwaitingClientAction(theses);
   const viewable = theses.filter((t) => t.status === 'ACTIVE' || t.status === 'UNDER_REVIEW');
+  // ALLOWED_PRESENTATION_ONLY — initial thesis tab/view; does not write routing.
   const selected =
     (selectedThesisId ? theses.find((t) => t.id === selectedThesisId) : undefined) ||
     awaiting[0] ||
