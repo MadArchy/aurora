@@ -127,8 +127,8 @@ function renderPortfolioBody(filters: { searchQuery?: string } = {}): string {
         ${totals.signals} señales por decidir · ${totals.curation} preparando entrega · ${totals.content} contenido por revisar
         ${totals.overdue ? ` · ${totals.overdue} tarea(s) vencida(s)` : ''}
       </p>
-      ${!aiService.getConfig().hasActiveSession
-        ? `<p class="today-note muted small">IA en modo local (scoring heurístico). <button type="button" class="link-btn" data-tab="ai-center">Conectar IA</button></p>`
+      ${!aiService.isServerGatewayAvailable()
+        ? `<p class="today-note muted small">IA en modo local (scoring heurístico). <button type="button" class="link-btn" data-tab="ai-center">Ver estado del Gateway</button></p>`
         : ''}
     </section>
 
@@ -492,7 +492,7 @@ export function renderContentPipeline(
 // ==========================================
 
 function renderAICenterBody(): string {
-  const config = aiService.getConfig();
+  const gatewayReady = aiService.isServerGatewayAvailable();
   const subscription = dbService.getSubscription();
   const aiRuns = dbService.getAiRuns(10);
 
@@ -512,73 +512,34 @@ function renderAICenterBody(): string {
         <div class="progress-track"><div class="progress-fill progress-cyan" style="width: ${tokensPercent}%"></div></div>
       </div>
       <div class="card stat-card">
-        <p class="form-label">Estado de sesión</p>
-        <h2>${config.hasActiveSession ? esc(config.provider) : 'Manual'}</h2>
-        <span class="stat-hint">${config.hasActiveSession ? 'Claves en memoria del proxy local' : 'Sin claves: modo heurístico'}</span>
+        <p class="form-label">Estado del Gateway</p>
+        <h2>${gatewayReady ? 'Gateway' : 'Local'}</h2>
+        <span class="stat-hint">${gatewayReady
+          ? 'ADMIN + Firebase → aiComplete (sin claves en el navegador)'
+          : 'Sin Gateway: scoring/heurísticas locales'}</span>
       </div>
     </section>
 
     <section class="card">
       <div class="card-header">
         <div>
-          <h3>Configuración de proveedor</h3>
-          <p style="font-size: 0.9rem;">Las claves viajan al proxy local y viven en memoria con caducidad de 60 minutos.</p>
+          <h3>Enrutamiento de modelos</h3>
+          <p style="font-size: 0.9rem;">Los proveedores y modelos los resuelve el servidor (ModelRegistry). El navegador no envía claves ni IDs de modelo.</p>
         </div>
       </div>
-
-      <div class="grid-2">
-        <div class="card" style="background: var(--bg-surface);">
-          <div class="form-group">
-            <label class="form-label" for="ai-provider-select">Proveedor</label>
-            <select id="ai-provider-select" class="form-select">
-              <option value="AUTOMATIC" ${config.provider === 'AUTOMATIC' ? 'selected' : ''}>Automático (router)</option>
-              <option value="OPENAI" ${config.provider === 'OPENAI' ? 'selected' : ''}>OpenAI</option>
-              <option value="CLAUDE" ${config.provider === 'CLAUDE' ? 'selected' : ''}>Claude</option>
-              <option value="COMPARATIVE" ${config.provider === 'COMPARATIVE' ? 'selected' : ''}>Comparativo (síntesis dual)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="ai-depth-select">Profundidad de razonamiento</label>
-            <select id="ai-depth-select" class="form-select">
-              <option value="deep_reasoning" ${config.modelDepth === 'deep_reasoning' ? 'selected' : ''}>Profunda</option>
-              <option value="standard" ${config.modelDepth === 'standard' ? 'selected' : ''}>Estándar</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="openai-key-input">API key de OpenAI</label>
-            <input type="password" id="openai-key-input" class="form-input" placeholder="sk-proj-…" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="claude-key-input">API key de Claude</label>
-            <input type="password" id="claude-key-input" class="form-input" placeholder="sk-ant-…" />
-          </div>
-
-          <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
-            <button id="btn-save-ai-keys" class="btn btn-primary">Activar sesión</button>
-            <button id="btn-clear-ai-keys" class="btn btn-danger">Limpiar claves</button>
-          </div>
-        </div>
-
-        <div class="card" style="background: var(--bg-surface); border-color: var(--border-accent);">
-          <h4 style="margin-bottom: 0.75rem;">Cómo se protegen las claves</h4>
-          <ul class="policy-list">
-            <li>No se escriben nunca en <code>localStorage</code> ni en disco.</li>
-            <li>Viven en memoria del proxy local y se destruyen al cerrar sesión.</li>
-            <li>El contenido de las fuentes se marca como no confiable antes de armar el prompt.</li>
-            <li>Las afirmaciones se contrastan contra el evidence vault del cliente.</li>
-          </ul>
-        </div>
-      </div>
+      <ul class="policy-list">
+        <li>Operaciones LLM: Content, Tesis, Señales, Advisor y Comparativo (OpenAI + Anthropic) vía AI Gateway.</li>
+        <li>Credenciales: solo Secret Manager en el servidor (<code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code>).</li>
+        <li>Local: <code>/api/ai/gateway-complete</code> → mismo Gateway. Producción: Cloud Function <code>aiComplete</code>.</li>
+        <li>Las claves de proveedor en el navegador fueron eliminadas (SPEC-005 Phase 5D).</li>
+      </ul>
     </section>
 
     <section class="card">
       <div class="card-header">
         <div>
           <h3>Corridas recientes</h3>
-          <p style="font-size: 0.9rem;">Agente, proveedor, tokens y latencia de cada llamada.</p>
+          <p style="font-size: 0.9rem;">Agente, proveedor, tokens y latencia de cada llamada (registro local histórico).</p>
         </div>
       </div>
 

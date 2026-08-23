@@ -571,14 +571,14 @@ describe('SPEC-005 Phase 5C-MP — session-key-free + legacy path gone', () => {
     expect(comparative).toMatch(/executeComparativeAnalysisViaGateway/);
   });
 
-  it('complete() and runAgentJson have zero active LLM consumers', () => {
+  it('complete() and runAgentJson are removed from ai.ts', () => {
     const ai = readFileSync('src/services/ai.ts', 'utf8');
     const advisor = readFileSync('src/services/advisor.ts', 'utf8');
-    expect(advisor).not.toMatch(/runAgentJson/);
-    // complete() only defined + used by runAgentJson internals — no other call sites
-    const completeCalls = [...ai.matchAll(/this\.complete\(/g)];
-    expect(completeCalls.length).toBe(1); // only inside runAgentJson
-    expect(ai).toMatch(/private async complete/);
+    expect(advisor).not.toMatch(/\brunAgentJson\b/);
+    expect(ai).not.toMatch(/\brunAgentJson\b/);
+    expect(ai).not.toMatch(/private async complete\b/);
+    expect(ai).not.toMatch(/this\.complete\(/);
+    expect(ai).not.toMatch(/setSessionKeys|clearSessionKeys|X-AI-Session|\/api\/ai\/complete/);
   });
 });
 

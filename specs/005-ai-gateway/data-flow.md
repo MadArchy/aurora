@@ -117,9 +117,15 @@ Gateway (Phase 4):
 
 ---
 
-## Target flow (SPEC-005 — gateway Phase 2–5C-MP)
+## Historical legacy flow (REMOVED Phase 5D)
 
-Migrated callers (all 7 structured LLM operations including ANALYSIS_COMPARATIVE multi-provider):
+~~Browser session keys → `/api/ai/session` → `/api/ai/complete` → api.openai.com / api.anthropic.com~~
+
+**Status: REMOVED.** Do not restore.
+
+## Target flow (SPEC-005 — current)
+
+All 7 structured LLM operations:
 
 ```text
 UI / service
@@ -142,7 +148,7 @@ AiCompleteHttpClient (Bearer Firebase; no session keys / no model)
 existing domain/UI flow (proposal form / recommendation / challenge modal)
 ```
 
-ANALYSIS_COMPARATIVE uses Application-owned concurrent dual-slice orchestration (`resolveComparativePlan` → OpenAI + Anthropic) with provider-preserving repair and `executionMode: COMPARATIVE` audit. Legacy session path has zero active LLM consumers (Phase 5D cleanup).
+ANALYSIS_COMPARATIVE uses Application-owned concurrent dual-slice orchestration. Legacy session-key architecture is **REMOVED** (Phase 5D).
 
 See `plan.md` §Target Architecture.
 

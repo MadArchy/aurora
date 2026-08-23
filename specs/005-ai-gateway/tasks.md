@@ -116,13 +116,14 @@
 - [x] **T-005-62** Migrate thesis + signal eval (`THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`)
 - [x] **T-005-63** Migrate advisor flows (`ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE`)
 - [x] **T-005-64** Migrate thesis challenge + comparative (`THESIS_CHALLENGE`; `ANALYSIS_COMPARATIVE` via 5C-MP multi-provider)
-- [ ] **T-005-65** Remove prod session-key path
+- [x] **T-005-65** Remove prod session-key path (Phase 5D — proxy, UI, browser credentials)
 
 ---
 
-## Phase 6 — CODE_COMPLETE (NOT STARTED)
+## Phase 6 — CODE_COMPLETE (sign-off)
 
-- [ ] **T-005-70** Final verification + acceptance sign-off
+- [ ] **T-005-70** Final verification + acceptance sign-off (human)
+- Deploy gates D1–D4 remain separate from CODE_COMPLETE
 
 ---
 

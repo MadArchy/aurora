@@ -628,7 +628,6 @@ class App {
     this.bindContent();
     this.bindClientPortalActions();
     this.bindProfileActions();
-    this.bindAiCenter();
   }
 
   // ==========================================
@@ -788,7 +787,6 @@ class App {
 
     bindSessionUi(this, {
       authLogout: async () => {
-        await aiService.clearSessionKeys();
         authService.logout();
       },
       markAllRead: (uid) => notificationService.markAllRead(uid),
@@ -4169,30 +4167,6 @@ class App {
         this.showToast('Resultado copiado al evidence vault', 'success');
         this.render();
       });
-    });
-  }
-
-  // ==========================================
-  // Centro de IA
-  // ==========================================
-
-  private bindAiCenter() {
-    document.getElementById('btn-save-ai-keys')?.addEventListener('click', async () => {
-      const res = await aiService.setSessionKeys({
-        provider: (document.getElementById('ai-provider-select') as HTMLSelectElement).value as never,
-        modelDepth: (document.getElementById('ai-depth-select') as HTMLSelectElement).value as never,
-        openAIKey: (document.getElementById('openai-key-input') as HTMLInputElement).value,
-        claudeKey: (document.getElementById('claude-key-input') as HTMLInputElement).value,
-        isTemporary: true
-      });
-      this.showToast(res.message, res.success ? 'success' : 'warning');
-      this.render();
-    });
-
-    document.getElementById('btn-clear-ai-keys')?.addEventListener('click', async () => {
-      await aiService.clearSessionKeys();
-      this.showToast('Claves de IA eliminadas de memoria', 'warning');
-      this.render();
     });
   }
 

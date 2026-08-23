@@ -19,7 +19,7 @@ export function bindSessionUi(host: AppHost, deps: SessionControllerDeps): void 
   document.getElementById('btn-logout')?.addEventListener('click', async () => {
     await deps.authLogout();
     host.closeModal();
-    host.showToast('Sesión cerrada. Claves de IA destruidas.', 'warning');
+    host.showToast('Sesión cerrada.', 'warning');
   });
 
   document.getElementById('btn-open-notifications')?.addEventListener('click', () => {

@@ -79,14 +79,14 @@ Phase 1 code moved from monolithic `src/domain/aiGateway/` into domain, applicat
 | Advisor | `advisorGateway.ts` + mappers | **MIGRATED** (5C) |
 | Comparative | `comparativeGateway.ts` + multi-provider Application orchestration | **MIGRATED** (5C-MP) |
 | Prompt catalog | legacy-equivalent render for all 7 ops | **DONE** |
-| Remaining | legacy session infra with zero LLM consumers | Phase 5D cleanup |
+| Legacy session proxy/UI | — | **REMOVED** (5D) |
 
-## Deferred (Phase 5D)
+## Deferred
 
 | Layer | Target path | Status |
 |-------|-------------|--------|
-| INTERFACE | `src/interfaces/ai/` (CLIENT CF access) | Future — aiComplete is ADMIN-only |
-| Legacy cleanup | session UI, `/api/ai/complete`, `runAgentJson`, `complete()` | Phase 5D — zero active consumers confirmed |
+| INTERFACE | CLIENT via aiComplete | Future — remains ADMIN-only |
+| Deploy | Functions + secrets production | Deploy gates D1–D4 |
 
 ## Dependency rule summary
 

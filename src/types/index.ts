@@ -452,14 +452,6 @@ export interface SignalAnalysis {
 
 export type AIProvider = 'OPENAI' | 'CLAUDE' | 'AUTOMATIC' | 'COMPARATIVE';
 
-export interface AISessionConfig {
-  provider: AIProvider;
-  isTemporaryKey: boolean;
-  hasActiveSession: boolean;
-  sessionStartedAt?: string;
-  modelDepth: 'standard' | 'deep_reasoning';
-}
-
 export type RecommendationType = 'VIDEO_SHORT' | 'ARTICLE_LONG' | 'LESSON_MODULE' | 'OPPORTUNITY_PITCH';
 export type RecommendationStatus = 'GENERATED' | 'MANAGER_APPROVED' | 'REJECTED' | 'CONVERTED_TO_TASK';
 
@@ -704,21 +696,6 @@ export type AgentType =
   | 'POSITIONING_STRATEGIST'
   | 'CONTENT_TASKS'
   | 'TOPIC_AGENT';
-
-export type ModelClass =
-  | 'FAST_EXTRACTION'
-  | 'STANDARD_REASONING'
-  | 'DEEP_STRATEGIC'
-  | 'CREATIVE_SYNTHESIS';
-
-export interface AIRouterDecision {
-  agent: AgentType;
-  provider: AIProvider;
-  modelClass: ModelClass;
-  modelName: string;
-  estimatedPromptTokens: number;
-  reasoning: string;
-}
 
 export interface AIRunRecord {
   id: string;

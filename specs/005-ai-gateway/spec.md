@@ -3,19 +3,19 @@
 | Field | Value |
 |-------|--------|
 | **Spec ID** | `005-ai-gateway` |
-| **Status** | **`APPROVED`** · Phase 1 contracts DONE · Phase 2 NOT STARTED |
+| **Status** | **`APPROVED`** · Phase 5 COMPLETE · implementation gates A1–A29 PASS · deploy gates D1–D4 pending · **CODE_COMPLETE eligible** (human T-005-70) |
 | **Branch** | `spec/005-ai-gateway` |
 | **Baseline SHA** | `04e65ff556899bf2f2f8d138880b05df21a34c5d` |
 | **Frozen SPEC-009 implementation SHA** | `9c351ef7ac6fafdbce8ff8b8eb5a5678e2ceae99` (reference only; do not modify) |
-| **Priority** | P0 (constitution + pilot blocker for production AI) |
+| **Priority** | P0 — **RESOLVED** (browser provider execution path eliminated Phase 5D) |
 | **Constitution** | §AI Governance — **AI SUGGESTS. SOFTWARE GOVERNS.** |
 | **Depends on** | SPEC-009 tenant isolation (`organizationId` / `clientId` envelope) |
-| **Blocks** | Production LLM usage; reliable structured AI in pilot |
+| **Blocks** | Production deploy of gateway (D1–D4); not browser LLM security |
 | **Inventory** | `specs/005-ai-gateway/inventory.md` |
 | **Node** | `v24.7.0` |
 | **npm** | `11.5.1` |
 | **Firebase CLI** | `15.14.0` |
-| **Test baseline** | `npm run check` → **305/305 PASS** (Phase 1); `npm run test:rules` → **91/91 PASS** |
+| **Test baseline** | `npm run check` → **487/487 PASS** (Phase 5D); `npm run test:rules` → **91/91 PASS** |
 
 ---
 
@@ -42,7 +42,7 @@ Gateway responsibilities:
 POSTURA has **partial** AI architecture:
 
 1. **Production LLM path broken** — Cloud Function `aiComplete` returns **501**; browser calls `/api/ai/*` which exists only on Vite dev middleware.
-2. **Dev-only provider proxy** — OpenAI + Anthropic keys enter browser UI → in-memory session on local server (`server/postura-api.ts`).
+2. **~~Dev-only provider proxy~~** — **REMOVED Phase 5D.** Historical: OpenAI + Anthropic keys entered browser UI → in-memory session on local server.
 3. **Unvalidated structured output** — seven LLM flows parse JSON without runtime schema; field fallbacks mask invalid output.
 4. **No Zod / no provider SDK** — raw `fetch` only; no shared validation layer.
 5. **Inconsistent observability** — `aiRuns` written on some paths only; `totalCostUsd` always `0`.

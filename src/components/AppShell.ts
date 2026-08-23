@@ -137,7 +137,7 @@ export function renderAppShell(
   const user = authService.getCurrentUser();
   if (!user) return '';
 
-  const aiConfig = aiService.getConfig();
+  const gatewayAi = aiService.isServerGatewayAvailable();
   const isAdmin = user.role === 'ADMIN';
   const unread = notificationService.unreadCount(user.uid, user.clientId);
   const clientIdForCampaign = !isAdmin ? user.clientId : (activeClientId !== 'all' ? activeClientId : null);
@@ -229,8 +229,8 @@ export function renderAppShell(
           </label>
         ` : ''}
         ${firebaseBadge}
-        <span class="status-pill ${aiConfig.hasActiveSession ? 'status-on' : 'status-off'}" title="Estado de la sesión de IA">
-          IA ${aiConfig.hasActiveSession ? esc(aiConfig.provider) : 'manual'}
+        <span class="status-pill ${gatewayAi ? 'status-on' : 'status-off'}" title="Estado del AI Gateway">
+          IA ${gatewayAi ? 'Gateway' : 'local'}
         </span>
 
         <span class="topbar-divider" aria-hidden="true"></span>

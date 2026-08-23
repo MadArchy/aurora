@@ -154,7 +154,8 @@ See `migration-matrix.md`.
 - **5B** ✅ `THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`, `THESIS_CHALLENGE`
 - **5C** ✅ Advisor (`ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE`)
 - **5C-MP** ✅ `ANALYSIS_COMPARATIVE` multi-provider (OpenAI + Anthropic; not fallback)
-- **5D** Session-key / legacy path removal (`runAgentJson`, `complete`, `/api/ai/complete`, session UI)
+- **5D** ✅ Legacy session-key / `/api/ai/complete` / browser provider UI **REMOVED**
+- **6** Human CODE_COMPLETE sign-off + deploy gates
 
 Each migrated op: browser Gateway client → `aiComplete` ADMIN_ONLY → audit → domain compatibility. No browser provider fallback.
 

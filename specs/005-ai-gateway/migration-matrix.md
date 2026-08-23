@@ -1,47 +1,42 @@
-# Migration matrix — SPEC-005 Phase 5
+# Migration matrix — SPEC-005 Phase 5 (final)
 
-| Operation | Legacy caller | Legacy prompt / session | Gateway input | Gateway output | promptId / version | Model role | aiRun | Status |
-|-----------|---------------|-------------------------|---------------|----------------|--------------------|------------|-------|--------|
-| CONTENT_DRAFT | `generateContentDraft` | session `complete('CONTENT_TASKS')` | `ContentDraftGatewayInput` | `ContentDraftOutput` | `tmpl_content_v1` / `1` | CREATIVE_WRITING | Gateway | **MIGRATED** (5A) |
-| THESIS_PROPOSAL | `generateThesisProposal` | session `complete('POSITIONING_STRATEGIST')` / `thesis-generator-v1` | `ThesisProposalGatewayInput` | `ThesisProposalOutput` → `ThesisEditableFields` | `tmpl_thesis_proposal_v1` / `1` | DEEP_REASONING | Gateway | **MIGRATED** (5B) |
-| SIGNAL_THESIS_EVAL | `analyzeSignalAgainstThesis` | session `complete` / `tmpl_strategist_signal_eval_v2` | `SignalThesisEvalGatewayInput` | `SignalThesisEvalOutput` (advisory overlay) | `tmpl_strategist_signal_eval_v2` / `2` | DEEP_REASONING | Gateway | **MIGRATED** (5B) |
-| THESIS_CHALLENGE | `challengeThesis` | session `complete` (no aiRun historically) | `ThesisChallengeGatewayInput` | `ThesisChallengeOutput` → merge heuristic | `tmpl_thesis_challenge_v1` / `1` | DEEP_REASONING | Gateway | **MIGRATED** (5B) |
-| ADVISOR_POSITIONING | `advisor.generatePositioningAdvice` | `runAgentJson` + session | `AdvisorPositioningGatewayInput` | `AdvisorPositioningOutput` → live advice merge | `tmpl_positioning_advisor_v1` / `1` | DEEP_REASONING | Gateway | **MIGRATED** (5C) |
-| ADVISOR_CURATION_ANGLE | `advisor.proposeAngle` | `runAgentJson` + session | `AdvisorCurationAngleGatewayInput` | `AdvisorCurationAngleOutput` | `tmpl_curation_angle_v1` / `1` | FAST_STRUCTURED | Gateway | **MIGRATED** (5C) |
-| ANALYSIS_COMPARATIVE | `runComparativeAnalysis` | dual session `complete` (OpenAI + Claude) | `AnalysisComparativeGatewayInput` | Aggregate `{ openai, anthropic }` → `AIComparativeResult` | `tmpl_comparative_analysis_v1` / `1` | DEEP_REASONING (×2) | Gateway COMPARATIVE | **MIGRATED** (5C-MP) |
+| Operation | Status | Session-key | Direct provider fallback | Server Gateway | Audit |
+|-----------|--------|-------------|--------------------------|----------------|-------|
+| CONTENT_DRAFT | **MIGRATED** | NO | NONE | YES | YES (Gateway aiRun) |
+| THESIS_PROPOSAL | **MIGRATED** | NO | NONE | YES | YES |
+| SIGNAL_THESIS_EVAL | **MIGRATED** | NO | NONE | YES | YES |
+| THESIS_CHALLENGE | **MIGRATED** | NO | NONE | YES | YES |
+| ADVISOR_POSITIONING | **MIGRATED** | NO | NONE | YES | YES |
+| ADVISOR_CURATION_ANGLE | **MIGRATED** | NO | NONE | YES | YES |
+| ANALYSIS_COMPARATIVE | **MIGRATED** | NO | NONE | YES (multi-provider) | YES (`executionMode: COMPARATIVE`) |
 
-## ANALYSIS_COMPARATIVE — MULTI_PROVIDER_COMPARISON (Phase 5C-MP)
+## Phase 5D — legacy infrastructure REMOVED
 
-**Classification:** `EXPLICIT MULTI_PROVIDER_COMPARISON` (not fallback)
+| Artifact | Disposition |
+|----------|-------------|
+| `runAgentJson` | **REMOVED** |
+| `complete()` browser proxy | **REMOVED** |
+| `setSessionKeys` / `clearSessionKeys` | **REMOVED** |
+| `X-AI-Session` | **REMOVED** (zero executable refs) |
+| `/api/ai/session` | **REMOVED** |
+| `/api/ai/complete` | **REMOVED** |
+| Manager OpenAI/Claude key UI | **REMOVED** |
+| Browser provider credential state | **REMOVED** |
+| `/api/ai/gateway-complete` | **PRESERVED** (local Gateway bridge) |
+| `aiComplete` Cloud Function | **PRESERVED** |
+| Server `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | **PRESERVED** (Secret Manager) |
 
-| Aspect | Policy |
-|--------|--------|
-| Semantics | Two independent provider/model executions in ONE Gateway operation |
-| Providers | OpenAI (`gpt-4o-mini`) + Anthropic (`claude-3-5-haiku-20241022`) — Phase-0 verified |
-| Plan | `ModelRegistryPort.resolveComparativePlan` → `ComparativeExecutionPlan` |
-| Concurrency | `Promise.all` in Application (`comparativeOrchestration.ts`) |
-| Per-slice budget | `MAX_PROVIDER_CALLS_PER_PROVIDER_SLICE = 4` |
-| Total budget | `MAX_COMPARATIVE_PROVIDER_CALLS = 8` (does not redefine single-provider 4) |
-| Retry | Same-provider only (OpenAI→OpenAI, Anthropic→Anthropic) |
-| Repair | **Provider-preserving** — same slice `ModelConfiguration` (never FAST_STRUCTURED cross-provider) |
-| Failure | BOTH slices required; one-sided terminal failure → overall FAILED |
-| Aggregate | Software logic after both validate — no judge model |
-| Audit | `executionMode: COMPARATIVE` + `providerExecutions[2]` on one logical aiRun |
+## Local workflow (post-5D)
 
-## Session-key dependency (post-5C-MP)
+```text
+Browser (ADMIN + Firebase)
+  → AiCompleteHttpClient (Bearer ID token)
+  → /api/ai/gateway-complete (dev) OR Cloud Function aiComplete
+  → ExecuteAiOperation → ModelRegistry → Provider adapters
+```
 
-| Operation | Browser OpenAI/Anthropic key | X-AI-Session | Direct provider URL | Notes |
-|-----------|------------------------------|--------------|---------------------|-------|
-| All 7 structured LLM ops | NOT REQUIRED | NOT USED | NOT USED | ADMIN + Firebase → gateway |
-| Legacy session infra | still present | still present | `/api/ai/complete` exists | **No active LLM consumer** — Phase 5D cleanup |
+No browser provider keys. No restoration of session-key UI.
 
-## runAgentJson / complete() disposition (post-5C-MP)
+## ANALYSIS_COMPARATIVE (preserved)
 
-| Symbol | Active consumers |
-|--------|------------------|
-| `runAgentJson` | **0** (DEAD — definition retained for Phase 5D) |
-| `complete()` LLM | **0** active business callers (`complete` only used inside dead `runAgentJson`) |
-
-## Auth note
-
-`aiComplete` remains **ADMIN_ONLY**. No auth policy weakening.
+Explicit OpenAI + Anthropic slices; provider-preserving retry/repair; one logical aiRun with `providerExecutions[2]`; max 4 calls/slice, max 8 total; 270s Gateway deadline.
