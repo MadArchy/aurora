@@ -103,6 +103,40 @@ export function invalidThesisChallengeSchemaResponse() {
   return jsonProviderResponse({ outcome: 'MAYBE', recommendations: ['x'], riskScore: 10 });
 }
 
+export function validAdvisorPositioningResponse() {
+  return jsonProviderResponse({
+    summary: 'Autoridad moderada con brechas de evidencia.',
+    diagnosis: {
+      strengths: ['Tesis definida'],
+      gaps: ['Pocas evidencias verificadas'],
+      risks: ['Tesis pendiente de aprobación'],
+    },
+    actions: [
+      {
+        category: 'EVIDENCE',
+        horizon: 'DAYS_30',
+        title: 'Verificar evidencias',
+        description: 'Contrasta cada ítem con su fuente original.',
+        priority: 80,
+      },
+    ],
+  });
+}
+
+export function invalidAdvisorPositioningSchemaResponse() {
+  return jsonProviderResponse({});
+}
+
+export function validAdvisorCurationAngleResponse() {
+  return jsonProviderResponse({
+    angle: 'Qué implica la norma para CIOs que ya operan sistemas de alto riesgo.',
+  });
+}
+
+export function invalidAdvisorCurationAngleSchemaResponse() {
+  return jsonProviderResponse({ angle: '' });
+}
+
 export function malformedJsonResponse() {
   return jsonProviderResponse('{not json');
 }

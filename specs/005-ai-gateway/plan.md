@@ -152,7 +152,8 @@ See `migration-matrix.md`.
 
 - **5A** ✅ `CONTENT_DRAFT`
 - **5B** ✅ `THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`, `THESIS_CHALLENGE`
-- **5C+** Advisor + comparative + session-key removal
+- **5C** ✅ Advisor (`ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE`); ☐ `ANALYSIS_COMPARATIVE` **BLOCKED** (multi-provider semantic conflict)
+- **5D** Comparative orchestration (if required) + session-key / legacy path removal
 
 Each migrated op: browser Gateway client → `aiComplete` ADMIN_ONLY → audit → domain compatibility. No browser provider fallback.
 

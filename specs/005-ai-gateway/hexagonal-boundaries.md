@@ -76,15 +76,17 @@ Phase 1 code moved from monolithic `src/domain/aiGateway/` into domain, applicat
 | Browser client | `AiCompleteHttpClient` | shared (5A+) |
 | CONTENT_DRAFT | `contentDraftGateway.ts` | **MIGRATED** |
 | Thesis/signal | `thesisSignalGateway.ts` + mappers | **MIGRATED** (5B) |
-| Prompt catalog | legacy-equivalent render for 5A/5B ops | **DONE** |
-| Remaining | advisor + comparative via session | Phase 5C+ |
+| Advisor | `advisorGateway.ts` + mappers | **MIGRATED** (5C) |
+| Prompt catalog | legacy-equivalent render for 5A/5B/5C ops | **DONE** |
+| Remaining | comparative dual-provider via session | **BLOCKED** (5C semantic conflict) |
 
-## Deferred (Phase 5C+)
+## Deferred (Phase 5D)
 
 | Layer | Target path | Status |
 |-------|-------------|--------|
 | INTERFACE | `src/interfaces/ai/` (CLIENT CF access) | Future — aiComplete is ADMIN-only |
-| Browser migration | advisor / comparative | Phase 5C+ |
+| Browser migration | `ANALYSIS_COMPARATIVE` | Requires multi-provider orchestration contract |
+| Legacy cleanup | session UI, `/api/ai/complete`, `runAgentJson` | Phase 5D when zero consumers |
 
 ## Dependency rule summary
 

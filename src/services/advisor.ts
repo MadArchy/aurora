@@ -11,8 +11,12 @@ import {
   ResultRecord,
   Topic,
 } from '../types';
-import { aiService } from './ai';
 import { auditService } from './audit';
+import {
+  executeAdvisorCurationAngleViaGateway,
+  executeAdvisorPositioningViaGateway,
+  isAdvisorGatewayAvailable,
+} from './advisorGateway';
 import { authService } from './auth';
 import { dbService } from './db';
 import { buildTopics } from './topics';
@@ -25,12 +29,6 @@ interface AdvisorInput {
   evidence: EvidenceVaultItem[];
   results: ResultRecord[];
   topics: Topic[];
-}
-
-interface LiveAdvicePayload {
-  summary?: string;
-  diagnosis?: Partial<ImageDiagnosis>;
-  actions?: Array<Partial<AdviceAction>>;
 }
 
 const VALID_CATEGORIES: AdviceCategory[] = ['CONTENT', 'CREDENTIAL', 'VISIBILITY', 'EVIDENCE', 'NETWORK', 'RISK'];
@@ -276,80 +274,6 @@ function normalizeLiveActions(raw: Array<Partial<AdviceAction>>): AdviceAction[]
     }));
 }
 
-function buildPrompt(input: AdvisorInput, diagnosis: ImageDiagnosis): string {
-  const { client, thesis, profile, evidence, results, topics } = input;
-
-  const context = {
-    cliente: {
-      profesion: client.profession,
-      mercadoObjetivo: client.targetMarket,
-      completitudPerfil: client.profileCompleteness,
-      onboarding: client.onboardingStatus,
-    },
-    tesis: thesis
-      ? {
-          titulo: thesis.title,
-          identidadExperta: thesis.expertIdentity,
-          audiencia: thesis.targetAudience,
-          dominio: thesis.domain,
-          objetivo: thesis.objective,
-          proofPoints: thesis.proofPoints,
-          diferenciador: thesis.differentiator,
-          limites: thesis.complianceRules,
-          aprobacion: thesis.clientApprovalStatus,
-        }
-      : null,
-    perfil: profile
-      ? {
-          headline: profile.identity.professionalHeadline,
-          objetivoPrincipal: profile.goals.primaryGoal,
-          aniosExperiencia: profile.career.yearsExperience,
-          formacion: profile.education.map((e) => `${e.degree} — ${e.institution}`),
-          publicaciones: profile.keyPublications.map((p) => p.title),
-          tono: profile.voicePreferences.tone,
-          temasAEvitar: profile.voicePreferences.topicsToAvoid,
-        }
-      : null,
-    evidencia: {
-      total: evidence.length,
-      verificadas: evidence.filter((e) => e.verified).length,
-      tipos: Array.from(new Set(evidence.map((e) => e.type))),
-    },
-    resultados: results.slice(0, 8).map((r) => `${r.title}: ${r.metricLabel} ${r.metricValue}`),
-    temasRadar: topics.slice(0, 6).map((t) => ({
-      tema: t.label,
-      senales: t.signalCount,
-      scoreMaximo: t.topScore,
-      momentum: t.momentum,
-    })),
-    diagnosticoLocal: {
-      autoridad: diagnosis.authorityScore,
-      consistencia: diagnosis.consistencyScore,
-      evidencia: diagnosis.evidenceScore,
-      visibilidad: diagnosis.visibilityScore,
-    },
-  };
-
-  return [
-    'Actúas como asesor senior de posicionamiento profesional para un Brand Manager.',
-    'Tu tarea: auditar la imagen profesional del cliente y proponer acciones concretas de mejora.',
-    'Reglas estrictas: no inventes credenciales, publicaciones ni logros que no estén en el contexto.',
-    'Cada acción debe ser ejecutable por el manager o el cliente, con un porqué basado en los datos entregados.',
-    '',
-    `Contexto: ${JSON.stringify(context)}`,
-    '',
-    'Responde SOLO con JSON válido con esta forma:',
-    '{',
-    '  "summary": string,',
-    '  "diagnosis": { "strengths": string[], "gaps": string[], "risks": string[] },',
-    '  "actions": [{ "category": "CONTENT"|"CREDENTIAL"|"VISIBILITY"|"EVIDENCE"|"NETWORK"|"RISK",',
-    '                "horizon": "DAYS_30"|"DAYS_60"|"DAYS_90",',
-    '                "title": string, "why": string, "how": string,',
-    '                "effortMinutes": number, "impact": number }]',
-    '}',
-  ].join('\n');
-}
-
 /**
  * Genera el diagnóstico de imagen y el plan de mejora del cliente.
  * Con sesión de IA activa enriquece el resultado; sin ella devuelve el análisis heurístico.
@@ -375,29 +299,25 @@ export async function generatePositioningAdvice(clientId: string): Promise<Posit
     : `Sin tesis activa. Autoridad estimada ${diagnosis.authorityScore}/100. Definir el posicionamiento es el primer paso.`;
   let usedLiveModel = false;
 
-  try {
-    const live = await aiService.runAgentJson<LiveAdvicePayload>({
-      agent: 'POSITIONING_STRATEGIST',
-      prompt: buildPrompt(input, diagnosis),
-      promptTemplateId: 'tmpl_positioning_advisor_v1',
-      organizationId: client.organizationId,
-      clientId,
-      contextSummary: `Asesoría de imagen para ${client.displayName}`,
-    });
+  if (isAdvisorGatewayAvailable()) {
+    try {
+      const { liveAdvice } = await executeAdvisorPositioningViaGateway({
+        clientId,
+        source: { ...input, diagnosis },
+      });
 
-    if (live) {
       usedLiveModel = true;
-      if (live.summary) summary = live.summary;
-      if (live.diagnosis?.strengths?.length) diagnosis.strengths = live.diagnosis.strengths;
-      if (live.diagnosis?.gaps?.length) diagnosis.gaps = live.diagnosis.gaps;
-      if (live.diagnosis?.risks?.length) diagnosis.risks = live.diagnosis.risks;
-      const liveActions = normalizeLiveActions(live.actions || []);
+      if (liveAdvice.summary) summary = liveAdvice.summary;
+      if (liveAdvice.diagnosis?.strengths?.length) diagnosis.strengths = liveAdvice.diagnosis.strengths;
+      if (liveAdvice.diagnosis?.gaps?.length) diagnosis.gaps = liveAdvice.diagnosis.gaps;
+      if (liveAdvice.diagnosis?.risks?.length) diagnosis.risks = liveAdvice.diagnosis.risks;
+      const liveActions = normalizeLiveActions(liveAdvice.actions || []);
       if (liveActions.length) actions = liveActions;
+    } catch (error) {
+      auditService.log(authService.getCurrentUser(), 'ADVISOR_LIVE_FAILED', 'Client', clientId, {
+        message: error instanceof Error ? error.message : 'error',
+      });
     }
-  } catch (error) {
-    auditService.log(authService.getCurrentUser(), 'ADVISOR_LIVE_FAILED', 'Client', clientId, {
-      message: error instanceof Error ? error.message : 'error',
-    });
   }
 
   const advice: PositioningAdvice = {
@@ -432,28 +352,14 @@ export async function proposeAngle(params: {
   const client = dbService.getClientById(params.clientId);
   const thesis = dbService.getPrimaryThesis(params.clientId);
 
-  if (client && thesis) {
+  if (client && thesis && isAdvisorGatewayAvailable()) {
     try {
-      const live = await aiService.runAgentJson<{ angle?: string }>({
-        agent: 'POSITIONING_STRATEGIST',
-        prompt: [
-          `Tesis: ${thesis.title}`,
-          `Identidad experta: ${thesis.expertIdentity}`,
-          `Audiencia: ${thesis.targetAudience}`,
-          `Límites deontológicos: ${thesis.complianceRules}`,
-          'Propone un ángulo editorial en una frase que el cliente pueda defender con su evidencia.',
-          '<UNTRUSTED_SOURCE>',
-          `Título: ${params.title}`,
-          params.snippet,
-          '</UNTRUSTED_SOURCE>',
-          'Responde SOLO JSON: { "angle": string }',
-        ].join('\n'),
-        promptTemplateId: 'tmpl_curation_angle_v1',
-        organizationId: client.organizationId,
-        clientId: params.clientId,
-        contextSummary: `Ángulo de curación: ${params.title}`,
+      const { output } = await executeAdvisorCurationAngleViaGateway({
+        thesis,
+        title: params.title,
+        snippet: params.snippet,
       });
-      if (live?.angle) return { angle: live.angle, usedLiveModel: true };
+      if (output.angle) return { angle: output.angle, usedLiveModel: true };
     } catch {
       /* cae al modo heurístico */
     }

@@ -16,6 +16,14 @@ import {
   ThesisChallengeGatewayInputSchema,
   renderThesisChallengeUserMessage,
 } from '../../../application/ai/schemas/thesisChallengeInput';
+import {
+  AdvisorPositioningGatewayInputSchema,
+  renderAdvisorPositioningUserMessage,
+} from '../../../application/ai/schemas/advisorPositioningInput';
+import {
+  AdvisorCurationAngleGatewayInputSchema,
+  renderAdvisorCurationAngleUserMessage,
+} from '../../../application/ai/schemas/advisorCurationAngleInput';
 
 export interface PromptCatalogEntry {
   operation: AiOperation;
@@ -77,15 +85,19 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     operation: 'ADVISOR_POSITIONING',
     identity: { promptId: 'tmpl_positioning_advisor_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
-    userTemplateCanonical: 'Genera consejo de posicionamiento en JSON.\nInput:\n{{INPUT_JSON}}',
-    renderUserMessage: (input) => `Genera consejo de posicionamiento en JSON.\nInput:\n${inputJson(input)}`,
+    userTemplateCanonical:
+      'Actúas como asesor senior de posicionamiento profesional para un Brand Manager.\nContexto: {{INPUT_JSON}}\nJSON { summary, diagnosis { strengths, gaps, risks }, actions [{ category, horizon, title, description, priority }] }',
+    renderUserMessage: (input) =>
+      renderAdvisorPositioningUserMessage(AdvisorPositioningGatewayInputSchema.parse(input)),
   },
   {
     operation: 'ADVISOR_CURATION_ANGLE',
     identity: { promptId: 'tmpl_curation_angle_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
-    userTemplateCanonical: 'Propón un ángulo de curación en JSON con campo angle.\nInput:\n{{INPUT_JSON}}',
-    renderUserMessage: (input) => `Propón un ángulo de curación en JSON con campo angle.\nInput:\n${inputJson(input)}`,
+    userTemplateCanonical:
+      'Tesis: {{THESIS_TITLE}}\nIdentidad experta: {{EXPERT_IDENTITY}}\nAudiencia: {{TARGET_AUDIENCE}}\nLímites: {{COMPLIANCE}}\n<UNTRUSTED_SOURCE>\nTítulo: {{SIGNAL_TITLE}}\n{{SIGNAL_SNIPPET}}\n</UNTRUSTED_SOURCE>\nJSON { angle }',
+    renderUserMessage: (input) =>
+      renderAdvisorCurationAngleUserMessage(AdvisorCurationAngleGatewayInputSchema.parse(input)),
   },
   {
     operation: 'ANALYSIS_COMPARATIVE',

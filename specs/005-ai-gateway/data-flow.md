@@ -117,9 +117,9 @@ Gateway (Phase 4):
 
 ---
 
-## Target flow (SPEC-005 — gateway Phase 2–5B)
+## Target flow (SPEC-005 — gateway Phase 2–5C)
 
-Migrated callers (CONTENT_DRAFT, THESIS_PROPOSAL, SIGNAL_THESIS_EVAL, THESIS_CHALLENGE):
+Migrated callers (CONTENT_DRAFT, THESIS_PROPOSAL, SIGNAL_THESIS_EVAL, THESIS_CHALLENGE, ADVISOR_POSITIONING, ADVISOR_CURATION_ANGLE):
 
 ```text
 UI / service
@@ -142,7 +142,7 @@ AiCompleteHttpClient (Bearer Firebase; no session keys / no model)
 existing domain/UI flow (proposal form / recommendation / challenge modal)
 ```
 
-Remaining advisor/comparative still use legacy session `complete` / `runAgentJson` (see `migration-matrix.md`).
+Remaining comparative still uses legacy dual-session `complete` (see `migration-matrix.md` — **BLOCKED** pending multi-provider orchestration contract).
 
 See `plan.md` §Target Architecture.
 

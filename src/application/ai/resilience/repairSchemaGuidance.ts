@@ -11,10 +11,10 @@ const OPERATION_SCHEMA_GUIDANCE: Record<AiOperation, string> = {
   THESIS_CHALLENGE:
     'Object with outcome (enum), recommendations (string[]), riskScore (number). Strict — no extra keys.',
   ADVISOR_POSITIONING:
-    'Object with headline (string), positioningStatement (string), keyMessages (string[]). Strict — no extra keys.',
+    'Object with optional summary (string), diagnosis { strengths?, gaps?, risks? }, actions [{ title?, description?, category?, horizon?, priority? }]. At least one of summary, diagnosis, or actions required. Strict — no extra keys.',
   ADVISOR_CURATION_ANGLE: 'Object with angle (string). Strict — no extra keys.',
   ANALYSIS_COMPARATIVE:
-    'Object with summary (string), strengths (string[]), weaknesses (string[]), opportunities (string[]). Strict — no extra keys.',
+    'Object with angle (string), rationale (string). Strict — no extra keys.',
 };
 
 export function buildRepairSchemaGuidance(operation: AiOperation, schemaIdentity: SchemaIdentity): string {
