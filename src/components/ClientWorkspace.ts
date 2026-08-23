@@ -707,10 +707,54 @@ function renderThesisAttribution(signal: Signal): string {
   const titles = new Map(
     dbService.getThesesByClient(signal.clientId || '').map((t) => [t.id, t.title])
   );
-  const primary = scores.find((s) => s.thesisId === signal.thesisId) || scores[0];
+  const routingState = signal.routingDecision?.routingState;
+  const contested =
+    routingState === 'CONTESTED' || Boolean(signal.routingDecision?.contested);
+
+  // CONTESTED: never present scores[0] / stale thesisId as selected attribution.
+  if (contested) {
+    const sorted = [...scores].sort((a, b) => b.score - a.score);
+    const lead = sorted[0];
+    const rival =
+      sorted.find((s) => s.thesisId === signal.routingDecision?.secondaryThesisId) ||
+      sorted[1];
+    if (!lead || !rival) return '';
+    return `
+    <div class="signal-thesis-attribution">
+      <p>
+        <span class="badge badge-pending">Empate — decide</span>
+        ${esc(titles.get(lead.thesisId) || 'Tesis')} ${lead.score}
+        · ${esc(titles.get(rival.thesisId) || 'otra')} ${rival.score}
+        ${signal.routingDecision?.source === 'MANUAL' ? '<span class="badge badge-progress">Override manual</span>' : ''}
+      </p>
+      <div class="row-actions">
+        <button type="button" class="btn btn-secondary btn-sm"
+                data-thesis-override="${esc(lead.thesisId)}"
+                data-signal-id="${esc(signal.id)}">
+          Usar ${esc(titles.get(lead.thesisId) || 'opción A')}
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm"
+                data-thesis-override="${esc(rival.thesisId)}"
+                data-signal-id="${esc(signal.id)}">
+          Usar ${esc(titles.get(rival.thesisId) || 'opción B')}
+        </button>
+      </div>
+    </div>
+  `;
+  }
+
+  if (routingState === 'UNROUTED' || !signal.thesisId) {
+    return `
+    <div class="signal-thesis-attribution">
+      <p><span class="badge badge-pending">Sin tesis estratégica asignada</span></p>
+    </div>
+  `;
+  }
+
+  // CLEAR — only show selected thesis as attribution (no scores[0] fallback).
+  const primary = scores.find((s) => s.thesisId === signal.thesisId);
+  if (!primary) return '';
   const others = scores.filter((s) => s.thesisId !== primary.thesisId);
-  const contested = signal.routingDecision?.contested;
-  const secondaryId = signal.routingDecision?.secondaryThesisId || others[0]?.thesisId;
 
   return `
     <div class="signal-thesis-attribution">
@@ -721,23 +765,8 @@ function renderThesisAttribution(signal: Signal): string {
               .map((s) => `${esc(titles.get(s.thesisId) || 'otra')} ${s.score}`)
               .join(', ')}`
           : ''}
-        ${contested ? '<span class="badge badge-pending">Empate — decide</span>' : ''}
         ${signal.routingDecision?.source === 'MANUAL' ? '<span class="badge badge-progress">Override manual</span>' : ''}
       </p>
-      ${contested && secondaryId
-        ? `<div class="row-actions">
-             <button type="button" class="btn btn-secondary btn-sm"
-                     data-thesis-override="${esc(primary.thesisId)}"
-                     data-signal-id="${esc(signal.id)}">
-               Usar ${esc(titles.get(primary.thesisId) || 'primaria')}
-             </button>
-             <button type="button" class="btn btn-secondary btn-sm"
-                     data-thesis-override="${esc(secondaryId)}"
-                     data-signal-id="${esc(signal.id)}">
-               Usar ${esc(titles.get(secondaryId) || 'secundaria')}
-             </button>
-           </div>`
-        : ''}
     </div>
   `;
 }

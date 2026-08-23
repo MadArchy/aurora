@@ -98,6 +98,23 @@ export function createOverrideSignalThesis(deps: OverrideSignalThesisDeps) {
         `Thesis not found for client: ${input.selectedThesisId}`
       );
     }
+    // Defense in depth — never trust a foreign thesis even if query port is poisoned.
+    if (thesis.clientId && thesis.clientId !== input.clientId) {
+      throw new StrategicRoutingError(
+        'TENANT_CONTEXT_INVALID',
+        'Thesis clientId does not match override context.'
+      );
+    }
+    if (
+      thesis.organizationId &&
+      input.organizationId &&
+      thesis.organizationId !== input.organizationId
+    ) {
+      throw new StrategicRoutingError(
+        'TENANT_CONTEXT_INVALID',
+        'Thesis organizationId does not match override context.'
+      );
+    }
     if (!isThesisEligibleForStrategicRouting(thesis)) {
       throw new StrategicRoutingError(
         'THESIS_NOT_ELIGIBLE',

@@ -1,7 +1,7 @@
 # Tasks 001 — Strategic Signal Routing
 
 **Spec status:** `APPROVED` · **READY_FOR_IMPLEMENTATION**  
-**Implementation:** Phase 1–4 **COMPLETE** · Phase 5 **NOT STARTED**  
+**Implementation:** Phase 1–5 **COMPLETE** · Phase 6 **NOT STARTED** (human sign-off)  
 **Branch:** `spec/001-strategic-signal-routing`
 
 ---
@@ -151,17 +151,45 @@
 
 ---
 
-## Phase 5 — Governance / security
+## Phase 5 — Governance / security ✅
 
-- [ ] **T-001-501** Architecture test: ban strategic `getPrimaryThesis` / `activeTheses[0]` / `theses[0]` / `candidates[0]` on listed modules
-- [ ] **T-001-502** Contested + MANUAL override tests
-- [ ] **T-001-503** Multi-thesis 1/2/N regression tests
-- [ ] **T-001-504** Tenant envelope regression on signal routing writes
-- [ ] **T-001-505** AI boundary test: SIGNAL_THESIS_EVAL cannot set routingDecision as authority
-- [ ] **T-001-506** Negative: silent discard absent from ScoreAndRouteSignal persist path
-- [ ] **T-001-507** Full call-site inventory re-scan
+- [x] **T-001-501** Architecture test: ban strategic `getPrimaryThesis` / `activeTheses[0]` / `theses[0]` / `candidates[0]` on listed modules
+- [x] **T-001-502** Contested + MANUAL override tests
+- [x] **T-001-503** Multi-thesis 1/2/N regression tests
+- [x] **T-001-504** Tenant envelope regression on signal routing writes
+- [x] **T-001-505** AI boundary test: SIGNAL_THESIS_EVAL cannot set routingDecision as authority
+- [x] **T-001-506** Negative: silent discard absent from ScoreAndRouteSignal persist path
+- [x] **T-001-507** Full call-site inventory re-scan
 
-**Exit:** A14–A16 style evidence green.
+**Exit:** ✅ A14–A16 style evidence green; Phase-5 security suite PASS.
+
+### Phase 5 notes
+
+| Area | Result |
+|------|--------|
+| Tenant / cross-org / cross-client | PASS (Application rejection; thesis ownership check) |
+| CLIENT override | UNAUTHORIZED_OVERRIDE |
+| Inactive MANUAL targets | THESIS_NOT_ELIGIBLE |
+| CONTESTED/UNROUTED stale thesisId | Consumers ignore; Workspace UI no scores[0] winner |
+| History append / idempotency | PASS |
+| Auto-DISCARD from routing | REMOVED (regression covered) |
+| AI advisory boundary | Application free of SIGNAL_THESIS_EVAL authority |
+| Rules gap (history remote) | Documented P2 — SPEC-009 deferred |
+| Tests | `tests/strategicSignalRoutingPhase5.test.ts` (31) |
+
+### Debt register (Phase 5)
+
+| ID | Item | Status |
+|----|------|--------|
+| D-001-02 | Strategic primary/[0] | **RESOLVED** |
+| D-001-06 | candidates[0] fallback | **RESOLVED** |
+| D-001-pres | Presentation-only first-thesis UI | **ACCEPTED_NONBLOCKING** |
+| D-001-hist-rules | Firestore routingHistory rules | **DEFERRED_TO_OTHER_SPEC** (SPEC-009) |
+| D-001-content | Full NO CONTENT WITHOUT STRATEGIC DECISION | **DEFERRED_TO_OTHER_SPEC** |
+
+---
+
+## Phase 6 — Final acceptance / CODE_COMPLETE
 
 ---
 

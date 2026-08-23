@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `001-strategic-signal-routing` |
-| **Phase** | **4 COMPLETE** · Phase 5 **NOT STARTED** |
-| **Status** | `APPROVED` · Strategic call-site migration |
+| **Phase** | **5 COMPLETE** · Phase 6 **NOT STARTED** |
+| **Status** | `APPROVED` · Security / governance hardening |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
 ---
