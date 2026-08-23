@@ -48,7 +48,7 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 |---|-----------|--------|
 | D1 | Functions deployed with secrets configured | ☐ |
 | D2 | Production smoke: content draft via gateway | ☐ |
-| D3 | Session key UI removed or dev-only | ☐ |
+| D3 | Session key UI removed or dev-only | ☐ (implementation: **REMOVED** Phase 5D; deploy verification pending) |
 | D4 | Spec `DEPLOYED` / `DONE` | ☐ |
 
 ---
@@ -83,9 +83,176 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | Phase 5C advisor (partial) | 2026-08-23 | **DONE** (advisor migrated; comparative deferred to 5C-MP) |
 | Phase 5C-MP comparative | 2026-08-23 | **DONE** — multi-provider ANALYSIS_COMPARATIVE |
 | Phase 5D legacy cleanup | 2026-08-23 | **DONE** — session proxy/UI/keys removed; P0 RESOLVED |
-| Human approver | | ☐ APPROVED (Spec) |
+| T-005-70 human sign-off | 2026-08-23 | **APPROVED** — implementation **CODE_COMPLETE** |
+| Human approver (Spec) | 2026-08-23 | **APPROVED** |
 
-**Implementation:** Phase 5 **COMPLETE**. SPEC-005 **CODE_COMPLETE eligible** for implementation gates (deploy gates D1–D4 remain).
+**Implementation:** **`CODE_COMPLETE`** (A1–A29 PASS). **Deployment:** NOT STARTED (D1–D4 PENDING). **SPEC DONE:** NO.
+
+---
+
+## T-005-70 HUMAN SIGN-OFF PACKAGE
+
+**Prepared:** 2026-08-23  
+**Implementation checkpoint SHA:** `7ae45dde43e7ddcf6ed8d12b7f38625956d85489`  
+**Branch:** `spec/005-ai-gateway`  
+**Human decision:** **APPROVED** (explicit authorization in development workflow, 2026-08-23)
+
+### Task definition (T-005-70)
+
+From `tasks.md` Phase 6:
+
+> **T-005-70** Final verification + acceptance sign-off (human)  
+> Deploy gates D1–D4 remain separate from CODE_COMPLETE
+
+This task required a human reviewer to confirm that implementation acceptance A1–A29 are satisfied with evidence, and to authorize the `CODE_COMPLETE` governance state. **Human approval received 2026-08-23.**
+
+### Implementation acceptance summary
+
+| Range | Count | Status |
+|-------|-------|--------|
+| A1–A29 | 29/29 | **PASS** (automated + documented evidence) |
+| Pending implementation acceptance | 0 | — |
+
+See §Required table above for per-criterion evidence. No criterion marked PASS without current file verification at checkpoint `7ae45dd`.
+
+### Security summary
+
+| Control | Status | Evidence |
+|---------|--------|----------|
+| Browser provider keys | **0** | `tests/aiGatewayPhase5d.test.ts` B/C; `src/services/ai.ts` |
+| Session-key LLM consumers | **0** | Phase 5D removal; migration matrix |
+| X-AI-Session executable refs | **0** | Phase 5D test A; static scan |
+| Direct browser provider calls | **0** | Phase 5D tests E/F |
+| Legacy `/api/ai/complete` proxy | **REMOVED** | `server/postura-api.ts`; Phase 5D test |
+| Server secrets server-only | **YES** | `providerSecrets.ts`; adapters; no `VITE_*` |
+| Tenant auth-derived | **YES** | `resolveTrustedTenantForAiComplete`; A5 |
+| aiComplete ADMIN_ONLY | **YES** | `AICOMPLETE_ADMIN_ONLY`; A6 |
+| No raw secrets in aiRuns | **YES** | `AiRunRepositoryPort`; inventory §10 |
+
+### Architecture summary
+
+| Layer | Status | Evidence |
+|-------|--------|----------|
+| Hexagonal boundaries | **PASS** | `tests/aiGatewayArchitecture.test.ts` (12/12) |
+| Domain purity (no Firebase/provider) | **PASS** | Architecture tests A–D |
+| Application ports only (no concrete adapters) | **PASS** | Architecture tests E–G |
+| Browser → AiCompleteHttpClient → Gateway | **PASS** | `migration-matrix.md`; gateway services |
+| PromptRegistry | **PASS** | `PromptRegistryAdapter`; A10 |
+| ModelRegistry | **PASS** | `ModelRegistryAdapter`; A9 |
+| AiRunRepositoryPort | **PASS** | Phase 4 tests; A18–A19 |
+| Comparative multi-provider | **PASS** | Phase 5C-MP tests; `executionMode: COMPARATIVE` |
+
+### Operation migration summary (7/7)
+
+| Operation | Gateway | Browser key | Direct fallback | Zod validation | aiRun |
+|-----------|---------|-------------|-----------------|------------------|-------|
+| CONTENT_DRAFT | YES | NO | NONE | YES | YES |
+| THESIS_PROPOSAL | YES | NO | NONE | YES | YES |
+| SIGNAL_THESIS_EVAL | YES | NO | NONE | YES | YES |
+| THESIS_CHALLENGE | YES | NO | NONE | YES | YES |
+| ADVISOR_POSITIONING | YES | NO | NONE | YES | YES |
+| ADVISOR_CURATION_ANGLE | YES | NO | NONE | YES | YES |
+| ANALYSIS_COMPARATIVE | YES | NO | NONE | YES | YES (COMPARATIVE) |
+
+### P0 closure summary
+
+| Artifact | Disposition |
+|----------|-------------|
+| `runAgentJson` | REMOVED |
+| `complete()` legacy | REMOVED |
+| X-AI-Session | REMOVED (0 executable) |
+| `/api/ai/complete` | REMOVED |
+| Manager session-key UI | REMOVED |
+| Browser provider credentials | 0 |
+| LEGACY AI P0 | **RESOLVED** |
+
+### Resilience / validation (frozen policy)
+
+| Policy | Value | Evidence |
+|--------|-------|----------|
+| MAX_REPAIR_ATTEMPTS | 1 | `src/domain/ai/constants.ts`; Phase 3 tests |
+| MAX_PROVIDER_RETRIES | 1 | constants; Phase 3 tests |
+| MAX_PROVIDER_CALLS_PER_EXECUTION | 4 | constants; providerCallBudget |
+| MAX_GATEWAY_EXECUTION_MS | 270_000 | constants (300s − 30s margin) |
+| AI_COMPLETE_FUNCTION_TIMEOUT_SECONDS | 300 | constants |
+| Comparative slices | 2 (OpenAI + Anthropic) | Phase 5C-MP |
+| MAX calls per slice | 4 | constants |
+| MAX comparative calls | 8 | constants |
+| Cross-provider fallback | **NONE** | Phase 5C-MP tests |
+
+### Human governance (constitution)
+
+| Flow | AI role | Software/human gate |
+|------|---------|---------------------|
+| THESIS_PROPOSAL | Suggests proposal | Does not activate/approve thesis; `thesisProposalCore` / rules govern |
+| THESIS_CHALLENGE | Suggests challenge | Does not silently approve; revision requires explicit client approval (`approveThesisByClient`) |
+| SIGNAL_THESIS_EVAL | Advisory eval | Deterministic routing/scoring governs; AI output validated, not trusted blindly |
+| Advisor outputs | Advisory | No domain write without software validation |
+
+**Rule:** AI SUGGESTS · SOFTWARE GOVERNS · HUMAN APPROVES WHERE REQUIRED.
+
+### Known deferred items (non-blocking for CODE_COMPLETE)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Cost accounting (`totalCostUsd`) | **DEFERRED** | `costStatus: NOT_CALCULATED`; no fake zero semantics (plan.md Phase 4) |
+| Production deploy (D1–D4) | **PENDING** | Separate from CODE_COMPLETE |
+| Gemini provider | **OUT OF SCOPE** | tasks.md explicit exclusion |
+
+Cost accounting is **not** a required pre-CODE_COMPLETE acceptance criterion (A16 requires nullable token counts, not priced totals).
+
+### Deployment gates (separate — not CODE_COMPLETE blockers)
+
+| Gate | Status | Notes |
+|------|--------|-------|
+| D1 | ☐ PENDING | Functions deployed with secrets |
+| D2 | ☐ PENDING | Production smoke: content draft via gateway |
+| D3 | ☐ PENDING | Session-key UI removed (**implementation done** Phase 5D) |
+| D4 | ☐ PENDING | Spec DEPLOYED / DONE |
+
+### Automated verification at checkpoint
+
+| Command | Result |
+|---------|--------|
+| `npm run check` | **487/487 PASS** |
+| `npm run test:rules` | **91/91 PASS** |
+| `npm --prefix functions run build` | **PASS** |
+| Architecture tests | **12/12 PASS** (within `npm run check`) |
+| Static legacy scan | **PASS** (`tests/aiGatewayPhase5d.test.ts`) |
+
+### Human decision field
+
+| Field | Value |
+|-------|-------|
+| Approval source | Explicit human authorization (development workflow) |
+| Date | 2026-08-23 |
+| T-005-70 | **DONE — APPROVED** |
+| CODE_COMPLETE authorized | **YES** |
+| SPEC-005 DEPLOYED | **NO** |
+| SPEC-005 DONE | **NO** |
+
+### CODE_COMPLETE evidence (frozen at implementation checkpoint `7ae45dd`)
+
+| Evidence | Status |
+|----------|--------|
+| 7/7 AiOperations routed through Gateway | YES |
+| Browser provider/session-key execution removed | YES |
+| `runAgentJson` consumers | 0 |
+| `complete()` LLM consumers | 0 |
+| X-AI-Session executable references | 0 |
+| Browser direct-provider consumers | 0 |
+| Legacy provider proxy | REMOVED |
+| Manager session-key UI | REMOVED |
+| Structured Zod validation | YES |
+| Bounded retry/repair | YES |
+| Provider-preserving Comparative repair | YES |
+| OpenAI + Anthropic Comparative semantics | PRESERVED |
+| aiRuns audit | ENABLED |
+| Tenant auth-derived | YES |
+| aiComplete ADMIN_ONLY | YES |
+| LEGACY AI P0 | RESOLVED |
+| Human sign-off T-005-70 | APPROVED |
+| Cost accounting | DEFERRED (`costStatus: NOT_CALCULATED`) |
 
 ## aiComplete authorization (Phase 2)
 

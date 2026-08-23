@@ -1,8 +1,8 @@
 # Tasks 005 — AI Gateway
 
 **Spec status:** `APPROVED`  
-**Implementation:** `IN PROGRESS` (Phase 3 complete; Phase 4 not started)  
-**Branch:** `spec/005-ai-gateway` @ `04e65ff` + Phase 1 commits
+**Implementation:** **`CODE_COMPLETE`** (T-005-70 human sign-off **APPROVED** 2026-08-23)  
+**Branch:** `spec/005-ai-gateway` @ `7ae45dd` (implementation checkpoint) · governance closure pending commit
 
 ---
 
@@ -109,7 +109,7 @@
 
 ---
 
-## Phase 5 — Migration (IN PROGRESS)
+## Phase 5 — Migration ✅
 
 - [x] **T-005-60** Implement `aiComplete` gateway browser client (`AiCompleteHttpClient`)
 - [x] **T-005-61** Migrate `content.draft` / `CONTENT_DRAFT` (`generateContentDraft`)
@@ -120,10 +120,10 @@
 
 ---
 
-## Phase 6 — CODE_COMPLETE (sign-off)
+## Phase 6 — CODE_COMPLETE ✅
 
-- [ ] **T-005-70** Final verification + acceptance sign-off (human)
-- Deploy gates D1–D4 remain separate from CODE_COMPLETE
+- [x] **T-005-70** Final verification + acceptance sign-off (human) — **APPROVED** 2026-08-23
+- Deploy gates D1–D4 remain separate from CODE_COMPLETE — **PENDING**
 
 ---
 

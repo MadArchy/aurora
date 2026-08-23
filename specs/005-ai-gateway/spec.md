@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec ID** | `005-ai-gateway` |
-| **Status** | **`APPROVED`** · Phase 5 COMPLETE · implementation gates A1–A29 PASS · deploy gates D1–D4 pending · **CODE_COMPLETE eligible** (human T-005-70) |
+| **Status** | **`CODE_COMPLETE`** · implementation gates A1–A29 PASS · deploy gates D1–D4 **PENDING** · SPEC **NOT DEPLOYED** |
 | **Branch** | `spec/005-ai-gateway` |
 | **Baseline SHA** | `04e65ff556899bf2f2f8d138880b05df21a34c5d` |
 | **Frozen SPEC-009 implementation SHA** | `9c351ef7ac6fafdbce8ff8b8eb5a5678e2ceae99` (reference only; do not modify) |
@@ -130,7 +130,7 @@ Summary:
 | `DEPLOYED` | Functions deployed; production callers on gateway |
 | `DONE` | Acceptance + deploy verification |
 
-**Implementation:** `IN PROGRESS` (Phase 1 + Phase 1H complete)
+**Implementation:** **`CODE_COMPLETE`** · Phase 6 sign-off **APPROVED** (T-005-70)
 
 ---
 

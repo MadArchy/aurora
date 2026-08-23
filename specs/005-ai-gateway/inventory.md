@@ -1,8 +1,9 @@
 # Inventory 005 — AI Gateway (Phase 0)
 
 **Mode:** READ-ONLY inventory · **Date:** 2026-08-23  
-**Branch:** `spec/005-ai-gateway` @ `04e65ff`  
-**Baseline tests:** check **286/286** · test:rules **91/91**
+**Branch:** `spec/005-ai-gateway` @ `7ae45dd`  
+**Implementation:** **`CODE_COMPLETE`** (T-005-70 APPROVED 2026-08-23)  
+**Baseline tests:** check **487/487** · test:rules **91/91**
 
 ---
 

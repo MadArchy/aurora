@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `005-ai-gateway` |
-| **Phase** | **2 DONE** · Phase 3 NOT STARTED |
-| **Branch** | `spec/005-ai-gateway` @ `04e65ff` |
+| **Phase** | **6 CODE_COMPLETE** · deploy gates D1–D4 **PENDING** |
+| **Branch** | `spec/005-ai-gateway` @ `7ae45dd` |
 
 ---
 
@@ -155,7 +155,7 @@ See `migration-matrix.md`.
 - **5C** ✅ Advisor (`ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE`)
 - **5C-MP** ✅ `ANALYSIS_COMPARATIVE` multi-provider (OpenAI + Anthropic; not fallback)
 - **5D** ✅ Legacy session-key / `/api/ai/complete` / browser provider UI **REMOVED**
-- **6** Human CODE_COMPLETE sign-off + deploy gates
+- **6** ✅ Human CODE_COMPLETE sign-off (**T-005-70 APPROVED** 2026-08-23) · deploy gates **PENDING**
 
 Each migrated op: browser Gateway client → `aiComplete` ADMIN_ONLY → audit → domain compatibility. No browser provider fallback.
 
