@@ -10,7 +10,7 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 
 | # | Criterion | Maps to | Phase 0 |
 |---|-----------|---------|---------|
-| A1 | Zero production LLM calls from browser to provider URLs | AI-005-001, AI-005-003 | ☐ (6/7 ops migrated; comparative dual-provider legacy remains; global session infra pending 5D) |
+| A1 | Zero production LLM calls from browser to provider URLs | AI-005-001, AI-005-003 | ☐ (7/7 ops Gateway-migrated; global session `/api/ai/complete` infra still present pending 5D — A1 not PASS until cleanup) |
 | A2 | Zero `VITE_*` provider secrets | AI-005-002 | ☐ |
 | A3 | `aiComplete` (or successor) returns validated results — not 501 | AI-005-003 | ✅ Phase 2 code (`functions/src/index.ts` wired; not deployed) |
 | A4 | Gateway requires authenticated Firebase session | AI-005-004 | ✅ Phase 2 (`requirePosturaAuth` on aiComplete) |
@@ -31,13 +31,13 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | A19 | aiRuns Firestore docs include SPEC-009 envelope | AI-005-022 | ✅ Phase 4 (`organizationId` + `clientId`; Admin SDK validation) |
 | A20 | Stable `errorClass` on failures | AI-005-018 | ✅ Phase 1 foundation (`AiGatewayErrorCode`; test P) |
 | A21 | CI tests use mock provider — no paid API | AI-005-021 | ✅ Phase 1 (deterministic unit tests only) |
-| A22 | Migrated operations pass schema fixture tests | AI-005-020 | ✅ Phase 5A–5C (`CONTENT_DRAFT`, `THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`, `THESIS_CHALLENGE`, `ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE`) |
+| A22 | Migrated operations pass schema fixture tests | AI-005-020 | ✅ Phase 5A–5C-MP (all 7 ops including multi-provider ANALYSIS_COMPARATIVE) |
 | A23 | Domain layer free of Firebase/provider/infrastructure imports | AI-005-025 | ✅ Phase 1H (`tests/aiGatewayArchitecture.test.ts` A–D) |
 | A24 | Application layer free of concrete adapter imports | AI-005-026 | ✅ Phase 1H (`tests/aiGatewayArchitecture.test.ts` E–G) |
 | A25 | Inbound/outbound ports defined for gateway | AI-005-027, AI-005-028 | ✅ Phase 1H (ports under `src/application/ai/ports/`) |
 | A26 | Architecture import tests pass in CI | AI-005-029 | ✅ Phase 1H (`tests/aiGatewayArchitecture.test.ts`) |
 | A27 | Hexagonal migration matrix documented | AI-005-025 | ✅ `hexagonal-boundaries.md` + `migration-matrix.md` |
-| A28 | `npm run check` PASS | governance | ✅ **458/458** (439 baseline + 19 Phase 5C) |
+| A28 | `npm run check` PASS | governance | ✅ **477/477** (458 baseline + 19 Phase 5C-MP) |
 | A29 | `npm run test:rules` PASS | governance | ✅ **91/91** |
 
 ---
@@ -80,10 +80,11 @@ Spec **DONE** requires Required PASS + production gateway deployed.
 | Phase 4 aiRuns audit | 2026-08-23 | **DONE** |
 | Phase 5A CONTENT_DRAFT | 2026-08-23 | **DONE** |
 | Phase 5B thesis + signal | 2026-08-23 | **DONE** |
-| Phase 5C advisor (partial) | 2026-08-23 | **PARTIAL** — advisor migrated; comparative blocked |
+| Phase 5C advisor (partial) | 2026-08-23 | **DONE** (advisor migrated; comparative deferred to 5C-MP) |
+| Phase 5C-MP comparative | 2026-08-23 | **DONE** — multi-provider ANALYSIS_COMPARATIVE |
 | Human approver | | ☐ APPROVED (Spec) |
 
-**Implementation:** `IN PROGRESS` (Phase 5C partial; comparative blocked; Phase 5D cleanup pending)
+**Implementation:** `IN PROGRESS` (7/7 ops Gateway-migrated; Phase 5D legacy cleanup pending)
 
 ## aiComplete authorization (Phase 2)
 

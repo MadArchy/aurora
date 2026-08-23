@@ -114,8 +114,8 @@
 - [x] **T-005-60** Implement `aiComplete` gateway browser client (`AiCompleteHttpClient`)
 - [x] **T-005-61** Migrate `content.draft` / `CONTENT_DRAFT` (`generateContentDraft`)
 - [x] **T-005-62** Migrate thesis + signal eval (`THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`)
-- [x] **T-005-63** Migrate advisor flows (`ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE` — 5C partial)
-- [x] **T-005-64** Migrate thesis challenge (`THESIS_CHALLENGE`; comparative remains blocked)
+- [x] **T-005-63** Migrate advisor flows (`ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE`)
+- [x] **T-005-64** Migrate thesis challenge + comparative (`THESIS_CHALLENGE`; `ANALYSIS_COMPARATIVE` via 5C-MP multi-provider)
 - [ ] **T-005-65** Remove prod session-key path
 
 ---

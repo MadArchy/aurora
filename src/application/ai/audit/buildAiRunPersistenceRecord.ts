@@ -39,6 +39,7 @@ export function buildAiRunPersistenceRecord(
   const metadata = params.metadata;
   const promptTokens = metadata?.promptTokens;
   const completionTokens = metadata?.completionTokens;
+  const executionMode = metadata?.executionMode ?? 'SINGLE';
 
   return {
     id: params.id,
@@ -47,9 +48,11 @@ export function buildAiRunPersistenceRecord(
     userId: params.tenant.userId,
     correlationId: params.requestMetadata?.correlationId,
     operation: params.operation,
-    providerName: metadata?.providerName,
-    providerModelId: metadata?.providerModelId,
-    modelRole: metadata?.logicalModelRole,
+    executionMode,
+    providerName: executionMode === 'COMPARATIVE' ? undefined : metadata?.providerName,
+    providerModelId: executionMode === 'COMPARATIVE' ? undefined : metadata?.providerModelId,
+    modelRole: executionMode === 'COMPARATIVE' ? undefined : metadata?.logicalModelRole,
+    providerExecutions: metadata?.providerExecutions,
     prompt: params.prompt ?? metadata?.prompt,
     renderedPromptHash: params.renderedPromptHash,
     schema: params.schema ?? metadata?.schema,

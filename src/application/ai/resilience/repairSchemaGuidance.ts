@@ -14,7 +14,7 @@ const OPERATION_SCHEMA_GUIDANCE: Record<AiOperation, string> = {
     'Object with optional summary (string), diagnosis { strengths?, gaps?, risks? }, actions [{ title?, description?, category?, horizon?, priority? }]. At least one of summary, diagnosis, or actions required. Strict — no extra keys.',
   ADVISOR_CURATION_ANGLE: 'Object with angle (string). Strict — no extra keys.',
   ANALYSIS_COMPARATIVE:
-    'Object with angle (string), rationale (string). Strict — no extra keys.',
+    'Object with angle (string), rationale (string). Strict — no extra keys. (Per-provider comparative slice.)',
 };
 
 export function buildRepairSchemaGuidance(operation: AiOperation, schemaIdentity: SchemaIdentity): string {

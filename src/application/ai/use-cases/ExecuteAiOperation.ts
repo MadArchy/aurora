@@ -19,7 +19,7 @@ import type { PromptRegistryPort } from '../ports/outbound/PromptRegistryPort';
 import type { AiRunRepositoryPort } from '../ports/outbound/AiRunRepositoryPort';
 import { validateAiOutput } from '../validation/validateOutput';
 import { canAttemptRepair } from '../validation/validationPipeline';
-import { ProviderPortError, PromptResolutionError } from '../errors/providerPortErrors';
+import { ProviderPortError, PromptResolutionError, ModelNotResolvedError } from '../errors/providerPortErrors';
 import { isModelConfigurationResolved } from '../validation/modelConfiguration';
 import type { AiOperation } from '../../../domain/ai/operations';
 import type { PromptIdentity } from '../../../domain/ai/promptIdentity';
@@ -33,6 +33,12 @@ import {
 } from '../resilience/gatewayExecutionDeadline';
 import { buildAiRunPersistenceRecord } from '../audit/buildAiRunPersistenceRecord';
 import { computeRenderedPromptHash } from '../audit/renderedPromptHash';
+import {
+  executeComparativeSlice,
+  aggregateComparativeSlices,
+  pickComparativeFailureError,
+  sumComparativeTokenUsage,
+} from '../resilience/comparativeOrchestration';
 
 export interface ExecuteAiOperationDeps {
   providerPort: AiProviderPort;
@@ -84,6 +90,12 @@ export class ExecuteAiOperation implements AiGatewayPort {
     }
 
     const operation = request.operation;
+    if (operation === 'ANALYSIS_COMPARATIVE') {
+      return this.executeComparative(request, runId, startedAt, tokenUsage) as Promise<
+        AiGatewayResult<AiOperationOutputMap[K]>
+      >;
+    }
+
     const schemaDef = resolveOperationSchema(operation);
     const schemaIdentity = resolveSchemaIdentity(operation);
     const logicalRole = DEFAULT_MODEL_ROLE_BY_OPERATION[operation];
@@ -426,6 +438,204 @@ export class ExecuteAiOperation implements AiGatewayPort {
           tokenUsage,
         })
       )
+    );
+  }
+
+  private async executeComparative(
+    request: AiGatewayRequest<unknown>,
+    runId: string,
+    startedAt: number,
+    tokenUsage: TokenUsageTracker
+  ): Promise<AiGatewayResult<AiOperationOutputMap['ANALYSIS_COMPARATIVE']>> {
+    type ComparativeResult = AiGatewayResult<AiOperationOutputMap['ANALYSIS_COMPARATIVE']>;
+    const operation = 'ANALYSIS_COMPARATIVE' as const;
+    const schemaIdentity = resolveSchemaIdentity(operation);
+    const logicalRole = DEFAULT_MODEL_ROLE_BY_OPERATION[operation];
+
+    const finish = async (outcome: ComparativeResult): Promise<ComparativeResult> =>
+      this.finalize(request, runId, startedAt, undefined, schemaIdentity, tokenUsage, outcome as never) as Promise<ComparativeResult>;
+
+    const finishWithHash = async (
+      renderedPromptHash: string,
+      outcome: ComparativeResult
+    ): Promise<ComparativeResult> =>
+      this.finalize(
+        request,
+        runId,
+        startedAt,
+        renderedPromptHash,
+        schemaIdentity,
+        tokenUsage,
+        outcome as never
+      ) as Promise<ComparativeResult>;
+
+    let plan;
+    try {
+      plan = this.deps.modelRegistry.resolveComparativePlan(operation);
+    } catch (error) {
+      const message =
+        error instanceof ModelNotResolvedError ? error.message : 'Comparative model plan not resolved';
+      return finish(
+        aiGatewayFailure(
+          createGatewayError({
+            code: 'MODEL_NOT_RESOLVED',
+            message,
+            retryable: false,
+          }),
+          {
+            operation,
+            schema: schemaIdentity,
+            validationStatus: 'REJECTED',
+            repairCount: 0,
+            logicalModelRole: logicalRole,
+            executionMode: 'COMPARATIVE',
+          }
+        )
+      );
+    }
+
+    const [openaiConfig, anthropicConfig] = plan.slices;
+    if (!isModelConfigurationResolved(openaiConfig) || !isModelConfigurationResolved(anthropicConfig)) {
+      return finish(
+        aiGatewayFailure(
+          createGatewayError({
+            code: 'MODEL_NOT_RESOLVED',
+            message: 'Comparative OpenAI or Anthropic model configuration is not resolved',
+            retryable: false,
+          }),
+          {
+            operation,
+            schema: schemaIdentity,
+            validationStatus: 'REJECTED',
+            repairCount: 0,
+            logicalModelRole: logicalRole,
+            executionMode: 'COMPARATIVE',
+          }
+        )
+      );
+    }
+
+    let resolvedPrompt;
+    try {
+      resolvedPrompt = this.deps.promptRegistry.resolve({
+        operation,
+        identity: request.prompt,
+        input: request.input,
+      });
+    } catch (error) {
+      const message = error instanceof PromptResolutionError ? error.message : 'Prompt resolution failed';
+      return finish(
+        aiGatewayFailure(
+          createGatewayError({
+            code: 'OPERATION_NOT_SUPPORTED',
+            message,
+            retryable: false,
+          }),
+          {
+            operation,
+            schema: schemaIdentity,
+            validationStatus: 'REJECTED',
+            repairCount: 0,
+            logicalModelRole: logicalRole,
+            executionMode: 'COMPARATIVE',
+          }
+        )
+      );
+    }
+
+    const renderedPromptHash = computeRenderedPromptHash(
+      resolvedPrompt.systemMessage,
+      resolvedPrompt.userMessage
+    );
+    const deadline = createGatewayExecutionDeadline(this.deps.nowFn, this.deps.maxGatewayExecutionMs);
+    const providerTimeoutMs = this.deps.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+
+    const sliceParamsBase = {
+      operation,
+      promptIdentity: resolvedPrompt.identity,
+      schemaIdentity,
+      systemMessage: resolvedPrompt.systemMessage,
+      userMessage: resolvedPrompt.userMessage,
+      providerPort: this.deps.providerPort,
+      promptRegistry: this.deps.promptRegistry,
+      deadline,
+      providerTimeoutMs,
+      retryBackoffMs: this.deps.retryBackoffMs ?? PROVIDER_RETRY_BACKOFF_MS,
+      sleepFn: this.deps.sleepFn,
+    };
+
+    // Concurrent independent slices — Application owns orchestration (not adapters).
+    const [openaiSlice, anthropicSlice] = await Promise.all([
+      executeComparativeSlice({
+        ...sliceParamsBase,
+        label: 'openai',
+        model: openaiConfig,
+      }),
+      executeComparativeSlice({
+        ...sliceParamsBase,
+        label: 'anthropic',
+        model: anthropicConfig,
+      }),
+    ]);
+
+    const tokens = sumComparativeTokenUsage([openaiSlice, anthropicSlice]);
+    if (tokens.promptTokens != null) tokenUsage.promptTokens = tokens.promptTokens;
+    if (tokens.completionTokens != null) tokenUsage.completionTokens = tokens.completionTokens;
+
+    const totalProviderCalls =
+      openaiSlice.audit.providerCallCount + anthropicSlice.audit.providerCallCount;
+    const totalRetryCount = openaiSlice.audit.retryCount + anthropicSlice.audit.retryCount;
+    const totalRepairCount = openaiSlice.audit.repairCount + anthropicSlice.audit.repairCount;
+    const totalAttemptCount = openaiSlice.audit.attemptCount + anthropicSlice.audit.attemptCount;
+
+    const aggregated = aggregateComparativeSlices({
+      openai: openaiSlice,
+      anthropic: anthropicSlice,
+    });
+
+    if (aggregated.ok) {
+      return finishWithHash(
+        renderedPromptHash,
+        aiGatewaySuccess(markValidatedDomainOutput(aggregated.aggregate), {
+          operation,
+          prompt: resolvedPrompt.identity,
+          schema: schemaIdentity,
+          validationStatus: 'VALID',
+          repairCount: totalRepairCount,
+          attemptCount: totalAttemptCount,
+          retryCount: totalRetryCount,
+          providerCallCount: totalProviderCalls,
+          logicalModelRole: logicalRole,
+          executionMode: 'COMPARATIVE',
+          providerExecutions: aggregated.providerExecutions,
+          promptTokens: tokenUsage.promptTokens,
+          completionTokens: tokenUsage.completionTokens,
+        })
+      );
+    }
+
+    const failureError =
+      !openaiSlice.ok && !anthropicSlice.ok
+        ? pickComparativeFailureError(openaiSlice, anthropicSlice)
+        : aggregated.error;
+
+    return finishWithHash(
+      renderedPromptHash,
+      aiGatewayFailure(failureError, {
+        operation,
+        prompt: resolvedPrompt.identity,
+        schema: schemaIdentity,
+        validationStatus: 'REJECTED',
+        repairCount: totalRepairCount,
+        attemptCount: totalAttemptCount,
+        retryCount: totalRetryCount,
+        providerCallCount: totalProviderCalls,
+        logicalModelRole: logicalRole,
+        executionMode: 'COMPARATIVE',
+        providerExecutions: aggregated.providerExecutions,
+        promptTokens: tokenUsage.promptTokens,
+        completionTokens: tokenUsage.completionTokens,
+      })
     );
   }
 

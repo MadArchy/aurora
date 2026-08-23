@@ -44,6 +44,10 @@ import {
   ANALYSIS_COMPARATIVE_SCHEMA_VERSION,
   type ComparativeAnalysisOutput,
 } from './comparativeAnalysis';
+import {
+  ComparativeAnalysisAggregateSchema,
+  type ComparativeAnalysisAggregate,
+} from './comparativeAnalysisAggregate';
 
 export interface OperationSchemaDefinition<TOutput> {
   schema: z.ZodType<TOutput>;
@@ -58,7 +62,7 @@ export type AiOperationOutputMap = {
   THESIS_CHALLENGE: ThesisChallengeOutput;
   ADVISOR_POSITIONING: AdvisorPositioningOutput;
   ADVISOR_CURATION_ANGLE: AdvisorCurationAngleOutput;
-  ANALYSIS_COMPARATIVE: ComparativeAnalysisOutput;
+  ANALYSIS_COMPARATIVE: ComparativeAnalysisAggregate;
 };
 
 const REGISTRY: { [K in AiOperation]: OperationSchemaDefinition<AiOperationOutputMap[K]> } = {
@@ -93,11 +97,21 @@ const REGISTRY: { [K in AiOperation]: OperationSchemaDefinition<AiOperationOutpu
     schemaVersion: ADVISOR_CURATION_ANGLE_SCHEMA_VERSION,
   },
   ANALYSIS_COMPARATIVE: {
-    schema: ComparativeAnalysisOutputSchema,
+    /** Operation identity remains analysis.comparative; aggregate is Application-built. */
+    schema: ComparativeAnalysisAggregateSchema,
     schemaId: ANALYSIS_COMPARATIVE_SCHEMA_ID,
     schemaVersion: ANALYSIS_COMPARATIVE_SCHEMA_VERSION,
   },
 };
+
+/** Per-provider slice schema for multi-provider comparative validation. */
+export function resolveComparativeSliceSchema(): OperationSchemaDefinition<ComparativeAnalysisOutput> {
+  return {
+    schema: ComparativeAnalysisOutputSchema,
+    schemaId: ANALYSIS_COMPARATIVE_SCHEMA_ID,
+    schemaVersion: ANALYSIS_COMPARATIVE_SCHEMA_VERSION,
+  };
+}
 
 export function resolveOperationSchema<K extends AiOperation>(
   operation: K

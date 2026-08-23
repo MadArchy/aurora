@@ -24,6 +24,10 @@ import {
   AdvisorCurationAngleGatewayInputSchema,
   renderAdvisorCurationAngleUserMessage,
 } from '../../../application/ai/schemas/advisorCurationAngleInput';
+import {
+  AnalysisComparativeGatewayInputSchema,
+  renderAnalysisComparativeUserMessage,
+} from '../../../application/ai/schemas/analysisComparativeInput';
 
 export interface PromptCatalogEntry {
   operation: AiOperation;
@@ -36,14 +40,6 @@ export interface PromptCatalogEntry {
 
 const JSON_SYSTEM =
   'Eres un analista estratégico de posicionamiento profesional. Responde solo JSON válido sin markdown.';
-
-function inputJson(input: unknown): string {
-  try {
-    return JSON.stringify(input ?? {}, null, 0);
-  } catch {
-    return '{}';
-  }
-}
 
 /** Static versioned prompts — semantics aligned with Phase-0 inventory IDs. */
 export const PROMPT_CATALOG: PromptCatalogEntry[] = [
@@ -103,8 +99,10 @@ export const PROMPT_CATALOG: PromptCatalogEntry[] = [
     operation: 'ANALYSIS_COMPARATIVE',
     identity: { promptId: 'tmpl_comparative_analysis_v1', promptVersion: '1' },
     systemMessage: JSON_SYSTEM,
-    userTemplateCanonical: 'Análisis comparativo en JSON.\nInput:\n{{INPUT_JSON}}',
-    renderUserMessage: (input) => `Análisis comparativo en JSON.\nInput:\n${inputJson(input)}`,
+    userTemplateCanonical:
+      'Compara ángulos para la tesis {{THESIS_TITLE}} ante {{TARGET_AUDIENCE}}. Fuente no confiable:\n<UNTRUSTED_SOURCE>\n{{SIGNAL_TITLE}}\n{{SIGNAL_SNIPPET}}\n</UNTRUSTED_SOURCE>\nJSON { angle, rationale }',
+    renderUserMessage: (input) =>
+      renderAnalysisComparativeUserMessage(AnalysisComparativeGatewayInputSchema.parse(input)),
   },
 ];
 

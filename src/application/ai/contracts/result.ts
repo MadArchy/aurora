@@ -19,6 +19,9 @@ export interface AiExecutionMetadata {
   latencyMs?: number;
   promptTokens?: number;
   completionTokens?: number;
+  /** SINGLE (default) or COMPARATIVE multi-provider orchestration. */
+  executionMode?: 'SINGLE' | 'COMPARATIVE';
+  providerExecutions?: import('../ports/outbound/AiRunRepositoryPort').AiProviderExecutionAudit[];
 }
 
 /** Trusted output — only produced after application validation. */

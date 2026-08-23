@@ -45,3 +45,28 @@ export const ANTHROPIC_TEST_MODEL_CONFIG: ModelConfiguration = {
   temperature: 0.3,
   supportsJsonMode: false,
 };
+
+/**
+ * Comparative multi-provider plan (Phase 5C-MP).
+ * Model IDs are Phase-0 verified defaults — not invented for tests.
+ * This is EXPLICIT MULTI_PROVIDER_COMPARISON, not fallback.
+ */
+export const COMPARATIVE_OPENAI_MODEL_CONFIG: ModelConfiguration = {
+  role: 'DEEP_REASONING',
+  providerName: 'openai',
+  providerModelId: 'gpt-4o-mini',
+  enabled: true,
+  maxTokens: 1200,
+  temperature: 0.3,
+  supportsJsonMode: true,
+};
+
+export const COMPARATIVE_ANTHROPIC_MODEL_CONFIG: ModelConfiguration = {
+  role: 'DEEP_REASONING',
+  providerName: 'anthropic',
+  providerModelId: 'claude-3-5-haiku-20241022',
+  enabled: true,
+  maxTokens: 1200,
+  temperature: 0.3,
+  supportsJsonMode: false,
+};

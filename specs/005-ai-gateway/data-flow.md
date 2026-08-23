@@ -117,9 +117,9 @@ Gateway (Phase 4):
 
 ---
 
-## Target flow (SPEC-005 — gateway Phase 2–5C)
+## Target flow (SPEC-005 — gateway Phase 2–5C-MP)
 
-Migrated callers (CONTENT_DRAFT, THESIS_PROPOSAL, SIGNAL_THESIS_EVAL, THESIS_CHALLENGE, ADVISOR_POSITIONING, ADVISOR_CURATION_ANGLE):
+Migrated callers (all 7 structured LLM operations including ANALYSIS_COMPARATIVE multi-provider):
 
 ```text
 UI / service
@@ -142,7 +142,7 @@ AiCompleteHttpClient (Bearer Firebase; no session keys / no model)
 existing domain/UI flow (proposal form / recommendation / challenge modal)
 ```
 
-Remaining comparative still uses legacy dual-session `complete` (see `migration-matrix.md` — **BLOCKED** pending multi-provider orchestration contract).
+ANALYSIS_COMPARATIVE uses Application-owned concurrent dual-slice orchestration (`resolveComparativePlan` → OpenAI + Anthropic) with provider-preserving repair and `executionMode: COMPARATIVE` audit. Legacy session path has zero active LLM consumers (Phase 5D cleanup).
 
 See `plan.md` §Target Architecture.
 

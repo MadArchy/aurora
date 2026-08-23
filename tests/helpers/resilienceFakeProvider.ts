@@ -137,6 +137,17 @@ export function invalidAdvisorCurationAngleSchemaResponse() {
   return jsonProviderResponse({ angle: '' });
 }
 
+export function validComparativeSliceResponse(overrides?: { angle?: string; rationale?: string }) {
+  return jsonProviderResponse({
+    angle: overrides?.angle ?? 'Comparative angle',
+    rationale: overrides?.rationale ?? 'Comparative rationale',
+  });
+}
+
+export function invalidComparativeSliceSchemaResponse() {
+  return jsonProviderResponse({ angle: '' });
+}
+
 export function malformedJsonResponse() {
   return jsonProviderResponse('{not json');
 }

@@ -53,6 +53,18 @@
 **Total LLM business call sites:** **9** (6 in `ai.ts` + 2 advisor + 1 generic runner used by advisor)  
 **Live provider HTTP calls:** **2** (OpenAI + Anthropic in dev proxy only)
 
+### Phase 5C-MP inventory delta (2026-08-23)
+
+| Metric | Before 5C-MP | After 5C-MP |
+|--------|--------------|-------------|
+| Gateway-migrated ops | 6 | **7/7** (+ `ANALYSIS_COMPARATIVE` multi-provider) |
+| Browser-orchestrated LLM via session `complete`/`runAgentJson` | 1 | **0** |
+| `runAgentJson` active consumers | 0 | **0** |
+| `complete()` LLM active consumers | 1 | **0** |
+| Session-key LLM consumers | 1 (comparative) | **0** |
+
+See `migration-matrix.md`.
+
 ### Phase 5C inventory delta (2026-08-23)
 
 | Metric | Before 5C | After 5C |

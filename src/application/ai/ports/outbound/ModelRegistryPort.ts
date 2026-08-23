@@ -11,6 +11,14 @@ export interface ModelConfiguration {
   supportsJsonMode: boolean;
 }
 
+/** Explicit dual-provider plan for ANALYSIS_COMPARATIVE — not fallback. */
+export interface ComparativeExecutionPlan {
+  operation: 'ANALYSIS_COMPARATIVE';
+  slices: [ModelConfiguration, ModelConfiguration];
+}
+
 export interface ModelRegistryPort {
   resolve(role: AiModelRole, operation: AiOperation): ModelConfiguration;
+  /** Server-side OpenAI + Anthropic configs for multi-provider comparative. */
+  resolveComparativePlan(operation: AiOperation): ComparativeExecutionPlan;
 }

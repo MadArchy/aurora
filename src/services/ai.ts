@@ -33,6 +33,10 @@ import {
   isThesisSignalGatewayAvailable,
 } from './thesisSignalGateway';
 import {
+  executeComparativeAnalysisViaGateway,
+  isComparativeGatewayAvailable,
+} from './comparativeGateway';
+import {
   mapClientToThesisProposalGatewayInput,
 } from './mapThesisProposalGatewayInput';
 import { buildThesisProposalFromProfile } from '../domain/thesisProposalCore';
@@ -283,27 +287,19 @@ class AIService {
   public async runComparativeAnalysis(signal: Signal, thesis: PositioningThesis): Promise<AIComparativeResult> {
     const allowed = assertComparativeAllowed(dbService.getSubscription());
     if (!allowed.ok) throw new Error(allowed.message);
-    if (!this.config.hasActiveSession) {
-      throw new Error('La síntesis comparativa requiere sesión de IA con ambas claves.');
+
+    if (!isComparativeGatewayAvailable()) {
+      throw new Error(
+        'El análisis comparativo requiere Gateway de IA (ADMIN + Firebase). No hay camino legacy de sesión.'
+      );
     }
-    const prompt = `Compara ángulos para la tesis ${thesis.title} ante ${thesis.targetAudience}. Fuente no confiable:\n<UNTRUSTED_SOURCE>${signal.title}\n${signal.contentSnippet}</UNTRUSTED_SOURCE>\nJSON { "angle": string, "rationale": string }`;
-    const openai = await this.complete('POSITIONING_STRATEGIST', prompt);
-    const prev = this.config.provider;
-    this.config.provider = 'CLAUDE';
-    const claude = await this.complete('POSITIONING_STRATEGIST', prompt);
-    this.config.provider = prev;
-    const o = openai ? JSON.parse(openai.text) : { angle: 'No disponible', rationale: 'OpenAI no respondió' };
-    const c = claude ? JSON.parse(claude.text) : { angle: 'No disponible', rationale: 'Claude no respondió' };
-    return {
-      signalId: signal.id,
-      thesisId: thesis.id,
-      openaiOutput: `${o.angle} — ${o.rationale}`,
-      claudeOutput: `${c.angle} — ${c.rationale}`,
-      consensusScore: openai && claude ? 70 : 0,
-      divergenceSummary: 'Revisa ambas salidas; no se fuerza consenso.',
-      synthesizedRecommendation: `Combinar el ángulo operativo de OpenAI con el marco doctrinal de Claude. Humano decide.`,
-      winnerProvider: 'SYNTHESIS',
-    };
+
+    try {
+      const { result } = await executeComparativeAnalysisViaGateway({ signal, thesis });
+      return result;
+    } catch (error) {
+      throw new Error(mapGatewayErrorToUserMessage(error));
+    }
   }
 
   public async generateThesisProposal(clientId: string): Promise<ThesisEditableFields> {

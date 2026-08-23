@@ -92,15 +92,18 @@ export type {
   AiProviderCompletionResponse,
   AiProviderMessage,
 } from './ports/outbound/AiProviderPort';
-export type { ModelRegistryPort, ModelConfiguration } from './ports/outbound/ModelRegistryPort';
+export type { ModelRegistryPort, ModelConfiguration, ComparativeExecutionPlan } from './ports/outbound/ModelRegistryPort';
 export type { PromptRegistryPort, ResolvedPrompt } from './ports/outbound/PromptRegistryPort';
-export type { AiRunRepositoryPort, AiRunPersistenceRecord } from './ports/outbound/AiRunRepositoryPort';
+export type { AiRunRepositoryPort, AiRunPersistenceRecord, AiProviderExecutionAudit } from './ports/outbound/AiRunRepositoryPort';
 export { UnimplementedAiGateway } from './use-cases/UnimplementedAiGateway';
 export { ExecuteAiOperation } from './use-cases/ExecuteAiOperation';
-export { ProviderPortError, PromptResolutionError } from './errors/providerPortErrors';
+export { ProviderPortError, PromptResolutionError, ModelNotResolvedError } from './errors/providerPortErrors';
 export {
   MAX_PROVIDER_RETRIES,
   MAX_PROVIDER_CALLS_PER_EXECUTION,
+  MAX_PROVIDER_CALLS_PER_PROVIDER_SLICE,
+  MAX_COMPARATIVE_PROVIDER_SLICES,
+  MAX_COMPARATIVE_PROVIDER_CALLS,
   PROVIDER_RETRY_BACKOFF_MS,
   REPAIR_MODEL_ROLE,
   DEFAULT_PROVIDER_TIMEOUT_MS,
@@ -112,3 +115,14 @@ export { executeProviderWithRetry, isRetryableProviderError, maxBackoffPerProvid
 export { isValidationRepairEligible } from './resilience/repairEligibility';
 export { ProviderCallBudget } from './resilience/providerCallBudget';
 export { GatewayExecutionDeadline, GatewayDeadlineExceededError, createGatewayExecutionDeadline } from './resilience/gatewayExecutionDeadline';
+export {
+  ComparativeAnalysisAggregateSchema,
+  type ComparativeAnalysisAggregate,
+} from './schemas/comparativeAnalysisAggregate';
+export {
+  AnalysisComparativeGatewayInputSchema,
+  type AnalysisComparativeGatewayInput,
+  ANALYSIS_COMPARATIVE_PROMPT_ID,
+  ANALYSIS_COMPARATIVE_PROMPT_VERSION,
+} from './schemas/analysisComparativeInput';
+export { resolveComparativeSliceSchema } from './schemas/outputRegistry';

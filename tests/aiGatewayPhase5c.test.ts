@@ -417,15 +417,14 @@ describe('SPEC-005 Phase 5C — session-key-free + no legacy fallback', () => {
 });
 
 describe('SPEC-005 Phase 5C — ANALYSIS_COMPARATIVE semantic gate', () => {
-  it('legacy runComparativeAnalysis is MULTI_PROVIDER_COMPARISON — migration blocked', () => {
+  it('documents MULTI_PROVIDER_COMPARISON; migration handled in Phase 5C-MP', () => {
     const source = readFileSync('src/services/ai.ts', 'utf8');
     const comparative = source.slice(
       source.indexOf('runComparativeAnalysis'),
       source.indexOf('generateThesisProposal')
     );
-    expect(comparative).toMatch(/this\.config\.provider = 'CLAUDE'/);
-    expect(comparative).toMatch(/this\.complete\(/);
-    expect(comparative.match(/this\.complete\(/g)?.length).toBe(2);
+    expect(comparative).toMatch(/executeComparativeAnalysisViaGateway/);
+    expect(comparative).not.toMatch(/this\.complete\(/);
   });
 });
 

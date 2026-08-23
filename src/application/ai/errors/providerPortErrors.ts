@@ -30,3 +30,11 @@ export class PromptResolutionError extends Error {
     this.name = 'PromptResolutionError';
   }
 }
+
+/** Thrown when comparative (or other) model plan cannot be resolved from registry. */
+export class ModelNotResolvedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ModelNotResolvedError';
+  }
+}

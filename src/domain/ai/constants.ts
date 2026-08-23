@@ -5,10 +5,23 @@ export const MAX_REPAIR_ATTEMPTS = 1 as const;
 export const MAX_PROVIDER_RETRIES = 1 as const;
 
 /**
- * Hard ceiling on provider HTTP calls per gateway execute request.
+ * Hard ceiling on provider HTTP calls per gateway execute request (single-provider ops).
  * (1 + MAX_PROVIDER_RETRIES) primary + (1 + MAX_PROVIDER_RETRIES) repair = 4.
  */
 export const MAX_PROVIDER_CALLS_PER_EXECUTION = 4 as const;
+
+/** Per-slice ceiling for ANALYSIS_COMPARATIVE — same math as single-provider. */
+export const MAX_PROVIDER_CALLS_PER_PROVIDER_SLICE = MAX_PROVIDER_CALLS_PER_EXECUTION;
+
+/** Explicit multi-provider comparative: OpenAI + Anthropic. */
+export const MAX_COMPARATIVE_PROVIDER_SLICES = 2 as const;
+
+/**
+ * Comparative total provider-call ceiling.
+ * Does NOT redefine MAX_PROVIDER_CALLS_PER_EXECUTION globally.
+ */
+export const MAX_COMPARATIVE_PROVIDER_CALLS =
+  MAX_PROVIDER_CALLS_PER_PROVIDER_SLICE * MAX_COMPARATIVE_PROVIDER_SLICES;
 
 /** Bounded deterministic backoff between provider retries (ms). */
 export const PROVIDER_RETRY_BACKOFF_MS = 250 as const;

@@ -152,8 +152,9 @@ See `migration-matrix.md`.
 
 - **5A** ✅ `CONTENT_DRAFT`
 - **5B** ✅ `THESIS_PROPOSAL`, `SIGNAL_THESIS_EVAL`, `THESIS_CHALLENGE`
-- **5C** ✅ Advisor (`ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE`); ☐ `ANALYSIS_COMPARATIVE` **BLOCKED** (multi-provider semantic conflict)
-- **5D** Comparative orchestration (if required) + session-key / legacy path removal
+- **5C** ✅ Advisor (`ADVISOR_POSITIONING`, `ADVISOR_CURATION_ANGLE`)
+- **5C-MP** ✅ `ANALYSIS_COMPARATIVE` multi-provider (OpenAI + Anthropic; not fallback)
+- **5D** Session-key / legacy path removal (`runAgentJson`, `complete`, `/api/ai/complete`, session UI)
 
 Each migrated op: browser Gateway client → `aiComplete` ADMIN_ONLY → audit → domain compatibility. No browser provider fallback.
 
