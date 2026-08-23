@@ -134,16 +134,36 @@ Si falla post-deploy:
 |------|--------|
 | Inventory | **COMPLETE** (`inventory.md`) |
 | Envelope freeze | **COMPLETE** (T-009-00c) |
-| Q1 query strategy | **FROZEN** (app change required; not executed) |
-| Actor-aware persistence | **FROZEN** (SEC-009-020 / T-009-06p; not executed) |
+| Q1 query strategy | **FROZEN** (app change required; executed in Phase 1 for `listFirestoreClientIds`) |
+| Actor-aware persistence | **COMPLETE** Phase 2 (SEC-009-020) |
+| Claims fail-closed / no default tenant | **COMPLETE** Phase 4 (T-009-10) — production reprovision **NOT EXECUTED** |
+| Admin SDK envelope (scheduledIngest) | **COMPLETE** Phase 4 (T-009-10b) |
+| External SA + prep-check | **COMPLETE** Phase 4 (T-009-11) |
+| Ops docs (refresh / gates) | **COMPLETE** Phase 4 (T-009-12) |
+| Secret scan (local) | **COMPLETE** Phase 4 (T-009-13) — see scan report; rotation decision documented |
+| Final envelope rules (no parent get) | **PENDING** T-009-14e |
 | Backup | NOT EXECUTED |
 | Dry run | NOT EXECUTED |
 | Backfill | NOT EXECUTED |
 | Verification | NOT EXECUTED |
-| Claims reprovision | NOT EXECUTED |
-| Token refresh | NOT EXECUTED |
+| Claims reprovision (prod) | NOT EXECUTED |
+| Token refresh (prod users) | NOT EXECUTED |
 | Rules deployment | NOT EXECUTED |
 | Post-deploy verification | NOT EXECUTED |
 | Rollback | N/A |
 
-**NO MIGRATION EXECUTED as part of Spec documentation revision.**
+**Phase 4 documentation alignment only — NO MIGRATION / DEPLOY EXECUTED.**
+
+### Sequence (locked)
+
+```text
+CODE implementation (Phases 1–4)
+→ final envelope rules (T-009-14e)
+→ tests (T-009-14)
+→ CODE_COMPLETE (T-009-15)
+→ backup → dry-run → production envelope backfill (T-009-16)
+→ claims reprovision (T-009-17)
+→ token refresh / re-login
+→ rules deploy (T-009-18 / 18s)
+→ post-deploy verification (T-009-19)
+```

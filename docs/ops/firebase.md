@@ -39,19 +39,43 @@ firebase deploy --only storage
 firebase deploy --only firestore:rules
 ```
 
-### 4. Service account + usuarios
+### 4. Service account + usuarios (SEC-009-012)
+
 1. Firebase Console → ⚙ **Project settings** → **Service accounts** → **Generate new private key**
-2. Guardar como `secrets/firebase-sa.json` (no subir a git)
+2. Guardar **fuera del clone**, p. ej. `%USERPROFILE%\.firebase-credentials\firebase-sa.json`  
+   **No** uses `AURORA/secrets/`, ZIP/RAR del repo, ni artifacts de release.
 3. PowerShell:
 ```powershell
-$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\user\Desktop\AURORA\secrets\firebase-sa.json"
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.firebase-credentials" | Out-Null
+# (mueve el JSON descargado a esa carpeta — nunca bajo AURORA/)
+$env:GOOGLE_APPLICATION_CREDENTIALS="$env:USERPROFILE\.firebase-credentials\firebase-sa.json"
+npm run firebase:prep
 npm run firebase:provision
 ```
+
+`firebase:prep` **falla** si:
+
+- existe un SA bajo el clone (`secrets/firebase-sa.json`, `.firebase-service-account.json`), o
+- `GOOGLE_APPLICATION_CREDENTIALS` apunta a un path **dentro** del repositorio.
+
+**Phase 4.1:** credential operativa en `%USERPROFILE%\.firebase-credentials\`; copia in-repo eliminada.
+
+Tras provisionar/cambiar claims: **cerrar sesión y volver a entrar** (o forzar refresh del ID token). Los tokens antiguos pueden seguir con claims viejos.
+
 | Email | Rol | Contraseña demo |
 |-------|-----|-----------------|
-| `manager@postura.internal` | ADMIN | `Postura2026!` |
-| `juan.vasquez@lexfirm.com` | CLIENT (Juan) | `Postura2026!` |
-| `elena.martinez@lexfirm.com` | CLIENT (Elena) | `Postura2026!` |
+| `manager@postura.internal` | ADMIN (`organizationId` explícito del seed) | `Postura2026!` |
+| `juan.vasquez@lexfirm.com` | CLIENT + `clientId` | `Postura2026!` |
+| `elena.martinez@lexfirm.com` | CLIENT + `clientId` | `Postura2026!` |
+
+Claims (**fail-closed**, sin tenant por defecto):
+
+| Role | `organizationId` | `clientId` |
+|------|------------------|------------|
+| ADMIN | **required** | always `null` |
+| CLIENT | **required** | **required** |
+| invalid / missing | provision / `setPosturaClaims` **rejects** | — |
+
 
 ### 4. Probar
 1. Login **manager** → si Firestore vacío, bootstrap automático del seed Juan
@@ -73,7 +97,8 @@ npm run firebase:provision
 
 | Comando | Para qué |
 |---------|----------|
-| `npm run firebase:prep` | Validar .env.local + service account antes de piloto |
+| `npm run firebase:prep` | Validar .env.local + SA **externa** al clone |
+| `npm run secret:scan` | Escaneo sanitizado (gitleaks si hay; inventory local) |
 | `npm run dev` | Desarrollo local contra Firebase nube |
 | `npm run check` | Tests + lint + types |
 | `npm run firebase:provision` | Crear/actualizar usuarios + claims |
@@ -88,8 +113,8 @@ npm run firebase:provision
 
 | Error | Solución |
 |-------|----------|
-| Sin permisos POSTURA (custom claims) | `npm run firebase:provision` |
-| Credenciales inválidas | Mismo script; usuario no existe en Auth |
+| Sin permisos POSTURA (custom claims) | `npm run firebase:provision` + **re-login** |
+| Credenciales inválidas / sin organizationId | Claims fail-closed — reprovision con org explícita; re-login |
 | Permiso denegado Firestore | `npm run firebase:deploy:rules` |
 | `Failed to resolve firebase/...` | `npm install` |
 | Badge no aparece | Revisar `.env.local` y reiniciar `npm run dev` |
@@ -165,6 +190,57 @@ VITE_POSTURA_FUNCTIONS_BASE=https://us-central1-aurora-postura-app.cloudfunction
 **Auth en proxies:** el frontend envía `Authorization: Bearer <Firebase ID token>` cuando `VITE_POSTURA_FUNCTIONS_BASE` está definido. Solo cuentas con custom claims `role=ADMIN`. CORS limitado a localhost + `*.web.app` / `*.firebaseapp.com`. Orígenes extra: env `POSTURA_ALLOWED_ORIGINS` (comma-separated) en la función.
 
 Los clientes reciben señales nuevas vía listeners Firestore al tener sesión abierta.
+
+---
+
+## Custom claims, token refresh y gates Spec (SPEC-009)
+
+### Required claims
+
+- **ADMIN:** `role=ADMIN`, `organizationId` (string no vacío), `clientId=null`
+- **CLIENT:** `role=CLIENT`, `organizationId`, `clientId` (ambos required)
+- Missing org / missing CLIENT `clientId` / invalid role → **fail closed** (no `org_aurora_01` default)
+
+Provision: `npm run firebase:provision`  
+Callable: `setPosturaClaims` (ADMIN caller only) — same validation.
+
+### After changing claims
+
+Existing ID tokens may still carry **old** claims until:
+
+1. User **signs out and signs in again**, or
+2. Client forces ID token refresh (`getIdToken(true)` / equivalent)
+
+Do this for all demo users (manager, Juan, Elena) after reprovision (**T-009-17** in migration window — not Phase 4 execution).
+
+### CODE_COMPLETE vs DEPLOYED
+
+| Gate | Meaning |
+|------|---------|
+| **CODE_COMPLETE** | Repo rules + callers + tests green **after** final envelope switch (**T-009-14e**) |
+| **DEPLOYED** | Production `firebase deploy` of already-finalized rules (+ Storage if Console allows) after backfill verify |
+| **DONE** | Acceptance Required PASS + DEPLOYED (or documented PARTIAL) |
+
+Phase 4 does **not** deploy rules or reprovision production beyond local prep scripts.
+
+### Migration order (see `specs/009-security-hardening/migration.md`)
+
+```text
+code (Phases 1–4) → T-009-14e final envelope rules → tests → CODE_COMPLETE
+→ backup → dry-run → envelope backfill → claims reprovision → token refresh/re-login
+→ rules deploy → post-deploy verification
+```
+
+Rollback: redeploy previous rules from known git tag; re-login users; restore Firestore export only as last resort.
+
+### Secret scanning
+
+```powershell
+npm run secret:scan
+```
+
+Optionally install [gitleaks](https://github.com/gitleaks/gitleaks) on PATH for deeper history scans.  
+If a **valid** SA private key was committed, pushed, or shipped in an archive → **ROTATION REQUIRED** before Spec DONE (do not rotate automatically without authorization).
 
 ---
 

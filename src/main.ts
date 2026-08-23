@@ -57,6 +57,10 @@ import { bindSessionUi } from './controllers/sessionController';
 import { themeService } from './services/theme';
 import { mapLegacyContentStatus, resolvePipelineStepsToTarget, syncLegacyStatusFromPipeline } from './domain/contentPipeline';
 import {
+  MAX_RECORDING_DURATION_MS,
+  RECORDING_VIDEO_BITS_PER_SECOND,
+} from './domain/recordingLimits';
+import {
   pipelineActionTarget,
   PIPELINE_ACTION_LABELS,
   type ContentPipelineAction,
@@ -148,6 +152,7 @@ class App {
   private teleprompterInterval: number | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private recordedChunks: Blob[] = [];
+  private recordingLimitTimer: number | null = null;
   private cameraStream: MediaStream | null = null;
   private previewBlob: Blob | null = null;
   private previewBlobUrl: string | null = null;
@@ -850,7 +855,7 @@ class App {
           avatarUrl: ''
         });
         const invite = dbService.createInvitation(newClient.id, email);
-        authService.createPendingAccount(email, newClient.id);
+        authService.createPendingAccount(email, newClient.id, organizationId);
         notificationService.push({
           userId: authService.getCurrentUser()?.uid || 'user_admin_01',
           organizationId,
@@ -4304,7 +4309,16 @@ class App {
     this.revokePreviewUrl();
 
     try {
-      this.mediaRecorder = new MediaRecorder(this.cameraStream);
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm')
+          ? 'video/webm'
+          : undefined;
+      const recorderOptions: MediaRecorderOptions = {
+        videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND,
+      };
+      if (mimeType) recorderOptions.mimeType = mimeType;
+      this.mediaRecorder = new MediaRecorder(this.cameraStream, recorderOptions);
     } catch {
       this.showToast('Tu navegador no soporta grabación de video aquí', 'warning');
       return;
@@ -4314,14 +4328,25 @@ class App {
       if (ev.data.size) this.recordedChunks.push(ev.data);
     };
 
-    this.mediaRecorder.start();
+    this.mediaRecorder.start(1000);
+    if (this.recordingLimitTimer) window.clearTimeout(this.recordingLimitTimer);
+    this.recordingLimitTimer = window.setTimeout(() => {
+      void this.stopRecordingToPreview();
+      this.showToast('Grabación detenida: máximo 10 minutos', 'warning');
+    }, MAX_RECORDING_DURATION_MS);
+
     document.getElementById('btn-start-recording')?.classList.add('hidden');
     document.getElementById('btn-stop-recording')?.classList.remove('hidden');
     document.getElementById('teleprompter-recording-indicator')?.classList.remove('hidden');
-    this.showToast('Grabando…', 'info');
+    this.showToast('Grabando… (máx. 10 min)', 'info');
   }
 
   private async stopRecordingToPreview() {
+    if (this.recordingLimitTimer) {
+      window.clearTimeout(this.recordingLimitTimer);
+      this.recordingLimitTimer = null;
+    }
+
     if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') {
       this.showToast('No hay una grabación activa', 'warning');
       return;

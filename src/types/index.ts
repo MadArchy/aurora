@@ -993,6 +993,8 @@ export interface AuthAccount {
   passwordSalt: string;
   passwordHash: string;
   role: UserRole;
+  /** Required for local + Firebase parity (SPEC-009 Phase 4 — no silent default). */
+  organizationId: string;
   clientId?: string | null;
   status: UserStatus;
 }

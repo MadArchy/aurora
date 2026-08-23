@@ -72,24 +72,41 @@ declare module 'firebase/storage' {
   export function getStorage(app?: FirebaseApp): FirebaseStorage;
   export function connectStorageEmulator(storage: FirebaseStorage, host: string, port: number): void;
   export function ref(storage: FirebaseStorage, path: string): StorageReference;
-  export function uploadBytes(ref: StorageReference, data: Blob): Promise<UploadResult>;
+  export function uploadBytes(
+    ref: StorageReference,
+    data: Blob,
+    metadata?: { contentType?: string }
+  ): Promise<UploadResult>;
   export function getDownloadURL(ref: StorageReference): Promise<string>;
   export function deleteObject(ref: StorageReference): Promise<void>;
+  export function updateMetadata(
+    ref: StorageReference,
+    metadata: { contentType?: string; customMetadata?: Record<string, string> }
+  ): Promise<unknown>;
 }
 
 declare module '@firebase/rules-unit-testing' {
   export interface RulesTestEnvironment {
     authenticatedContext(uid: string, token?: Record<string, unknown>): {
       firestore(): unknown;
+      storage(): unknown;
     };
     unauthenticatedContext(): {
       firestore(): unknown;
+      storage(): unknown;
     };
+    withSecurityRulesDisabled(callback: (context: { firestore(): unknown; storage(): unknown }) => Promise<void>): Promise<void>;
+    clearFirestore(): Promise<void>;
+    clearStorage(): Promise<void>;
     cleanup(): Promise<void>;
   }
 
   export function initializeTestEnvironment(config: {
     projectId: string;
-    firestore: { rules: string; host?: string; port?: number };
+    firestore?: { rules: string; host?: string; port?: number };
+    storage?: { rules: string; host?: string; port?: number };
   }): Promise<RulesTestEnvironment>;
+
+  export function assertFails(pr: Promise<unknown>): Promise<unknown>;
+  export function assertSucceeds(pr: Promise<unknown>): Promise<unknown>;
 }

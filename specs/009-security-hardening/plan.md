@@ -203,16 +203,28 @@ CLIENT:
 |--------------|-------|
 | `organizations/{orgId}/clients/{clientId}/recordings/{taskId}.webm` | `storageRecordingPath`; upload/read/delete en `src/firebase/storageMedia.ts` |
 
-### Matriz obligatoria (frozen from inventory — size numeric TBD)
+### Matriz obligatoria (Phase 3 FROZEN)
 
-| path | allowed roles | allowed MIME | max size | create | update | delete |
-|------|---------------|--------------|----------|--------|--------|--------|
-| `organizations/{orgId}/clients/{clientId}/recordings/{taskId}.webm` | CLIENT (own org+client); ADMIN (same org) | `video/webm` (+ `video/webm;*`) | **TBD_MEASURE** (Phase 3; no universal 100MB) | yes | no | yes |
+| path | allowed roles | org condition | client condition | allowed MIME | max size (bytes) | CREATE | READ | UPDATE | DELETE |
+|------|---------------|---------------|------------------|--------------|------------------|--------|------|--------|--------|
+| `organizations/{orgId}/clients/{clientId}/recordings/{taskId}.webm` | CLIENT; ADMIN | `token.organizationId == orgId` | CLIENT: `token.clientId == clientId`; ADMIN: same-org only | `video/webm` or `video/webm;…` | **90_000_000** | yes | yes | **no** | yes |
 
-Only Storage path family in repo (`storageRecordingPath`). No `updateMetadata` call sites.
+**Size calculation (frozen numeric):**
+- Product max recording duration: **10 minutes** (`MAX_RECORDING_DURATION_MS`) — UX bound; video tasks use estimatedMinutes 10–15.
+- Explicit MediaRecorder `videoBitsPerSecond` = **1_000_000** (`RECORDING_VIDEO_BITS_PER_SECOND`) — product bitrate bound (avoids unbounded Chrome defaults).
+- Raw: `1_000_000 × 600 / 8 = 75_000_000` bytes.
+- Safety margin +20% → **90_000_000** bytes.
+- Cap leaves headroom under Storage Emulator body-parser **130mb** (~136_314_880) including multipart framing so MAX+1 oversize DENY is automatable.
+- Enforced in `storage.rules`, `recordingLimits.ts`, MediaRecorder options, and teleprompter auto-stop.
 
-DONE de Storage security = **automated** `tests/storage.rules.test.ts` PASS.  
-Si Storage emulator o Console bloqueado → Spec **`PARTIAL`**, no “DONE por review manual”.
+**MIME:** upload sets `contentType` via `resolveRecordingContentType` (never octet-stream).  
+**UPDATE:** deny (`updateMetadata` has no call sites; overwrite = delete-then-create).  
+**Unauth / cross-org / cross-client:** DENY.
+
+Only Storage path family in repo (`storageRecordingPath`).
+
+DONE de Storage security (code) = **automated** `tests/storage.rules.test.ts` PASS.  
+Deploy Storage rules = separate gate (O1 / T-009-18s) — not Phase 3.
 
 ## Secrets / service account (SEC-009-012)
 
@@ -267,7 +279,7 @@ Objetivo:
 | 2026-08-22 | Denormalized envelope; no primary parent get | **Frozen (T-009-00c)** |
 | 2026-08-22 | Notifications CLIENT CREATE exception (manager alerts) | **Frozen** |
 | 2026-08-22 | signalOutcomes CLIENT read deny + write deny | **Frozen** |
-| 2026-08-22 | Storage matrix: recordings `.webm` only; size TBD_MEASURE | **Frozen (size pending measure)** |
+| 2026-08-22 | Storage matrix: recordings `.webm` only; size **90_000_000**; bitrate 1 Mbps; duration cap 10m; UPDATE deny | **Frozen (Phase 3)** |
 | 2026-08-22 | CLIENT allowlists / state / timestamps | **Frozen in `inventory.md` §C–E** |
 | 2026-08-22 | Theses: CLIENT UPDATE approval allowlist only | **Frozen** |
 | 2026-08-22 | Q1: Rules are not filters; `listFirestoreClientIds` must use tenant `where` (or equiv.) | **Frozen** |

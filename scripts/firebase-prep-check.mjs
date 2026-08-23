@@ -1,9 +1,11 @@
 /**
  * Verifica que la máquina está lista para modo Firebase (producción nube).
  * Uso: npm run firebase:prep
+ *
+ * SEC-009-012: service account must be OUTSIDE the repository clone.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, normalize } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(process.cwd());
@@ -40,6 +42,12 @@ function check(name, ok, detail = '') {
   return ok;
 }
 
+function isPathInsideRepo(absPath) {
+  const repo = normalize(root).toLowerCase();
+  const target = normalize(resolve(absPath)).toLowerCase();
+  return target === repo || target.startsWith(repo + '\\') || target.startsWith(repo + '/');
+}
+
 console.log('\nPOSTURA — Preparación Firebase (aurora-postura-app)\n');
 
 const checks = [];
@@ -72,18 +80,51 @@ for (const key of OPTIONAL_ENV) {
   if (env[key]) checks.push(check(`${key} (opcional)`, true));
 }
 
-const saCandidates = [
+const saEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+const inRepoSaCandidates = [
   resolve(root, 'secrets/firebase-sa.json'),
   resolve(root, '.firebase-service-account.json'),
 ];
-const saPath = saCandidates.find((p) => existsSync(p));
-checks.push(
-  check(
-    'Service account (provision)',
-    Boolean(saPath),
-    saPath ? saPath : 'secrets/firebase-sa.json — necesario para npm run firebase:provision'
-  )
-);
+const inRepoSaPresent = inRepoSaCandidates.filter((p) => existsSync(p));
+
+if (inRepoSaPresent.length) {
+  checks.push(
+    check(
+      'Service account NOT inside repo tree',
+      false,
+      `found under clone (move outside): ${inRepoSaPresent.map((p) => p.replace(root, '.')).join(', ')}`
+    )
+  );
+} else {
+  checks.push(check('Service account NOT inside repo tree', true, 'no in-repo SA file detected'));
+}
+
+if (!saEnv) {
+  checks.push(
+    check(
+      'GOOGLE_APPLICATION_CREDENTIALS (external)',
+      false,
+      'set to a path OUTSIDE the clone, e.g. %USERPROFILE%\\.firebase-credentials\\firebase-sa.json'
+    )
+  );
+} else {
+  const abs = resolve(saEnv);
+  const exists = existsSync(abs);
+  const inside = isPathInsideRepo(abs);
+  if (!exists) {
+    checks.push(check('GOOGLE_APPLICATION_CREDENTIALS file exists', false, abs));
+  } else if (inside) {
+    checks.push(
+      check(
+        'GOOGLE_APPLICATION_CREDENTIALS outside repo',
+        false,
+        `path is inside clone — move SA outside and update env`
+      )
+    );
+  } else {
+    checks.push(check('GOOGLE_APPLICATION_CREDENTIALS outside repo', true, '(path omitted)'));
+  }
+}
 
 const firebaseRc = existsSync(resolve(root, 'firebase.json'));
 checks.push(check('firebase.json', firebaseRc));
@@ -116,9 +157,9 @@ try {
 console.log('\nPasos siguientes (orden recomendado):\n');
 console.log('1. Console → Auth Email/Password + dominios 127.0.0.1 y localhost');
 console.log('2. Console → Storage → Get Started');
-console.log('3. npm run firebase:deploy:rules');
-console.log('4. $env:GOOGLE_APPLICATION_CREDENTIALS="...\\secrets\\firebase-sa.json"');
-console.log('5. npm run firebase:provision');
+console.log('3. Deploy rules solo cuando Spec autorice (CODE_COMPLETE → DEPLOYED)');
+console.log('4. SA fuera del clone: $env:GOOGLE_APPLICATION_CREDENTIALS="$env:USERPROFILE\\.firebase-credentials\\firebase-sa.json"');
+console.log('5. npm run firebase:provision  (tras claims: re-login / token refresh)');
 console.log('6. Reiniciar npm run dev → badge «Firebase · aurora-postura-app»');
 console.log('7. Login manager → bootstrap seed si Firestore vacío');
 console.log('8. npm run checklist:pilot — recorrido manual DoD §7\n');

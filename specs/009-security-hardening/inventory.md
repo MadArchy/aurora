@@ -357,15 +357,15 @@ Must not ship `get(parent)` as permanent without Spec exception.
 
 | Path pattern | Code | Ops | Roles (call sites) | MIME (observed) | Max size | create | update metadata | delete |
 |--------------|------|-----|--------------------|-----------------|----------|--------|-----------------|--------|
-| `organizations/{orgId}/clients/{clientId}/recordings/{taskId}.webm` | `storageRecordingPath` + `uploadRecordingToStorage` / `resolveRecordingUrl` / `removeRecording` | uploadBytes, getDownloadURL (+fetch blob), deleteObject | CLIENT upload/read/delete on own recordings; ADMIN may resolve/delete via same helpers if UI calls | **Blob.type** from MediaRecorder — typically `video/webm` (not explicitly set in code) | **PENDING empirical** — no cap in code; **do not freeze 100MB universal** | CLIENT own path | **none** (no `updateMetadata` call sites) | CLIENT/ADMIN via `removeRecording` when called |
+| `organizations/{orgId}/clients/{clientId}/recordings/{taskId}.webm` | `storageRecordingPath` + `uploadRecordingToStorage` / `resolveRecordingUrl` / `removeRecording` | uploadBytes, getDownloadURL (+fetch blob), deleteObject | CLIENT upload/read/delete on own recordings; ADMIN may resolve/delete via same helpers if UI calls | MediaRecorder preferred `video/webm` / `video/webm;codecs=vp9,opus`; upload sets `contentType` via `resolveRecordingContentType` | **90_000_000** (1 Mbps × 10 min + 20%) | CLIENT/ADMIN same-tenant | **none** (`updateMetadata` deny; overwrite = delete-then-create) | CLIENT/ADMIN via `removeRecording` when called |
 
 **Only Storage path family found in repo.**
 
-Frozen matrix row (Phase 3 implement; sizes TBD after measure):
+Frozen matrix row (Phase 3):
 
 | path | allowed roles | allowed MIME | max size | create | update | delete |
 |------|---------------|--------------|----------|--------|--------|--------|
-| `organizations/{orgId}/clients/{clientId}/recordings/{taskId}.webm` | CLIENT (own clientId + org); ADMIN (same org) | `video/webm`, `video/webm;codecs=*` (allow prefix `video/webm`) | **TBD_MEASURE** (task recording; set numeric cap in Phase 3 with evidence) | yes | no | yes |
+| `organizations/{orgId}/clients/{clientId}/recordings/{taskId}.webm` | CLIENT (own clientId + org); ADMIN (same org) | `video/webm`, `video/webm;codecs=*` | **90_000_000** (Phase 3: 1 Mbps × 10 min + 20%) | yes | no | yes |
 
 ---
 
@@ -373,14 +373,27 @@ Frozen matrix row (Phase 3 implement; sizes TBD after measure):
 
 | Source | Claims set |
 |--------|------------|
-| `scripts/provision-firebase.mjs` | ADMIN: role, organizationId, clientId null; CLIENT: role, organizationId, clientId |
-| `functions` `setPosturaClaims` | same; organizationId defaults to `org_aurora_01` if omitted |
+| `scripts/provision-firebase.mjs` | ADMIN: role + **required** organizationId + clientId null; CLIENT: role + **required** organizationId + **required** clientId; validates before `setCustomUserClaims`; SA must be **outside** repo |
+| `functions` `setPosturaClaims` | same via `buildPosturaClaimsOrThrow` — **no** `org_aurora_01` default |
+| `parsePosturaClaims` (client + functions) | missing org / CLIENT clientId → **null** (session fail-closed) |
 
-**Risks:** SA path examples point inside repo `secrets/`; SEC-009-012 requires external path + scanning + rotation if exposed.
+**Risks addressed in Phase 4:** default tenant removed; SA examples moved external (SEC-009-012).
+
+### H.2 Admin SDK Firestore writers (T-009-10b / A24)
+
+| Writer | File | Collection / path | organization source | client source | validation | scope | tests |
+|--------|------|-------------------|---------------------|---------------|------------|-------|-------|
+| `runScheduledIngest` → `pollOneSource` | `functions/src/lib/scheduledIngest.ts` | `clients/{clientId}/signals/{id}` | `source.organizationId` via `requireTenantOrganizationId` | path `clientId` + `requireMatchingClientId` | fail/skip if missing org; no Rules reliance | system/tenant | `tests/adminTenantEnvelope.test.ts` |
+| same | same | `clients/{clientId}/sources/{id}` (merge metrics) | n/a (merge metrics only; envelope not rewritten) | path | — | system | — |
+| same | same | `clients/{clientId}/sourceRuns` | same resolved `organizationId` | same `clientId` | envelope required before add | system/tenant | envelope helpers |
+| `setPosturaClaims` | `functions/src/index.ts` | Auth custom claims only | request `organizationId` | CLIENT only | `buildPosturaClaimsOrThrow` | identity | `tests/posturaClaimsCore.test.ts` |
+| `scripts/provision-firebase.mjs` | Auth only | Auth custom claims | explicit demo fixture `DEMO_ORG_ID` | explicit per user | `validateClaims` | bootstrap | claims core tests |
+
+**No other** production `admin.firestore()` / `getFirestore()` writers found under `functions/`, `server/`, or `scripts/` (provision is Auth-only).
 
 ---
 
-## I. Required app call-site changes (Phase 1–4 preview — not done now)
+## I. Required app call-site changes (Phase 1–4)
 
 | Area | Change |
 |------|--------|
@@ -392,10 +405,10 @@ Frozen matrix row (Phase 3 implement; sizes TBD after measure):
 | Results/evidence UI | **Remove hardcoded `org_aurora_01`**; use session/client org (A22) |
 | Timestamps | Prefer `serverTimestamp()` on workflow fields; align with rules `request.time` |
 | Thesis rules vs app | Allow CLIENT update allowlist (approval fields only) — deny strategic fields (A23) |
-| `setPosturaClaims` / provision | Missing `organizationId` → **validation failure**; no default tenant |
-| Admin SDK writers | Envelope verification (T-009-10b) |
-| Storage rules | Per-asset matrix; wire contentType from blob |
-| Prep/provision docs | External SA path |
+| `setPosturaClaims` / provision | Missing `organizationId` → **validation failure**; no default tenant — **DONE Phase 4** |
+| Admin SDK writers | Envelope verification (T-009-10b) — **DONE Phase 4** |
+| Storage rules | Per-asset matrix; wire contentType from blob — **DONE Phase 3** |
+| Prep/provision docs | External SA path — **DONE Phase 4** |
 
 ---
 
@@ -426,7 +439,7 @@ Frozen matrix row (Phase 3 implement; sizes TBD after measure):
 7. **CLIENT allowlists / state / timestamps:** §C–E.
 8. **Notifications CREATE:** CLIENT CREATE **allowed only** for documented manager-alert flow; exact create allowlist frozen in T-009-04/05n; arbitrary CREATE deny.
 9. **signalOutcomes:** CLIENT write deny; CLIENT read deny.
-10. **Storage:** recordings `.webm` only; size TBD_MEASURE.
+10. **Storage:** recordings `.webm` only; size **90_000_000** (1 Mbps × 10 min + 20%).
 11. **Theses:** CLIENT UPDATE approval workflow only; deny strategic fields (A23).
 
 ---

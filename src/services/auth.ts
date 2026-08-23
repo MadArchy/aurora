@@ -101,6 +101,7 @@ class AuthService {
       await this.seedAccounts();
     } else {
       await this.ensureElenaLocalAccount();
+      await this.ensureLocalAccountsHaveTenant();
     }
 
     this.impersonation = this.loadImpersonation();
@@ -144,6 +145,8 @@ class AuthService {
   }
 
   private async seedAccounts() {
+    /** Explicit demo fixture org — not a runtime fallback for missing claims. */
+    const DEMO_ORG_ID = 'org_aurora_01';
     const managerSalt = createSalt();
     const clientSalt = createSalt();
     const elenaSalt = createSalt();
@@ -154,6 +157,7 @@ class AuthService {
         passwordSalt: managerSalt,
         passwordHash: await hashPassword(DEFAULT_PASSWORD, managerSalt),
         role: 'ADMIN',
+        organizationId: DEMO_ORG_ID,
         status: 'ACTIVE',
       },
       {
@@ -162,6 +166,7 @@ class AuthService {
         passwordSalt: clientSalt,
         passwordHash: await hashPassword(DEFAULT_PASSWORD, clientSalt),
         role: 'CLIENT',
+        organizationId: DEMO_ORG_ID,
         clientId: 'client_juan_001',
         status: 'ACTIVE',
       },
@@ -171,6 +176,7 @@ class AuthService {
         passwordSalt: elenaSalt,
         passwordHash: await hashPassword(DEFAULT_PASSWORD, elenaSalt),
         role: 'CLIENT',
+        organizationId: DEMO_ORG_ID,
         clientId: 'client_elena_002',
         status: 'ACTIVE',
       },
@@ -181,6 +187,7 @@ class AuthService {
   /** Migración: cuentas locales antiguas sin Elena (aislamiento DoD §7). */
   private async ensureElenaLocalAccount() {
     if (this.accounts.some((a) => a.email === 'elena.martinez@lexfirm.com')) return;
+    const DEMO_ORG_ID = 'org_aurora_01';
     const elenaSalt = createSalt();
     this.accounts.push({
       uid: 'user_client_elena_01',
@@ -188,10 +195,23 @@ class AuthService {
       passwordSalt: elenaSalt,
       passwordHash: await hashPassword(DEFAULT_PASSWORD, elenaSalt),
       role: 'CLIENT',
+      organizationId: DEMO_ORG_ID,
       clientId: 'client_elena_002',
       status: 'ACTIVE',
     });
     this.persistAccounts();
+  }
+
+  /** Local accounts missing tenant envelope are invalid — re-seed demo fixtures (not silent default). */
+  private async ensureLocalAccountsHaveTenant() {
+    const invalid = this.accounts.some(
+      (a) =>
+        !a.organizationId?.trim() ||
+        (a.role === 'CLIENT' && !a.clientId?.trim())
+    );
+    if (invalid) {
+      await this.seedAccounts();
+    }
   }
 
   private persistAccounts() {
@@ -220,15 +240,22 @@ class AuthService {
   }
 
   private toUser(account: AuthAccount, extras?: Partial<User>): User {
+    const organizationId = account.organizationId?.trim();
+    if (!organizationId) {
+      throw new Error('Cuenta sin organizationId (fail-closed; no default tenant).');
+    }
+    if (account.role === 'CLIENT' && !account.clientId?.trim()) {
+      throw new Error('Cuenta CLIENT sin clientId (fail-closed).');
+    }
     const isAdmin = account.role === 'ADMIN';
     return {
       uid: account.uid,
-      organizationId: 'org_aurora_01',
+      organizationId,
       email: account.email,
       displayName: isAdmin ? 'Santiago Morales (Brand Manager)' : extras?.displayName || account.email,
       role: account.role,
       status: account.status,
-      clientId: account.clientId,
+      clientId: isAdmin ? null : account.clientId,
       managerId: isAdmin ? null : 'user_admin_01',
       mustCompleteOnboarding: extras?.mustCompleteOnboarding ?? false,
       aiKeyManagementAllowed: isAdmin,
@@ -293,6 +320,12 @@ class AuthService {
     if (this.accounts.some((a) => a.email.toLowerCase() === invite.email.toLowerCase())) {
       return { ok: false, message: 'Ya existe una cuenta con ese correo.' };
     }
+    if (!invite.organizationId?.trim()) {
+      return { ok: false, message: 'Invitación sin organizationId (fail-closed).' };
+    }
+    if (!invite.clientId?.trim()) {
+      return { ok: false, message: 'Invitación sin clientId (fail-closed).' };
+    }
     const salt = createSalt();
     const account: AuthAccount = {
       uid: createId('user'),
@@ -300,6 +333,7 @@ class AuthService {
       passwordSalt: salt,
       passwordHash: await hashPassword(password, salt),
       role: 'CLIENT',
+      organizationId: invite.organizationId.trim(),
       clientId: invite.clientId,
       status: 'ACTIVE',
     };
@@ -369,14 +403,19 @@ class AuthService {
     this.setSession(this.currentUser);
   }
 
-  public createPendingAccount(email: string, clientId: string): void {
+  public createPendingAccount(email: string, clientId: string, organizationId: string): void {
     if (this.accounts.some((a) => a.email.toLowerCase() === email.toLowerCase())) return;
+    const org = organizationId.trim();
+    if (!org) {
+      throw new Error('organizationId required for pending account (no default tenant)');
+    }
     this.accounts.push({
       uid: createId('user'),
       email,
       passwordSalt: '',
       passwordHash: '',
       role: 'CLIENT',
+      organizationId: org,
       clientId,
       status: 'INVITED',
     });

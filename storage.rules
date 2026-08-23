@@ -1,15 +1,71 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function ownsClient(clientId) {
-      return request.auth != null && (
-        request.auth.token.role == 'ADMIN' ||
-        request.auth.token.clientId == clientId
+    // SPEC-009 Phase 3 — recordings asset family only.
+    // Max size: 90_000_000 bytes (see plan.md Storage matrix calculation).
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function tokenOrg() {
+      return request.auth.token.organizationId;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.role == 'ADMIN';
+    }
+
+    function isClient() {
+      return signedIn() && request.auth.token.role == 'CLIENT';
+    }
+
+    function sameOrg(orgId) {
+      return signedIn() && tokenOrg() != null && tokenOrg() == orgId;
+    }
+
+    /** ADMIN same-org, or CLIENT owning this clientId within same org. */
+    function ownsRecordingClient(orgId, clientId) {
+      return sameOrg(orgId) && (
+        isAdmin()
+        || (isClient() && request.auth.token.clientId == clientId)
       );
     }
 
-    match /organizations/{orgId}/clients/{clientId}/{allPaths=**} {
-      allow read, write: if ownsClient(clientId);
+    function isWebmContentType() {
+      return request.resource.contentType.matches('video/webm.*');
+    }
+
+    function recordingSizeOk() {
+      return request.resource.size > 0
+        && request.resource.size <= 90000000;
+    }
+
+    function isWebmFileName(fileName) {
+      return fileName.matches('.*\\.webm');
+    }
+
+    function validRecordingCreate(fileName) {
+      return isWebmFileName(fileName)
+        && isWebmContentType()
+        && recordingSizeOk();
+    }
+
+    match /organizations/{orgId}/clients/{clientId}/recordings/{fileName} {
+      allow read: if ownsRecordingClient(orgId, clientId) && isWebmFileName(fileName);
+
+      // Create only — overwrite uses delete-then-create in app (no updateMetadata).
+      allow create: if ownsRecordingClient(orgId, clientId) && validRecordingCreate(fileName);
+
+      // No updateMetadata / in-place overwrite via update verb.
+      allow update: if false;
+
+      allow delete: if ownsRecordingClient(orgId, clientId) && isWebmFileName(fileName);
+    }
+
+    // Deny every other path (arbitrary hierarchy).
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

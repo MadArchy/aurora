@@ -2,6 +2,10 @@ import { readFirebaseConfig } from './config';
 import { getFirebaseStorage } from './app';
 import { STORAGE_REF_PREFIX, storageRecordingPath } from '../services/firestore/paths';
 import {
+  assertRecordingUploadAllowed,
+  resolveRecordingContentType,
+} from '../domain/recordingLimits';
+import {
   RECORDING_REF_PREFIX,
   getRecordingBlob,
   saveRecording,
@@ -18,9 +22,21 @@ export async function uploadRecordingToStorage(
   const storage = await getFirebaseStorage();
   if (!storage) return null;
 
+  assertRecordingUploadAllowed(blob);
+
   const path = storageRecordingPath(orgId, clientId, taskId);
-  const { ref, uploadBytes } = await import('firebase/storage');
-  await uploadBytes(ref(storage, path), blob);
+  const contentType = resolveRecordingContentType(blob.type);
+  const { ref, uploadBytes, deleteObject } = await import('firebase/storage');
+  const storageRef = ref(storage, path);
+
+  // Rules deny update; replace via delete-then-create when object already exists.
+  try {
+    await deleteObject(storageRef);
+  } catch {
+    /* object may not exist yet */
+  }
+
+  await uploadBytes(storageRef, blob, { contentType });
   return `${STORAGE_REF_PREFIX}${path}`;
 }
 

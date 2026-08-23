@@ -1,8 +1,9 @@
 /**
- * SPEC-009 Phase 4 — fail-closed claims (parity with src/domain/posturaClaimsCore.ts).
- * Keep in sync: no default tenant.
+ * SPEC-009 Phase 4 — fail-closed Postura custom claims (no default tenant).
+ *
+ * ADMIN:  role + organizationId required; clientId forced null
+ * CLIENT: role + organizationId + clientId required
  */
-
 export type PosturaRole = 'ADMIN' | 'CLIENT';
 
 export interface PosturaAuthClaims {
@@ -17,6 +18,7 @@ function nonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+/** Parse ID-token / raw claims. Missing org or CLIENT clientId → null (session fail). */
 export function parsePosturaClaims(raw: Record<string, unknown>): PosturaAuthClaims | null {
   const role = raw.role;
   if (role !== 'ADMIN' && role !== 'CLIENT') return null;
@@ -48,6 +50,7 @@ export class ClaimsProvisionError extends Error {
   }
 }
 
+/** Build claims for Admin setCustomUserClaims / provision. Throws on invalid input. */
 export function buildPosturaClaimsOrThrow(input: {
   role: unknown;
   organizationId?: unknown;

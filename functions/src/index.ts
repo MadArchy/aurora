@@ -12,6 +12,7 @@ import {
 } from './lib/youtubeCore';
 import { runScheduledIngest } from './lib/scheduledIngest';
 import { requirePosturaAuth } from './lib/httpAuth';
+import { buildPosturaClaimsOrThrow, ClaimsProvisionError } from './lib/posturaClaims';
 
 initializeApp();
 
@@ -26,26 +27,33 @@ interface SetClaimsRequest {
   clientId?: string | null;
 }
 
-/** Provisiona custom claims POSTURA (solo ADMIN). Usar en Emulator / bootstrap piloto. */
+/** Provisiona custom claims POSTURA (solo ADMIN). Fail-closed: no default tenant. */
 export const setPosturaClaims = onCall(async (request) => {
   if (!request.auth?.token?.role || request.auth.token.role !== 'ADMIN') {
     throw new HttpsError('permission-denied', 'ADMIN required');
   }
   const data = request.data as SetClaimsRequest;
-  if (!data.uid || (data.role !== 'ADMIN' && data.role !== 'CLIENT')) {
-    throw new HttpsError('invalid-argument', 'uid and role required');
-  }
-  if (data.role === 'CLIENT' && !data.clientId) {
-    throw new HttpsError('invalid-argument', 'clientId required for CLIENT role');
+  if (!data.uid || typeof data.uid !== 'string' || !data.uid.trim()) {
+    throw new HttpsError('invalid-argument', 'uid required');
   }
 
-  await getAuth().setCustomUserClaims(data.uid, {
-    role: data.role,
-    organizationId: data.organizationId || 'org_aurora_01',
-    clientId: data.role === 'CLIENT' ? data.clientId : null,
-  });
+  let claims;
+  try {
+    claims = buildPosturaClaimsOrThrow({
+      role: data.role,
+      organizationId: data.organizationId,
+      clientId: data.clientId,
+    });
+  } catch (err) {
+    if (err instanceof ClaimsProvisionError) {
+      throw new HttpsError('invalid-argument', err.message);
+    }
+    throw err;
+  }
 
-  return { ok: true };
+  await getAuth().setCustomUserClaims(data.uid.trim(), claims);
+
+  return { ok: true, claims: { role: claims.role, organizationId: claims.organizationId, clientId: claims.clientId } };
 });
 
 /** Proxy IA autenticado: secretos en Secret Manager, nunca en Firestore ni frontend. */

@@ -11,6 +11,7 @@ import {
 } from './ingestGate';
 import { buildProfileKeywordsFromDocs } from './profileKeywords';
 import { scoreSignalCloud } from './scoreSignal';
+import { requireMatchingClientId, requireTenantOrganizationId } from './tenantEnvelope';
 
 export const MAX_SOURCES_PER_RUN = 12;
 
@@ -74,6 +75,27 @@ async function pollOneSource(
 ): Promise<{ accepted: number; rejected: number; duplicates: number; fetched: number; error?: string }> {
   if (!source.url) {
     return { accepted: 0, rejected: 0, duplicates: 0, fetched: 0, error: 'SOURCE_URL_MISSING' };
+  }
+
+  let organizationId: string;
+  let resolvedClientId: string;
+  try {
+    organizationId = requireTenantOrganizationId(source, `source ${source.id}`);
+    resolvedClientId = requireMatchingClientId(clientId, source);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'TENANT_ENVELOPE_INVALID';
+    await db.doc(`clients/${clientId}/sources/${source.id}`).set(
+      {
+        lastFetchedAt: new Date().toISOString(),
+        lastRunFetched: 0,
+        lastRunAccepted: 0,
+        lastRunRejected: 0,
+        lastError: message,
+        status: 'ERROR',
+      },
+      { merge: true }
+    );
+    return { accepted: 0, rejected: 0, duplicates: 0, fetched: 0, error: message };
   }
 
   let items: FeedItem[] = [];
@@ -150,8 +172,8 @@ async function pollOneSource(
 
     batch.set(signalRef, {
       id: signalId,
-      organizationId: source.organizationId || 'org_aurora_01',
-      clientId,
+      organizationId,
+      clientId: resolvedClientId,
       sourceId: source.id,
       title: item.title,
       sourceType,
@@ -194,6 +216,8 @@ async function pollOneSource(
   );
 
   await db.collection(`clients/${clientId}/sourceRuns`).add({
+    organizationId,
+    clientId: resolvedClientId,
     sourceId: source.id,
     ranAt: new Date().toISOString(),
     fetched: items.length,

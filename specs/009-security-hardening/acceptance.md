@@ -6,7 +6,7 @@ Spec **DONE** solo con Required PASS + deploy aplicable.
 
 Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 
-**Governance:** Spec status **`APPROVED`** (human). Phase 0 **complete**. Phase 1 **PASS**. Phase 2 **DONE** (T-009-04…06b). Criteria marked ✅ below are proven by emulator/unit tests. **Do not** mark CODE_COMPLETE / DEPLOYED / DONE until later phases + deploy gates. **Do not start Phase 3** until new human go-ahead.
+**Governance:** Spec status **`APPROVED`** (human). Phase 0 **complete**. Phase 1–3 **PASS**. Phase 4 claims/SA/docs/scan **PASS**. Criteria marked ✅ below are proven by automated evidence and/or sanitized scan docs. **Do not** mark CODE_COMPLETE / DEPLOYED / DONE until later phases + deploy gates. **Do not start T-009-14e** until new human go-ahead.
 
 ---
 
@@ -20,12 +20,12 @@ Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 | A4 | CLIENT no crea signals/aiRuns/sources (manager-only); theses CREATE/DELETE deny | SEC-009-006 | ✅ Phase 2 (rules tests; thesis CREATE still ADMIN) |
 | A5 | CLIENT update fuera de allowlist fail | SEC-009-005 | ✅ Phase 2 |
 | A6 | Deliveries CLIENT solo `SENT → ACKNOWLEDGED` (+ keys) | SEC-009-007, SEC-009-016 | ✅ Phase 2 |
-| A7 | Storage path exige org + ownsClient; matriz por asset aplicada | SEC-009-008 | ☐ |
-| A8 | **Automated** Storage rules tests PASS (si Storage en scope DONE) | SEC-009-009, SEC-009-013 | ☐ |
-| A9 | Provision **and** `setPosturaClaims` validate `organizationId` (no default tenant); + `clientId` for CLIENT | SEC-009-011 | ☐ |
-| A10 | SA fuera del repo tree; scanning ejecutado; rotation si exposición válida | SEC-009-012 | ☐ |
-| A11 | `npm run test:rules` PASS (Firestore; + Storage si no PARTIAL storage) | SEC-009-013 | **Firestore = PASS** · **Overall A11 = PENDING** (Storage Phase 3 not done) |
-| A12 | `npm run check` PASS → **`CODE_COMPLETE`** elegible | governance | ☐ (suite green; CODE_COMPLETE not declared) |
+| A7 | Storage path exige org + ownsClient; matriz por asset aplicada | SEC-009-008 | ✅ Phase 3 |
+| A8 | **Automated** Storage rules tests PASS (si Storage en scope DONE) | SEC-009-009, SEC-009-013 | ✅ Phase 3 (emulator) |
+| A9 | Provision **and** `setPosturaClaims` validate `organizationId` (no default tenant); + `clientId` for CLIENT | SEC-009-011 | ✅ Phase 4 |
+| A10 | SA fuera del repo tree; scanning ejecutado; rotation si exposición válida | SEC-009-012 | ✅ Phase 4.1 (external SA + in-repo copy removed; prep PASS; `secret:scan` rotation=NO) |
+| A11 | `npm run test:rules` PASS (Firestore; + Storage si no PARTIAL storage) | SEC-009-013 | **Firestore + Storage = PASS** · **Overall A11 = PASS** (emulator suite) |
+| A12 | `npm run check` PASS → **`CODE_COMPLETE`** elegible | governance | ☐ (CODE_COMPLETE not declared) |
 | A13 | Firestore rules **`DEPLOYED`** en proyecto objetivo | governance | ☐ |
 | A14 | Call sites piloto no rotos (writes/queries allowlisted) | SEC-009-014/015 | ☐ |
 | A14q | **same-org query/list allow** + **cross-org query/list deny**; `listFirestoreClientIds` uses tenant `where` (or equiv.) — **Rules are not filters** | SEC-009-014 | ✅ Phase 1 (rules + Q1 unit tests) |
@@ -39,7 +39,7 @@ Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 | A21 | CLIENT modifies one allowed task/content/opportunity and the Firestore write batch **does not** include unauthorized manager-only resources | SEC-009-020, T-009-06p | ✅ Phase 2 |
 | A22 | No production UI write path uses a hardcoded tenant `organizationId` | T-009-06 | ✅ Phase 2 |
 | A23 | CLIENT may only execute documented Thesis approval/revision workflow; DENY modify of strategic fields | SEC-009-006 | ✅ Phase 2 |
-| A24 | Admin SDK writers persist valid envelope; must not rely on Rules for isolation | T-009-10b | ☐ |
+| A24 | Admin SDK writers persist valid envelope; must not rely on Rules for isolation | T-009-10b | ✅ Phase 4 |
 
 ### Phase 1+2 evidence map (automated only)
 
@@ -61,6 +61,22 @@ Estados Spec: ver `spec.md` (DRAFT → … → DONE / PARTIAL / BLOCKED).
 | A21 | `Actor-aware CLIENT persistence excludes manager-only resources` | `tests/actorAwarePersistence.q2.test.ts` |
 | A22 | `production UI write paths do not hardcode org_aurora_01`; `full src/ scan: no write-path module depends on hardcoded org_aurora_01` | `tests/actorAwarePersistence.q2.test.ts` |
 | A23 | `Thesis approval workflow ALLOW`; `Thesis pendingRevision apply ALLOW`; `Thesis pendingRevision proposes X but CLIENT writes Y DENY`; `Thesis strategic-field modification DENY`; `Thesis strategic field during invalid approval transition DENY`; `Thesis organizationId mutation DENY`; `Thesis clientId mutation DENY` | `tests/firestore.rules.test.ts` |
+
+### Phase 4 evidence map
+
+| ID | Test name(s) / evidence | Source |
+|----|-------------------------|--------|
+| A9 | `ADMIN valid claims PASS`; `CLIENT valid claims PASS`; `missing organizationId DENY/throw`; `CLIENT missing clientId DENY/throw`; `invalid role DENY/throw`; `ADMIN/CLIENT cannot silently inherit demo tenant` | `tests/posturaClaimsCore.test.ts`; `tests/firebaseClaims.test.ts` |
+| A10 | prep-check PASS with external SA; in-repo SA absent; `npm run secret:scan` sanitized report | `scripts/firebase-prep-check.mjs`; `scripts/secret-scan.mjs`; `secret-exposure-review.md`; `docs/ops/firebase.md` |
+| A24 | `requires explicit organizationId`; `does not fall back to org_aurora_01`; writer matrix in inventory §H.2 | `tests/adminTenantEnvelope.test.ts`; `functions/src/lib/scheduledIngest.ts` |
+
+### Phase 3 evidence map (Storage automated)
+
+| ID | Test name(s) | Source |
+|----|--------------|--------|
+| A7 | matrix in `storage.rules` + path/MIME/size/role cases below | `storage.rules`; `tests/storage.rules.test.ts` |
+| A8 / O2 | all `storage.rules (emulator) — SPEC-009 Phase 3` cases | `tests/storage.rules.test.ts` |
+| A11 | Firestore 52 + Storage 18 under `npm run test:rules` | `vitest.rules.config.ts` |
 
 ### get(parent) — TEMPORARY (not final architecture)
 
@@ -87,8 +103,8 @@ Phase 1 uses `get(/clients/{clientId})` inside `sameOrgAsClient` / `ownsClient` 
 
 | # | Criterion | Notes | Status |
 |---|-----------|-------|--------|
-| O1 | Storage rules deployed | Console Get Started | ☐ / BLOCKED |
-| O2 | Storage automated tests PASS | Si bloqueado → Spec **PARTIAL**; **no** DONE Storage por review manual | ☐ / BLOCKED |
+| O1 | Storage rules deployed | Console / deploy gate — **not** Phase 3 | ☐ PENDING (no prod deploy) |
+| O2 | Storage automated tests PASS | Emulator suite | ✅ Phase 3 |
 | O3 | SA rotation | Solo si exposición de credencial válida | ☐ / N/A |
 
 ## Explicit non-acceptance
@@ -110,7 +126,7 @@ Phase 1 uses `get(/clients/{clientId})` inside `sameOrgAsClient` / `ownsClient` 
 | Reviewer | | | |
 
 **Result options (implementation):** `PASS` · `PARTIAL` · `FAIL` · `BLOCKED`  
-**Current:** Spec APPROVED / Phase 0 DONE — **implementation not started** (no PASS).
+**Current:** Spec APPROVED · Phases 0–4 PASS · Phase 4.1 SA ops closure PASS (A10). T-009-14e / CODE_COMPLETE / DEPLOY not started. O1 Storage deploy PENDING.
 
 ### PARTIAL allowed when
 
