@@ -1,7 +1,7 @@
 # Tasks 002 — Strategic Scoring V2
 
-**Spec status:** `APPROVED`  
-**Implementation:** **Phase 5 COMPLETE** · Phase 6 **NOT STARTED**  
+**Spec status:** `CODE_COMPLETE`  
+**Implementation:** **Phase 6 COMPLETE** · **CODE_COMPLETE**  
 **Branch (recommended):** `spec/002-strategic-scoring-v2`
 
 ---
@@ -92,11 +92,13 @@
 
 ## Phase 6 — Acceptance / CODE_COMPLETE
 
-- [ ] **T-002-601** Acceptance matrix A1–A24 evidence filled
-- [ ] **T-002-602** `npm run check` PASS
-- [ ] **T-002-603** `npm run test:rules` PASS
-- [ ] **T-002-604** Human sign-off → **CODE_COMPLETE**
-- [ ] **T-002-605** Confirm DEPLOYED/DONE remain separate / NOT STARTED
+- [x] **T-002-601** Acceptance matrix A1–A24 evidence filled
+- [x] **T-002-602** `npm run check` PASS — fresh Phase 6: **677/677**
+- [x] **T-002-603** `npm run test:rules` PASS — fresh Phase 6: **91/91**
+- [x] **T-002-604** Human sign-off → **CODE_COMPLETE** — **APPROVED**
+- [x] **T-002-605** Confirm DEPLOYED/DONE remain separate / NOT STARTED
+
+**Exit:** Implementation acceptance 24/24 PASS. Human sign-off **APPROVED** (T-002-604). **SPEC-002 IMPLEMENTATION = CODE_COMPLETE**. Deployment (D1–D3) remains separate / NOT STARTED. Implementation checkpoint: `ab01c46`.
 
 ---
 
