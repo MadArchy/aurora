@@ -1,7 +1,7 @@
 # Migration matrix 002 — Strategic Scoring V2
 
 **Rule:** Classify every scoring-related path before migration.  
-Phase 0 inventory baseline: 2026-08-23.
+Phase 4 final inventory: 2026-08-24.
 
 ---
 
@@ -9,9 +9,9 @@ Phase 0 inventory baseline: 2026-08-23.
 
 | Class | Meaning |
 |-------|---------|
-| **CANONICAL_CORE_CANDIDATE** | Should become or feed the single Domain scoring core |
+| **CANONICAL_CORE** | Single Domain scoring core |
 | **GOVERNED_CONSUMER** | Uses scoring through approved routing/governance path |
-| **LEGACY** | Pre-SPEC-002 path; deprecate |
+| **LEGACY** | Pre-SPEC-002 path; deprecated |
 | **DUPLICATE_SCORER** | Independent formula — must converge |
 | **CLOUD_BYPASS** | Bypasses SPEC-001 routing/scoring governance |
 | **ADVISORY_AI** | AI overlay; must not author score |
@@ -20,117 +20,83 @@ Phase 0 inventory baseline: 2026-08-23.
 
 | Migration action | Meaning |
 |------------------|---------|
-| **KEEP** | Retain as-is (possibly with docs) |
-| **EXTRACT** | Move logic into Domain core |
-| **MIGRATE** | Change call site to governed path |
-| **DEPRECATE** | Mark legacy; no new use |
-| **REMOVE_LATER** | Delete after zero consumers |
-| **REVIEW** | Needs product decision |
-| **NOT_APPLICABLE** | Not scoring-related |
+| **MIGRATED** | Phase 4 complete on governed path |
+| **DEPRECATED** | Mark legacy; no new use |
+| **COMPATIBILITY_ONLY** | Retained for projection reads |
+| **PRESENTATION_ONLY** | Display only |
+| **REMOVED** | Deleted |
+| **OTHER_SPEC** | Not scoring-owned |
 
 ---
 
 ## Core formula surfaces
 
-| Location | Class | Action | Notes |
-|----------|-------|--------|-------|
-| `src/services/scoring.ts` | GOVERNED_CONSUMER | **KEEP** (wrapper) | Delegates to Domain `scoringCore`; injects clock |
-| `src/domain/scoringCore.ts` | CANONICAL_CORE_CANDIDATE | **EXTRACT** ✅ Phase 1 | Baseline v1 formula + `scoringVersion` |
-| `src/domain/scoreExplainCore.ts` | CANONICAL_CORE_CANDIDATE | **KEEP** ✅ unified | Explainability; weights from `scoringCore` |
-| `src/domain/whyNowCore.ts` | CANONICAL_CORE_CANDIDATE | **KEEP** | Timeliness input to scoring |
-| `src/domain/dispositionCore.ts` | CANONICAL_CORE_CANDIDATE | **EXTRACT** ✅ Phase 1 | Split disposition/format + legacy map |
-| `functions/src/lib/scoreSignal.ts` | DUPLICATE_SCORER | **REMOVE_LATER** | Replace with Domain wrapper Phase 4 |
-
----
-
-## Application / infrastructure
-
-| Location | Class | Action | Notes |
-|----------|-------|--------|-------|
-| `StrategicScoringPort.ts` | GOVERNED_CONSUMER | **KEEP** | SPEC-001 port boundary |
-| `DbStrategicSignalRoutingAdapter.ts` | GOVERNED_CONSUMER | **MIGRATE** | Wire Domain core; build context |
-| `src/application/strategicScoring/` | GOVERNED_CONSUMER | **EXTRACT** ✅ Phase 2 | Post-routing scoring use cases |
-| `composeStrategicScoring.ts` | GOVERNED_CONSUMER | **KEEP** ✅ Phase 2 | Composition root |
-| `OverrideSignalThesis.ts` | GOVERNED_CONSUMER | **KEEP** | Rescores selected thesis on MANUAL |
-
----
-
-## Persistence
-
-| Location | Class | Action | Notes |
-|----------|-------|--------|-------|
-| `db.applyGovernedScoreToSignal` | GOVERNED_CONSUMER | **EXTRACT** ✅ Phase 3 | Safe score-only persist + history append |
-| `db.applyStrategicRoutingToSignal` | GOVERNED_CONSUMER | **KEEP** | Routing + score snapshot; no auto-DISCARD |
-| `db.applyScoreToSignal` | LEGACY | **DEPRECATE** → **REMOVE_LATER** | Auto-DISCARD — Phase 4 removal |
-| `postura_signal_score_history_v1` | SCORE_HISTORY | **KEEP** ✅ Phase 3 | Local-authoritative score history |
-| Signal score projection fields | GOVERNED_CONSUMER | **KEEP** ✅ Phase 3 | scoringVersion, disposition, format, factor snapshots |
+| Location | Phase 4 status | Notes |
+|----------|----------------|-------|
+| `src/domain/scoringCore.ts` | **CANONICAL_CORE** | Authoritative `scoring-v1` formula + weights |
+| `src/services/scoring.ts` | **MIGRATED** | Thin wrapper → Domain core |
+| `src/domain/scoreExplainCore.ts` | **MIGRATED** | Imports weights from `scoringCore` only |
+| `functions/src/lib/scoreSignal.ts` | **MIGRATED** | Thin wrapper → `computeStrategicScoreMaterial`; no duplicate weights |
 
 ---
 
 ## Cloud / ingest
 
-| Location | Class | Action | Notes |
-|----------|-------|--------|-------|
-| `functions/.../scheduledIngest.ts` | CLOUD_BYPASS | **MIGRATE** | P0-2: `docs[0]` + auto-DISCARD |
-| `scoreSignalCloud` usage in ingest | DUPLICATE_SCORER | **MIGRATE** | Parity with Domain core |
+| Location | Phase 4 status | Notes |
+|----------|----------------|-------|
+| `scheduledIngest.ts` | **MIGRATED** | Gate-only ingest; no thesis query; no score-at-ingest; no auto-DISCARD |
+| `scoreSignalCloud` | **MIGRATED** | Delegates to Domain core; retained for parity/compatibility wrapper |
+
+**Implemented ingest flow:** tenant envelope → gate → persist NEW/unscored Signal → client governed routing+scoring pipeline.
+
+---
+
+## Persistence
+
+| Location | Phase 4 status | Notes |
+|----------|----------------|-------|
+| `db.applyGovernedScoreToSignal` | **GOVERNED** | Score-only persist + history |
+| `db.applyStrategicRoutingToSignal` | **GOVERNED** | Routing + score snapshot; no auto-DISCARD |
+| `db.applyScoreToSignal` | **DEPRECATED** | Zero src callers; auto-DISCARD removed |
 
 ---
 
 ## UI / services consumers
 
-| Location | Class | Action | Notes |
-|----------|-------|--------|-------|
-| `main.ts` `scoreSignal` | GOVERNED_CONSUMER | **KEEP** | Via ScoreAndRouteSignal |
-| `main.ts` AI analyze | ADVISORY_AI | **MIGRATE** | Fail-closed routing; governed persist |
-| `main.ts` radar triage display | PRESENTATION_ONLY | **KEEP** | Uses persisted score fields |
-| `src/services/ai.ts` `analyzeSignalAgainstThesis` | ADVISORY_AI | **MIGRATE** | Direct signal field writes → governed |
-| `src/services/ai.ts` `calculateStrategicScore` | GOVERNED_CONSUMER | **MIGRATE** | Delegate to Domain core |
-| `radarTriageCore.ts` | PRESENTATION_ONLY | **KEEP** | Bucket by band/action — update for disposition split |
-| `shouldAutoDiscardScoredSignal` | LEGACY | **REVIEW** | Used conceptually by ingest — governance conflict |
-| `researchSignalsAgent.ts` | GOVERNED_CONSUMER | **KEEP** | Filters RESEARCH_REQUIRED |
-| `topics.ts` / clustering | PRESENTATION_ONLY | **KEEP** | Score sort — not selection |
-| `scientificFocusCore.ts` | PRESENTATION_ONLY | **KEEP** | Filter by score band |
-| `portfolioMetrics.ts` | PRESENTATION_ONLY | **KEEP** | Aggregates |
+| Location | Phase 4 status | Notes |
+|----------|----------------|-------|
+| `main.ts` `scoreSignal` | **GOVERNED** | Via ScoreAndRouteSignal |
+| `main.ts` client ingest poll | **MIGRATED** | Removed post-score DISCARDED rejection |
+| `ai.ts` `analyzeSignalAgainstThesis` | **MIGRATED** | Advisory-only; uses routed signal score authority |
+| `radarTriageCore.ts` | **MIGRATED** | Prefers `recommendedDisposition` / `recommendedOutputFormat` |
+| `shouldAutoDiscardScoredSignal` | **DEPRECATED** | No active strategic consumers |
 
 ---
 
-## AI / SPEC-005
+## P0-2 closure evidence
 
-| Location | Class | Action | Notes |
-|----------|-------|--------|-------|
-| `SIGNAL_THESIS_EVAL` Gateway op | ADVISORY_AI | **KEEP** | No new AiOperation |
-| `signalThesisEval.ts` schema | ADVISORY_AI | **KEEP** | Validates advisory JSON |
+| Path | Before | After Phase 4 |
+|------|--------|---------------|
+| `thesesSnap.docs[0]` | First-thesis scoring context | **REMOVED** — no thesis query at ingest |
+| auto-DISCARD on low score | Terminal DISCARD at ingest | **REMOVED** — signals persist as NEW |
 
----
-
-## Tests (migration targets)
-
-| Location | Action | Notes |
-|----------|--------|-------|
-| `tests/scoring.test.ts` | **KEEP** | Lock baseline v1; extend determinism |
-| `tests/whyNowCore.test.ts` | **KEEP** | |
-| `tests/radarTriage.test.ts` | **MIGRATE** | Disposition split updates |
-| New: scoring architecture test | **EXTRACT** | Phase 5 — ban duplicate formulas |
-| New: cloud parity test | **EXTRACT** | Phase 4 |
+**P0-2 = RESOLVED**
 
 ---
 
-## SPEC-001 / OTHER_SPEC
+## Score history authority
 
-| Item | Class | Action |
-|------|-------|--------|
-| SPEC-001 routing fields | OTHER_SPEC | **NOT_APPLICABLE** — read-only consumption |
-| SPEC-003 Brief | OTHER_SPEC | **NOT_APPLICABLE** — downstream |
-| SPEC-006 claim safety | OTHER_SPEC | **NOT_APPLICABLE** — downstream of drafts |
-| Content generation | OTHER_SPEC | **NOT_APPLICABLE** |
+| Item | Status |
+|------|--------|
+| Local score history | **GOVERNED** — `postura_signal_score_history_v1` |
+| Remote Firestore score history rules | **DEFERRED** — SPEC-009; NONBLOCKING_LOCAL_AUTHORITY |
 
 ---
 
-## Phase 0 P0-2 explicit rows
+## Tests
 
-| Path | Issue | Target phase |
-|------|-------|--------------|
-| `scheduledIngest` L281 `thesesSnap.docs[0]` | First-thesis scoring | Phase 4 T-002-402 |
-| `scheduledIngest` auto-DISCARD | Terminal disposition from score | Phase 4 T-002-403 |
-
-**Not resolved in Phase 0B.**
+| Location | Status |
+|----------|--------|
+| `tests/scoringPhase4.test.ts` | **ADDED** — parity, ingest static guards, legacy writer ban |
+| `tests/scoringCore.test.ts` | **KEEP** |
+| `tests/radarTriage.test.ts` | **KEEP** — disposition-aware triage |

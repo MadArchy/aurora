@@ -91,29 +91,36 @@ class AIService {
         auditService.log(authService.getCurrentUser(), 'AI_ANALYSIS_FAILED', 'Signal', signal.id, {
           message: error instanceof Error ? error.message : 'error',
         });
-        throw new Error(mapGatewayErrorToUserMessage(error));
+        // Advisory failure: canonical deterministic score from routing remains authoritative.
       }
     }
 
-    // Domain mutation only after gateway success (or non-AI degraded path).
     dbService.updateSignalStatus(signal.id, 'ANALYZED');
-    const full = dbService.getSignals().find((s) => s.id === signal.id);
-    if (full) {
-      full.aiStatus = 'ANALYZED';
-      full.recommendedAction = scoring.recommendedAction;
-      full.priorityBand = scoring.priorityBand;
-      full.relevanceScore = scoring.totalScore;
-    }
+
+    const impactScore = signal.relevanceScore ?? scoring.totalScore;
+    const priorityBand = signal.priorityBand ?? scoring.priorityBand;
+    const disposition = signal.recommendedDisposition ?? scoring.recommendedDisposition;
+    const format = signal.recommendedOutputFormat ?? scoring.recommendedOutputFormat;
 
     auditService.log(authService.getCurrentUser(), 'AI_ANALYSIS_RUN', 'Signal', signal.id, {
       thesisId: thesis.id,
-      score: scoring.totalScore,
+      score: impactScore,
       live: usedLiveModel,
     });
 
     const type: Recommendation['type'] =
-      scoring.recommendedAction === 'CREATE_OPPORTUNITY' ? 'OPPORTUNITY_PITCH' :
-      scoring.recommendedAction === 'ARTICLE' ? 'ARTICLE_LONG' : 'VIDEO_SHORT';
+      disposition === 'OPPORTUNITY_CANDIDATE'
+        ? 'OPPORTUNITY_PITCH'
+        : format === 'ARTICLE'
+          ? 'ARTICLE_LONG'
+          : 'VIDEO_SHORT';
+
+    const urgency: Recommendation['urgency'] =
+      priorityBand === 'CRITICAL' || priorityBand === 'HIGH'
+        ? 'HIGH'
+        : priorityBand === 'MEDIUM'
+          ? 'MEDIUM'
+          : 'LOW';
 
     return {
       signalId: signal.id,
@@ -121,9 +128,11 @@ class AIService {
       clientId: thesis.clientId,
       type,
       proposedAngle,
-      strategicRationale: usedLiveModel ? rationale : `${rationale} (modo degradado: scoring-v1.0 sin modelo conectado)`,
-      urgency: scoring.totalScore >= 85 ? 'HIGH' : scoring.totalScore >= 70 ? 'MEDIUM' : 'LOW',
-      impactScore: scoring.totalScore,
+      strategicRationale: usedLiveModel
+        ? rationale
+        : `${rationale} (modo degradado: scoring-v1.0 sin modelo conectado)`,
+      urgency,
+      impactScore,
       status: 'GENERATED',
       usedLiveModel,
     };

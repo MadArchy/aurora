@@ -1,7 +1,7 @@
 # Tasks 002 — Strategic Scoring V2
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 3 COMPLETE** · Phase 4 **NOT STARTED**  
+**Implementation:** **Phase 4 COMPLETE** · Phase 5 **NOT STARTED**  
 **Branch (recommended):** `spec/002-strategic-scoring-v2`
 
 ---
@@ -64,15 +64,15 @@
 
 ## Phase 4 — Consumer migration
 
-- [ ] **T-002-401** Replace `scoreSignalCloud` with Domain core wrapper (parity tests)
-- [ ] **T-002-402** `scheduledIngest`: remove `thesesSnap.docs[0]` strategic context — align with routing+scoring pipeline
-- [ ] **T-002-403** Remove cloud auto-DISCARD from score-at-ingest (P0-2 closure)
-- [ ] **T-002-404** `ai.analyzeSignalAgainstThesis`: governed persistence; no direct signal mutation bypass
-- [ ] **T-002-405** Deprecate/remove strategic use of `applyScoreToSignal` auto-DISCARD
-- [ ] **T-002-406** Radar/triage consumers: disposition vs format fields
-- [ ] **T-002-407** Migration matrix rows → MIGRATED
+- [x] **T-002-401** Replace `scoreSignalCloud` with Domain core wrapper (parity tests)
+- [x] **T-002-402** `scheduledIngest`: remove `thesesSnap.docs[0]` strategic context — defer routing+scoring to governed client pipeline
+- [x] **T-002-403** Remove cloud auto-DISCARD from score-at-ingest (P0-2 closure)
+- [x] **T-002-404** `ai.analyzeSignalAgainstThesis`: advisory-only; no direct signal score-field mutation
+- [x] **T-002-405** Deprecate strategic use of `applyScoreToSignal` auto-DISCARD (zero src callers)
+- [x] **T-002-406** Radar/triage consumers: disposition vs format fields (`radarTriageCore`)
+- [x] **T-002-407** Migration matrix rows → MIGRATED
 
-**Exit:** Zero strategic primary shortcuts in scoring paths; cloud parity tests PASS.
+**Exit:** Zero strategic primary shortcuts in scoring paths; cloud parity tests PASS. **DONE** — evidence: `tests/scoringPhase4.test.ts`, `functions/src/lib/scoreSignal.ts` (Domain wrapper), `scheduledIngest.ts` (gate-only ingest), `ai.ts` (advisory-only).
 
 ---
 
@@ -116,8 +116,8 @@
 | ID | Item | Phase |
 |----|------|-------|
 | P0-1 | Formal spec missing | **0B** (this package) |
-| P0-2 | Cloud ingest `[0]` + auto-DISCARD | **4** (402–403) |
-| P1-1 | Legacy `applyScoreToSignal` | **2/4** |
-| P1-2 | Disposition/format split | **1** |
-| P1-3 | Dual scorer drift | **1/4** |
-| P1-4 | Missing scoringVersion | **1** |
+| P0-2 | Cloud ingest `[0]` + auto-DISCARD | **4** ✅ RESOLVED (402–403) |
+| P1-1 | Legacy `applyScoreToSignal` | **4** ✅ DEPRECATED — zero src callers |
+| P1-2 | Disposition/format split | **1** ✅ |
+| P1-3 | Dual scorer drift | **4** ✅ Domain wrapper |
+| P1-4 | Missing scoringVersion | **1** ✅ |

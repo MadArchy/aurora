@@ -10,7 +10,7 @@
 
 **Compatibility wrapper:** `src/services/scoring.ts` → `calculateStrategicScore` (delegates; injects `Date.now()` for staleness + `calculatedAt`)
 
-**Cloud duplicate (drift risk):** `functions/src/lib/scoreSignal.ts` → `scoreSignalCloud`
+**Cloud wrapper (Phase 4):** `functions/src/lib/scoreSignal.ts` → `scoreSignalCloud` (delegates to Domain core; no independent weights)
 
 ---
 

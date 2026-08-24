@@ -2113,7 +2113,11 @@ class DataService {
     return this.signals.find((s) => s.id === id);
   }
 
-  /** Guarda el resultado del scoring en la señal para no recalcularlo en cada render. */
+  /**
+   * @deprecated SPEC-002 Phase 4 — no active strategic callers. Prefer
+   * `applyGovernedScoreToSignal` or `applyStrategicRoutingToSignal`.
+   * Retained for compatibility reads only; does NOT perform auto-DISCARD.
+   */
   public applyScoreToSignal(
     signalId: string,
     score: StrategicScoreResult,
@@ -2132,13 +2136,9 @@ class DataService {
     sig.recommendedAction = score.recommendedAction;
     sig.scoreRationale = score.strategicRationale;
     sig.scoreBreakdown = buildScoreBreakdown(score);
-    // Legacy path — prefer applyStrategicRoutingToSignal for SPEC-001 governed routing
-    // (no silent DISCARD). Retained for non-routing callers until Phase 4 cleanup.
-    if (score.recommendedAction === 'NO_ACTION' && score.totalScore < 40) {
-      sig.status = 'DISCARDED';
-      sig.managerDecision = 'DISCARDED';
-      sig.discardReason = 'Auto-descartada: score bajo y sin acción recomendada.';
-    }
+    if (score.scoringVersion) sig.scoringVersion = score.scoringVersion;
+    if (score.recommendedDisposition) sig.recommendedDisposition = score.recommendedDisposition;
+    if (score.recommendedOutputFormat) sig.recommendedOutputFormat = score.recommendedOutputFormat;
     this.saveAll();
   }
 

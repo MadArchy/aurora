@@ -81,29 +81,29 @@ Thesis-specific downstream actions → FAIL CLOSED
 
 ---
 
-## E. Cloud ingest target (migration)
+## E. Cloud ingest (Phase 4 — implemented)
 
-**Current (legacy — P0-2):**
+**Previous (legacy — P0-2):**
 
 ```text
 RSS/item → gate → scoreSignalCloud(thesis from docs[0]) → optional auto-DISCARD → write Signal
 ```
 
-**Target:**
+**Implemented (defer routing/scoring):**
 
 ```text
 ingest → tenant envelope validate
       ↓
-persist Signal (minimal)
+gate (profile/dossier keywords — no thesis selection)
       ↓
-SPEC-001 governed routing (multi-thesis)
+persist Signal (NEW, unscored — no relevanceScore/priorityBand/recommendedAction)
       ↓
-SPEC-002 governed scoring (canonical core)
-      ↓
-persistence (no terminal DISCARD from score alone)
+client governed pipeline: SPEC-001 routing → SPEC-002 scoring → persistence
 ```
 
-**NO** `thesesSnap.docs[0]` strategic shortcut.
+**NO** `thesesSnap.docs[0]` strategic shortcut. **NO** score-triggered terminal DISCARD.
+
+Cloud Functions compile shared Domain core via extended `functions/tsconfig.json` include paths.
 
 ---
 

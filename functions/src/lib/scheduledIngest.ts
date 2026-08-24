@@ -10,7 +10,6 @@ import {
   type FeedItem,
 } from './ingestGate';
 import { buildProfileKeywordsFromDocs } from './profileKeywords';
-import { scoreSignalCloud } from './scoreSignal';
 import { requireMatchingClientId, requireTenantOrganizationId } from './tenantEnvelope';
 
 export const MAX_SOURCES_PER_RUN = 12;
@@ -26,14 +25,6 @@ interface SourceDoc {
   lastFetchedAt?: string;
   status: string;
   itemCount?: number;
-}
-
-interface ThesisDoc {
-  id: string;
-  status?: string;
-  domain?: string;
-  title?: string;
-  expertIdentity?: string;
 }
 
 function isSourceDue(source: SourceDoc, nowMs: number): boolean {
@@ -70,8 +61,7 @@ async function pollOneSource(
   source: SourceDoc,
   keywords: ReturnType<typeof buildProfileKeywordsFromDocs>,
   fingerprints: Set<string>,
-  youtubeApiKey?: string,
-  thesis?: ThesisDoc
+  youtubeApiKey?: string
 ): Promise<{ accepted: number; rejected: number; duplicates: number; fetched: number; error?: string }> {
   if (!source.url) {
     return { accepted: 0, rejected: 0, duplicates: 0, fetched: 0, error: 'SOURCE_URL_MISSING' };
@@ -158,18 +148,9 @@ async function pollOneSource(
               : 'RSS';
     const sourceQuality = assessSourceQuality(source, item);
     const detectedAt = new Date().toISOString();
-    const score = scoreSignalCloud({
-      title: item.title,
-      snippet: item.snippet || item.title,
-      sourceType,
-      sourceQuality,
-      detectedAt,
-      domain: thesis?.domain,
-      thesisTitle: thesis?.title,
-      bilingualTerms: [...keywords.coreEn, ...keywords.coreEs],
-    });
-    const autoDiscard = score.recommendedAction === 'NO_ACTION' && score.totalScore < 40;
 
+    // Gate-only ingest: no thesis selection, no strategic scoring, no auto-DISCARD.
+    // Routing and governed scoring deferred to client governed pipeline (SPEC-001 + SPEC-002).
     batch.set(signalRef, {
       id: signalId,
       organizationId,
@@ -182,20 +163,14 @@ async function pollOneSource(
       contentSnippet: item.snippet || item.title,
       fingerprint: fp,
       detectedAt,
-      status: autoDiscard ? 'DISCARDED' : 'NEW',
+      status: 'NEW',
       aiStatus: 'PENDING_AI',
-      managerDecision: autoDiscard ? 'DISCARDED' : 'UNREVIEWED',
-      discardReason: autoDiscard ? 'Auto-descartada: score bajo y sin acción recomendada.' : undefined,
+      managerDecision: 'UNREVIEWED',
       sourceQuality,
-      relevanceScore: score.totalScore,
-      priorityBand: score.priorityBand,
-      recommendedAction: score.recommendedAction,
-      scoreRationale: score.strategicRationale,
       ingestedBy: 'cloud_scheduler',
     });
     batchOps += 1;
-    if (!autoDiscard) accepted += 1;
-    else rejected += 1;
+    accepted += 1;
 
     if (batchOps >= 400) await flush();
   }
@@ -272,23 +247,21 @@ export async function runScheduledIngest(options?: { youtubeApiKey?: string }): 
   const toPoll = dueSources.slice(0, MAX_SOURCES_PER_RUN);
 
   for (const { clientId, source } of toPoll) {
-    const [thesesSnap, profileSnap, dossierSnap] = await Promise.all([
-      db.collection(`clients/${clientId}/theses`).where('status', '==', 'ACTIVE').limit(1).get(),
+    const [profileSnap, dossierSnap] = await Promise.all([
       db.doc(`clients/${clientId}/profile/data`).get(),
       db.doc(`clients/${clientId}/dossier/data`).get(),
     ]);
 
-    const thesis = thesesSnap.docs[0]?.data() as ThesisDoc | undefined;
     const clientData = clientDocData(clientsSnap, clientId);
     const keywords = buildProfileKeywordsFromDocs(
       { id: clientId, profession: clientData?.profession as string | undefined },
-      thesis,
+      undefined,
       profileSnap.exists ? (profileSnap.data() as object) : undefined,
       dossierSnap.exists ? (dossierSnap.data() as object) : undefined
     );
 
     const fingerprints = await loadExistingFingerprints(db, clientId);
-    const outcome = await pollOneSource(db, clientId, source, keywords, fingerprints, options?.youtubeApiKey, thesis);
+    const outcome = await pollOneSource(db, clientId, source, keywords, fingerprints, options?.youtubeApiKey);
     summary.sourcesPolled += 1;
     summary.signalsCreated += outcome.accepted;
     if (outcome.error) summary.errors += 1;

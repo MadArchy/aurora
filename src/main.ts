@@ -4706,12 +4706,7 @@ class App {
         continue;
       }
       this.scoreSignal(result.signal.id, clientId);
-      const scored = dbService.getSignalById(result.signal.id);
-      if (scored?.status === 'DISCARDED') {
-        rejected += 1;
-      } else {
-        accepted += 1;
-      }
+      accepted += 1;
     }
 
     dbService.recordSourceRun(source.id, { fetched: items.length, accepted, rejected, duplicates });

@@ -15,6 +15,11 @@
   "include": [
     "src/**/*.ts",
     "../src/domain/ai/**/*.ts",
+    "../src/domain/scoringCore.ts",
+    "../src/domain/dispositionCore.ts",
+    "../src/domain/textMatchCore.ts",
+    "../src/domain/thesisModelCore.ts",
+    "../src/types/index.ts",
     "../src/application/ai/**/*.ts",
     "../src/infrastructure/ai/**/*.ts",
     "../src/interfaces/ai/**/*.ts",

@@ -112,7 +112,7 @@ Ports use Domain types only — no collection path strings as domain law.
 
 **Target:** thin adapter calling shared Domain package/core — **not** an independent weight table.
 
-**Current:** `scoreSignalCloud` — **DUPLICATE_SCORER** + ingest auto-DISCARD (**migrate Phase 4**).
+**Phase 4:** `scoreSignalCloud` — thin **Domain core wrapper** (shared via `functions/tsconfig.json` includes). Ingest defers routing/scoring to client governed pipeline.
 
 ---
 
