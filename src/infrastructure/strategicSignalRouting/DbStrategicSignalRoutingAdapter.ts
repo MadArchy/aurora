@@ -13,7 +13,10 @@ import { computeThesisStrength } from '../../domain/thesisStrengthCore';
 import { computeWhyNow } from '../../domain/whyNowCore';
 import { feedbackScoringHints } from '../../domain/radarFeedbackCore';
 import { buildProfileKeywords } from '../../services/sourceDiscovery';
-import { calculateStrategicScore, type ScoringContext } from '../../services/scoring';
+import {
+  computeStrategicScoreMaterial,
+  toStrategicScoreResult,
+} from '../../domain/scoringCore';
 import { dbService } from '../../services/db';
 import type { PositioningThesis, Signal, StrategicScoreResult } from '../../types';
 
@@ -61,7 +64,7 @@ export function createDbStrategicSignalRoutingPorts(db: DbFacade = dbService): {
     listHistoryForSignal: (signalId) => db.getSignalRoutingHistory(signalId),
   };
 
-  function buildScoringContext(clientId: string): ScoringContext {
+  function buildScoringContext(clientId: string): import('../../domain/scoringCore').StrategicScoringContextInput {
     const client = db.getClientById(clientId);
     if (!client) return {};
     // Merge keywords across ACTIVE theses — no strategic primary-thesis shortcut.
@@ -107,7 +110,7 @@ export function createDbStrategicSignalRoutingPorts(db: DbFacade = dbService): {
     clientId: string,
     signal: Signal,
     thesis: PositioningThesis
-  ): ScoringContext {
+  ): import('../../domain/scoringCore').StrategicScoringContextInput {
     const whyNow = whyNowFor(signal, clientId);
     const evidence = db.getEvidenceVaultByClient(clientId);
     return {
@@ -117,10 +120,23 @@ export function createDbStrategicSignalRoutingPorts(db: DbFacade = dbService): {
     };
   }
 
+  function scoreViaDomainCore(
+    signal: Signal,
+    thesis: PositioningThesis,
+    clientId: string
+  ): StrategicScoreResult {
+    const material = computeStrategicScoreMaterial({
+      signal,
+      thesis,
+      context: contextFor(clientId, signal, thesis),
+      nowMs: Date.now(),
+    });
+    return toStrategicScoreResult(material, new Date().toISOString());
+  }
+
   const scoring: StrategicScoringPort = {
-    createScoreFn(clientId: string, signal: Signal): ThesisScoreFn {
-      return (s, thesis) =>
-        calculateStrategicScore(s, thesis, contextFor(clientId, signal, thesis));
+    createScoreFn(clientId: string, _signal: Signal): ThesisScoreFn {
+      return (s, thesis) => scoreViaDomainCore(s, thesis, clientId);
     },
     computeWhyNow(clientId: string, signal: Signal): WhyNowSnapshot {
       return whyNowFor(signal, clientId);
@@ -130,7 +146,7 @@ export function createDbStrategicSignalRoutingPorts(db: DbFacade = dbService): {
       thesis: PositioningThesis,
       clientId: string
     ): StrategicScoreResult {
-      return calculateStrategicScore(signal, thesis, contextFor(clientId, signal, thesis));
+      return scoreViaDomainCore(signal, thesis, clientId);
     },
   };
 

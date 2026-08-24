@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `002-strategic-scoring-v2` |
-| **Phase** | **0B COMPLETE** · **Phase 1 COMPLETE** · Phase 2 **NOT STARTED** |
-| **Status** | `APPROVED` — Phase 1 Domain contracts implemented |
+| **Phase** | **Phase 2 COMPLETE** · Phase 3 **NOT STARTED** |
+| **Status** | `APPROVED` — Application governance use cases implemented |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
 ---
@@ -50,13 +50,27 @@ Exit: no circular ownership with 001/003/005/006.
 |-------|------|-----------|
 | **0B** | Formal SPEC package | Human SPEC approval |
 | **1** | Domain scoring core, `scoringVersion`, disposition/format types, deterministic tests | Domain unit tests PASS | **DONE** |
-| **2** | Application use cases, routing consumption, no terminal discard on score persist, validation | App + governance tests |
+| **2** | Application use cases, routing consumption, no terminal discard on score persist, validation | App + governance tests | **DONE** |
 | **3** | Score persistence + material history + tenant-safe writes | History tests |
 | **4** | Consumer migration (cloud, AI analyze, radar, legacy path) | Architecture/parity tests |
 | **5** | Security/regression (multi-thesis, tenant, cloud parity, SPEC-001/005 regression) | A21–A22 green |
 | **6** | Acceptance matrix + human CODE_COMPLETE sign-off | CODE_COMPLETE |
 
-Do **not** start Phase 2 until Phase 1 exit gate evidence is recorded (complete).
+Do **not** start Phase 3 until Phase 2 exit gate evidence is recorded (complete).
+
+---
+
+## Phase 2 evidence (2026-08-23)
+
+| Item | Location |
+|------|----------|
+| Use cases | `ScoreSignalAgainstRoutedContext`, `RecomputeSignalScore` |
+| Application package | `src/application/strategicScoring/` |
+| Routing governance | `routingGovernance.ts` → `resolveGovernedThesisForScoring` |
+| Write port (contract) | `StrategicScoreWritePort` — physical persist Phase 3 |
+| Adapter swap | `DbStrategicSignalRoutingAdapter` → `computeStrategicScoreMaterial` |
+| Composition | `composeStrategicScoring.ts` |
+| Tests | `tests/strategicScoringPhase2.test.ts`, `tests/strategicScoringArchitecture.test.ts` |
 
 ---
 

@@ -55,7 +55,7 @@ Composition root wires adapters
 - routing context consumption policy (CLEAR / CONTESTED / UNROUTED)
 - tenant validation at trust boundary
 - error taxonomy (`StrategicScoringError` pattern — mirror SPEC-001)
-- ports: `SignalReadPort`, `SignalWritePort`, `ScoreHistoryPort`, `ScoringContextPort`
+- ports: `SignalReadPort`, `ThesisQueryPort`, `StrategicScoringPort` (reuse SPEC-001), `StrategicScoreWritePort` (Phase 2 contract; Phase 3 impl)
 
 **Must NOT:**
 
@@ -76,8 +76,8 @@ Composition root wires adapters
 | Port | Responsibility |
 |------|----------------|
 | `StrategicScoringPort` (existing, SPEC-001) | `createScoreFn`, `scoreThesis`, `computeWhyNow` |
-| `ScoreHistoryPort` (planned) | append/list material score history |
-| `ScoreWritePort` (planned) | persist current score fields + version |
+| `StrategicScoreWritePort` | **IMPLEMENTED (contract)** | persist governed score — no DISCARD; physical storage Phase 3 |
+| `ScoreHistoryPort` (planned) | Phase 3 | append/list material score history |
 
 Ports use Domain types only — no collection path strings as domain law.
 
@@ -141,6 +141,8 @@ Controlled failures (Application):
 
 - `SIGNAL_NOT_FOUND`
 - `ROUTING_CONTEXT_REQUIRED`
+- `ROUTING_CONTEXT_CONTESTED`
+- `ROUTING_CONTEXT_INVALID`
 - `TENANT_CONTEXT_INVALID`
 - `SCORING_INPUT_INVALID`
 - `PERSISTENCE_ERROR`

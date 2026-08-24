@@ -49,7 +49,8 @@ Phase 0 inventory baseline: 2026-08-23.
 |----------|-------|--------|-------|
 | `StrategicScoringPort.ts` | GOVERNED_CONSUMER | **KEEP** | SPEC-001 port boundary |
 | `DbStrategicSignalRoutingAdapter.ts` | GOVERNED_CONSUMER | **MIGRATE** | Wire Domain core; build context |
-| `ScoreAndRouteSignal.ts` | GOVERNED_CONSUMER | **KEEP** | SPEC-001 orchestration — calls scoring port |
+| `src/application/strategicScoring/` | GOVERNED_CONSUMER | **EXTRACT** ✅ Phase 2 | Post-routing scoring use cases |
+| `composeStrategicScoring.ts` | GOVERNED_CONSUMER | **KEEP** ✅ Phase 2 | Composition root |
 | `OverrideSignalThesis.ts` | GOVERNED_CONSUMER | **KEEP** | Rescores selected thesis on MANUAL |
 
 ---

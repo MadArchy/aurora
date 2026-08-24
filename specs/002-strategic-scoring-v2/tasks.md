@@ -1,7 +1,7 @@
 # Tasks 002 — Strategic Scoring V2
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 1 COMPLETE** · Phase 2 **NOT STARTED**  
+**Implementation:** **Phase 2 COMPLETE** · Phase 3 **NOT STARTED**  
 **Branch (recommended):** `spec/002-strategic-scoring-v2`
 
 ---
@@ -38,15 +38,15 @@
 
 ## Phase 2 — Application / governance
 
-- [ ] **T-002-201** Define Application use cases (e.g. `ScoreSignalAgainstRoutedContext`, `RecomputeSignalScore`)
-- [ ] **T-002-202** Scoring ports (read/write/history) — no concrete db in Application
-- [ ] **T-002-203** Consume SPEC-001 routing context; reject independent thesis selection
-- [ ] **T-002-204** CLEAR / CONTESTED / UNROUTED consumption policy in Application
-- [ ] **T-002-205** Remove terminal DISCARD from governed score persistence paths (design + tests)
-- [ ] **T-002-206** Controlled error model (`SIGNAL_NOT_FOUND`, `TENANT_CONTEXT_INVALID`, etc.)
-- [ ] **T-002-207** Wire SPEC-001 `StrategicScoringPort` to Domain core (adapter swap)
+- [x] **T-002-201** Define Application use cases (e.g. `ScoreSignalAgainstRoutedContext`, `RecomputeSignalScore`)
+- [x] **T-002-202** Scoring ports (read/write/history) — no concrete db in Application
+- [x] **T-002-203** Consume SPEC-001 routing context; reject independent thesis selection
+- [x] **T-002-204** CLEAR / CONTESTED / UNROUTED consumption policy in Application
+- [x] **T-002-205** Remove terminal DISCARD from governed score persistence paths (design + tests)
+- [x] **T-002-206** Controlled error model (`SIGNAL_NOT_FOUND`, `TENANT_CONTEXT_INVALID`, etc.)
+- [x] **T-002-207** Wire SPEC-001 `StrategicScoringPort` to Domain core (adapter swap)
 
-**Exit:** Application hexagonal tests; no auto-DISCARD on governed persist.
+**Exit:** Application hexagonal tests; no auto-DISCARD on governed persist. **DONE** — evidence: `tests/strategicScoringPhase2.test.ts`, `tests/strategicScoringArchitecture.test.ts`; `src/application/strategicScoring/`.
 
 ---
 
