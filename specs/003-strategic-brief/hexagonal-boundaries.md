@@ -54,7 +54,13 @@ Architecture evidence: `tests/strategicBriefArchitecture.test.ts`.
 - `src/application/strategicBrief/`
 - evidence: `tests/strategicBriefPhase2.test.ts`, `tests/strategicBriefApplicationArchitecture.test.ts`
 
-Phase 3 persistence **NOT STARTED**.
+**Phase 3 Infrastructure package (implemented):**
+
+- `src/infrastructure/strategicBrief/`
+- `src/composition/strategicBrief/composeStrategicBrief.ts`
+- evidence: `tests/strategicBriefPhase3.test.ts`, `tests/strategicBriefInfrastructureArchitecture.test.ts`
+
+Phase 4 consumer migration **NOT STARTED**.
 
 ---
 
@@ -112,11 +118,14 @@ Do not overbuild speculative use cases in Phase 0B.
 
 **Owns:**
 
-- local store adapters (`postura_strategic_brief_v1`, history store)
+- local store adapters (`postura_strategic_brief_v1`, `postura_strategic_brief_history_v1`, `postura_strategic_brief_override_v1`)
+- `LocalStrategicBriefRepository` / `LocalStrategicBriefHistoryAdapter` / `LocalStrategicContextReader`
 - future Firestore adapter (SPEC-009 deploy track)
-- wiring in composition root
+- wiring in `src/composition/strategicBrief/composeStrategicBrief.ts`
 
 **Pattern:** mirror `DbStrategicScoringAdapter` / `DbStrategicSignalRoutingAdapter`.
+
+**Does NOT:** write routing/score fields, auto-DISCARD, verify claims, or hook UI/main.ts.
 
 ---
 
@@ -160,30 +169,33 @@ Do not overbuild speculative use cases in Phase 0B.
 
 ---
 
-## Composition root (target)
+## Composition root (Phase 3)
 
 ```text
-src/composition/strategicBriefComposition.ts (or server equivalent)
+src/composition/strategicBrief/composeStrategicBrief.ts
   wires:
     CreateStrategicBrief(contextReader, briefRepo, historyPort)
     ApproveStrategicBrief(...)
-    ...
+    RejectStrategicBrief / ReviseStrategicBrief / OverrideStrategicBrief
+    AuthorizeStrategicDownstream
 ```
 
-UI imports use cases from composition — not concrete db.
+UI is **not** wired in Phase 3. Callers supply the SPEC-001/002 read source. Application remains free of `dbService`.
 
 ---
 
-## Persistence authority (Phase 0B)
+## Persistence authority (Phase 3)
 
-Local-authoritative store acceptable for CODE_COMPLETE (consistent with SPEC-002 score history).
+Local-authoritative store is the CODE_COMPLETE persistence model.
 
-Remote Firestore Brief rules → SPEC-009 deployment — not blocking Domain/Application implementation.
+- Current projection: `postura_strategic_brief_v1` (`brief-store-v1`)
+- History: `postura_strategic_brief_history_v1` (`brief-history-store-v1`)
+- Override audit: `postura_strategic_brief_override_v1` (`brief-override-store-v1`)
+- **Local atomicity:** one in-memory write-unit apply + persist of all three keys. Not a distributed Firestore transaction.
+- Remote Firestore Brief rules → **FUTURE_NONBLOCKING / SPEC-009**
 
 ---
 
 ## Physical history shape
 
-**Current Brief document** + **append-only history collection** — no unbounded embedded arrays on Brief (A22).
-
-Implementation detail Phase 3.
+**Current Brief document** + **append-only history collection** + **append-only override audit** — no unbounded embedded arrays on Brief (A22). Phase 3 implemented.

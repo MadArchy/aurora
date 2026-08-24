@@ -36,7 +36,7 @@ Phase 0 inventory: 2026-08-24.
 | `CurationEntry.destination` | **STRATEGIC_AUTHORITY** | **COMPATIBILITY_ONLY** → intake only | Phase 4 |
 | `DeliveryPackage.strategicNote` | **STRATEGIC_AUTHORITY** | **DEPRECATE** as decision | Phase 4 |
 | `CurationEntry.aiAngle` | **STRATEGIC_AUTHORITY** (de facto) | **MIGRATE** → Brief.strategicAngle | Phase 4 |
-| Absent `StrategicBrief` | **MISSING** | **MIGRATE** — new entity | Phase 1–3 |
+| Absent `StrategicBrief` | **MISSING** | **MIGRATE** — new entity | Phase 1–3 **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** |
 
 ---
 
@@ -118,7 +118,7 @@ Phase 0 inventory: 2026-08-24.
 | P2-003-02 | CONTESTED/UNROUTED fail-open in curation | Brief routing gate on create | Phase 2–4 |
 | P2-003-03 | `proposeAngle` thesis fallback | Fail-closed without thesis/Brief | Phase 4 |
 | P2-003-04 | Single-thesis delivery validation | Per-item Brief authorization | Phase 4 |
-| P2-003-05 | Evidence ID loss | `supportingEvidenceIds` on Brief | Phase 1–3 |
+| P2-003-05 | Evidence ID loss | `supportingEvidenceIds` on Brief | Phase 1–3 **PARTIAL_PERSISTENCE** (consumer carry Phase 4) |
 
 ---
 
@@ -127,7 +127,7 @@ Phase 0 inventory: 2026-08-24.
 | Item | Phase 0 | Target |
 |------|---------|--------|
 | Silent bypass | **MISSING** | **BLOCK** all strategic bypass |
-| Auditable override | **MISSING** | **MIGRATE** — `OverrideStrategicBrief` + history | Phase 2–3 |
+| Auditable override | **MISSING** | **MIGRATE** — `OverrideStrategicBrief` + history | Phase 2–3 **IMPLEMENTED_AUDIT_PERSISTENCE** |
 
 ---
 

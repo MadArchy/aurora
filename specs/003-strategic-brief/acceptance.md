@@ -16,30 +16,30 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 |---|-----------|---------|--------|
 | A1 | StrategicBrief canonical entity satisfies constitutional required fields | `brief-model.md` §12 | ✅ **PASS (Domain)** |
 | A2 | One authoritative Strategic Decision contract (StrategicDecisionSnapshot in Brief) | Design A | ✅ **PASS (Domain)** |
-| A3 | Brief consumes SPEC-001 routing without mutating it | Context reader | ✅ **PASS (Application)** — `StrategicContextReader` read-only |
-| A4 | Brief consumes SPEC-002 scoring without recomputing it | Context reader | ✅ **PASS (Application)** — snapshot copy only; no rescore |
+| A3 | Brief consumes SPEC-001 routing without mutating it | Context reader | ✅ **PASS (Application+Infrastructure)** — read-only adapter |
+| A4 | Brief consumes SPEC-002 scoring without recomputing it | Context reader | ✅ **PASS (Application+Infrastructure)** — projection copy only; no rescore |
 | A5 | CLEAR uses explicit governed thesis (`selectedThesisId`) | Routing gate | ✅ **PASS (Domain+Application)** |
 | A6 | CONTESTED cannot authorize downstream action | Fail-closed | ✅ **PASS (Domain+Application gate)** — consumer paths Phase 4 |
 | A7 | UNROUTED cannot authorize downstream action | Fail-closed | ✅ **PASS (Domain+Application gate)** — consumer paths Phase 4 |
-| A8 | No primary/first thesis fallback | Architecture ban | ✅ **PASS (Application scan)** — Phase 5 remaining |
+| A8 | No primary/first thesis fallback | Architecture ban | ✅ **PASS (Application+Infrastructure scan)** — Phase 5 remaining |
 | A9 | Multi-signal Brief requires tenant-safe compatible thesis context | Multi-signal validator | ✅ **PASS (Domain+Application)** |
 | A10 | No strategic downstream artifact without approved Brief authorization | Downstream gate | ☐ Phase 4 |
 | A11 | CurationEntry is not strategic authority | Migration | ☐ Phase 4 |
 | A12 | DeliveryPackage is not StrategicBrief authority | Migration | ☐ Phase 4 |
 | A13 | AI remains advisory only | SPEC-005 boundary | ✅ **PASS (Domain+Application boundary)** — Phase 5 remaining |
 | A14 | AI structured output remains SPEC-005 validated | Gateway schemas | ☐ Phase 5 |
-| A15 | Evidence linkage preserved (`signalIds`, `supportingEvidenceIds`) | Brief model | ✅ **PASS (Domain contract)** — persistence Phase 3 |
+| A15 | Evidence linkage preserved (`signalIds`, `supportingEvidenceIds`) | Brief model | ✅ **PASS (Domain+persistence)** — consumer carry Phase 4 |
 | A16 | SPEC-006 remains claim-verification authority | Boundary test | ☐ Phase 5 |
-| A17 | Decision/Brief explainability reconstructable | History + snapshot | ✅ **PASS (Application history intent)** — physical store Phase 3 |
+| A17 | Decision/Brief explainability reconstructable | History + snapshot | ✅ **PASS (append-only history store)** |
 | A18 | Human approval required for actionable Brief | Approve use case | ✅ **PASS (Domain+Application)** |
-| A19 | Override auditable or bypass formally prohibited | Override contract | ✅ **PASS (Domain+Application)** — persist Phase 3 |
-| A20 | Tenant mismatch / cross-client references rejected | Tenant gate | ✅ **PASS (Application)** — persist Phase 3 remaining |
-| A21 | Version/revision semantics implemented | `version` integer | ✅ **PASS (Domain)** — persistence Phase 3 |
-| A22 | Material history append-only | History store | ☐ Phase 3 |
-| A23 | Equivalent operation idempotent / no uncontrolled duplication | Idempotency | ✅ **PASS (Application)** — physical keys Phase 3 |
-| A24 | Approved Brief material changes cannot silently overwrite authority | Supersede | ✅ **PASS (Domain+Application)** — persistence Phase 3 |
+| A19 | Override auditable or bypass formally prohibited | Override contract | ✅ **PASS (Domain+Application+override store)** |
+| A20 | Tenant mismatch / cross-client references rejected | Tenant gate | ✅ **PASS (Application+tenant-safe persistence)** |
+| A21 | Version/revision semantics implemented | `version` integer | ✅ **PASS (Domain+persistence)** |
+| A22 | Material history append-only | History store | ✅ **PASS (Phase 3)** |
+| A23 | Equivalent operation idempotent / no uncontrolled duplication | Idempotency | ✅ **PASS (Application+physical write-unit identity)** |
+| A24 | Approved Brief material changes cannot silently overwrite authority | Supersede | ✅ **PASS (Domain+Application+persistence)** |
 | A25 | Domain framework-pure | Architecture test | ✅ **PASS (Domain files)** — Phase 5 remaining |
-| A26 | Application depends on ports, not infrastructure | Hexagonal test | ✅ **PASS (Application)** — Phase 5 remaining |
+| A26 | Application depends on ports, not infrastructure | Hexagonal test | ✅ **PASS (Application+Infrastructure architecture)** — Phase 5 remaining |
 | A27 | Direct UI Brief-authority writes prohibited | Architecture ban | ◐ **PARTIAL (Application API exists)** — UI still Phase 4/5 |
 | A28 | Legacy direct strategic content paths migrated or blocked | Phase 4 matrix | ☐ Phase 4 |
 | A29 | Strategic downstream artifacts carry Brief authorization reference | `strategicBriefId` | ☐ Phase 4 |
@@ -51,10 +51,10 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 | A35 | `npm run check` PASS | Governance | ☐ Phase 6 |
 | A36 | `npm run test:rules` PASS | Governance | ☐ Phase 6 |
 
-**Implementation acceptance:** **Domain + Application advanced (Phase 2)** — not CODE_COMPLETE  
-**CODE_COMPLETE:** **NO** — persistence / migration remaining
+**Implementation acceptance:** **Domain + Application + local persistence advanced (Phase 3)** — not CODE_COMPLETE  
+**CODE_COMPLETE:** **NO** — consumer migration remaining (Phase 4)
 
-**P1 at Phase 2 exit:** F-003-01 **PARTIAL_APPLICATION_IMPLEMENTED** · F-003-02 **OPEN_PHASE_4** · F-003-03 **PARTIAL_APPLICATION_IMPLEMENTED** · P1 count **3** (unchanged)
+**P1 at Phase 3 exit:** F-003-01 **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** · F-003-02 **OPEN_PHASE_4** · F-003-03 **IMPLEMENTED_AUDIT_PERSISTENCE** · P1 count **3** (unchanged)
 
 ---
 
@@ -102,7 +102,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 | P2 | 5 |
 | P3 | 2 |
 
-**P1 resolved:** 0 — F-003-01 / F-003-03 Application-partial; F-003-02 **OPEN_PHASE_4**
+**P1 resolved:** 0 — F-003-01 / F-003-03 persistence-complete but acceptance still requires Phase-4 consumer integration; F-003-02 **OPEN_PHASE_4**
 
 ---
 
@@ -115,6 +115,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 | Phase 1 authorization | ✅ **AUTHORIZED** |
 | Phase 1 Domain implementation | ✅ **COMPLETE** |
 | Phase 2 Application / governance | ✅ **COMPLETE** |
+| Phase 3 Persistence / history | ✅ **COMPLETE** |
+| Phase 4 Consumer migration | ☐ **NOT STARTED** |
 | CODE_COMPLETE (T-003-604) | ☐ **NOT STARTED** |
 
-**Current:** `APPROVED` · Phase 2 **COMPLETE** · Phase 3 **NOT STARTED**
+**Current:** `APPROVED` · Phase 3 **COMPLETE** · Phase 4 **NOT STARTED**

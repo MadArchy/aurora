@@ -1,6 +1,6 @@
 # Data flow 003 — Strategic Brief
 
-**Read-only contract definition (Phase 0B).** Implementation in Phases 1–4.
+**Read-only contract definition (Phase 0B).** Phase 1 Domain / Phase 2 Application / Phase 3 local persistence implemented. Phase 4 consumer migration **NOT STARTED**.
 
 ---
 
@@ -51,7 +51,7 @@ Build StrategicDecisionSnapshot from upstream refs + manager inputs
       ↓
 Create StrategicBrief status=DRAFT version=1
       ↓
-Persist current + optional history (created event)
+Persist current projection (`postura_strategic_brief_v1`) + CREATED history (`postura_strategic_brief_history_v1`)
 ```
 
 **Fail-closed:** CONTESTED / UNROUTED → `ROUTING_NOT_CLEAR` — no actionable Brief.
@@ -96,7 +96,7 @@ Validate disposition/format override rationales if overriding SPEC-002
       ↓
 Re-read live SPEC-001 routing (do not trust create-time snapshot alone)
       ↓
-Scoring snapshot is not overwritten (scoringVersion drift policy = Phase 3)
+Scoring snapshot is not overwritten (scoringVersion drift does not auto-reject)
       ↓
 Set status = APPROVED
 Set approvedBy, approvedAt from trusted actor
@@ -264,4 +264,26 @@ SPEC-003 owns authorization; SPEC-004 owns execution planning.
 | evidenceId from other client | `TENANT_CONTEXT_INVALID` |
 | cross-org write | `TENANT_CONTEXT_INVALID` |
 
-All fail closed — no partial Brief persist.
+All fail closed — no partial Brief persist. Mixed-tenant write units are rejected as a whole (local in-memory + three-key persist rolled back together).
+
+---
+
+## P. Phase 3 persistence boundary
+
+```text
+BriefWriteUnit { briefs, history, overrideAudit? }
+      ↓
+Infrastructure commitWriteUnit
+  ├── tenant envelope consistency (org + client + brief ownership)
+  ├── apply entire unit to in-memory snapshot
+  └── persist:
+        postura_strategic_brief_v1
+        postura_strategic_brief_history_v1
+        postura_strategic_brief_override_v1
+```
+
+Retry of an identical successful write unit converges: current projection unchanged, no duplicate history/audit.
+
+Current projection is operational authority. History is transition evidence only.
+
+Firestore Brief writes: none. Rules contract: **FUTURE_NONBLOCKING / SPEC-009**.

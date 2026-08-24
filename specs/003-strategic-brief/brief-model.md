@@ -5,9 +5,11 @@ Physical persistence shape is Phase 3; this document defines Domain semantics.
 
 **Phase 1 (2026-08-24):** Domain types, state machine, materiality, routing eligibility, override contract, and authorization predicates implemented under `src/domain/strategicBriefCore.ts` (+ `briefMaterialityCore.ts`, `briefRoutingGateCore.ts`, `briefTenantCore.ts`).
 
-**Phase 2 (2026-08-24):** Application use cases + ports under `src/application/strategicBrief/`. Physical persistence is Phase 3.
+**Phase 2 (2026-08-24):** Application use cases + ports under `src/application/strategicBrief/`.
 
-**Approval scoring policy:** live SPEC-001 routing is re-read at approval. The create-time scoring snapshot is **not** overwritten. `scoringVersion` drift does not auto-reject in Phase 2 (deferred to Phase 3).
+**Phase 3 (2026-08-24):** Local-authoritative persistence under `src/infrastructure/strategicBrief/`. Current projection is operational authority. History and override audit are physically separate append-only stores. First create persists Application `CREATED` history. No Briefs synthesized from CurationEntry / DeliveryPackage / managerDecision / aiAngle.
+
+**Approval scoring policy:** live SPEC-001 routing is re-read at approval. The create-time scoring snapshot is **not** overwritten. `scoringVersion` drift does not auto-reject (unchanged).
 
 ---
 
@@ -150,18 +152,19 @@ Material change → new revision + append history + supersede prior APPROVED if 
 
 ---
 
-## History physical model (target)
-
-Repository-consistent with SPEC-001/002:
+## History physical model (Phase 3)
 
 ```text
-Current Brief state (authoritative projection)
-  +
-Append-only history store (postura_strategic_brief_history_v1 or equivalent)
-  — no unbounded embedded arrays on Brief document
+postura_strategic_brief_v1            current StrategicBrief projection (authority)
+postura_strategic_brief_history_v1    append-only material history
+postura_strategic_brief_override_v1   append-only override audit
 ```
 
-History entry preserves enough to reconstruct former strategic authorization (full snapshot or diff per Phase 3).
+Store envelopes are versioned (`brief-store-v1`, `brief-history-store-v1`, `brief-override-store-v1`). Brief `schemaVersion` (`brief-v1`) is persisted separately from content `version`.
+
+History entry preserves enough to reconstruct former strategic authorization (decision snapshot, tenant, actor, changeType, materialFingerprint). No raw AI prompts/responses or secrets.
+
+Unversioned / malformed persisted authority fails closed — no silent APPROVED reconstruction.
 
 ---
 
@@ -169,8 +172,8 @@ History entry preserves enough to reconstruct former strategic authorization (fu
 
 | Operation | Idempotency rule |
 |-----------|------------------|
-| CreateBrief same `(clientId, thesisId, signalIds sorted, version intent)` | return existing DRAFT or reject duplicate — Phase 3 detail |
-| Approve already-approved same version | no-op success |
+| CreateBrief same `(clientId, thesisId, signalIds sorted, version intent)` | return existing DRAFT or reject duplicate — Application + physical write-unit identity |
+| Approve already-approved same version | no-op success; retry of same write unit does not duplicate history |
 | Authorize downstream with same `briefId` + action | no duplicate tasks/content/opportunity — Phase 4 |
 | AI angle regeneration | does **not** create new authoritative revision without human action |
 
@@ -220,4 +223,4 @@ When `OverrideStrategicBrief` is invoked:
 | `materialFieldsChanged` | yes |
 | `timestamp` | yes |
 
-Stored append-only; never erases prior history.
+Stored append-only in `postura_strategic_brief_override_v1`; never erases prior history.

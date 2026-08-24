@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `003-strategic-brief` |
-| **Phase** | **Phase 2 COMPLETE** · Phase 3 **NOT STARTED** |
+| **Phase** | **Phase 3 COMPLETE** · Phase 4 **NOT STARTED** |
 | **Status** | `APPROVED` |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
@@ -71,7 +71,7 @@ Preserve product usability during migration — dual-read/compatibility windows 
 | **0B** | Formal SPEC package | Human SPEC approval (T-003-010) |
 | **1** | Domain: StrategicBrief, StrategicDecisionSnapshot, status, materiality, invariants | **DONE** — Domain unit tests PASS |
 | **2** | Application: create/approve/reject/revise/override; context reader; tenant/routing gates | **DONE** — Application hexagonal tests PASS; no concrete db |
-| **3** | Persistence: current Brief + append-only history; idempotency; actor audit | History + tenant tests |
+| **3** | Persistence: current Brief + append-only history; idempotency; actor audit | **DONE** — local-authoritative stores + tenant/retry tests |
 | **4** | Consumer migration: block bypass paths; wire curation/delivery/sendDelivery/content/opportunity | A10, A28 green |
 | **5** | Security/regression: CONTESTED/UNROUTED, cross-tenant, AI advisory, SPEC-001/002/005/006 regression | P1/P2 closure evidence |
 | **6** | Acceptance A1–A36 + human CODE_COMPLETE sign-off | CODE_COMPLETE |
@@ -84,9 +84,9 @@ T-003-010 human SPEC approval **DONE**. Phase 1 **AUTHORIZED**. Do **not** decla
 
 | Finding | Closure phase |
 |---------|---------------|
-| F-003-01 Strategic Brief entity absent | Phase 1–3 |
-| F-003-02 Bypass paths without Brief | Phase 4 |
-| F-003-03 No auditable override | Phase 1–3 (contract) + Phase 2 (use case) |
+| F-003-01 Strategic Brief entity absent | Phase 1–3 **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** |
+| F-003-02 Bypass paths without Brief | Phase 4 **OPEN_PHASE_4** |
+| F-003-03 No auditable override | Phase 1–3 **IMPLEMENTED_AUDIT_PERSISTENCE** (consumers Phase 4) |
 
 ---
 
@@ -98,7 +98,7 @@ T-003-010 human SPEC approval **DONE**. Phase 1 **AUTHORIZED**. Do **not** decla
 | CONTESTED/UNROUTED fail-open in curation | **PARTIAL** — Application gate Phase 2 DONE; curation consumer Phase 4 |
 | `proposeAngle` thesis fallback | Phase 4 (require Brief context) |
 | Single-thesis delivery package validation | Phase 4 (per-item Brief ref) |
-| Evidence ID loss signal→content | Phase 1–3 linkage + Phase 4 |
+| Evidence ID loss signal→content | Phase 1–3 linkage **PARTIAL_PERSISTENCE** + Phase 4 consumer |
 
 ---
 
@@ -139,8 +139,9 @@ No tests implemented in Phase 0B.
 Given current local-first architecture:
 
 - **Local authoritative Brief store** acceptable for CODE_COMPLETE (mirrors SPEC-002 score history pattern).
-- Remote Firestore rules for Brief collections → **DEFERRED** to SPEC-009 deployment track.
-- Physical store name target: `postura_strategic_brief_v1` + `postura_strategic_brief_history_v1` (Phase 3).
+- Physical stores (Phase 3): `postura_strategic_brief_v1` + `postura_strategic_brief_history_v1` + `postura_strategic_brief_override_v1`.
+- Remote Firestore rules for Brief collections → **FUTURE_NONBLOCKING / DEFERRED** to SPEC-009 deployment track.
+- Local atomicity = one in-memory write-unit apply + one persist of the three versioned keys. Not a distributed Firestore transaction.
 
 ---
 

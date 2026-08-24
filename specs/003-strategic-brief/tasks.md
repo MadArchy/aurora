@@ -1,11 +1,12 @@
 # Tasks 003 — Strategic Brief
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 2 COMPLETE** · Phase 3 **NOT STARTED**  
+**Implementation:** **Phase 3 COMPLETE** · Phase 4 **NOT STARTED**  
 **Branch:** `spec/003-strategic-brief`  
 **Base SHA:** `e422359ab90e84d4eb26007db23da6d54390cf15`  
 **Formal SPEC checkpoint:** `3c04c6df42d1d51fe8e38fd96deec3af826995eb`  
 **Phase-1 checkpoint:** `005420565eee138cad097d6a741d19eede2676d1`  
+**Phase-2 checkpoint:** `d4371e8d6a6b57c553c6723a1304e85a7e24f433`  
 **Human SPEC approval:** **APPROVED** (T-003-010) — 2026-08-24
 
 ---
@@ -66,14 +67,20 @@ F-003-01 = **PARTIAL_APPLICATION_IMPLEMENTED** · F-003-03 = **PARTIAL_APPLICATI
 
 ## Phase 3 — Persistence / history
 
-- [ ] **T-003-301** Current Brief projection store (local-authoritative)
-- [ ] **T-003-302** Append-only Brief history store
-- [ ] **T-003-303** Tenant-safe atomic persist (Brief + history)
-- [ ] **T-003-304** Idempotent create/approve commands
-- [ ] **T-003-305** Actor/audit fields from trusted auth context
-- [ ] **T-003-306** Supersede chain integrity (no silent APPROVED mutation)
+- [x] **T-003-301** Current Brief projection store (local-authoritative)
+- [x] **T-003-302** Append-only Brief history store
+- [x] **T-003-303** Tenant-safe atomic persist (Brief + history)
+- [x] **T-003-304** Idempotent create/approve commands
+- [x] **T-003-305** Actor/audit fields from trusted auth context
+- [x] **T-003-306** Supersede chain integrity (no silent APPROVED mutation)
 
-**Exit:** History append tests; approved Brief immutability tests.
+**Exit:** History append tests; approved Brief immutability tests. **DONE** — evidence: `src/infrastructure/strategicBrief/`; `src/composition/strategicBrief/composeStrategicBrief.ts`; `tests/strategicBriefPhase3.test.ts`; `tests/strategicBriefInfrastructureArchitecture.test.ts`.
+
+Physical stores: `postura_strategic_brief_v1` (current) · `postura_strategic_brief_history_v1` (append-only history) · `postura_strategic_brief_override_v1` (append-only override audit). Local-authoritative only. Firestore Brief rules remain **FUTURE_NONBLOCKING / SPEC-009**.
+
+First-create policy: Application emits `CREATED` history; Phase 3 persists that record. No synthesized Briefs from CurationEntry/DeliveryPackage.
+
+F-003-01 = **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** · F-003-03 = **IMPLEMENTED_AUDIT_PERSISTENCE** · F-003-02 remains **OPEN_PHASE_4**. P1 count unchanged (3). Phase 4 **NOT STARTED**.
 
 ---
 
