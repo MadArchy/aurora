@@ -4,9 +4,11 @@
 
 **Status:** **BASELINE** — not immutable final business policy. Phase 1 extraction must preserve behavior until explicit governance revises weights.
 
-**Baseline identity (target Phase 1):** `scoring-v1` (proposed constant name — implement in Phase 1)
+**Baseline identity (Phase 1):** `scoring-v1` — `SCORING_VERSION` in `src/domain/scoringCore.ts`
 
-**Source of truth today:** `src/services/scoring.ts` → `calculateStrategicScore`
+**Source of truth (canonical):** `src/domain/scoringCore.ts` → `computeStrategicScoreMaterial`
+
+**Compatibility wrapper:** `src/services/scoring.ts` → `calculateStrategicScore` (delegates; injects `Date.now()` for staleness + `calculatedAt`)
 
 **Cloud duplicate (drift risk):** `functions/src/lib/scoreSignal.ts` → `scoreSignalCloud`
 
@@ -39,7 +41,7 @@ Contributions to `baseScore100` (each factor is 0–1 unless noted):
 | `commercialPotential` | 2.5 | business objective weight or regex heuristic |
 | `sourceQuality` | 5 | HIGH/MEDIUM/LOW mapping |
 
-Duplicate weight table for explainability UI: `src/domain/scoreExplainCore.ts` (`FACTOR_WEIGHTS`) — **must stay synchronized** until unified in Domain core (Phase 1).
+Duplicate weight table for explainability UI: `src/domain/scoreExplainCore.ts` imports `SCORING_FACTOR_WEIGHTS` from `scoringCore` — **unified Phase 1**.
 
 ---
 

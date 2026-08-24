@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `002-strategic-scoring-v2` |
-| **Phase** | **0B COMPLETE** · Phase 1 **NOT AUTHORIZED** |
-| **Status** | `READY_FOR_HUMAN_SPEC_APPROVAL` |
+| **Phase** | **0B COMPLETE** · **Phase 1 COMPLETE** · Phase 2 **NOT STARTED** |
+| **Status** | `APPROVED` — Phase 1 Domain contracts implemented |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
 ---
@@ -49,16 +49,27 @@ Exit: no circular ownership with 001/003/005/006.
 | Phase | Goal | Exit gate |
 |-------|------|-----------|
 | **0B** | Formal SPEC package | Human SPEC approval |
-| **1** | Domain scoring core, `scoringVersion`, disposition/format types, deterministic tests | Domain unit tests PASS |
+| **1** | Domain scoring core, `scoringVersion`, disposition/format types, deterministic tests | Domain unit tests PASS | **DONE** |
 | **2** | Application use cases, routing consumption, no terminal discard on score persist, validation | App + governance tests |
 | **3** | Score persistence + material history + tenant-safe writes | History tests |
 | **4** | Consumer migration (cloud, AI analyze, radar, legacy path) | Architecture/parity tests |
 | **5** | Security/regression (multi-thesis, tenant, cloud parity, SPEC-001/005 regression) | A21–A22 green |
 | **6** | Acceptance matrix + human CODE_COMPLETE sign-off | CODE_COMPLETE |
 
-Do **not** start Phase 1 until human marks this SPEC `APPROVED`.
+Do **not** start Phase 2 until Phase 1 exit gate evidence is recorded (complete).
 
 ---
+
+## Phase 1 evidence (2026-08-23)
+
+| Item | Location |
+|------|----------|
+| Canonical scorer | `src/domain/scoringCore.ts` |
+| Disposition/format split | `src/domain/dispositionCore.ts` |
+| Unified weights | `SCORING_FACTOR_WEIGHTS` in `scoringCore`; consumed by `scoreExplainCore` |
+| Service strangler | `src/services/scoring.ts` → delegates to Domain core |
+| Tests | `tests/scoringCore.test.ts`, `tests/dispositionCore.test.ts`, `tests/scoringArchitecture.test.ts` |
+| Baseline regression | `tests/scoring.test.ts` PASS |
 
 ## Regression strategy
 

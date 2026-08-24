@@ -1,4 +1,5 @@
 import type { StrategicScoreFactors, StrategicScorePenalties, StrategicScoreResult } from '../types';
+import { SCORING_FACTOR_WEIGHTS } from './scoringCore';
 
 export interface ScoreFactorRow {
   key: string;
@@ -22,17 +23,6 @@ export interface ScoreBreakdownView {
   summary: string;
 }
 
-const FACTOR_WEIGHTS: Array<{ key: keyof StrategicScoreFactors; label: string; maxPoints: number }> = [
-  { key: 'thesisMatch', label: 'Alineación con tesis', maxPoints: 25 },
-  { key: 'audienceMatch', label: 'Audiencia objetivo', maxPoints: 20 },
-  { key: 'timeliness', label: 'Oportunidad temporal', maxPoints: 15 },
-  { key: 'authorityFit', label: 'Autoridad / prueba', maxPoints: 15 },
-  { key: 'differentiation', label: 'Diferenciación', maxPoints: 10 },
-  { key: 'strategicPotential', label: 'Potencial estratégico', maxPoints: 7.5 },
-  { key: 'commercialPotential', label: 'Potencial comercial', maxPoints: 2.5 },
-  { key: 'sourceQuality', label: 'Calidad de fuente', maxPoints: 5 },
-];
-
 const PENALTY_LABELS: Record<keyof StrategicScorePenalties, string> = {
   evidenceGap: 'Gap de evidencia',
   risk: 'Riesgo / controversia',
@@ -41,7 +31,7 @@ const PENALTY_LABELS: Record<keyof StrategicScorePenalties, string> = {
 };
 
 export function buildScoreBreakdown(score: StrategicScoreResult): ScoreBreakdownView {
-  const factors: ScoreFactorRow[] = FACTOR_WEIGHTS.map(({ key, label, maxPoints }) => ({
+  const factors: ScoreFactorRow[] = SCORING_FACTOR_WEIGHTS.map(({ key, label, maxPoints }) => ({
     key,
     label,
     weight: score.factors[key],
@@ -71,4 +61,14 @@ export function buildScoreBreakdown(score: StrategicScoreResult): ScoreBreakdown
 /** Serializa breakdown compacto para persistir en la señal. */
 export function serializeScoreBreakdown(score: StrategicScoreResult): ScoreBreakdownView {
   return buildScoreBreakdown(score);
+}
+
+/** Reconstruct pre-clamp base from factor weights (explainability contract). */
+export function reconstructBaseScore100(factors: StrategicScoreFactors): number {
+  return SCORING_FACTOR_WEIGHTS.reduce((sum, row) => sum + factors[row.key] * row.maxPoints, 0);
+}
+
+/** Penalty sum applied before clamp/round. */
+export function totalPenaltyPoints(penalties: StrategicScorePenalties): number {
+  return penalties.evidenceGap + penalties.risk + penalties.staleness + penalties.conflict;
 }

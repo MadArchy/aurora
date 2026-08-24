@@ -34,10 +34,11 @@ Phase 0 inventory baseline: 2026-08-23.
 
 | Location | Class | Action | Notes |
 |----------|-------|--------|-------|
-| `src/services/scoring.ts` | CANONICAL_CORE_CANDIDATE | **EXTRACT** | Baseline v1 formula → Domain `scoringCore` |
-| `src/domain/scoreExplainCore.ts` | CANONICAL_CORE_CANDIDATE | **KEEP** / unify weights | Explainability; sync with core |
+| `src/services/scoring.ts` | GOVERNED_CONSUMER | **KEEP** (wrapper) | Delegates to Domain `scoringCore`; injects clock |
+| `src/domain/scoringCore.ts` | CANONICAL_CORE_CANDIDATE | **EXTRACT** ✅ Phase 1 | Baseline v1 formula + `scoringVersion` |
+| `src/domain/scoreExplainCore.ts` | CANONICAL_CORE_CANDIDATE | **KEEP** ✅ unified | Explainability; weights from `scoringCore` |
 | `src/domain/whyNowCore.ts` | CANONICAL_CORE_CANDIDATE | **KEEP** | Timeliness input to scoring |
-| `src/domain/dispositionCore.ts` | CANONICAL_CORE_CANDIDATE | **EXTRACT** (Phase 1) | New — split disposition/format |
+| `src/domain/dispositionCore.ts` | CANONICAL_CORE_CANDIDATE | **EXTRACT** ✅ Phase 1 | Split disposition/format + legacy map |
 | `functions/src/lib/scoreSignal.ts` | DUPLICATE_SCORER | **REMOVE_LATER** | Replace with Domain wrapper Phase 4 |
 
 ---

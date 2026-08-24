@@ -1,7 +1,7 @@
 # Tasks 002 — Strategic Scoring V2
 
-**Spec status:** `READY_FOR_HUMAN_SPEC_APPROVAL`  
-**Implementation:** **NOT STARTED**  
+**Spec status:** `APPROVED`  
+**Implementation:** **Phase 1 COMPLETE** · Phase 2 **NOT STARTED**  
 **Branch (recommended):** `spec/002-strategic-scoring-v2`
 
 ---
@@ -17,22 +17,22 @@
 - [x] **T-002-007** Author `hexagonal-boundaries.md`
 - [x] **T-002-008** Author `migration-matrix.md` (Phase 0 paths)
 - [x] **T-002-009** Author `scoring-model.md` (baseline formula, bands, versioning)
-- [ ] **T-002-010** Human SPEC approval → status `APPROVED`
+- [x] **T-002-010** Human SPEC approval → status `APPROVED`
 
-**Phase 0B gate:** Package authored · Human SPEC approval **PENDING**
+**Phase 0B gate:** Package authored · Human SPEC approval **DONE** @ Phase 0B checkpoint `94e6140`
 
 ---
 
 ## Phase 1 — Domain scoring contracts
 
-- [ ] **T-002-101** Extract canonical pure `scoringCore` from `services/scoring.ts` (baseline v1 parity)
-- [ ] **T-002-102** Introduce `SCORING_ALGORITHM_VERSION` / `scoringVersion` constant (`scoring-v1`)
-- [ ] **T-002-103** Define disposition vs output-format types (`dispositionCore.ts`)
-- [ ] **T-002-104** Unify explainability weights with scoring core (single weight source)
-- [ ] **T-002-105** Domain deterministic tests: same inputs → same score; band boundaries; penalties
-- [ ] **T-002-106** Document mapping from legacy `recommendedAction` → disposition + format (compat layer plan)
+- [x] **T-002-101** Extract canonical pure `scoringCore` from `services/scoring.ts` (baseline v1 parity)
+- [x] **T-002-102** Introduce `SCORING_ALGORITHM_VERSION` / `scoringVersion` constant (`scoring-v1`)
+- [x] **T-002-103** Define disposition vs output-format types (`dispositionCore.ts`)
+- [x] **T-002-104** Unify explainability weights with scoring core (single weight source)
+- [x] **T-002-105** Domain deterministic tests: same inputs → same score; band boundaries; penalties
+- [x] **T-002-106** Document mapping from legacy `recommendedAction` → disposition + format (compat layer plan)
 
-**Exit:** Domain tests PASS; no behavior change vs baseline v1 without explicit version bump.
+**Exit:** Domain tests PASS; no behavior change vs baseline v1 without explicit version bump. **DONE** — evidence: `tests/scoringCore.test.ts`, `tests/dispositionCore.test.ts`, `tests/scoringArchitecture.test.ts`; `services/scoring.ts` delegates to Domain core.
 
 ---
 

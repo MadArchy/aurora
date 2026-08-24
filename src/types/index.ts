@@ -380,6 +380,23 @@ export type RecommendedAction =
   | 'VIDEO'
   | 'TASK';
 
+/** SPEC-002 — strategic disposition (separate from output format). */
+export type StrategicDisposition =
+  | 'NO_ACTION'
+  | 'MONITOR'
+  | 'SAVE'
+  | 'RESEARCH_REQUIRED'
+  | 'OPPORTUNITY_CANDIDATE'
+  | 'LOW_PRIORITY';
+
+/** SPEC-002 — optional content/output format recommendation. */
+export type OutputFormatRecommendation =
+  | 'NONE'
+  | 'VIDEO'
+  | 'SHORT_POST'
+  | 'ARTICLE'
+  | 'LINKEDIN_POST';
+
 export interface Signal {
   id: string;
   organizationId: string;
@@ -794,7 +811,14 @@ export interface StrategicScoreResult {
   factors: StrategicScoreFactors;
   penalties: StrategicScorePenalties;
   strategicRationale: string;
+  /** @deprecated Compatibility-only — prefer recommendedDisposition + recommendedOutputFormat. */
   recommendedAction: RecommendedAction;
+  /** SPEC-002 canonical strategic disposition recommendation. */
+  recommendedDisposition?: StrategicDisposition;
+  /** SPEC-002 optional output/content format recommendation. */
+  recommendedOutputFormat?: OutputFormatRecommendation;
+  /** SPEC-002 scoring algorithm version identity (e.g. scoring-v1). */
+  scoringVersion?: string;
   scoringStatus: 'NOT_SCORED' | 'LIMITED_CONTEXT' | 'SCORED' | 'FAILED';
   calculatedAt: string;
   /** Territorio de la tesis que disparó el match, cuando la tesis está estructurada. */
