@@ -48,9 +48,19 @@ Phase 0 inventory: 2026-08-24.
 | `recommendedDisposition` | SPEC-002 input | **KEEP** — consumed by Brief snapshot |
 | `recommendedOutputFormat` | SPEC-002 input | **KEEP** — consumed by Brief snapshot |
 | `recommendedAction` (legacy) | Mixed enum on curation | **DEPRECATE** on strategic paths |
-| `thesisId` on Signal | SPEC-001 compatibility projection | **KEEP** — **COMPATIBILITY_ONLY**; **not** SPEC-003 thesis authority |
-| `routingDecision.selectedThesisId` | SPEC-001 CLEAR identity | **KEEP** — **AUTHORITATIVE** persisted thesis for SPEC-003 |
-| `routingDecision` | SPEC-001 | **OTHER_SPEC** — read only |
+| `thesisId` on Signal | SPEC-001 compatibility projection | **COMPATIBILITY_ONLY** — not SPEC-003 authority |
+| `routingDecision.selectedThesisId` | SPEC-001 CLEAR identity | **AUTHORITATIVE** — consumed by Brief |
+| `CurationEntry.thesisId` | Legacy display | **COMPATIBILITY_ONLY** — not strategic authority |
+| `CurationEntry.strategicBriefId` | Brief reference | **MIGRATED** — link only, not authority |
+| `DeliveryPackage.strategicNote` | Was de-facto authority | **DEPRECATED** — not used for authorization |
+| `DeliveryItem.strategicBriefId` | Per-item Brief ref | **MIGRATED** — required for strategic send |
+| `form-generate-content` | Direct AI content | **MIGRATED** — requires APPROVED Brief |
+| `.btn-generate-scientific-article` | Direct AI article | **MIGRATED** |
+| `.btn-create-task-from-rec` | Rec → task | **MIGRATED** |
+| `sendDelivery` | Package materialization | **MIGRATED** — per-item Brief authorization |
+| `saveContent` / `addTask` / `addOpportunity` | Downstream writes | **MIGRATED** — carry `strategicBriefId` |
+| `proposeAngle` | Advisory angle | **MIGRATED** — explicit governed `thesisId` required |
+| `form-add-task` | Manual manager task | **KEEP** — generic operational (non-strategic) |
 
 ---
 

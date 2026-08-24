@@ -173,6 +173,21 @@ export class LocalStrategicBriefStore {
     return this.briefs.size;
   }
 
+  /** List current Brief projections for a tenant (inspection / consumer listing). */
+  listByTenant(tenant: { organizationId: string; clientId: string }): StrategicBrief[] {
+    this.ensureLoaded();
+    const results: StrategicBrief[] = [];
+    for (const raw of this.briefs.values()) {
+      const peeked = peekTenant(raw);
+      if (!peeked) continue;
+      if (peeked.organizationId !== tenant.organizationId || peeked.clientId !== tenant.clientId) {
+        continue;
+      }
+      results.push(parseStoredBrief(raw));
+    }
+    return results;
+  }
+
   private snapshot(): StoreSnapshot {
     return {
       briefs: new Map(this.briefs),

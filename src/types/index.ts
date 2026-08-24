@@ -537,6 +537,11 @@ export interface Task {
   /** Procedencia: ítem curado y briefing que originaron la tarea. */
   curationEntryId?: string;
   deliveryPackageId?: string;
+  /** Governed Strategic Brief authorization reference (SPEC-003 Phase 4). */
+  strategicBriefId?: string;
+  strategicBriefVersion?: number;
+  /** Signal provenance when task derives from strategic intelligence. */
+  signalId?: string;
   scriptPayload?: string;
   clientNotes?: string;
   evidenceUrl?: string;
@@ -637,6 +642,13 @@ export interface ContentItem {
   readyAt?: string;
   /** Veredicto del Claim Safety Engine sobre el cuerpo del contenido. */
   claimSafety?: ClaimSafetyVerdictRecord;
+  /** Governed Strategic Brief authorization reference (SPEC-003 Phase 4). */
+  strategicBriefId?: string;
+  strategicBriefVersion?: number;
+  /** Upstream signal provenance for strategic content. */
+  signalIds?: string[];
+  /** Evidence linkage copied from Brief snapshot where applicable. */
+  supportingEvidenceIds?: string[];
 }
 
 /** Resultado persistido de `reviewClaims`, para no re-evaluar en cada render. */
@@ -719,6 +731,10 @@ export interface Opportunity {
   clientDecision?: 'ACCEPTED' | 'REJECTED';
   clientNotes?: string;
   createdAt: string;
+  /** Governed Strategic Brief authorization reference (SPEC-003 Phase 4). */
+  strategicBriefId?: string;
+  strategicBriefVersion?: number;
+  signalId?: string;
 }
 
 export interface AuditEvent {
@@ -1098,6 +1114,8 @@ export interface CurationEntry {
   decidedAt?: string;
   decidedBy?: string;
   deliveryPackageId?: string | null;
+  /** Reference to governed Strategic Brief — not authority (SPEC-003 Phase 4). */
+  strategicBriefId?: string;
   createdAt: string;
   createdBy: string;
 }
@@ -1227,6 +1245,8 @@ export interface DeliveryItem {
   url?: string;
   /** Justificación del manager: queda visible para el cliente y en auditoría */
   rationale?: string;
+  /** Per-item governed Brief authorization for strategic materialization (SPEC-003 Phase 4). */
+  strategicBriefId?: string;
 }
 
 export interface DeliveryPackage {

@@ -23,7 +23,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 | A7 | UNROUTED cannot authorize downstream action | Fail-closed | ✅ **PASS (Domain+Application gate)** — consumer paths Phase 4 |
 | A8 | No primary/first thesis fallback | Architecture ban | ✅ **PASS (Application+Infrastructure scan)** — Phase 5 remaining |
 | A9 | Multi-signal Brief requires tenant-safe compatible thesis context | Multi-signal validator | ✅ **PASS (Domain+Application)** |
-| A10 | No strategic downstream artifact without approved Brief authorization | Downstream gate | ☐ Phase 4 |
+| A10 | No strategic downstream artifact without approved Brief authorization | Downstream gate | ✅ **PASS (Phase 4 consumer gate)** |
 | A11 | CurationEntry is not strategic authority | Migration | ☐ Phase 4 |
 | A12 | DeliveryPackage is not StrategicBrief authority | Migration | ☐ Phase 4 |
 | A13 | AI remains advisory only | SPEC-005 boundary | ✅ **PASS (Domain+Application boundary)** — Phase 5 remaining |
@@ -41,8 +41,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 | A25 | Domain framework-pure | Architecture test | ✅ **PASS (Domain files)** — Phase 5 remaining |
 | A26 | Application depends on ports, not infrastructure | Hexagonal test | ✅ **PASS (Application+Infrastructure architecture)** — Phase 5 remaining |
 | A27 | Direct UI Brief-authority writes prohibited | Architecture ban | ◐ **PARTIAL (Application API exists)** — UI still Phase 4/5 |
-| A28 | Legacy direct strategic content paths migrated or blocked | Phase 4 matrix | ☐ Phase 4 |
-| A29 | Strategic downstream artifacts carry Brief authorization reference | `strategicBriefId` | ☐ Phase 4 |
+| A28 | Legacy direct strategic content paths migrated or blocked | Phase 4 matrix | ✅ **PASS (Phase 4)** |
+| A29 | Strategic downstream artifacts carry Brief authorization reference | `strategicBriefId` | ✅ **PASS (Phase 4 traceability)** |
 | A30 | No silent learning / automatic strategic mutation | Governance | ✅ **PASS (Domain+Application)** — Phase 5 remaining |
 | A31 | SPEC-001 regression PASS | Test suite | ☐ Phase 6 |
 | A32 | SPEC-002 regression PASS | Test suite | ☐ Phase 6 |
@@ -54,7 +54,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 **Implementation acceptance:** **Domain + Application + local persistence advanced (Phase 3)** — not CODE_COMPLETE  
 **CODE_COMPLETE:** **NO** — consumer migration remaining (Phase 4)
 
-**P1 at Phase 3 exit:** F-003-01 **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** · F-003-02 **OPEN_PHASE_4** · F-003-03 **IMPLEMENTED_AUDIT_PERSISTENCE** · P1 count **3** (unchanged)
+**P1 at Phase 4 exit:** F-003-01 **RESOLVED** · F-003-02 **RESOLVED** · F-003-03 **RESOLVED** · P1 count **0**
 
 **Thesis authority (corrected Phase 3):** `AUTHORITATIVE PERSISTED THESIS = routingDecision.selectedThesisId`. Legacy `signal.thesisId` = **COMPATIBILITY_ONLY / NOT USED BY SPEC-003 AUTHORITY**. Legacy CLEAR without `selectedThesisId` = **FAIL_CLOSED**. SPEC-001 compatibility checkpoint = `80c93d8b0b03a5eaa0e3a75e953131e4700873d5`. Original SPEC-001 CODE_COMPLETE = `4643cad115b4294c2fb04bd15a08d4478cc64039`. Production backfill **NOT PERFORMED**.
 
@@ -119,7 +119,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 | Phase 2 Application / governance | ✅ **COMPLETE** |
 | Phase 3 Persistence / history | ✅ **COMPLETE** (pre-remediation `52d61df4…`) |
 | Phase 3 correction (exclusive thesis reader) | ✅ **COMPLETE** — SPEC-001 patch `80c93d8b…` integrated |
-| Phase 4 Consumer migration | ☐ **NOT STARTED** |
+| Phase 4 Consumer migration | ✅ **COMPLETE** |
+| Phase 5 Security / regression | ☐ **NOT STARTED** |
 | CODE_COMPLETE (T-003-604) | ☐ **NOT STARTED** |
 
 **Current:** `APPROVED` · Phase 3 **COMPLETE** · Phase 4 **NOT STARTED**

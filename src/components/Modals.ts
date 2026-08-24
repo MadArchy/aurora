@@ -1,4 +1,5 @@
 import { dbService } from '../services/db';
+import { listStrategicBriefs } from '../services/strategicBriefConsumer';
 import { authService } from '../services/auth';
 import { esc, escAttr, nl2br } from '../lib/escape';
 import { renderDeliveryBriefingCard } from './ClientPortal';
@@ -756,15 +757,20 @@ export function renderDeliveryPreviewModal(packageId: string): string {
 
 export function renderGenerateContentModal(
   clientId: string,
-  options?: { thesisId?: string; topic?: string }
+  options?: { thesisId?: string; topic?: string; strategicBriefId?: string }
 ): string {
-  const theses = dbService.getThesesByClient(clientId);
-  // ALLOWED_PRESENTATION_ONLY — <select> default; strategic generate uses selected value.
-  const preferred =
-    (options?.thesisId && theses.find((t) => t.id === options.thesisId)) ||
-    dbService.resolveThesisFor({ clientId, selectedThesisId: options?.thesisId });
-  const selectedId = preferred?.id || '';
+  const approvedBriefs = listStrategicBriefs(clientId).filter(
+    (b) =>
+      b.status === 'APPROVED' &&
+      !b.supersededByBriefId &&
+      b.decision.authorizedAction === 'CREATE_CONTENT'
+  );
   const topic = options?.topic || '';
+  const selectedBrief =
+    options?.strategicBriefId ||
+    approvedBriefs.find((b) => !options?.thesisId || b.thesisId === options.thesisId)?.id ||
+    approvedBriefs[0]?.id ||
+    '';
 
   return `
     <div id="generate-content-modal" class="modal-overlay">
@@ -772,19 +778,19 @@ export function renderGenerateContentModal(
         <div class="modal-header">
           <div class="modal-header-copy">
             <h3>Nuevo contenido</h3>
-            <p>Elige tesis, formato y tema. La voz de la tesis se aplica al borrador.</p>
+            <p>Requiere un Strategic Brief APPROVED con autorización CREATE_CONTENT.</p>
           </div>
           <button id="btn-close-generate-content" class="btn btn-secondary btn-sm modal-close" type="button" aria-label="Cerrar">✕</button>
         </div>
 
-        ${theses.length
+        ${approvedBriefs.length
           ? `<form id="form-generate-content" data-client-id="${escAttr(clientId)}">
                <div class="form-group">
-                 <label class="form-label" for="generate-thesis">Tesis</label>
-                 <select id="generate-thesis" class="form-select" required>
-                   ${theses.map((thesis) => `
-                     <option value="${escAttr(thesis.id)}" ${thesis.id === selectedId ? 'selected' : ''}>
-                       ${esc(thesis.title)}${thesis.status === 'ACTIVE' ? '' : ' (inactiva)'}
+                 <label class="form-label" for="generate-strategic-brief">Strategic Brief (APPROVED)</label>
+                 <select id="generate-strategic-brief" class="form-select" required>
+                   ${approvedBriefs.map((brief) => `
+                     <option value="${escAttr(brief.id)}" ${brief.id === selectedBrief ? 'selected' : ''}>
+                       ${esc(brief.id)} · v${brief.version} · ${esc(brief.thesisId)}
                      </option>
                    `).join('')}
                  </select>
@@ -817,7 +823,7 @@ export function renderGenerateContentModal(
                  <button type="submit" class="btn btn-primary">Redactar borrador</button>
                </div>
              </form>`
-          : `<p class="empty-state">Define una tesis antes de generar contenido.</p>
+          : `<p class="empty-state">Create and approve a Strategic Brief (CREATE_CONTENT) before generating strategic content.</p>
              <div class="modal-footer">
                <button type="button" id="btn-cancel-generate-content" class="btn btn-secondary">Cerrar</button>
              </div>`}

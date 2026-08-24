@@ -1,7 +1,7 @@
 # Tasks 003 — Strategic Brief
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 3 COMPLETE** · Phase 4 **NOT STARTED**  
+**Implementation:** **Phase 4 COMPLETE** · Phase 5 **NOT STARTED**  
 **Branch:** `spec/003-strategic-brief`  
 **Base SHA:** `e422359ab90e84d4eb26007db23da6d54390cf15`  
 **Formal SPEC checkpoint:** `3c04c6df42d1d51fe8e38fd96deec3af826995eb`  
@@ -108,17 +108,23 @@ F-003-01 = **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** · F-003-03 = **IMPLEMENTED
 
 ## Phase 4 — Consumer migration
 
-- [ ] **T-003-401** Block `form-generate-content` without approved Brief (strategic path)
-- [ ] **T-003-402** Block `.btn-generate-scientific-article` without approved Brief
-- [ ] **T-003-403** Block `.btn-create-task-from-rec` without approved Brief
-- [ ] **T-003-404** `sendDelivery`: require `strategicBriefId` on strategic items
-- [ ] **T-003-405** Curation → Brief workflow (intake only; Brief is authority)
-- [ ] **T-003-406** `addOpportunity` / `saveContent` / task create: carry `strategicBriefId`
-- [ ] **T-003-407** `proposeAngle`: require Brief/thesis context — remove silent fallback
-- [ ] **T-003-408** DeliveryPackage: reference Brief; demote `strategicNote`
-- [ ] **T-003-409** Migration matrix rows → MIGRATED / DEPRECATED
+- [x] **T-003-401** Block `form-generate-content` without approved Brief (strategic path)
+- [x] **T-003-402** Block `.btn-generate-scientific-article` without approved Brief
+- [x] **T-003-403** Block `.btn-create-task-from-rec` without approved Brief
+- [x] **T-003-404** `sendDelivery`: require `strategicBriefId` on strategic items
+- [x] **T-003-405** Curation → Brief workflow (intake only; Brief is authority)
+- [x] **T-003-406** `addOpportunity` / `saveContent` / task create: carry `strategicBriefId`
+- [x] **T-003-407** `proposeAngle`: require Brief/thesis context — remove silent fallback
+- [x] **T-003-408** DeliveryPackage: reference Brief; demote `strategicNote`
+- [x] **T-003-409** Migration matrix rows → MIGRATED / DEPRECATED
 
-**Exit:** A10, A28, A29 green; zero strategic bypass paths.
+**Exit:** A10, A28, A29 advanced — strategic consumer paths gated. **DONE** — evidence: `strategicBriefConsumer.ts`, `main.ts`, Phase 4 tests.
+
+**Partial delivery policy:** all-or-nothing — unauthorized strategic item blocks entire send before AI.
+
+**Generic manual tasks:** `form-add-task` ungated (GENERIC_NON_STRATEGIC).
+
+F-003-01 = **RESOLVED** · F-003-02 = **RESOLVED** · F-003-03 = **RESOLVED** · P1 **0**. Phase 5 **NOT STARTED**.
 
 ---
 

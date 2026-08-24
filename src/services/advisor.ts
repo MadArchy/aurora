@@ -355,21 +355,23 @@ export async function generatePositioningAdvice(
 }
 
 /** Propone el ángulo editorial de un ítem en la mesa de curación.
- * Requires explicit thesisId — no primary fallback (SPEC-001 Phase 4).
+ * Requires explicit governed thesisId — no primary/legacy fallback (SPEC-003 Phase 4).
  */
 export async function proposeAngle(params: {
   clientId: string;
   title: string;
   snippet: string;
-  /** Explicit thesis — required for strategic curation angle. */
-  thesisId?: string;
+  /** Explicit governed thesis — required for strategic curation angle. */
+  thesisId: string;
 }): Promise<{ angle: string; usedLiveModel: boolean }> {
   const client = dbService.getClientById(params.clientId);
-  const thesis = params.thesisId
-    ? dbService.getThesisById(params.clientId, params.thesisId)
-    : undefined;
+  const thesis = dbService.getThesisById(params.clientId, params.thesisId);
 
-  if (client && thesis && isAdvisorGatewayAvailable()) {
+  if (!thesis) {
+    throw new Error('Explicit governed thesis context is required for proposeAngle.');
+  }
+
+  if (client && isAdvisorGatewayAvailable()) {
     try {
       const { output } = await executeAdvisorCurationAngleViaGateway({
         thesis,
@@ -382,8 +384,8 @@ export async function proposeAngle(params: {
     }
   }
 
-  const audience = thesis?.targetAudience || 'tu audiencia';
-  const domain = thesis?.domain || 'el dominio del cliente';
+  const audience = thesis.targetAudience || 'tu audiencia';
+  const domain = thesis.domain || 'el dominio del cliente';
   return {
     angle: `Qué implica "${params.title}" para ${audience}: lectura desde ${domain} con las tres decisiones que deberían tomar esta semana.`,
     usedLiveModel: false,

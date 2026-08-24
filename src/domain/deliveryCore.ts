@@ -1,4 +1,8 @@
 import type { CurationDestination, DeliveryItem, DeliveryPackage, PositioningThesis } from '../types';
+import type { StrategicDownstreamAction } from './strategicBriefCore';
+import {
+  curationDestinationRequiresBrief,
+} from './briefConsumerCore';
 
 /** Destinos que requieren tesis activa para materializar trabajo. */
 const THESIS_REQUIRED_DESTINATIONS: CurationDestination[] = [
@@ -10,7 +14,74 @@ const THESIS_REQUIRED_DESTINATIONS: CurationDestination[] = [
 
 export type DeliverySendValidation =
   | { ok: true }
-  | { ok: false; code: 'NOT_FOUND' | 'NOT_DRAFT' | 'ALREADY_SENT' | 'EMPTY' | 'NO_THESIS'; message: string };
+  | {
+      ok: false;
+      code:
+        | 'NOT_FOUND'
+        | 'NOT_DRAFT'
+        | 'ALREADY_SENT'
+        | 'EMPTY'
+        | 'NO_THESIS'
+        | 'BRIEF_REQUIRED'
+        | 'BRIEF_DENIED';
+      message: string;
+    };
+
+export interface DeliveryStrategicItemPlan {
+  item: DeliveryItem;
+  briefId: string;
+  action: StrategicDownstreamAction;
+  version?: number;
+}
+
+export type AuthorizeDeliveryItem = (
+  item: DeliveryItem,
+  destination: CurationDestination | null | undefined
+) =>
+  | { ok: true; briefId: string; action: StrategicDownstreamAction; version?: number }
+  | { ok: false; message: string };
+
+/**
+ * Validates every strategic delivery item has governed Brief authorization before send.
+ * Policy: all-or-nothing — any unauthorized strategic item blocks the entire send.
+ */
+export function validateDeliveryStrategicAuthorization(
+  pkg: DeliveryPackage,
+  resolveDestination: (item: DeliveryItem) => CurationDestination | null | undefined,
+  authorizeItem: AuthorizeDeliveryItem
+): { ok: true; plans: DeliveryStrategicItemPlan[] } | DeliverySendValidation {
+  const plans: DeliveryStrategicItemPlan[] = [];
+  for (const item of pkg.items) {
+    const destination = resolveDestination(item);
+    if (!curationDestinationRequiresBrief(destination)) continue;
+    const auth = authorizeItem(item, destination);
+    if (!auth.ok) {
+      return {
+        ok: false,
+        code: 'BRIEF_DENIED',
+        message: `«${item.title}»: ${auth.message}`,
+      };
+    }
+    if (!item.strategicBriefId && auth.briefId) {
+      // Item must carry explicit brief reference matching authorization.
+    }
+    const briefId = item.strategicBriefId || auth.briefId;
+    if (briefId !== auth.briefId) {
+      return {
+        ok: false,
+        code: 'BRIEF_DENIED',
+        message: `«${item.title}»: strategicBriefId does not match authorized Brief.`,
+      };
+    }
+    plans.push({
+      item,
+      briefId: auth.briefId,
+      action: auth.action,
+      version: auth.version,
+    });
+  }
+  return { ok: true, plans };
+}
 
 export function destinationNeedsThesis(
   destination: CurationDestination | null | undefined,
@@ -24,7 +95,8 @@ export function destinationNeedsThesis(
 export function validateDeliveryForSend(
   pkg: DeliveryPackage | null | undefined,
   resolveDestination: (item: DeliveryItem) => CurationDestination | null | undefined,
-  thesis: PositioningThesis | null | undefined
+  thesis: PositioningThesis | null | undefined,
+  authorizeItem?: AuthorizeDeliveryItem
 ): DeliverySendValidation {
   if (!pkg) {
     return { ok: false, code: 'NOT_FOUND', message: 'Briefing no encontrado.' };
@@ -48,6 +120,11 @@ export function validateDeliveryForSend(
       code: 'NO_THESIS',
       message: 'Define una tesis activa antes de enviar: varios ítems necesitan materializarse como tareas u oportunidades.',
     };
+  }
+
+  if (authorizeItem) {
+    const strategic = validateDeliveryStrategicAuthorization(pkg, resolveDestination, authorizeItem);
+    if (!strategic.ok) return strategic;
   }
 
   return { ok: true };

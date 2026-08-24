@@ -1,4 +1,6 @@
 import { dbService } from '../services/db';
+import { getStrategicBrief } from '../services/strategicBriefConsumer';
+import { curationDestinationToAuthorizedAction } from '../domain/briefConsumerCore';
 import { buildTopics, momentumLabel } from '../services/topics';
 import {
   AdviceAction,
@@ -1092,6 +1094,30 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
 // Mesa de curación
 // ==========================================
 
+function renderCurationBriefGovernance(entry: CurationEntry): string {
+  const brief = entry.strategicBriefId
+    ? getStrategicBrief(entry.strategicBriefId, entry.clientId)
+    : undefined;
+  if (brief?.status === 'APPROVED' && !brief.supersededByBriefId) {
+    return `<p class="muted small">Strategic Brief: <strong>APPROVED</strong> · ${esc(brief.id)} · action ${esc(brief.decision.authorizedAction)}</p>`;
+  }
+  if (brief) {
+    return `<p class="muted small">Strategic Brief: ${esc(brief.status)} · ${esc(brief.id)}</p>
+      <button type="button" class="btn btn-secondary btn-sm btn-approve-strategic-brief"
+              data-brief-id="${escAttr(brief.id)}" data-client-id="${escAttr(entry.clientId)}">
+        Approve Strategic Brief
+      </button>`;
+  }
+  if (entry.destination && curationDestinationToAuthorizedAction(entry.destination)) {
+    return `<p class="muted small">Strategic Brief required before delivery materialization.</p>
+      <button type="button" class="btn btn-secondary btn-sm btn-create-strategic-brief"
+              data-curation-id="${escAttr(entry.id)}" data-destination="${escAttr(entry.destination)}">
+        Create Strategic Brief DRAFT
+      </button>`;
+  }
+  return `<p class="muted small">Choose a strategic destination, then create a Strategic Brief.</p>`;
+}
+
 function renderCurationEntry(entry: CurationEntry): string {
   return `
     <article class="curation-card">
@@ -1113,6 +1139,8 @@ function renderCurationEntry(entry: CurationEntry): string {
         : `<button class="btn btn-secondary btn-sm btn-suggest-angle" data-curation-id="${esc(entry.id)}">
              Proponer ángulo
            </button>`}
+
+      <div class="curation-brief-governance">${renderCurationBriefGovernance(entry)}</div>
 
       <form class="curation-form" data-curation-id="${esc(entry.id)}">
         <div class="form-group">

@@ -106,6 +106,17 @@ import type {
 } from './types';
 import { metricsService } from './services/metrics';
 import { readingTaskDescription, validateDeliveryForSend } from './domain/deliveryCore';
+import { curationDestinationToDownstreamAction } from './domain/briefConsumerCore';
+import type { StrategicDownstreamAction } from './domain/strategicBriefCore';
+import {
+  approveStrategicBrief,
+  createBriefFromCurationEntry,
+  formatAuthorizationDenial,
+  findApprovedBriefForSignal,
+  getStrategicBrief,
+  listStrategicBriefs,
+  requireStrategicAuthorization,
+} from './services/strategicBriefConsumer';
 import { fetchSourceItems } from './services/sourceApi';
 import { labelSourceRunError } from './domain/sourceIngestCore';
 import { esc } from './lib/escape';
@@ -2594,6 +2605,7 @@ class App {
       note: entry.snippet,
       url: entry.sourceUrl,
       rationale: entry.managerRationale,
+      strategicBriefId: entry.strategicBriefId,
     });
     dbService.attachCurationToDelivery(curationId, pkg.id);
     return true;
@@ -2664,11 +2676,24 @@ class App {
         target.disabled = true;
         target.textContent = 'Pensando…';
         try {
+          const brief = entry.strategicBriefId
+            ? getStrategicBrief(entry.strategicBriefId, entry.clientId)
+            : undefined;
+          const signal = entry.signalId ? dbService.getSignalById(entry.signalId) : undefined;
+          const thesisId =
+            brief?.thesisId ?? signal?.routingDecision?.selectedThesisId;
+          if (!thesisId) {
+            this.showToast(
+              'Routing must be resolved first — create a Strategic Brief or ensure CLEAR governed routing.',
+              'warning'
+            );
+            return;
+          }
           const { angle, usedLiveModel } = await proposeAngle({
             clientId: entry.clientId,
             title: entry.title,
             snippet: entry.snippet,
-            thesisId: entry.thesisId || this.filterState.thesisId || undefined,
+            thesisId,
           });
           dbService.setCurationAngle(curationId, angle);
           this.showToast(usedLiveModel ? 'Ángulo propuesto con modelo' : 'Ángulo propuesto con reglas locales', 'success');
@@ -2696,6 +2721,38 @@ class App {
         if (!id) return;
         dbService.reopenCuration(id);
         this.showToast('Ítem reabierto para volver a decidir', 'info');
+        this.render();
+      });
+    });
+
+    document.querySelectorAll('.btn-create-strategic-brief').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const curationId = (e.currentTarget as HTMLElement).getAttribute('data-curation-id');
+        const destination = (e.currentTarget as HTMLElement).getAttribute('data-destination') as CurationDestination;
+        if (!curationId || !destination) return;
+        const entry = dbService.getCurationById(curationId);
+        if (!entry) return;
+        try {
+          const { brief } = createBriefFromCurationEntry({ entry, destination });
+          this.showToast(`Strategic Brief DRAFT created (${brief.id}).`, 'success');
+        } catch (error) {
+          this.showToast(error instanceof Error ? error.message : 'Could not create Strategic Brief.', 'warning');
+        }
+        this.render();
+      });
+    });
+
+    document.querySelectorAll('.btn-approve-strategic-brief').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const briefId = (e.currentTarget as HTMLElement).getAttribute('data-brief-id');
+        const clientId = (e.currentTarget as HTMLElement).getAttribute('data-client-id');
+        if (!briefId || !clientId) return;
+        try {
+          approveStrategicBrief({ clientId, briefId });
+          this.showToast('Strategic Brief approved.', 'success');
+        } catch (error) {
+          this.showToast(error instanceof Error ? error.message : 'Could not approve Strategic Brief.', 'warning');
+        }
         this.render();
       });
     });
@@ -2902,25 +2959,58 @@ class App {
   }
 
   /** Materializa el briefing: valida, genera borradores IA, persiste en un solo lote. */
+  private gateStrategicDownstream(
+    clientId: string,
+    briefId: string | undefined,
+    action: StrategicDownstreamAction
+  ):
+    | { ok: true; briefId: string; version?: number; thesisId: string; signalIds: string[]; evidenceIds: string[] }
+    | { ok: false; message: string } {
+    const auth = requireStrategicAuthorization({ clientId, briefId, requestedAction: action });
+    if (!auth.authorized) {
+      return { ok: false, message: formatAuthorizationDenial(auth) };
+    }
+    const brief = getStrategicBrief(auth.briefId, clientId);
+    if (!brief) {
+      return {
+        ok: false,
+        message: 'Strategic Brief required — create and approve a Brief for this signal first.',
+      };
+    }
+    return {
+      ok: true,
+      briefId: brief.id,
+      version: auth.version ?? brief.version,
+      thesisId: brief.thesisId,
+      signalIds: [...brief.signalIds],
+      evidenceIds: [...brief.supportingEvidenceIds],
+    };
+  }
+
   private async sendDelivery(packageId: string) {
     const pkg = dbService.getDeliveryById(packageId);
     const clientId = pkg?.clientId;
-    const validationThesis = clientId
-      ? pkg?.items
-          .map((item) => (item.refId ? dbService.getCurationById(item.refId) : undefined))
-          .map((entry) =>
-            dbService.resolveThesisFor({
-              clientId,
-              entityThesisId: entry?.thesisId,
-            })
-          )
-          .find((thesis) => thesis !== undefined)
-      : undefined;
+    if (!pkg || !clientId) {
+      throw new Error('Briefing no encontrado.');
+    }
 
     const validation = validateDeliveryForSend(
       pkg,
       (item) => (item.refId ? dbService.getCurationById(item.refId)?.destination : undefined),
-      validationThesis
+      undefined,
+      (item, destination) => {
+        const action = destination ? curationDestinationToDownstreamAction(destination) : undefined;
+        if (!action) {
+          return { ok: false, message: 'Strategic destination requires Brief authorization.' };
+        }
+        const entry = item.refId ? dbService.getCurationById(item.refId) : undefined;
+        const briefId = item.strategicBriefId || entry?.strategicBriefId;
+        const auth = requireStrategicAuthorization({ clientId, briefId, requestedAction: action });
+        if (!auth.authorized) {
+          return { ok: false, message: formatAuthorizationDenial(auth) };
+        }
+        return { ok: true, briefId: auth.briefId, action, version: auth.version };
+      }
     );
     if (!validation.ok) {
       throw new Error(validation.message);
@@ -2928,42 +3018,90 @@ class App {
 
     type CurationEntry = ReturnType<typeof dbService.getCurationById>;
     type DraftPlan =
-      | { kind: 'task_content'; item: DeliveryItem; entry?: CurationEntry; destination: 'TASK_VIDEO' | 'TASK_ARTICLE'; draft: Awaited<ReturnType<typeof aiService.generateContentDraft>>; thesis: PositioningThesis }
-      | { kind: 'opportunity'; item: DeliveryItem; entry?: CurationEntry; thesis: PositioningThesis }
+      | {
+          kind: 'task_content';
+          item: DeliveryItem;
+          entry?: CurationEntry;
+          destination: 'TASK_VIDEO' | 'TASK_ARTICLE';
+          draft: Awaited<ReturnType<typeof aiService.generateContentDraft>>;
+          thesis: PositioningThesis;
+          gate: { briefId: string; version?: number; signalIds: string[]; evidenceIds: string[] };
+        }
+      | {
+          kind: 'opportunity';
+          item: DeliveryItem;
+          entry?: CurationEntry;
+          thesis: PositioningThesis;
+          gate: { briefId: string; version?: number; signalIds: string[]; evidenceIds: string[] };
+        }
       | { kind: 'evidence'; item: DeliveryItem; entry?: CurationEntry; thesis: PositioningThesis }
-      | { kind: 'reading'; item: DeliveryItem; entry?: CurationEntry; thesis: PositioningThesis };
+      | {
+          kind: 'reading';
+          item: DeliveryItem;
+          entry?: CurationEntry;
+          thesis: PositioningThesis;
+          gate: { briefId: string; version?: number; signalIds: string[]; evidenceIds: string[] };
+        };
 
     const plans: DraftPlan[] = [];
-    const briefingItems = pkg!.items;
+    const briefingItems = pkg.items;
 
     for (const item of briefingItems) {
       const entry = item.refId ? dbService.getCurationById(item.refId) : undefined;
       const destination = entry?.destination;
-      const thesis = dbService.resolveThesisFor({
-        clientId: clientId!,
-        entityThesisId: entry?.thesisId,
-      });
-      if (!thesis) {
-        if (destination || item.kind === 'READING') {
-          throw new Error('El ítem no tiene una tesis explícita válida para materializarse.');
+
+      if (destination === 'EVIDENCE') {
+        const thesis = entry?.thesisId
+          ? dbService.getThesisById(clientId, entry.thesisId)
+          : undefined;
+        if (!thesis) {
+          throw new Error('El ítem de evidencia requiere contexto de tesis válido.');
+        }
+        plans.push({ kind: 'evidence', item, entry, thesis });
+        continue;
+      }
+
+      const action = destination ? curationDestinationToDownstreamAction(destination) : undefined;
+      if (!action) {
+        if (item.kind === 'READING') {
+          const gate = this.gateStrategicDownstream(
+            clientId,
+            item.strategicBriefId || entry?.strategicBriefId,
+            'CREATE_TASK'
+          );
+          if (!gate.ok) throw new Error(gate.message);
+          const thesis = dbService.getThesisById(clientId, gate.thesisId);
+          if (!thesis) throw new Error('Approved Brief thesis not found.');
+          plans.push({ kind: 'reading', item, entry, thesis, gate });
         }
         continue;
+      }
+
+      const gate = this.gateStrategicDownstream(
+        clientId,
+        item.strategicBriefId || entry?.strategicBriefId,
+        action
+      );
+      if (!gate.ok) throw new Error(gate.message);
+
+      const thesis = dbService.getThesisById(clientId, gate.thesisId);
+      if (!thesis) {
+        throw new Error('Approved Brief thesis not found.');
       }
 
       if (destination === 'TASK_VIDEO' || destination === 'TASK_ARTICLE') {
         const format = destination === 'TASK_VIDEO' ? 'VIDEO_SCRIPT' : 'LINKEDIN_ARTICLE';
         const draft = await aiService.generateContentDraft(thesis, item.title, format);
-        plans.push({ kind: 'task_content', item, entry, destination, draft, thesis });
+        plans.push({ kind: 'task_content', item, entry, destination, draft, thesis, gate });
       } else if (destination === 'OPPORTUNITY') {
-        plans.push({ kind: 'opportunity', item, entry, thesis });
-      } else if (destination === 'EVIDENCE') {
-        plans.push({ kind: 'evidence', item, entry, thesis });
-      } else if (destination === 'REFERENCE_READING' || item.kind === 'READING') {
-        plans.push({ kind: 'reading', item, entry, thesis });
+        plans.push({ kind: 'opportunity', item, entry, thesis, gate });
+      } else if (destination === 'REFERENCE_READING') {
+        plans.push({ kind: 'reading', item, entry, thesis, gate });
       }
     }
 
     let createdTasks = 0;
+    const convertedSignalIds: string[] = [];
     dbService.runInSaveBatch(() => {
       for (const plan of plans) {
         if (plan.kind === 'task_content') {
@@ -2976,6 +3114,10 @@ class App {
               managerNotes: `${plan.draft.managerNotes || ''} Justificación: ${plan.item.rationale || 'sin nota'}`.trim(),
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
+              strategicBriefId: plan.gate.briefId,
+              strategicBriefVersion: plan.gate.version,
+              signalIds: plan.gate.signalIds,
+              supportingEvidenceIds: plan.gate.evidenceIds,
             },
             'CLIENT_REVIEW',
             'Enviado con briefing'
@@ -2986,7 +3128,7 @@ class App {
 
           dbService.addTask({
             organizationId: plan.thesis.organizationId,
-            clientId: clientId!,
+            clientId,
             thesisId: plan.thesis.id,
             type: plan.destination === 'TASK_VIDEO' ? 'RECORD_VIDEO' : 'REVIEW_ARTICLE',
             title: plan.item.title.slice(0, 90),
@@ -2997,12 +3139,16 @@ class App {
             curationEntryId: plan.entry?.id,
             deliveryPackageId: packageId,
             scriptPayload: plan.draft.teleprompterScript,
+            strategicBriefId: plan.gate.briefId,
+            strategicBriefVersion: plan.gate.version,
+            signalId: plan.gate.signalIds[0],
           });
           createdTasks += 1;
+          for (const sid of plan.gate.signalIds) convertedSignalIds.push(sid);
         } else if (plan.kind === 'opportunity') {
           dbService.addOpportunity({
             organizationId: plan.thesis.organizationId,
-            clientId: clientId!,
+            clientId,
             thesisId: plan.thesis.id,
             title: plan.item.title.slice(0, 120),
             organization: plan.entry?.sourceName || 'Por confirmar',
@@ -3011,11 +3157,15 @@ class App {
             description: plan.item.note || plan.item.title,
             fitRationale: plan.item.rationale || 'Alineado con la tesis activa.',
             status: 'SENT_TO_CLIENT',
+            strategicBriefId: plan.gate.briefId,
+            strategicBriefVersion: plan.gate.version,
+            signalId: plan.gate.signalIds[0],
           });
+          for (const sid of plan.gate.signalIds) convertedSignalIds.push(sid);
         } else if (plan.kind === 'evidence') {
           dbService.addEvidenceItem({
             organizationId: plan.thesis.organizationId,
-            clientId: clientId!,
+            clientId,
             title: plan.item.title.slice(0, 120),
             type: 'DOCUMENT',
             sourceUrl: plan.item.url,
@@ -3027,7 +3177,7 @@ class App {
         } else if (plan.kind === 'reading') {
           dbService.addTask({
             organizationId: plan.thesis.organizationId,
-            clientId: clientId!,
+            clientId,
             thesisId: plan.thesis.id,
             type: 'SUBMIT_INFO',
             title: `Leer: ${plan.item.title.slice(0, 80)}`,
@@ -3036,11 +3186,15 @@ class App {
             status: 'ASSIGNED',
             curationEntryId: plan.entry?.id,
             deliveryPackageId: packageId,
+            strategicBriefId: plan.gate.briefId,
+            strategicBriefVersion: plan.gate.version,
+            signalId: plan.gate.signalIds[0],
           });
           createdTasks += 1;
+          for (const sid of plan.gate.signalIds) convertedSignalIds.push(sid);
         }
       }
-      dbService.markDeliverySent(packageId);
+      dbService.markDeliverySent(packageId, [...new Set(convertedSignalIds)]);
     });
 
     const notified = notifyClient(clientId!, {
@@ -3363,13 +3517,15 @@ class App {
     formGenerate?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const clientId = formGenerate.getAttribute('data-client-id') || this.resolveClientId();
-      const thesisId = (document.getElementById('generate-thesis') as HTMLSelectElement | null)?.value;
-      const thesis = dbService.resolveThesisFor({
-        clientId,
-        selectedThesisId: thesisId || this.filterState.thesisId,
-      });
+      const briefId = (document.getElementById('generate-strategic-brief') as HTMLSelectElement | null)?.value;
+      const gate = this.gateStrategicDownstream(clientId, briefId, 'CREATE_CONTENT');
+      if (!gate.ok) {
+        this.showToast(gate.message, 'warning');
+        return;
+      }
+      const thesis = dbService.getThesisById(clientId, gate.thesisId);
       if (!thesis) {
-        this.showToast('Define una tesis antes de generar contenido.', 'warning');
+        this.showToast('Approved Brief thesis not found.', 'warning');
         return;
       }
 
@@ -3395,6 +3551,10 @@ class App {
           id: contentId,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          strategicBriefId: gate.briefId,
+          strategicBriefVersion: gate.version,
+          signalIds: gate.signalIds,
+          supportingEvidenceIds: gate.evidenceIds,
         });
         this.syncContentToPipelineStatus(contentId, draft.status);
         this.showToast('Borrador creado. Revísalo antes de enviarlo al cliente.', 'success');
@@ -3416,13 +3576,23 @@ class App {
         const why = target.getAttribute('data-sci-why') || '';
         const venue = target.getAttribute('data-sci-venue') || 'Working paper';
         const role = target.getAttribute('data-sci-role') || '';
-        const thesis =
-          dbService.resolveThesisFor({
-            clientId,
-            selectedThesisId: this.filterState.thesisId,
-          });
+        const approved = listStrategicBriefs(clientId).filter(
+          (b) =>
+            b.status === 'APPROVED' &&
+            !b.supersededByBriefId &&
+            b.decision.authorizedAction === 'CREATE_CONTENT'
+        );
+        const brief =
+          approved.find((b) => !this.filterState.thesisId || b.thesisId === this.filterState.thesisId) ??
+          approved[0];
+        const gate = this.gateStrategicDownstream(clientId, brief?.id, 'CREATE_CONTENT');
+        if (!gate.ok) {
+          this.showToast(gate.message, 'warning');
+          return;
+        }
+        const thesis = dbService.getThesisById(clientId, gate.thesisId);
         if (!thesis) {
-          this.showToast('Define una tesis antes de generar el artículo científico.', 'warning');
+          this.showToast('Approved Brief thesis not found.', 'warning');
           return;
         }
         if (!topic.trim()) return;
@@ -3440,6 +3610,10 @@ class App {
             id: contentId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            strategicBriefId: gate.briefId,
+            strategicBriefVersion: gate.version,
+            signalIds: gate.signalIds,
+            supportingEvidenceIds: gate.evidenceIds,
           });
           this.syncContentToPipelineStatus(contentId, draft.status);
           this.showToast('Borrador científico creado. Revísalo: no publiques citas no verificadas.', 'success');
@@ -3692,10 +3866,29 @@ class App {
         const rec = dbService.getRecommendations().find((r) => r.id === recId);
         if (!rec) return;
 
-        const theses = dbService.getThesesByClient(rec.clientId);
-        const thesis = theses.find((t) => t.id === rec.thesisId);
+        const brief =
+          (rec.signalId
+            ? findApprovedBriefForSignal({
+                clientId: rec.clientId,
+                signalId: rec.signalId,
+                action: 'CREATE_TASK',
+              })
+            : undefined) ??
+          listStrategicBriefs(rec.clientId).find(
+            (b) =>
+              b.status === 'APPROVED' &&
+              !b.supersededByBriefId &&
+              b.decision.authorizedAction === 'CREATE_TASK' &&
+              b.thesisId === rec.thesisId
+          );
+        const gate = this.gateStrategicDownstream(rec.clientId, brief?.id, 'CREATE_TASK');
+        if (!gate.ok) {
+          this.showToast(gate.message, 'warning');
+          return;
+        }
+        const thesis = dbService.getThesisById(rec.clientId, gate.thesisId);
         if (!thesis) {
-          this.showToast('No se encontró la tesis asociada a la recomendación.', 'warning');
+          this.showToast('Approved Brief thesis not found.', 'warning');
           return;
         }
 
@@ -3708,6 +3901,10 @@ class App {
             status: 'AI_GENERATED',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            strategicBriefId: gate.briefId,
+            strategicBriefVersion: gate.version,
+            signalIds: gate.signalIds,
+            supportingEvidenceIds: gate.evidenceIds,
           },
           'CLIENT_REVIEW',
           'Tarea desde recomendación'
@@ -3723,6 +3920,9 @@ class App {
           status: 'ASSIGNED',
           contentItemId: contentId,
           scriptPayload: draft.teleprompterScript,
+          strategicBriefId: gate.briefId,
+          strategicBriefVersion: gate.version,
+          signalId: gate.signalIds[0] ?? rec.signalId,
         });
         dbService.updateRecommendationStatus(rec.id, 'CONVERTED_TO_TASK');
         this.showToast(

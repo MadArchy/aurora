@@ -2421,6 +2421,25 @@ class DataService {
     this.saveAll();
   }
 
+  public setCurationStrategicBriefId(id: string, strategicBriefId: string | null): void {
+    const item = this.curation.find((c) => c.id === id);
+    if (!item) return;
+    item.strategicBriefId = strategicBriefId ?? undefined;
+    this.saveAll();
+  }
+
+  public setDeliveryItemStrategicBriefId(
+    packageId: string,
+    itemId: string,
+    strategicBriefId: string
+  ): void {
+    const pkg = this.deliveries.find((d) => d.id === packageId);
+    const item = pkg?.items.find((i) => i.id === itemId);
+    if (!item) return;
+    item.strategicBriefId = strategicBriefId;
+    this.saveAll();
+  }
+
   public removeCuration(id: string): void {
     this.curation = this.curation.filter((c) => c.id !== id);
     this.saveAll();
@@ -2515,18 +2534,21 @@ class DataService {
     return true;
   }
 
-  public markDeliverySent(packageId: string): DeliveryPackage | null {
+  public markDeliverySent(packageId: string, convertedSignalIds?: readonly string[]): DeliveryPackage | null {
     const pkg = this.deliveries.find((d) => d.id === packageId);
     if (!pkg) return null;
     assertTransition(pkg.status, 'SENT', DELIVERY_TRANSITIONS, 'DELIVERY');
     if (!pkg.items.length) throw new Error('DELIVERY_EMPTY');
     pkg.status = 'SENT';
     pkg.sentAt = new Date().toISOString();
-    this.curation
-      .filter((c) => c.deliveryPackageId === packageId)
-      .forEach((c) => {
-        if (c.signalId) this.decideSignal(c.signalId, 'CONVERTED');
-      });
+    const toConvert = new Set(convertedSignalIds ?? []);
+    if (toConvert.size) {
+      this.curation
+        .filter((c) => c.deliveryPackageId === packageId && c.signalId && toConvert.has(c.signalId))
+        .forEach((c) => {
+          if (c.signalId) this.decideSignal(c.signalId, 'CONVERTED');
+        });
+    }
     this.saveAll();
     return pkg;
   }
