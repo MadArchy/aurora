@@ -1,4 +1,4 @@
-import type { Signal, StrategicScoreResult, UserRole } from '../../types';
+import type { StrategicScoreResult, UserRole } from '../../types';
 import {
   ROUTING_ALGORITHM_VERSION,
   toMaterialRoutingDecision,
@@ -13,6 +13,7 @@ import {
 } from '../../domain/routingHistoryCore';
 import { StrategicRoutingError } from './errors';
 import { previousMaterialFromSignal } from './previousMaterial';
+import { toPersistedRoutingDecision } from './persistedRoutingDecision';
 import type { SignalReadPort } from './ports/SignalReadPort';
 import type { SignalWritePort } from './ports/SignalWritePort';
 import type { StrategicScoringPort } from './ports/StrategicScoringPort';
@@ -162,16 +163,7 @@ export function createOverrideSignalThesis(deps: OverrideSignalThesisDeps) {
 
     const materialDecision = toMaterialRoutingDecision(routing);
 
-    const routingDecision: NonNullable<Signal['routingDecision']> = {
-      contested: false,
-      secondaryThesisId: routing.secondaryThesisId,
-      source: 'MANUAL',
-      routingState: 'CLEAR',
-      algorithmVersion: ROUTING_ALGORITHM_VERSION,
-      rationale,
-      actorId: input.actorId,
-      routedAt,
-    };
+    const routingDecision = toPersistedRoutingDecision(routing, { actorId: input.actorId });
 
     let historyEntry = undefined;
     let historyWritten = false;

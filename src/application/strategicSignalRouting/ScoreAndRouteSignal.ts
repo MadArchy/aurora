@@ -14,6 +14,7 @@ import {
 } from '../../domain/routingHistoryCore';
 import { StrategicRoutingError } from './errors';
 import { previousMaterialFromSignal } from './previousMaterial';
+import { toPersistedRoutingDecision } from './persistedRoutingDecision';
 import type { SignalReadPort } from './ports/SignalReadPort';
 import type { SignalWritePort } from './ports/SignalWritePort';
 import type { StrategicScoringPort } from './ports/StrategicScoringPort';
@@ -149,15 +150,7 @@ export function createScoreAndRouteSignal(deps: ScoreAndRouteSignalDeps) {
     const whyNow = deps.scoring.computeWhyNow(input.clientId, signal);
     const materialDecision = toMaterialRoutingDecision(routing);
 
-    const routingDecision: NonNullable<Signal['routingDecision']> = {
-      contested: routing.contested,
-      secondaryThesisId: routing.secondaryThesisId,
-      source: 'AUTO',
-      routingState: routing.routingState,
-      algorithmVersion: routing.algorithmVersion,
-      rationale: routing.rationale,
-      routedAt: routing.routedAt,
-    };
+    const routingDecision = toPersistedRoutingDecision({ ...routing, source: 'AUTO' });
 
     let historyEntry = undefined;
     let historyWritten = false;

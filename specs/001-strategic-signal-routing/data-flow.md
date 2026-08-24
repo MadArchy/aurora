@@ -35,7 +35,9 @@ Governed decision (AUTO source)
         ▼
 Persistence (SignalWritePort)
   - thesisScores retained
-  - routing state / selected thesis (CLEAR only)
+  - routingDecision.routingState
+  - routingDecision.selectedThesisId (CLEAR only; Domain ThesisRoutingResult.selectedThesisId)
+  - signal.thesisId compatibility mirror for CLEAR only
   - NO silent terminal DISCARD from routing alone
         │
         ▼
@@ -130,8 +132,9 @@ AI SUGGESTS → SOFTWARE ROUTES → HUMAN DECIDES WHERE REQUIRED
 |-------|----------------|
 | `organizationId`, `clientId` | AUTHORITATIVE (SPEC-009 envelope) |
 | `routingDecision.*` | ROUTING_OWNED (current state) |
+| `routingDecision.selectedThesisId` | AUTHORITATIVE selected thesis when CLEAR (compatibility persistence patch 2026-08-24) |
 | `thesisScores` | ROUTING_OWNED (per-thesis evidence) |
-| `thesisId` | LEGACY_COMPATIBILITY (mirror CLEAR selected only) |
+| `thesisId` | LEGACY_COMPATIBILITY (mirror CLEAR selected only; not SPEC-003 authority) |
 | `relevanceScore`, `priorityBand`, `scoreRationale`, `scoreBreakdown` | DERIVED (score snapshot) |
 | `whyNow` | DERIVED (adjacent explainability) |
 | `status`, `managerDecision` | OTHER_SPEC_OWNED (not set by routing writer) |

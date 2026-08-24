@@ -140,6 +140,7 @@ describe('SPEC-001 Phase 2 — ScoreAndRouteSignal', () => {
     expect(writes).toHaveLength(1);
     expect(writes[0].thesisId).toBe('thesis_a');
     expect(writes[0].routingDecision.routingState).toBe('CLEAR');
+    expect(writes[0].routingDecision.selectedThesisId).toBe('thesis_a');
     expect(writes[0].routingDecision.source).toBe('AUTO');
     expect(writes[0].scoreResult.recommendedAction).not.toBeUndefined();
   });
@@ -162,6 +163,7 @@ describe('SPEC-001 Phase 2 — ScoreAndRouteSignal', () => {
     expect(result.routing.selectedThesisId).toBeUndefined();
     expect(writes[0].thesisId).toBeUndefined();
     expect(writes[0].routingDecision.routingState).toBe('CONTESTED');
+    expect(writes[0].routingDecision.selectedThesisId).toBeUndefined();
     expect(writes[0].thesisScores).toHaveLength(2);
   });
 
@@ -188,6 +190,7 @@ describe('SPEC-001 Phase 2 — ScoreAndRouteSignal', () => {
     expect(result.routing.selectedThesisId).toBeUndefined();
     expect(writes[0].thesisId).toBeUndefined();
     expect(writes[0].routingDecision.routingState).toBe('UNROUTED');
+    expect(writes[0].routingDecision.selectedThesisId).toBeUndefined();
   });
 
   it('evaluates only ACTIVE theses when query returns mixed statuses', () => {
@@ -333,6 +336,9 @@ describe('SPEC-001 Phase 2 — OverrideSignalThesis', () => {
     expect(result.previous?.routingState).toBe('CONTESTED');
     expect(writes[0].routingDecision.source).toBe('MANUAL');
     expect(writes[0].routingDecision.actorId).toBe('admin_1');
+    expect(writes[0].routingDecision.routingState).toBe('CLEAR');
+    expect(writes[0].routingDecision.selectedThesisId).toBe('thesis_active');
+    expect(writes[0].thesisId).toBe('thesis_active');
     expect(writes[0].thesisScores).toHaveLength(2);
   });
 
