@@ -160,3 +160,19 @@ Future change requires:
 2. updated tests (same-input/same-score per version)
 3. updated explainability docs
 4. historical version identity preserved
+
+---
+
+## Phase 3 persistence (current score + history)
+
+**Current score authority:** Signal projection fields (`relevanceScore`, `priorityBand`, `scoringVersion`, `recommendedDisposition`, `recommendedOutputFormat`, `scoreFactors`, `scorePenalties`, `scoredAt`, `scoreRoutedThesisId`).
+
+**History authority:** `postura_signal_score_history_v1` (local-first; logical Firestore path deferred SPEC-009).
+
+**First-score policy (Policy A):** Initial assignment writes current score only; history begins on first **material** transition.
+
+**Material fields:** totalScore, priorityBand, recommendedDisposition, recommendedOutputFormat, scoringVersion, factors, penalties. Timestamp-only rescoredAt is NOT material.
+
+**Output format materiality:** YES — format changes are material (paired with disposition in recommendation ladder).
+
+**Legacy `recommendedAction`:** COMPATIBILITY projection derived from disposition+format; not canonical authority.

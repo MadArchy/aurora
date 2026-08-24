@@ -15,8 +15,12 @@ export { resolveGovernedThesisForScoring } from './routingGovernance';
 export type { GovernedThesisContext } from './routingGovernance';
 
 export type { StrategicScoreWritePort, PersistGovernedScoreParams } from './ports/StrategicScoreWritePort';
+export type { ScoreHistoryPort } from './ports/ScoreHistoryPort';
 export type {
   SignalReadPort,
   ThesisQueryPort,
   StrategicScoringPort,
 } from './ports/GovernedScoringPorts';
+
+export { persistGovernedScoreIfRequested } from './ScoreSignalAgainstRoutedContext';
+export type { GovernedScorePersistOutcome } from './ScoreSignalAgainstRoutedContext';

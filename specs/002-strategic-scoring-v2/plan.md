@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `002-strategic-scoring-v2` |
-| **Phase** | **Phase 2 COMPLETE** · Phase 3 **NOT STARTED** |
-| **Status** | `APPROVED` — Application governance use cases implemented |
+| **Phase** | **Phase 3 COMPLETE** · Phase 4 **NOT STARTED** |
+| **Status** | `APPROVED` — score persistence + material history implemented |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
 ---
@@ -51,12 +51,25 @@ Exit: no circular ownership with 001/003/005/006.
 | **0B** | Formal SPEC package | Human SPEC approval |
 | **1** | Domain scoring core, `scoringVersion`, disposition/format types, deterministic tests | Domain unit tests PASS | **DONE** |
 | **2** | Application use cases, routing consumption, no terminal discard on score persist, validation | App + governance tests | **DONE** |
-| **3** | Score persistence + material history + tenant-safe writes | History tests |
+| **3** | Score persistence + material history + tenant-safe writes | History tests | **DONE** |
 | **4** | Consumer migration (cloud, AI analyze, radar, legacy path) | Architecture/parity tests |
 | **5** | Security/regression (multi-thesis, tenant, cloud parity, SPEC-001/005 regression) | A21–A22 green |
 | **6** | Acceptance matrix + human CODE_COMPLETE sign-off | CODE_COMPLETE |
 
-Do **not** start Phase 3 until Phase 2 exit gate evidence is recorded (complete).
+Do **not** start Phase 4 until Phase 3 exit gate evidence is recorded (complete).
+
+---
+
+## Phase 3 evidence (2026-08-23)
+
+| Item | Location |
+|------|----------|
+| Materiality | `src/domain/scoreHistoryCore.ts` |
+| Current score writer | `db.applyGovernedScoreToSignal` |
+| History store | `postura_signal_score_history_v1` (local-authoritative) |
+| Adapter | `DbStrategicScoringAdapter.ts` |
+| First-score policy | Policy A — history on first **material** transition only |
+| Tests | `tests/scoreHistoryCore.test.ts`, `tests/strategicScoringPhase3.test.ts` |
 
 ---
 

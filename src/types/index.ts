@@ -447,6 +447,20 @@ export interface Signal {
     actorId?: string;
     routedAt?: string;
   };
+  /** SPEC-002 Phase 3 — canonical scoring algorithm version on current projection. */
+  scoringVersion?: string;
+  /** SPEC-002 Phase 3 — canonical strategic disposition on current projection. */
+  recommendedDisposition?: StrategicDisposition;
+  /** SPEC-002 Phase 3 — optional output format on current projection. */
+  recommendedOutputFormat?: OutputFormatRecommendation;
+  /** SPEC-002 Phase 3 — trusted wall-clock when score was last materialized. */
+  scoredAt?: string;
+  /** SPEC-002 Phase 3 — routed thesis identity for this score (CLEAR only). */
+  scoreRoutedThesisId?: string;
+  /** SPEC-002 Phase 3 — factor snapshot for materiality / explainability. */
+  scoreFactors?: StrategicScoreFactors;
+  /** SPEC-002 Phase 3 — penalty snapshot for materiality / explainability. */
+  scorePenalties?: StrategicScorePenalties;
 }
 
 export interface ResearchEvidenceItem {

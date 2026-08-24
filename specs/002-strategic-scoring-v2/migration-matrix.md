@@ -59,9 +59,11 @@ Phase 0 inventory baseline: 2026-08-23.
 
 | Location | Class | Action | Notes |
 |----------|-------|--------|-------|
-| `db.applyStrategicRoutingToSignal` | GOVERNED_CONSUMER | **KEEP** | Persists score fields; no auto-DISCARD |
-| `db.applyScoreToSignal` | LEGACY | **DEPRECATE** → **REMOVE_LATER** | Auto-DISCARD path; zero strategic consumers target |
-| Signal.`relevanceScore`, `scoreBreakdown`, etc. | GOVERNED_CONSUMER | **KEEP** | Add scoringVersion Phase 1+ |
+| `db.applyGovernedScoreToSignal` | GOVERNED_CONSUMER | **EXTRACT** ✅ Phase 3 | Safe score-only persist + history append |
+| `db.applyStrategicRoutingToSignal` | GOVERNED_CONSUMER | **KEEP** | Routing + score snapshot; no auto-DISCARD |
+| `db.applyScoreToSignal` | LEGACY | **DEPRECATE** → **REMOVE_LATER** | Auto-DISCARD — Phase 4 removal |
+| `postura_signal_score_history_v1` | SCORE_HISTORY | **KEEP** ✅ Phase 3 | Local-authoritative score history |
+| Signal score projection fields | GOVERNED_CONSUMER | **KEEP** ✅ Phase 3 | scoringVersion, disposition, format, factor snapshots |
 
 ---
 

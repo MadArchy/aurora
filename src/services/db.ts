@@ -75,6 +75,10 @@ import { FIREBASE_ENABLED } from '../firebase/config';
 import type { LocalV5Snapshot } from './firestore/types';
 import { buildScoreBreakdown } from '../domain/scoreExplainCore';
 import type { SignalRoutingHistoryEntry } from '../domain/routingHistoryCore';
+import {
+  compatibilityRecommendedAction,
+  type SignalScoreHistoryEntry,
+} from '../domain/scoreHistoryCore';
 
 export type { LocalV5Snapshot } from './firestore/types';
 
@@ -111,6 +115,12 @@ class DataService {
    * Not remote-synced until SPEC-009 covers that path (RULES CONTRACT GAP).
    */
   private signalRoutingHistory: SignalRoutingHistoryEntry[] = [];
+  /**
+   * SPEC-002 Phase 3 — local-authoritative score history.
+   * Logical Firestore shape: clients/{clientId}/signals/{signalId}/scoreHistory/{id}
+   * Not remote-synced until SPEC-009 covers that path (RULES CONTRACT GAP).
+   */
+  private signalScoreHistory: SignalScoreHistoryEntry[] = [];
   private changeListeners: Array<() => void> = [];
   /** >0 mientras se aplique un lote de escrituras (p. ej. send briefing). */
   private saveBatchDepth = 0;
@@ -153,6 +163,9 @@ class DataService {
         this.notifications = JSON.parse(localStorage.getItem('postura_notifications_db_v1') || '[]');
         this.signalRoutingHistory = JSON.parse(
           localStorage.getItem('postura_signal_routing_history_v1') || '[]'
+        );
+        this.signalScoreHistory = JSON.parse(
+          localStorage.getItem('postura_signal_score_history_v1') || '[]'
         );
         this.ensureSeedDossiers();
         this.ensureJuanCampaignSeed();
@@ -1020,6 +1033,10 @@ class DataService {
       localStorage.setItem(
         'postura_signal_routing_history_v1',
         JSON.stringify(this.signalRoutingHistory)
+      );
+      localStorage.setItem(
+        'postura_signal_score_history_v1',
+        JSON.stringify(this.signalScoreHistory)
       );
     }
 
@@ -2181,6 +2198,95 @@ class DataService {
     sig.scoreBreakdown = buildScoreBreakdown(score);
     // Intentionally NO auto-DISCARD — routing ≠ terminal disposition (SPEC-001 A12).
     this.saveAll();
+  }
+
+  /**
+   * SPEC-002 Phase 3 — persist governed score WITHOUT routing mutation or auto-DISCARD.
+   * Appends material score history in the same saveAll unit when provided.
+   */
+  public applyGovernedScoreToSignal(
+    signalId: string,
+    score: StrategicScoreResult,
+    extras: {
+      clientId: string;
+      organizationId: string;
+      routingContext: {
+        routingState: 'CLEAR';
+        routedThesisId: string;
+        routingAlgorithmVersion?: string;
+      };
+      changedAt: string;
+      historyEntry?: SignalScoreHistoryEntry;
+    }
+  ): void {
+    const sig = this.signals.find((s) => s.id === signalId);
+    if (!sig) {
+      throw new Error(`Signal not found for governed score: ${signalId}`);
+    }
+    if (sig.clientId !== extras.clientId) {
+      throw new Error('Governed score tenant mismatch: clientId');
+    }
+    if (sig.organizationId && sig.organizationId !== extras.organizationId) {
+      throw new Error('Governed score tenant mismatch: organizationId');
+    }
+    if (extras.historyEntry) {
+      const h = extras.historyEntry;
+      if (h.signalId !== signalId) {
+        throw new Error('Score history signalId mismatch');
+      }
+      if (h.clientId !== extras.clientId) {
+        throw new Error('Score history clientId mismatch');
+      }
+      if (h.organizationId !== extras.organizationId) {
+        throw new Error('Score history organizationId mismatch');
+      }
+      this.signalScoreHistory.push(h);
+    }
+
+    const disposition =
+      score.recommendedDisposition ??
+      (score.recommendedAction === 'CREATE_OPPORTUNITY'
+        ? 'OPPORTUNITY_CANDIDATE'
+        : score.recommendedAction === 'RESEARCH_REQUIRED'
+          ? 'RESEARCH_REQUIRED'
+          : score.recommendedAction === 'MONITOR'
+            ? 'MONITOR'
+            : score.recommendedAction === 'NO_ACTION'
+              ? 'NO_ACTION'
+              : 'SAVE');
+    const format =
+      score.recommendedOutputFormat ??
+      (score.recommendedAction === 'VIDEO'
+        ? 'VIDEO'
+        : score.recommendedAction === 'SHORT_POST'
+          ? 'SHORT_POST'
+          : score.recommendedAction === 'ARTICLE'
+            ? 'ARTICLE'
+            : 'NONE');
+
+    sig.relevanceScore = score.totalScore;
+    sig.priorityBand = score.priorityBand;
+    sig.recommendedAction = compatibilityRecommendedAction(disposition, format);
+    sig.scoreRationale = score.strategicRationale;
+    sig.scoreBreakdown = buildScoreBreakdown(score);
+    sig.scoringVersion = score.scoringVersion ?? 'scoring-v1';
+    sig.recommendedDisposition = disposition;
+    sig.recommendedOutputFormat = format;
+    sig.scoredAt = extras.changedAt;
+    sig.scoreRoutedThesisId = extras.routingContext.routedThesisId;
+    sig.scoreFactors = { ...score.factors };
+    sig.scorePenalties = { ...score.penalties };
+    // Intentionally NO routingDecision / thesisId mutation — score persistence only.
+    // Intentionally NO auto-DISCARD — low score is data, not terminal command.
+    this.saveAll();
+  }
+
+  public getSignalScoreHistory(signalId: string): SignalScoreHistoryEntry[] {
+    return this.signalScoreHistory.filter((e) => e.signalId === signalId);
+  }
+
+  public getAllSignalScoreHistory(): SignalScoreHistoryEntry[] {
+    return [...this.signalScoreHistory];
   }
 
   /** SPEC-001 Phase 3 — read routing history for a signal (local authority). */

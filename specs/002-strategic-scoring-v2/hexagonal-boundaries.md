@@ -55,7 +55,7 @@ Composition root wires adapters
 - routing context consumption policy (CLEAR / CONTESTED / UNROUTED)
 - tenant validation at trust boundary
 - error taxonomy (`StrategicScoringError` pattern — mirror SPEC-001)
-- ports: `SignalReadPort`, `ThesisQueryPort`, `StrategicScoringPort` (reuse SPEC-001), `StrategicScoreWritePort` (Phase 2 contract; Phase 3 impl)
+- ports: `SignalReadPort`, `ThesisQueryPort`, `StrategicScoringPort` (reuse SPEC-001), `StrategicScoreWritePort`, `ScoreHistoryPort` (Phase 3)
 
 **Must NOT:**
 
@@ -76,8 +76,8 @@ Composition root wires adapters
 | Port | Responsibility |
 |------|----------------|
 | `StrategicScoringPort` (existing, SPEC-001) | `createScoreFn`, `scoreThesis`, `computeWhyNow` |
-| `StrategicScoreWritePort` | **IMPLEMENTED (contract)** | persist governed score — no DISCARD; physical storage Phase 3 |
-| `ScoreHistoryPort` (planned) | Phase 3 | append/list material score history |
+| `StrategicScoreWritePort` | **IMPLEMENTED** ✅ Phase 3 | `DbStrategicScoringAdapter` → `applyGovernedScoreToSignal` |
+| `ScoreHistoryPort` | **IMPLEMENTED** ✅ Phase 3 | `getSignalScoreHistory` / `postura_signal_score_history_v1` |
 
 Ports use Domain types only — no collection path strings as domain law.
 

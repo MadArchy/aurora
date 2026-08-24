@@ -1,7 +1,7 @@
 # Tasks 002 — Strategic Scoring V2
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 2 COMPLETE** · Phase 3 **NOT STARTED**  
+**Implementation:** **Phase 3 COMPLETE** · Phase 4 **NOT STARTED**  
 **Branch (recommended):** `spec/002-strategic-scoring-v2`
 
 ---
@@ -52,13 +52,13 @@
 
 ## Phase 3 — Persistence / score history
 
-- [ ] **T-002-301** Material score change detection (score, band, disposition, scoringVersion)
-- [ ] **T-002-302** Score history entry types (storage-neutral Domain)
-- [ ] **T-002-303** Local or bounded history store (physical form TBD — avoid unbounded Signal arrays)
-- [ ] **T-002-304** Tenant-safe atomic persist (score + history)
-- [ ] **T-002-305** Idempotent equivalent re-score (no duplicate history noise)
+- [x] **T-002-301** Material score change detection (score, band, disposition, scoringVersion)
+- [x] **T-002-302** Score history entry types (storage-neutral Domain)
+- [x] **T-002-303** Local or bounded history store (physical form TBD — avoid unbounded Signal arrays)
+- [x] **T-002-304** Tenant-safe atomic persist (score + history)
+- [x] **T-002-305** Idempotent equivalent re-score (no duplicate history noise)
 
-**Exit:** History append tests; timestamp-only rescore does not grow history.
+**Exit:** History append tests; timestamp-only rescore does not grow history. **DONE** — evidence: `scoreHistoryCore.ts`, `tests/scoreHistoryCore.test.ts`, `tests/strategicScoringPhase3.test.ts`, `db.applyGovernedScoreToSignal`.
 
 ---
 
