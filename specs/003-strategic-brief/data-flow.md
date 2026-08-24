@@ -23,11 +23,18 @@ Signal
 ```text
 StrategicContextReader
   ├── read Signal(s) by id (tenant-scoped)
-  ├── read routingDecision, routingState, thesisScores, selectedThesisId
+  ├── read routingDecision.routingState
+  ├── read routingDecision.selectedThesisId (CLEAR thesis authority — exclusive)
   ├── read score projection: relevanceScore, priorityBand, scoringVersion
   ├── read recommendedDisposition, recommendedOutputFormat, whyNow, scoreRationale
   └── validate: no mutation ports exposed
 ```
+
+**Authoritative persisted thesis:** `routingDecision.selectedThesisId` when `routingState === 'CLEAR'`.
+
+**Legacy `signal.thesisId`:** COMPATIBILITY_ONLY. SPEC-003 **does not read it** for `governedThesisId`, Brief `thesisId`, snapshot thesis, approval, or downstream authorization.
+
+**CLEAR without `selectedThesisId`:** FAIL_CLOSED (`ROUTING_NOT_CLEAR`). No runtime backfill from `signal.thesisId` or thesisScores.
 
 **Invariant:** Reader **never** writes routing or score fields.
 

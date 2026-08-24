@@ -196,11 +196,12 @@ Caller-supplied tenant without trusted envelope validation → **reject**.
 `thesisId` on Brief **must** be derived from SPEC-001 governed routing:
 
 - `routingState === 'CLEAR'`
-- `selectedThesisId` from routing output
+- **AUTHORITATIVE PERSISTED THESIS** = `routingDecision.selectedThesisId`
 
 **Forbidden:**
 
-- `signal.thesisId` legacy fallback alone
+- `signal.thesisId` as strategic authority (legacy field is **COMPATIBILITY_ONLY** and is not read by SPEC-003)
+- runtime backfill of CLEAR records missing `selectedThesisId` (those **FAIL_CLOSED**)
 - `primaryThesisId`, `getPrimaryThesis`, `theses[0]`, `activeTheses[0]`
 - highest score winner
 - AI-selected thesis

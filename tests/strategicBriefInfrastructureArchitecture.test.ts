@@ -158,6 +158,35 @@ describe('SPEC-003 Phase 3 — strategic brief infrastructure architecture', () 
     expect(hits).toEqual([]);
   });
 
+  it('does not read signal.thesisId as strategic thesis authority', () => {
+    const hits: string[] = [];
+    for (const dir of [INFRA_BRIEF, APP_BRIEF, COMPOSITION]) {
+      for (const file of collectTsFiles(dir)) {
+        const rel = relative(ROOT, file).replace(/\\/g, '/');
+        const withoutComments = stripComments(readFileSync(file, 'utf8'));
+        if (withoutComments.includes('signal.thesisId')) {
+          hits.push(`${rel}: signal.thesisId`);
+        }
+      }
+    }
+    expect(hits).toEqual([]);
+  });
+
+  it('does not infer thesis from thesisScores winners', () => {
+    const hits: string[] = [];
+    const banned = ['thesisScores[0]', 'thesisScores.find', 'thesisScores.sort'];
+    for (const dir of [INFRA_BRIEF, APP_BRIEF, COMPOSITION]) {
+      for (const file of collectTsFiles(dir)) {
+        const rel = relative(ROOT, file).replace(/\\/g, '/');
+        const withoutComments = stripComments(readFileSync(file, 'utf8'));
+        for (const token of banned) {
+          if (withoutComments.includes(token)) hits.push(`${rel}: ${token}`);
+        }
+      }
+    }
+    expect(hits).toEqual([]);
+  });
+
   it('does not rescore, reroute, auto-discard, or verify claims', () => {
     const hits: string[] = [];
     const banned = [

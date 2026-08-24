@@ -35,7 +35,7 @@ Therefore:
 
 | Dependency | State | Impact |
 |------------|-------|--------|
-| SPEC-001 routing | **CODE_COMPLETE** @ `4643cad` | **BLOCKING contract** — Brief consumes routing; must not mutate |
+| SPEC-001 routing | **CODE_COMPLETE** @ `4643cad` + compatibility persist @ `80c93d8b` | **BLOCKING contract** — Brief consumes `routingDecision.selectedThesisId`; must not mutate |
 | SPEC-002 scoring | **CODE_COMPLETE** @ `e422359` | **BLOCKING contract** — Brief consumes scoring; must not recompute |
 | SPEC-005 AI Gateway | **CODE_COMPLETE** | CLEAR — advisory operations only |
 | SPEC-006 claim safety | Partial (Claim Safety Core) | **BOUNDARY** — downstream; unchanged by 003 |

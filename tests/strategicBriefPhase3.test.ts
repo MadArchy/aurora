@@ -43,6 +43,7 @@ function makeSignal(overrides: Partial<Signal> = {}): Signal {
     routingDecision: {
       source: 'AUTO',
       routingState: 'CLEAR',
+      selectedThesisId: 'th_1',
       algorithmVersion: 'routing-v1',
       routedAt: NOW,
     },

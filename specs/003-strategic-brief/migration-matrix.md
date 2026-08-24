@@ -48,7 +48,8 @@ Phase 0 inventory: 2026-08-24.
 | `recommendedDisposition` | SPEC-002 input | **KEEP** — consumed by Brief snapshot |
 | `recommendedOutputFormat` | SPEC-002 input | **KEEP** — consumed by Brief snapshot |
 | `recommendedAction` (legacy) | Mixed enum on curation | **DEPRECATE** on strategic paths |
-| `thesisId` on Signal | SPEC-001 projection | **KEEP** — read via ContextReader only |
+| `thesisId` on Signal | SPEC-001 compatibility projection | **KEEP** — **COMPATIBILITY_ONLY**; **not** SPEC-003 thesis authority |
+| `routingDecision.selectedThesisId` | SPEC-001 CLEAR identity | **KEEP** — **AUTHORITATIVE** persisted thesis for SPEC-003 |
 | `routingDecision` | SPEC-001 | **OTHER_SPEC** — read only |
 
 ---

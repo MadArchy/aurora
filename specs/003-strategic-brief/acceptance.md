@@ -18,7 +18,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 | A2 | One authoritative Strategic Decision contract (StrategicDecisionSnapshot in Brief) | Design A | ✅ **PASS (Domain)** |
 | A3 | Brief consumes SPEC-001 routing without mutating it | Context reader | ✅ **PASS (Application+Infrastructure)** — read-only adapter |
 | A4 | Brief consumes SPEC-002 scoring without recomputing it | Context reader | ✅ **PASS (Application+Infrastructure)** — projection copy only; no rescore |
-| A5 | CLEAR uses explicit governed thesis (`selectedThesisId`) | Routing gate | ✅ **PASS (Domain+Application)** |
+| A5 | CLEAR uses explicit governed thesis (`selectedThesisId`) | Routing gate | ✅ **PASS (Domain+Application+Infrastructure)** — exclusive `routingDecision.selectedThesisId`; no `signal.thesisId` companion |
 | A6 | CONTESTED cannot authorize downstream action | Fail-closed | ✅ **PASS (Domain+Application gate)** — consumer paths Phase 4 |
 | A7 | UNROUTED cannot authorize downstream action | Fail-closed | ✅ **PASS (Domain+Application gate)** — consumer paths Phase 4 |
 | A8 | No primary/first thesis fallback | Architecture ban | ✅ **PASS (Application+Infrastructure scan)** — Phase 5 remaining |
@@ -55,6 +55,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 **CODE_COMPLETE:** **NO** — consumer migration remaining (Phase 4)
 
 **P1 at Phase 3 exit:** F-003-01 **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** · F-003-02 **OPEN_PHASE_4** · F-003-03 **IMPLEMENTED_AUDIT_PERSISTENCE** · P1 count **3** (unchanged)
+
+**Thesis authority (corrected Phase 3):** `AUTHORITATIVE PERSISTED THESIS = routingDecision.selectedThesisId`. Legacy `signal.thesisId` = **COMPATIBILITY_ONLY / NOT USED BY SPEC-003 AUTHORITY**. Legacy CLEAR without `selectedThesisId` = **FAIL_CLOSED**. SPEC-001 compatibility checkpoint = `80c93d8b0b03a5eaa0e3a75e953131e4700873d5`. Original SPEC-001 CODE_COMPLETE = `4643cad115b4294c2fb04bd15a08d4478cc64039`. Production backfill **NOT PERFORMED**.
 
 ---
 
@@ -115,7 +117,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 | Phase 1 authorization | ✅ **AUTHORIZED** |
 | Phase 1 Domain implementation | ✅ **COMPLETE** |
 | Phase 2 Application / governance | ✅ **COMPLETE** |
-| Phase 3 Persistence / history | ✅ **COMPLETE** |
+| Phase 3 Persistence / history | ✅ **COMPLETE** (pre-remediation `52d61df4…`) |
+| Phase 3 correction (exclusive thesis reader) | ✅ **COMPLETE** — SPEC-001 patch `80c93d8b…` integrated |
 | Phase 4 Consumer migration | ☐ **NOT STARTED** |
 | CODE_COMPLETE (T-003-604) | ☐ **NOT STARTED** |
 

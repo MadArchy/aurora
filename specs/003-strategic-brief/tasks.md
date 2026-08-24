@@ -84,6 +84,28 @@ F-003-01 = **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** · F-003-03 = **IMPLEMENTED
 
 ---
 
+## Phase 3 correction — SPEC-001 patch integration + exclusive thesis authority
+
+Original Phase-3 persistence checkpoint (pre-remediation): `52d61df4faf5e7ac4f2fe359ae4526b73e905bf3`
+
+SPEC-001 original historical CODE_COMPLETE (unchanged): `4643cad115b4294c2fb04bd15a08d4478cc64039`
+
+SPEC-001 compatibility persistence patch (algorithm unchanged): `80c93d8b0b03a5eaa0e3a75e953131e4700873d5`
+
+Human authorization: persist `selectedThesisId` inside `routingDecision` and consume it exclusively in SPEC-003.
+
+**Authoritative persisted thesis:** `signal.routingDecision.selectedThesisId` when `routingState === 'CLEAR'`.
+
+**Legacy `signal.thesisId`:** COMPATIBILITY_ONLY — **not used** by SPEC-003 authority.
+
+**Legacy CLEAR without `selectedThesisId`:** FAIL_CLOSED (`ROUTING_NOT_CLEAR`). No runtime backfill. `LEGACY_CLEAR_ROUTING_RECORDS = MIGRATION_NOT_PERFORMED`. Production data backfill **NOT PERFORMED**. Local/dev regeneration path: re-route through patched SPEC-001.
+
+Corrected Phase-3 checkpoint is recorded after this remediation commit. Phase 4 **NOT STARTED**.
+
+F-003-01 = **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** · F-003-03 = **IMPLEMENTED_AUDIT_PERSISTENCE** · F-003-02 remains **OPEN_PHASE_4**. P1 count unchanged (3).
+
+---
+
 ## Phase 4 — Consumer migration
 
 - [ ] **T-003-401** Block `form-generate-content` without approved Brief (strategic path)

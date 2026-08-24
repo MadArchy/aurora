@@ -11,10 +11,6 @@ export interface StrategicBriefContextSource {
   getEvidenceById(evidenceId: string): Pick<EvidenceVaultItem, 'id' | 'organizationId' | 'clientId'> | undefined;
 }
 
-type RoutingDecisionProjection = NonNullable<Signal['routingDecision']> & {
-  selectedThesisId?: string;
-};
-
 function readRoutingState(signal: Signal): BriefUpstreamRoutingState {
   const state = signal.routingDecision?.routingState;
   if (state === 'CLEAR' || state === 'CONTESTED' || state === 'UNROUTED') return state;
@@ -24,21 +20,15 @@ function readRoutingState(signal: Signal): BriefUpstreamRoutingState {
 /**
  * Authoritative SPEC-001 selected thesis when routingState is CLEAR.
  *
- * Frozen SPEC-001 persist writes selectedThesisId onto routingDecision when present,
- * and mirrors the CLEAR projection on Signal.thesisId. That companion is used only
- * after routingState === CLEAR. CONTESTED / UNROUTED / missing routingState ignore
- * top-level thesisId (no legacy fallback).
- *
- * Never uses first-active or index-zero thesis selection, score-ranked winners,
- * or missing-routing-state compatibility attribution.
+ * Exclusive source: routingDecision.selectedThesisId.
+ * CLEAR without that field returns no governed thesis (Application fail-closed).
+ * CONTESTED / UNROUTED return none. Never infers from compatibility projection,
+ * thesisScores, or first/primary thesis selection.
  */
 function readGovernedThesisId(signal: Signal, routingState: BriefUpstreamRoutingState): string | undefined {
   if (routingState !== 'CLEAR') return undefined;
-  const decision = signal.routingDecision as RoutingDecisionProjection | undefined;
-  const fromDecision = decision?.selectedThesisId?.trim();
-  if (fromDecision) return fromDecision;
-  const fromClearProjection = signal.thesisId?.trim();
-  return fromClearProjection || undefined;
+  const selected = signal.routingDecision?.selectedThesisId?.trim();
+  return selected || undefined;
 }
 
 function readRoutingSource(signal: Signal): BriefUpstreamRoutingSource | undefined {

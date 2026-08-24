@@ -199,6 +199,8 @@ SPEC-003 CODE_COMPLETE may use **local-authoritative** Brief persistence (same p
 ### CLEAR
 
 - Brief creation/actionable path requires `routingState === 'CLEAR'` with valid governed `selectedThesisId`.
+- **AUTHORITATIVE PERSISTED THESIS** = `routingDecision.selectedThesisId`. Legacy `signal.thesisId` is **COMPATIBILITY_ONLY** and is not SPEC-003 authority.
+- CLEAR without `routingDecision.selectedThesisId` **FAIL_CLOSED** (`ROUTING_NOT_CLEAR`). No runtime backfill.
 - `thesisId` on Brief **must** match SPEC-001 authoritative selected thesis — no legacy `signal.thesisId` fallback.
 - If routing changes materially after Brief creation → prior revision **SUPERSEDED**; revalidation required.
 

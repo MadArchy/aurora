@@ -106,7 +106,7 @@ Do not overbuild speculative use cases in Phase 0B.
 |------|----------------|
 | `StrategicBriefRepository` | CRUD current Brief projection; tenant-scoped |
 | `StrategicBriefHistoryPort` | Append-only material history |
-| `StrategicContextReader` | Read Signal routing + scoring projections (no write) |
+| `StrategicContextReader` | Read Signal routing + scoring projections (no write). Thesis authority = `routingDecision.selectedThesisId` only. |
 | `TrustedActorPort` | Resolve current actor for approve/override (optional if injected) |
 | `ClockPort` | Trusted timestamps (optional) |
 

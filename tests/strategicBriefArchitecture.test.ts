@@ -93,7 +93,17 @@ describe('SPEC-003 Phase 1 — strategic brief domain architecture', () => {
 
   it('brief domain does not select thesis via primary/first fallback', () => {
     const hits: string[] = [];
-    const banned = ['getPrimaryThesis', 'theses[0]', 'activeTheses[0]', 'routeSignalAcrossTheses'];
+    const banned = [
+      'getPrimaryThesis',
+      'primaryThesisId',
+      'theses[0]',
+      'activeTheses[0]',
+      'candidates[0]',
+      'docs[0]',
+      'docs.at(0)',
+      'routeSignalAcrossTheses',
+      'signal.thesisId',
+    ];
     for (const rel of DOMAIN_BRIEF_FILES) {
       const content = readFileSync(join(SRC_ROOT, rel), 'utf8');
       for (const token of banned) {
