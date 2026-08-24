@@ -1,9 +1,10 @@
 # Tasks 003 — Strategic Brief
 
 **Spec status:** `APPROVED`  
-**Implementation:** **NOT STARTED** · Phase 0B **COMPLETE** · Phase 1 **AUTHORIZED**  
+**Implementation:** **Phase 1 COMPLETE** · Phase 2 **NOT STARTED**  
 **Branch:** `spec/003-strategic-brief`  
 **Base SHA:** `e422359ab90e84d4eb26007db23da6d54390cf15`  
+**Formal SPEC checkpoint:** `3c04c6df42d1d51fe8e38fd96deec3af826995eb`  
 **Human SPEC approval:** **APPROVED** (T-003-010) — 2026-08-24
 
 ---
@@ -29,16 +30,18 @@
 
 ## Phase 1 — Domain contracts
 
-- [ ] **T-003-101** Define `StrategicBrief` aggregate + `StrategicDecisionSnapshot` types (Domain)
-- [ ] **T-003-102** Define `BriefStatus` enum + legal transition guard
-- [ ] **T-003-103** Material change detection for Brief revisions
-- [ ] **T-003-104** Thesis-first + tenant reference validation (pure functions)
-- [ ] **T-003-105** CLEAR / CONTESTED / UNROUTED brief eligibility rules
-- [ ] **T-003-106** Multi-signal same-thesis validation
-- [ ] **T-003-107** Override audit record types (minimum fields)
-- [ ] **T-003-108** Domain unit tests: status transitions, materiality, routing gates
+- [x] **T-003-101** Define `StrategicBrief` aggregate + `StrategicDecisionSnapshot` types (Domain)
+- [x] **T-003-102** Define `BriefStatus` enum + legal transition guard
+- [x] **T-003-103** Material change detection for Brief revisions
+- [x] **T-003-104** Thesis-first + tenant reference validation (pure functions)
+- [x] **T-003-105** CLEAR / CONTESTED / UNROUTED brief eligibility rules
+- [x] **T-003-106** Multi-signal same-thesis validation
+- [x] **T-003-107** Override audit record types (minimum fields)
+- [x] **T-003-108** Domain unit tests: status transitions, materiality, routing gates
 
-**Exit:** Domain tests PASS; no Firebase/db/React imports.
+**Exit:** Domain tests PASS; no Firebase/db/React imports. **DONE** — evidence: `src/domain/strategicBriefCore.ts`, `briefMaterialityCore.ts`, `briefRoutingGateCore.ts`, `briefTenantCore.ts`, `strategicBriefErrors.ts`; `tests/strategicBriefCore.test.ts`, `tests/strategicBriefArchitecture.test.ts`.
+
+F-003-01 = **PARTIAL_DOMAIN_IMPLEMENTED** · F-003-03 = **PARTIAL_DOMAIN_CONTRACT** · F-003-02 remains **OPEN_PHASE_4**. P1 count unchanged (3).
 
 ---
 

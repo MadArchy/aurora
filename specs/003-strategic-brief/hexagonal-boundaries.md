@@ -39,12 +39,15 @@ Composition root wires adapters — NOT main.ts direct db mutations for Brief au
 - AI provider SDKs / Gateway implementation
 - `main.ts`
 
-**Target modules (Phase 1):**
+**Target modules (Phase 1 — implemented):**
 
-- `src/domain/strategicBriefCore.ts` (or equivalent)
+- `src/domain/strategicBriefCore.ts`
+- `src/domain/strategicBriefErrors.ts`
 - `src/domain/briefMaterialityCore.ts`
 - `src/domain/briefRoutingGateCore.ts`
 - `src/domain/briefTenantCore.ts`
+
+Architecture evidence: `tests/strategicBriefArchitecture.test.ts`. Phase 2 Application package **NOT STARTED**.
 
 ---
 

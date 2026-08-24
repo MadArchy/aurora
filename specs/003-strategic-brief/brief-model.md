@@ -3,6 +3,8 @@
 **Authoritative data contract for SPEC-003.**  
 Physical persistence shape is Phase 3; this document defines Domain semantics.
 
+**Phase 1 (2026-08-24):** Domain types, state machine, materiality, routing eligibility, override contract, and authorization predicates implemented under `src/domain/strategicBriefCore.ts` (+ `briefMaterialityCore.ts`, `briefRoutingGateCore.ts`, `briefTenantCore.ts`). Application/persistence not started.
+
 ---
 
 ## Aggregate design

@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `003-strategic-brief` |
-| **Phase** | **Phase 0B COMPLETE / HUMAN APPROVED** · Phase 1 **AUTHORIZED** · Phase 1 implementation **NOT STARTED** |
+| **Phase** | **Phase 1 COMPLETE** · Phase 2 **NOT STARTED** |
 | **Status** | `APPROVED` |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
@@ -69,7 +69,7 @@ Preserve product usability during migration — dual-read/compatibility windows 
 | Phase | Goal | Exit gate |
 |-------|------|-----------|
 | **0B** | Formal SPEC package | Human SPEC approval (T-003-010) |
-| **1** | Domain: StrategicBrief, StrategicDecisionSnapshot, status, materiality, invariants | Domain unit tests PASS |
+| **1** | Domain: StrategicBrief, StrategicDecisionSnapshot, status, materiality, invariants | **DONE** — Domain unit tests PASS |
 | **2** | Application: create/approve/reject/revise/override; context reader; tenant/routing gates | App + governance tests |
 | **3** | Persistence: current Brief + append-only history; idempotency; actor audit | History + tenant tests |
 | **4** | Consumer migration: block bypass paths; wire curation/delivery/sendDelivery/content/opportunity | A10, A28 green |

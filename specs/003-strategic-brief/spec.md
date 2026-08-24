@@ -5,7 +5,7 @@
 | **Spec ID** | `003-strategic-brief` |
 | **Display name** | **SPEC-003 — Strategic Brief** |
 | **Status** | **`APPROVED`** (T-003-010 human SPEC approval 2026-08-24) |
-| **Phase** | 0B COMPLETE / HUMAN APPROVED · Phase 1 **AUTHORIZED** · Phase 1 implementation **NOT STARTED** |
+| **Phase** | 0B COMPLETE / HUMAN APPROVED · Phase 1 **COMPLETE** · Phase 2 **NOT STARTED** |
 | **Branch (recommended)** | `spec/003-strategic-brief` from governance checkpoint `e422359` |
 | **Implementation baseline** | Phase 0 inventory @ SPEC-002 CODE_COMPLETE (`ab01c46` product; `e422359` governance) |
 | **Priority** | P1 (constitution §4, §12 — Strategic Brief gate) |
@@ -311,7 +311,7 @@ No circular ownership.
 | P2 | 5 | naming collision, CONTESTED/UNROUTED fail-open, proposeAngle fallback, single-thesis delivery validation, evidence ID loss |
 | P3 | 2 | main.ts monolith, legacy `recommendedAction` on curation |
 
-**P1 resolved at Phase 0B:** 0
+**P1 resolved at Phase 1:** 0 (F-003-01 / F-003-03 Domain-partial; F-003-02 OPEN_PHASE_4)
 
 ---
 
