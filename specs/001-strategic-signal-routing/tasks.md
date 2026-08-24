@@ -244,3 +244,22 @@ See **`acceptance.md` → “T-001 FINAL HUMAN SIGN-OFF PACKAGE”**.
 - New AiOperation for routing
 - Strategic Brief implementation (003)
 - Big-bang UI rewrite
+
+---
+
+## Compatibility persistence patch (2026-08-24)
+
+**Human authorization:** persist Domain `selectedThesisId` inside `routingDecision` so SPEC-003 can consume governed thesis identity without `signal.thesisId`.
+
+**Original SPEC-001 CODE_COMPLETE checkpoint (unchanged historical evidence):** `4643cad115b4294c2fb04bd15a08d4478cc64039`
+
+**This patch:** NEW compatibility checkpoint (see git SHA after commit). No algorithm/threshold/scoring/AI change. No production deploy. No historical-data backfill.
+
+| Item | Result |
+|------|--------|
+| `routingDecision.selectedThesisId` | persisted for CLEAR only |
+| CONTESTED / UNROUTED | `selectedThesisId` absent |
+| `signal.thesisId` | remains LEGACY_COMPATIBILITY; must match selected thesis on new CLEAR writes |
+| Malformed CLEAR (missing selectedThesisId or mismatch) | fail closed |
+| `LEGACY_CLEAR_ROUTING_RECORDS` | **MIGRATION_NOT_PERFORMED** — old CLEAR docs may lack the field; re-route to regenerate. Not a production backfill. |
+

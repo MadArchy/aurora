@@ -185,6 +185,7 @@ describe('SPEC-001 Phase 3 — material change + history', () => {
     expect(h.history).toHaveLength(0);
     expect(h.writes[0].thesisId).toBe('A');
     expect(h.writes[0].routingDecision.routingState).toBe('CLEAR');
+    expect(h.writes[0].routingDecision.selectedThesisId).toBe('A');
   });
 
   it('CLEAR A → CLEAR B: history preserves A, current becomes B', () => {

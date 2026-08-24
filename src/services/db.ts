@@ -2143,6 +2143,32 @@ class DataService {
   }
 
   /**
+   * SPEC-001 compatibility persistence: CLEAR requires routingDecision.selectedThesisId
+   * and matching compatibility thesisId. Non-CLEAR must not persist selectedThesisId.
+   * Conflict is rejected — top-level thesisId cannot override routingDecision.
+   */
+  private assertStrategicRoutingPersistShape(
+    routingDecision: NonNullable<Signal['routingDecision']>,
+    thesisId: string | undefined
+  ): void {
+    const selected = routingDecision.selectedThesisId?.trim();
+    if (routingDecision.routingState === 'CLEAR') {
+      if (!selected) {
+        throw new Error('CLEAR routing requires routingDecision.selectedThesisId');
+      }
+      if (thesisId !== selected) {
+        throw new Error(
+          'CLEAR compatibility thesisId must match routingDecision.selectedThesisId'
+        );
+      }
+      return;
+    }
+    if (selected) {
+      throw new Error('Non-CLEAR routing must not persist selectedThesisId');
+    }
+  }
+
+  /**
    * SPEC-001 Phase 2/3 — persist strategic routing WITHOUT silent terminal DISCARD.
    * Clears thesisId when undefined (CONTESTED / UNROUTED) so stale attribution is not implied.
    * When historyEntry is provided, appends it in the same saveAll unit (local atomicity).
@@ -2174,6 +2200,7 @@ class DataService {
     ) {
       throw new Error('Strategic routing tenant mismatch: organizationId');
     }
+    this.assertStrategicRoutingPersistShape(extras.routingDecision, extras.thesisId);
     if (extras.historyEntry) {
       const h = extras.historyEntry;
       if (h.signalId !== signalId) {

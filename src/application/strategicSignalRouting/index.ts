@@ -23,3 +23,4 @@ export type { SignalWritePort, PersistStrategicRoutingParams } from './ports/Sig
 export type { RoutingHistoryPort } from './ports/RoutingHistoryPort';
 export type { StrategicScoringPort, WhyNowSnapshot } from './ports/StrategicScoringPort';
 export { previousMaterialFromSignal } from './previousMaterial';
+export { toPersistedRoutingDecision } from './persistedRoutingDecision';

@@ -442,6 +442,11 @@ export interface Signal {
     source: 'AUTO' | 'MANUAL';
     /** SPEC-001 Phase 2 — authoritative routing classification. */
     routingState?: 'CLEAR' | 'CONTESTED' | 'UNROUTED';
+    /**
+     * Authoritative SPEC-001 selected thesis when routingState === 'CLEAR'.
+     * Absent for CONTESTED / UNROUTED. Distinct from compatibility signal.thesisId.
+     */
+    selectedThesisId?: string;
     algorithmVersion?: string;
     rationale?: string;
     actorId?: string;

@@ -351,6 +351,8 @@ Deployment gates: see `acceptance.md` (optional D\* — none manufactured as pro
 
 Gateway of acceptance A1–A18 PASS + human T-001-6xx sign-off. Product must satisfy multi-thesis / contested / MANUAL / no strategic `[0]` / no silent discard-from-routing / domain purity / architecture ban tests.
 
+**Compatibility persistence patch (2026-08-24):** Human-authorized addition of `routingDecision.selectedThesisId` for CLEAR persist. Original CODE_COMPLETE SHA `4643cad115b4294c2fb04bd15a08d4478cc64039` is unchanged historical evidence. Algorithm/thresholds/scoring/AI unchanged. Existing CLEAR records are not backfilled.
+
 ---
 
 ## References

@@ -144,3 +144,5 @@ Human approval received via explicit development-workflow authorization (2026-08
 - **Deployment gates D1–D3** = **PENDING** (D2 DEFERRED per existing wording)
 - **SPEC-001 DONE** = **NO**
 - **P2 routing-history rules** = **NONBLOCKING_DEFERRED** (SPEC-009 owner; not RESOLVED)
+
+**Compatibility persistence patch (2026-08-24, authorized):** `routingDecision.selectedThesisId` is now persisted for CLEAR. Original CODE_COMPLETE checkpoint `4643cad115b4294c2fb04bd15a08d4478cc64039` remains historical evidence. No algorithm change. No production backfill (`LEGACY_CLEAR_ROUTING_RECORDS = MIGRATION_NOT_PERFORMED`).
