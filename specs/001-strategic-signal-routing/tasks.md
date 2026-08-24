@@ -189,17 +189,51 @@
 
 ---
 
-## Phase 6 — Final acceptance / CODE_COMPLETE
+## Phase 6 — Final acceptance / CODE_COMPLETE ✅
 
----
+Evidence package + human sign-off complete. Product code frozen @  
+`057a284a7cea7979beb0e180da208a85b7d72619`. Governance closure docs-only.
 
-## Phase 6 — Acceptance / CODE_COMPLETE
+### Phase 6 — Acceptance / CODE_COMPLETE
 
-- [ ] **T-001-601** Acceptance matrix A1–A18 evidence filled
-- [ ] **T-001-602** `npm run check` PASS
-- [ ] **T-001-603** `npm run test:rules` PASS
-- [ ] **T-001-604** Human sign-off → **CODE_COMPLETE**
-- [ ] **T-001-605** Confirm DEPLOYED/DONE remain separate / NOT STARTED unless separately authorized
+- [x] **T-001-601** Acceptance matrix A1–A18 evidence filled → `acceptance.md` Phase-6 matrix
+- [x] **T-001-602** `npm run check` PASS → **573/573** (Phase-6 final 2026-08-23)
+- [x] **T-001-603** `npm run test:rules` PASS → **91/91** (Phase-6 final 2026-08-23)
+- [x] **T-001-601** evidence includes SPEC-001 architecture/security suite **106/106** (8 files)
+- [x] **T-001-604** Human sign-off → **CODE_COMPLETE** — **APPROVED** (2026-08-23)
+- [x] **T-001-605** Confirm DEPLOYED/DONE remain separate / NOT STARTED → D1–D3 PENDING; DEPLOYMENT = NOT STARTED
+
+### T-001 FINAL HUMAN SIGN-OFF PACKAGE
+
+See **`acceptance.md` → “T-001 FINAL HUMAN SIGN-OFF PACKAGE”**.
+
+| Decision field | Value |
+|----------------|--------|
+| Human decision | **APPROVED** |
+| HUMAN SIGN-OFF | **APPROVED** |
+| T-001-604 | **DONE** |
+| SPEC-001 IMPLEMENTATION | **CODE_COMPLETE** |
+| SPEC-001 DEPLOYED | **NO** |
+| DEPLOYMENT | NOT STARTED |
+| SPEC-001 DONE | NO |
+
+### P2 (disclosed, nonblocking — unchanged)
+
+**D-001-hist-rules** — Firestore `routingHistory` rules gap → **DEFERRED_TO_OTHER_SPEC** (SPEC-009).  
+**ROUTING HISTORY RULE CONTRACT = NONBLOCKING_DEFERRED.** Not RESOLVED at CODE_COMPLETE.
+
+### Remaining incomplete T-001 items (post-CODE_COMPLETE)
+
+| Task / item | Classification |
+|-------------|----------------|
+| T-001-206 | **FUTURE_NONBLOCKING** (optional explanation/recompute) |
+| D1 | **DEPLOYMENT** — PENDING |
+| D2 | **DEPLOYMENT** — DEFERRED (nonblocking) |
+| D3 | **DEPLOYMENT** — PENDING |
+| D-001-hist-rules | **OTHER_SPEC** (SPEC-009) |
+| D-001-content | **OTHER_SPEC** |
+
+**Required implementation blockers:** NONE
 
 ---
 
