@@ -1,10 +1,11 @@
 # Tasks 003 — Strategic Brief
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 1 COMPLETE** · Phase 2 **NOT STARTED**  
+**Implementation:** **Phase 2 COMPLETE** · Phase 3 **NOT STARTED**  
 **Branch:** `spec/003-strategic-brief`  
 **Base SHA:** `e422359ab90e84d4eb26007db23da6d54390cf15`  
 **Formal SPEC checkpoint:** `3c04c6df42d1d51fe8e38fd96deec3af826995eb`  
+**Phase-1 checkpoint:** `005420565eee138cad097d6a741d19eede2676d1`  
 **Human SPEC approval:** **APPROVED** (T-003-010) — 2026-08-24
 
 ---
@@ -47,17 +48,19 @@ F-003-01 = **PARTIAL_DOMAIN_IMPLEMENTED** · F-003-03 = **PARTIAL_DOMAIN_CONTRAC
 
 ## Phase 2 — Application / governance
 
-- [ ] **T-003-201** `CreateStrategicBrief` use case
-- [ ] **T-003-202** `ApproveStrategicBrief` / `RejectStrategicBrief` use cases
-- [ ] **T-003-203** `ReviseStrategicBrief` use case (supersede semantics)
-- [ ] **T-003-204** `OverrideStrategicBrief` use case (auditable)
-- [ ] **T-003-205** `StrategicContextReader` port — read SPEC-001/002 projections
-- [ ] **T-003-206** `StrategicBriefRepository` + `StrategicBriefHistoryPort`
-- [ ] **T-003-207** Downstream authorization query (`isBriefAuthorizedForAction`)
-- [ ] **T-003-208** Controlled error model (`BRIEF_NOT_FOUND`, `ROUTING_NOT_CLEAR`, `TENANT_CONTEXT_INVALID`, …)
-- [ ] **T-003-209** Disposition/format override rationale enforcement
+- [x] **T-003-201** `CreateStrategicBrief` use case
+- [x] **T-003-202** `ApproveStrategicBrief` / `RejectStrategicBrief` use cases
+- [x] **T-003-203** `ReviseStrategicBrief` use case (supersede semantics)
+- [x] **T-003-204** `OverrideStrategicBrief` use case (auditable)
+- [x] **T-003-205** `StrategicContextReader` port — read SPEC-001/002 projections
+- [x] **T-003-206** `StrategicBriefRepository` + `StrategicBriefHistoryPort`
+- [x] **T-003-207** Downstream authorization query (`isBriefAuthorizedForAction`)
+- [x] **T-003-208** Controlled error model (`BRIEF_NOT_FOUND`, `ROUTING_NOT_CLEAR`, `TENANT_CONTEXT_INVALID`, …)
+- [x] **T-003-209** Disposition/format override rationale enforcement
 
-**Exit:** Application hexagonal tests; no concrete db in use cases.
+**Exit:** Application hexagonal tests; no concrete db in use cases. **DONE** — evidence: `src/application/strategicBrief/`; `tests/strategicBriefPhase2.test.ts`; `tests/strategicBriefApplicationArchitecture.test.ts`.
+
+F-003-01 = **PARTIAL_APPLICATION_IMPLEMENTED** · F-003-03 = **PARTIAL_APPLICATION_IMPLEMENTED** · F-003-02 remains **OPEN_PHASE_4**. P1 count unchanged (3). Persistence remains Phase 3.
 
 ---
 

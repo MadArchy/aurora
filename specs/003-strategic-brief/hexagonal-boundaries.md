@@ -47,7 +47,14 @@ Composition root wires adapters — NOT main.ts direct db mutations for Brief au
 - `src/domain/briefRoutingGateCore.ts`
 - `src/domain/briefTenantCore.ts`
 
-Architecture evidence: `tests/strategicBriefArchitecture.test.ts`. Phase 2 Application package **NOT STARTED**.
+Architecture evidence: `tests/strategicBriefArchitecture.test.ts`.
+
+**Phase 2 Application package (implemented):**
+
+- `src/application/strategicBrief/`
+- evidence: `tests/strategicBriefPhase2.test.ts`, `tests/strategicBriefApplicationArchitecture.test.ts`
+
+Phase 3 persistence **NOT STARTED**.
 
 ---
 

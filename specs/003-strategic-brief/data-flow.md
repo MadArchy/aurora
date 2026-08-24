@@ -94,6 +94,10 @@ Validate required constitutional fields present
       ↓
 Validate disposition/format override rationales if overriding SPEC-002
       ↓
+Re-read live SPEC-001 routing (do not trust create-time snapshot alone)
+      ↓
+Scoring snapshot is not overwritten (scoringVersion drift policy = Phase 3)
+      ↓
 Set status = APPROVED
 Set approvedBy, approvedAt from trusted actor
       ↓

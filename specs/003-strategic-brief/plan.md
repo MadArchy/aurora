@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `003-strategic-brief` |
-| **Phase** | **Phase 1 COMPLETE** · Phase 2 **NOT STARTED** |
+| **Phase** | **Phase 2 COMPLETE** · Phase 3 **NOT STARTED** |
 | **Status** | `APPROVED` |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 
@@ -70,7 +70,7 @@ Preserve product usability during migration — dual-read/compatibility windows 
 |-------|------|-----------|
 | **0B** | Formal SPEC package | Human SPEC approval (T-003-010) |
 | **1** | Domain: StrategicBrief, StrategicDecisionSnapshot, status, materiality, invariants | **DONE** — Domain unit tests PASS |
-| **2** | Application: create/approve/reject/revise/override; context reader; tenant/routing gates | App + governance tests |
+| **2** | Application: create/approve/reject/revise/override; context reader; tenant/routing gates | **DONE** — Application hexagonal tests PASS; no concrete db |
 | **3** | Persistence: current Brief + append-only history; idempotency; actor audit | History + tenant tests |
 | **4** | Consumer migration: block bypass paths; wire curation/delivery/sendDelivery/content/opportunity | A10, A28 green |
 | **5** | Security/regression: CONTESTED/UNROUTED, cross-tenant, AI advisory, SPEC-001/002/005/006 regression | P1/P2 closure evidence |
@@ -95,7 +95,7 @@ T-003-010 human SPEC approval **DONE**. Phase 1 **AUTHORIZED**. Do **not** decla
 | Finding | Closure phase |
 |---------|---------------|
 | Curation/Brief naming collision | Phase 4 migration + docs |
-| CONTESTED/UNROUTED fail-open in curation | Phase 2 gates + Phase 4 |
+| CONTESTED/UNROUTED fail-open in curation | **PARTIAL** — Application gate Phase 2 DONE; curation consumer Phase 4 |
 | `proposeAngle` thesis fallback | Phase 4 (require Brief context) |
 | Single-thesis delivery package validation | Phase 4 (per-item Brief ref) |
 | Evidence ID loss signal→content | Phase 1–3 linkage + Phase 4 |
