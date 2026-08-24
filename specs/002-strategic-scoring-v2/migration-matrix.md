@@ -97,6 +97,18 @@ Phase 4 final inventory: 2026-08-24.
 
 | Location | Status |
 |----------|--------|
-| `tests/scoringPhase4.test.ts` | **ADDED** — parity, ingest static guards, legacy writer ban |
+| `tests/scoringPhase4.test.ts` | **MIGRATED** — consumer migration guards |
+| `tests/scoringPhase5.test.ts` | **ADDED** — Phase 5 security/architecture (39 tests) |
 | `tests/scoringCore.test.ts` | **KEEP** |
-| `tests/radarTriage.test.ts` | **KEEP** — disposition-aware triage |
+| `tests/radarTriage.test.ts` | **KEEP** |
+
+## Phase 5 evidence
+
+| Check | Status |
+|-------|--------|
+| Functions package closure | **PASS** — compiled requires resolve under `functions/lib/` |
+| Formula authority count | **1** (`scoringCore.ts`) |
+| Strategic first-thesis consumers | **0** |
+| Auto-discard from scoring | **0** |
+| Score history rule contract | **NONBLOCKING_LOCAL_AUTHORITY** |
+| Unscored signal reachability | **PASS** — manager bulk score, curation, analyze, client ingest |

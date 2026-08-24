@@ -114,6 +114,8 @@ Ports use Domain types only — no collection path strings as domain law.
 
 **Phase 4:** `scoreSignalCloud` — thin **Domain core wrapper** (shared via `functions/tsconfig.json` includes). Ingest defers routing/scoring to client governed pipeline.
 
+**Phase 5:** Functions package closure verified — TypeScript emits shared Domain into `functions/lib/src/**`; runtime requires resolve within `functions/lib/` only (deployable artifact self-contained).
+
 ---
 
 ## Composition

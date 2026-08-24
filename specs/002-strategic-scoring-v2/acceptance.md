@@ -1,8 +1,8 @@
 # Acceptance 002 — Strategic Scoring V2
 
 **Phase 0B:** criteria defined.  
-**Phase 4:** Consumer migration complete (partial acceptance advance).  
-**Phase 5–6:** not started.
+**Phase 5:** Security/architecture hardening complete.  
+**Phase 6:** not started (CODE_COMPLETE human sign-off pending).
 
 Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (Phase 6).  
 Spec **DONE** requires CODE_COMPLETE + any agreed deploy verification (separate).
@@ -19,7 +19,7 @@ Spec **DONE** requires CODE_COMPLETE + any agreed deploy verification (separate)
 | A2 | Single canonical deterministic algorithm used by all strategic scoring execution paths | Parity | ✅ Phase 4 — client Domain core + cloud wrapper parity tests |
 | A3 | Scoring consumes SPEC-001 routing context; does not independently select/route thesis | SPEC-001 contract | ✅ Phase 2 — `resolveGovernedThesisForScoring` + use cases |
 | A4 | Zero strategic scoring path uses first/primary thesis shortcuts | Multi-thesis | ✅ Phase 4 — scheduledIngest thesis query removed |
-| A5 | Required eligible thesis evidence from SPEC-001 remains preserved | Evidence | ☐ Phase 2+ |
+| A5 | Required eligible thesis evidence from SPEC-001 remains preserved | Evidence | ✅ Phase 2/5 — routing + scoring governance tests |
 | A6 | CLEAR scoring respects selected routed thesis | CLEAR | ✅ Phase 2 — CLEAR path tests |
 | A7 | CONTESTED cannot silently become single-thesis downstream context | CONTESTED | ✅ Phase 2 — fail-closed tests |
 | A8 | UNROUTED cannot fabricate thesis context | UNROUTED | ✅ Phase 2 — fail-closed tests |
@@ -35,10 +35,10 @@ Spec **DONE** requires CODE_COMPLETE + any agreed deploy verification (separate)
 | A18 | Domain scoring is infrastructure/framework pure | Hexagonal | ✅ Phase 1 — `tests/scoringArchitecture.test.ts` |
 | A19 | Application depends on ports rather than concrete persistence | Hexagonal | ✅ Phase 2 — port-based use cases + architecture tests |
 | A20 | No duplicate score history for timestamp-only equivalent re-score | Idempotency | ✅ Phase 3 — materiality gate tests |
-| A21 | SPEC-001 frozen routing regression remains PASS | Regression | ☐ Phase 5+ |
-| A22 | SPEC-005 frozen Gateway regression remains PASS | Regression | ☐ Phase 5+ |
-| A23 | `npm run check` PASS | Governance | ☐ Phase 6 |
-| A24 | `npm run test:rules` PASS | Governance | ☐ Phase 6 |
+| A21 | SPEC-001 frozen routing regression remains PASS | Regression | ✅ Phase 5 — `strategicSignalRoutingPhase*` + `npm run check` |
+| A22 | SPEC-005 frozen Gateway regression remains PASS | Regression | ✅ Phase 5 — `aiGatewayPhase*` + `npm run check` |
+| A23 | `npm run check` PASS | Governance | ✅ Evidenced Phase 5 — final revalidation gate Phase 6 (T-002-602) |
+| A24 | `npm run test:rules` PASS | Governance | ✅ Evidenced Phase 5 — final revalidation gate Phase 6 (T-002-603) |
 
 No A25+ added in Phase 0B unless implementation proves a genuine gap.
 
@@ -78,4 +78,4 @@ No A25+ added in Phase 0B unless implementation proves a genuine gap.
 | Human SPEC approver | 2026-08-23 | ✅ **APPROVED** (T-002-010) |
 | CODE_COMPLETE human | | ☐ (Phase 6) |
 
-**Current:** `APPROVED` · Phase 3 **COMPLETE** · Phase 4 **NOT STARTED**
+**Current:** `APPROVED` · Phase 5 **COMPLETE** · Phase 6 **NOT STARTED**

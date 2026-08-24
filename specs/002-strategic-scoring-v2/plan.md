@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `002-strategic-scoring-v2` |
-| **Phase** | **Phase 4 COMPLETE** · Phase 5 **NOT STARTED** |
+| **Phase** | **Phase 5 COMPLETE** · Phase 6 **NOT STARTED** |
 | **Status** | `APPROVED` — score persistence + material history implemented |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 

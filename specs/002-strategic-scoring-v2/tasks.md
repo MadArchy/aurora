@@ -1,7 +1,7 @@
 # Tasks 002 — Strategic Scoring V2
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 4 COMPLETE** · Phase 5 **NOT STARTED**  
+**Implementation:** **Phase 5 COMPLETE** · Phase 6 **NOT STARTED**  
 **Branch (recommended):** `spec/002-strategic-scoring-v2`
 
 ---
@@ -78,15 +78,15 @@
 
 ## Phase 5 — Security / regression
 
-- [ ] **T-002-501** Architecture ban: no duplicate independent scoring formulas in strategic modules
-- [ ] **T-002-502** Multi-thesis + CONTESTED + UNROUTED scoring governance tests
-- [ ] **T-002-503** Tenant negative tests at persistence boundary
-- [ ] **T-002-504** Auto-discard regression suite
-- [ ] **T-002-505** SPEC-001 routing regression verification
-- [ ] **T-002-506** SPEC-005 Gateway regression verification
-- [ ] **T-002-507** Cloud/client parity test matrix
+- [x] **T-002-501** Architecture ban: no duplicate independent scoring formulas in strategic modules
+- [x] **T-002-502** Multi-thesis + CONTESTED + UNROUTED scoring governance tests
+- [x] **T-002-503** Tenant negative tests at persistence boundary
+- [x] **T-002-504** Auto-discard regression suite
+- [x] **T-002-505** SPEC-001 routing regression verification
+- [x] **T-002-506** SPEC-005 Gateway regression verification
+- [x] **T-002-507** Cloud/client parity test matrix + Functions package closure
 
-**Exit:** P0/P1 closure evidence; security suite green.
+**Exit:** P0/P1 closure evidence; security suite green. **DONE** — evidence: `tests/scoringPhase5.test.ts` (39 tests), clean Functions build, package closure PASS.
 
 ---
 
