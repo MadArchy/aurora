@@ -110,7 +110,7 @@ Phase 3 **COMPLETE** (T-006-301…308). Phase 4 **NOT AUTHORIZED**.
 
 **Phase 3 IDs:** T-006-301 … T-006-308 — **ALL DONE**
 
-**Phase-3 checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+**Phase-3 checkpoint:** `45c45610fcf0b66f4c8e5627609895b2ba92d9e2`
 
 Phase 4 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
 
