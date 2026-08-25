@@ -60,17 +60,33 @@ ContentItem (revision N, contentHash H)
 ## D. Evidence / Source flow
 
 ```text
-EvidenceVaultItem (LEGACY) / Evidence (TARGET)
+EvidenceVaultItem (LEGACY) ──map──► ClaimEvidence (TARGET)
   ├── organizationId, clientId
   ├── title, type, snippet, supports[]
-  ├── verified flag (LEGACY) → Verification records (TARGET)
+  ├── verified flag (LEGACY) → IGNORED (never Verification authority)
   └── Source { url?, publisher?, type?, retrievedAt?, … }
         ↑
 ClaimEvidenceLink (claimId, evidenceId, tenant, createdBy, createdAt)
+        ↑
+ClaimVerification (current store) + ClaimHistory (append-only; audit only)
 ```
 
 One Evidence → many Claims (same tenant).  
-Brief `supportingEvidenceIds` → candidate IDs for linking — **not** auto-VERIFIED.
+Brief `supportingEvidenceIds` → candidate IDs for linking — **not** auto-VERIFIED.  
+Vault presence / `verified: true` → **does not** create Verification or authorize publication.
+
+### Phase 3 persistence (LOCAL_AUTHORITATIVE)
+
+```text
+ClaimWriteUnit
+  → LocalClaimEvidenceStore.commitWriteUnit
+       (claims + links + verifications + history + override)
+  → versioned localStorage keys (postura_claim_*_v1)
+  → ClaimHistoryPort.append (idempotent re-append)
+```
+
+Current Claim/Verification projections are authority for Application reload.  
+History / prior PUBLICATION_AUTHORIZED events are **audit only**.
 
 ---
 

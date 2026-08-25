@@ -85,10 +85,17 @@ Ports ← Infrastructure (local stores, EvidenceVault adapter,
 
 | Adapter | Classification |
 |---------|----------------|
-| Local Claim/Verification/Link stores | Phase 3 LOCAL_AUTHORITATIVE |
-| `db.ts` EvidenceVault | LEGACY → adapter |
+| `LocalClaimEvidenceStore` + `LocalClaimRepository` | Phase 3 LOCAL_AUTHORITATIVE — **IMPLEMENTED** |
+| `LocalVerificationStore` | Phase 3 current Verification projection — **IMPLEMENTED** |
+| `LocalClaimHistoryAdapter` | Append-only history + override — **IMPLEMENTED** |
+| `LocalEvidenceVaultAdapter` / `LocalEvidenceWriter` | Vault ADAPT + local Evidence write — **IMPLEMENTED** |
+| `LocalClaimContentReader` | Read-only content context — **IMPLEMENTED** |
+| `composeClaimEvidence` | Test/composition seam only (no UI/main wire) — **IMPLEMENTED** |
+| `db.ts` EvidenceVault | LEGACY source for vault adapter |
 | SPEC-005 gateway suggestion | OPTIONAL advisory |
 | Firestore Claim rules | REMOTE_FUTURE / SPEC-009 |
+
+**Dependency direction:** Infrastructure → Application ports + Domain. Domain/Application → Infrastructure = **0**.
 
 ---
 

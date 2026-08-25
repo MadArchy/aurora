@@ -23,19 +23,19 @@ Legend: **KEEP** · **MIGRATE** · **ADAPT** · **DEPRECATE** · **OTHER_SPEC** 
 | Content publish helpers | `src/domain/contentPublishCore.ts` | **KEEP** | Pipeline labels; not claim authority | — |
 | Verdict on ContentItem | `types` `ClaimSafetyVerdictRecord` | **DEPRECATE** (compat projection) | After Claim aggregate | 4 |
 | Evidence vault type | `types` `EvidenceVaultItem` | **MIGRATE** → Evidence entity | Keep fields; add Source | 1–3 |
-| Evidence persistence | `db.ts` `postura_evidence_v5` | **ADAPT** behind ports | LOCAL current | 3 |
+| Evidence persistence | `db.ts` `postura_evidence_v5` | **ADAPT** behind `LocalEvidenceVaultAdapter` | LOCAL current + local ClaimEvidence | 3 |
 | Evidence UI vault | ClientWorkspace evidence rows | **KEEP** / **ADAPT** | Tenant vault UX | 4 |
 | Thesis strength evidence | `thesisStrengthCore.ts` | **OTHER_SPEC** / shared read | Evidence Authority scoring — not claim gate | — |
 | Brief evidence refs | SPEC-003 Brief / ContentItem | **KEEP** (consume) | References ≠ verification | — |
 | Auth claims core | `posturaClaimsCore.ts` | **OTHER_SPEC** (SPEC-009) | Do not merge | — |
 | Firebase claims bridge | `src/firebase/claims.ts` | **OTHER_SPEC** (SPEC-009) | Do not merge | — |
-| Formal Claim entity | — | **MISSING** | Phase 1 | 1 |
-| Verification entity | — | **MISSING** | Phase 1 | 1 |
-| Source entity | — | **MISSING** (partial URL on vault) | Phase 1 | 1 |
-| ClaimEvidenceLink | — | **MISSING** (ids on findings only) | Phase 1 | 1 |
-| EVIDENCE_REQUIRED state | — | **MISSING** | Phase 1 | 1 |
-| Material history (claims) | — | **MISSING** | Phase 3 | 3 |
-| Override audit (claims) | — | **MISSING** (REVIEW ack only) | Phase 2–3 | 2–3 |
+| Formal Claim entity | — | **IMPLEMENTED** (Domain + local store) | Phase 1–3 | 1–3 |
+| Verification entity | — | **IMPLEMENTED** (Domain + local store) | Phase 1–3 | 1–3 |
+| Source entity | — | **IMPLEMENTED** (Domain VO + vault map) | Phase 1–3 | 1 |
+| ClaimEvidenceLink | — | **IMPLEMENTED** (Domain + local store) | Phase 1–3 | 1–3 |
+| EVIDENCE_REQUIRED state | — | **IMPLEMENTED** | Phase 1 | 1 |
+| Material history (claims) | — | **IMPLEMENTED** (`postura_claim_history_v1`) | Phase 3 | 3 |
+| Override audit (claims) | — | **IMPLEMENTED** (`postura_claim_override_v1`) | Phase 2–3 | 2–3 |
 
 ---
 
@@ -52,10 +52,10 @@ Legend: **KEEP** · **MIGRATE** · **ADAPT** · **DEPRECATE** · **OTHER_SPEC** 
 | AI advisory only | `reviewDraftClaims` is deterministic local — OK; no AI verify | Must keep ban | — | Architecture tests | 5 |
 | Publication gate | `claimSafetyGateCore` aggregate | Not claim-state based | **P2** | AuthorizePublication | 2–4 |
 | Brief evidence ≠ verified | claimSafety ignores Brief IDs | Documented; enforce | **P2** | Explicit tests | 1–5 |
-| Material history | None for claims | Missing | **P2** | Append-only stores | 3 |
-| Override audit | REVIEW ack boolean | Weak | **P2** | OverrideClaimGate | 2–3 |
+| Material history | None for claims | Missing | **P2** | Append-only stores | 3 ✅ |
+| Override audit | REVIEW ack boolean | Weak | **P2** | OverrideClaimGate + store | 2–3 ✅ |
 | Requirement traceability | None | P2-006-01 | **P2** | CLAIM-006-* IDs | 1 |
-| Architecture/security suites | None dedicated | P2-006-02 | **P2** | Phase 5 tests | 5 |
+| Architecture/security suites | None dedicated | P2-006-02 | **P2** | Infra arch Phase 3; security Phase 5 | 3–5 |
 | Naming canonical title | "claim safety" modules | P3-006-01 | **P3** | Docs first; rename later | 0 / later |
 | Governance package | Was missing | F-006-01 | **P1→RESOLVED** | Phase 0 docs | 0 |
 

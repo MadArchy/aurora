@@ -91,24 +91,28 @@ Phase 2 **AUTHORIZED** under separate human go-ahead (2026-08-25).
 
 **Phase 2 IDs:** T-006-201 … T-006-211 — **ALL DONE**
 
-Phase 3 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
+Phase 3 **COMPLETE** (T-006-301…308). Phase 4 **NOT AUTHORIZED**.
 
 ---
 
-## Phase 3 — Persistence / history (NOT AUTHORIZED)
+## Phase 3 — Persistence / history ✅ COMPLETE
 
-- [ ] **T-006-301** Local-authoritative Claim store
-- [ ] **T-006-302** ClaimEvidenceLink store
-- [ ] **T-006-303** Verification + append-only history stores
-- [ ] **T-006-304** Evidence vault adapter behind EvidenceReader/Writer ports
-- [ ] **T-006-305** Tenant-safe atomic persist (claim + link + history)
-- [ ] **T-006-306** Idempotent register/verify commands
-- [ ] **T-006-307** Actor/audit fields from trusted auth context
-- [ ] **T-006-308** Infrastructure architecture tests
+- [x] **T-006-301** Local-authoritative Claim store — **DONE**
+- [x] **T-006-302** ClaimEvidenceLink store — **DONE**
+- [x] **T-006-303** Verification + append-only history stores — **DONE**
+- [x] **T-006-304** Evidence vault adapter behind EvidenceReader/Writer ports — **DONE** (`EvidenceReader` + infrastructure `LocalEvidenceWriter`; Application `EvidenceWriter` port remains deferred to Phase-2 surface)
+- [x] **T-006-305** Tenant-safe atomic persist (claim + link + history) — **DONE**
+- [x] **T-006-306** Idempotent register/verify commands — **DONE** (incl. process-reload)
+- [x] **T-006-307** Actor/audit fields from trusted auth context — **DONE** (persist only; no reload elevation)
+- [x] **T-006-308** Infrastructure architecture tests — **DONE**
 
-**Exit:** History append-only; LOCAL_AUTHORITATIVE. Firestore Claim rules = FUTURE / SPEC-009.
+**Exit:** History append-only; LOCAL_AUTHORITATIVE. Firestore Claim rules = FUTURE / SPEC-009. **MET**.
 
-**Phase 3 IDs:** T-006-301 … T-006-308
+**Phase 3 IDs:** T-006-301 … T-006-308 — **ALL DONE**
+
+**Phase-3 checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+
+Phase 4 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
 
 ---
 

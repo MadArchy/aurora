@@ -173,7 +173,20 @@ Legacy modules remain **KEEP** until Phase 4 consumers migrate; then **ADAPT** �
 | 3–6 CODE_COMPLETE | **LOCAL_AUTHORITATIVE** |
 | Production remote | **REMOTE_FUTURE** + SPEC-009 |
 
-Physical key names TBD in Phase 3 (follow `postura_*_vN` convention).
+**Phase 3 physical keys (implemented):**
+
+| Store | Key | Schema |
+|-------|-----|--------|
+| Claim current | `postura_claim_v1` | `claim-store-v1` |
+| ClaimEvidenceLink | `postura_claim_link_v1` | `claim-link-store-v1` |
+| Verification current | `postura_claim_verification_v1` | `claim-verification-store-v1` |
+| ClaimEvidence local | `postura_claim_evidence_v1` | `claim-evidence-store-v1` |
+| Material history | `postura_claim_history_v1` | `claim-history-store-v1` |
+| Override audit | `postura_claim_override_v1` | `claim-override-store-v1` |
+
+Evidence Vault (`postura_evidence_v5`) remains LEGACY source adapted via `LocalEvidenceVaultAdapter`.  
+Local write-unit = coherent in-memory mutate + multi-key persist with snapshot rollback (not distributed TX).  
+Local tamper resistance = structural validation only (**KNOWN_LIMITATION** vs threat-model; not SPEC-009).
 
 ---
 
@@ -197,7 +210,7 @@ Physical key names TBD in Phase 3 (follow `postura_*_vN` convention).
 | F-006-01 | P1 | **RESOLVED** Phase 0 |
 | F-006-02 | P1 | **RESOLVED** Phase 1 Domain |
 | P2-006-01 | P2 | Requirement IDs CLAIM-006-* — OPEN (legacy still unmapped) |
-| P2-006-02 | P2 | Architecture suite Phase 1 PARTIAL; security Phase 5 |
+| P2-006-02 | P2 | Architecture suite Domain+App+Infra PARTIAL; security Phase 5 |
 | P3-006-01 | P3 | Canonical title in all new docs; legacy module names OK |
 
 ---
