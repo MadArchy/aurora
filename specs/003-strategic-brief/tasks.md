@@ -1,12 +1,14 @@
 # Tasks 003 — Strategic Brief
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 4 COMPLETE** · Phase 5 **NOT STARTED**  
+**Implementation:** **Phase 4 COMPLETE** · Phase 5 **NOT STARTED** · Phase 5 **READY**  
 **Branch:** `spec/003-strategic-brief`  
 **Base SHA:** `e422359ab90e84d4eb26007db23da6d54390cf15`  
 **Formal SPEC checkpoint:** `3c04c6df42d1d51fe8e38fd96deec3af826995eb`  
 **Phase-1 checkpoint:** `005420565eee138cad097d6a741d19eede2676d1`  
 **Phase-2 checkpoint:** `d4371e8d6a6b57c553c6723a1304e85a7e24f433`  
+**Phase-3 frozen checkpoint:** `73004305561be5d12faaf2a524e50405d5e6809e`  
+**Phase-4 implementation checkpoint:** `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6`  
 **Human SPEC approval:** **APPROVED** (T-003-010) — 2026-08-24
 
 ---
@@ -124,11 +126,21 @@ F-003-01 = **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** · F-003-03 = **IMPLEMENTED
 
 **Generic manual tasks:** `form-add-task` ungated (GENERIC_NON_STRATEGIC).
 
-F-003-01 = **RESOLVED** · F-003-02 = **RESOLVED** · F-003-03 = **RESOLVED** · P1 **0**. Phase 5 **NOT STARTED**.
+**P1:** ORIGINAL **3** · RESOLVED **3** · UNRESOLVED **0** · FINDINGS **0**  
+F-003-01 = **RESOLVED** · F-003-02 = **RESOLVED** · F-003-03 = **RESOLVED**
+
+**P2:** ORIGINAL **5** · RESOLVED **3** · PARTIAL **2**  
+P2-003-01 naming = **PARTIAL** · P2-003-02 curation queue fail-open = **PARTIAL** · P2-003-03/04/05 = **RESOLVED**
+
+**Phase-4 implementation blockers:** **0**  
+**Phase 5:** **READY** · **NOT STARTED** (T-003-501+ unchecked)  
+**Implementation checkpoint:** `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6`
 
 ---
 
 ## Phase 5 — Security / regression
+
+**Status:** **NOT STARTED** · **READY** (Phase-4 gate complete; these tasks are Phase-5 work, not Phase-4 blockers)
 
 - [ ] **T-003-501** Architecture ban: no Brief authority in `main.ts` direct writes
 - [ ] **T-003-502** CONTESTED / UNROUTED / stale thesis adversarial matrix

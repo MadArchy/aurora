@@ -123,13 +123,15 @@ Phase 0 inventory: 2026-08-24.
 
 ## P2 debt rows
 
-| ID | Item | Target | Phase |
-|----|------|--------|-------|
-| P2-003-01 | Curation/Brief naming collision | Document + UX rename where needed | Phase 4 |
-| P2-003-02 | CONTESTED/UNROUTED fail-open in curation | Brief routing gate on create | Phase 2–4 |
-| P2-003-03 | `proposeAngle` thesis fallback | Fail-closed without thesis/Brief | Phase 4 |
-| P2-003-04 | Single-thesis delivery validation | Per-item Brief authorization | Phase 4 |
-| P2-003-05 | Evidence ID loss | `supportingEvidenceIds` on Brief | Phase 1–3 **PARTIAL_PERSISTENCE** (consumer carry Phase 4) |
+| ID | Item | Target | Phase 4 status |
+|----|------|--------|----------------|
+| P2-003-01 | Curation/Brief naming collision | Document + UX rename where needed | **PARTIAL / NONBLOCKING** — UI labels distinguish; legacy comments/surfaces remain |
+| P2-003-02 | CONTESTED/UNROUTED fail-open in curation | Brief routing gate on create | **PARTIAL / NONBLOCKING** — queue entry may still occur; downstream authorization gated (queue ≠ Brief authority) |
+| P2-003-03 | `proposeAngle` thesis fallback | Fail-closed without thesis/Brief | **RESOLVED** — explicit governed `thesisId` required |
+| P2-003-04 | Single-thesis delivery validation | Per-item Brief authorization | **RESOLVED** — `DeliveryItem.strategicBriefId` + all-or-nothing send |
+| P2-003-05 | Evidence ID loss | `supportingEvidenceIds` on Brief + consumer carry | **RESOLVED** — ContentItem carries `supportingEvidenceIds` / `signalIds` |
+
+**P2 ORIGINAL = 5 · P2 RESOLVED = 3 · P2 PARTIAL = 2**
 
 ---
 
@@ -151,9 +153,11 @@ Phase 0 inventory: 2026-08-24.
 
 ---
 
-## Exit criteria (Phase 4)
+## Exit criteria (Phase 4) — **MET**
 
-- Zero **BYPASS** rows remain **BYPASS** on strategic paths
-- All **STRATEGIC_AUTHORITY** substitutes **MIGRATED** or **DEPRECATED**
-- `strategicBriefId` on strategic Content/Task/Opportunity
-- CurationEntry/DeliveryPackage demoted to **COMPATIBILITY_ONLY** / delivery packaging
+- Zero **BYPASS** rows remain **BYPASS** on strategic paths — **DONE** (ungated strategic executable paths = 0)
+- All **STRATEGIC_AUTHORITY** substitutes **MIGRATED** or **DEPRECATED** — **DONE**
+- `strategicBriefId` (+ `strategicBriefVersion`) on strategic Content/Task/Opportunity — **DONE**
+- CurationEntry/DeliveryPackage demoted to **COMPATIBILITY_ONLY** / delivery packaging — **DONE**
+- Generic manual tasks (`form-add-task`) remain **KEEP** / ungated — **PRESERVED**
+- Implementation checkpoint: `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6`

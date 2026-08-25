@@ -9,6 +9,8 @@ Physical persistence shape is Phase 3; this document defines Domain semantics.
 
 **Phase 3 (2026-08-24):** Local-authoritative persistence under `src/infrastructure/strategicBrief/`. Current projection is operational authority. History and override audit are physically separate append-only stores. First create persists Application `CREATED` history. No Briefs synthesized from CurationEntry / DeliveryPackage / managerDecision / aiAngle.
 
+**Phase 4 (2026-08-24):** Consumer migration complete. Strategic downstream artifacts carry Brief authorization references. Implementation checkpoint: `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6`.
+
 **Approval scoring policy:** live SPEC-001 routing is re-read at approval. The create-time scoring snapshot is **not** overwritten. `scoringVersion` drift does not auto-reject (unchanged).
 
 ---
@@ -205,6 +207,27 @@ Caller-supplied tenant without trusted envelope validation → **reject**.
 - `primaryThesisId`, `getPrimaryThesis`, `theses[0]`, `activeTheses[0]`
 - highest score winner
 - AI-selected thesis
+
+---
+
+## Downstream traceability (Phase 4 — actual persisted fields)
+
+Canonical authorization reference field: **`strategicBriefId`** (one canonical name — no aliases).
+
+| Artifact | Fields persisted by strategic consumers |
+|----------|-----------------------------------------|
+| **ContentItem** | `strategicBriefId?`, `strategicBriefVersion?`, `signalIds?`, `supportingEvidenceIds?` |
+| **Task** | `strategicBriefId?`, `strategicBriefVersion?`, `signalId?` |
+| **Opportunity** | `strategicBriefId?`, `strategicBriefVersion?`, `signalId?` |
+| **CurationEntry** | `strategicBriefId?` — link only, **not** authority |
+| **DeliveryItem** | `strategicBriefId?` — per-item Brief ref for strategic send |
+
+**Rules:**
+
+- Downstream `thesisId` (where present on Task/Opportunity/Content) is derived from the **approved Brief**, not from `signal.thesisId` or `CurationEntry.thesisId` as authority.
+- `strategicBriefVersion` is persisted alongside ID for immutable authorization trace.
+- Legacy pre-Brief records may omit these fields — remain readable; do **not** invent retroactive Brief authority.
+- `RESEARCH_ONLY` Briefs do not authorize ContentItem / Task / Opportunity creation.
 
 ---
 

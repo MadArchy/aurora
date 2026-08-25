@@ -1,20 +1,31 @@
 # Data flow 003 — Strategic Brief
 
-**Read-only contract definition (Phase 0B).** Phase 1 Domain / Phase 2 Application / Phase 3 local persistence implemented. Phase 4 consumer migration **NOT STARTED**.
+**Phase 4 COMPLETE** — consumer migration implemented. Authoritative flow below matches product at Phase-4 implementation checkpoint `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6`.
 
 ---
 
-## Target circuit (authoritative)
+## Target circuit (authoritative — Phase 4)
 
 ```text
 Signal
   → SPEC-001 ScoreAndRouteSignal (routing + score persist)
-  → SPEC-003 CreateStrategicBrief (reads context — no upstream mutation)
-  → SPEC-003 ApproveStrategicBrief (human)
-  → Downstream authorize (Content / Task / Opportunity) with strategicBriefId
-  → SPEC-005 CONTENT_DRAFT (advisory, post-gate)
-  → SPEC-006 claimSafety (post-draft)
+  → SPEC-002 scoring projection (consumed, not recomputed)
+  → SPEC-003 CreateStrategicBrief (DRAFT — reads context, no upstream mutation)
+  → SPEC-003 ApproveStrategicBrief (human APPROVED)
+  → AuthorizeStrategicDownstream (Application gate)
+  → Content / Task / Opportunity (strategicBriefId + strategicBriefVersion)
+  → SPEC-005 CONTENT_DRAFT only after authorization (strategic paths)
+  → SPEC-006 claimSafety (post-draft, where claim handling applies)
 ```
+
+**Forbidden shortcuts:**
+
+- No Signal → Content
+- No CurationEntry as strategic authority
+- No DeliveryPackage / `strategicNote` as strategic authority
+- No `Signal.managerDecision` as Strategic Decision authority
+- No SPEC-002 recommendation fields as authorization
+- No `aiAngle` as authorization
 
 ---
 
@@ -62,6 +73,8 @@ Persist current projection (`postura_strategic_brief_v1`) + CREATED history (`po
 ```
 
 **Fail-closed:** CONTESTED / UNROUTED → `ROUTING_NOT_CLEAR` — no actionable Brief.
+
+**Note (P2-003-02 PARTIAL):** A CONTESTED/UNROUTED signal may still enter the **operational** Curation queue if product allows it. Queue entry ≠ Brief creation ≠ downstream authorization.
 
 ---
 
@@ -134,104 +147,125 @@ Record override audit (previousState, newState, reason, actor, timestamp)
       ↓
 Apply governed field changes via normal materiality rules
       ↓
-May require re-approval if material (policy: override to APPROVED requires explicit approval step — Phase 2 detail)
+May require re-approval if material
 ```
 
 Override **does not** bypass tenant, routing authority, or claim safety.
 
 ---
 
-## G. Downstream authorization gate
+## G. Downstream authorization gate (Phase 4 — implemented)
 
 ```text
-Request: create Content | Task | Opportunity from strategic context
+Strategic consumer (content / article / rec→task / opportunity / sendDelivery item)
       ↓
-Require strategicBriefId
+strategicBriefConsumer.requireStrategicAuthorization
+  → AuthorizeStrategicDownstream
       ↓
-Load Brief → validate:
-  ├── status === APPROVED
-  ├── not SUPERSEDED
-  ├── organizationId + clientId match request
-  ├── authorizedAction permits requested downstream type
-  └── signalIds still valid tenant + routing policy (staleness optional strict mode Phase 4)
+Require:
+  ├── strategicBriefId present
+  ├── trusted organizationId + clientId
+  ├── requested authorizedAction
+  └── Brief: APPROVED, current, tenant-valid, action-valid
       ↓
-Proceed → persist downstream artifact with strategicBriefId
+if authorized === true:
+  proceed with Brief-derived thesisId, version, signalIds, supportingEvidenceIds
       ↓
-Else → fail closed (BRIEF_NOT_AUTHORIZED)
+else → fail closed (no AI call, no downstream write)
 ```
+
+**UI must not authorize from `brief.status` alone.** Application gate is sole authority.
+
+**Generic operational tasks** (`form-add-task`) remain ungated — not strategic downstream.
 
 ---
 
-## H. AI advisory (non-authoritative)
+## H. Delivery send (Phase 4 — implemented)
 
 ```text
-Approved Brief exists (optional for angle suggestion during DRAFT)
+sendDelivery(packageId)
       ↓
+validateDeliveryForSend + per-item authorizeItem callback
+  ├── resolve DeliveryItem.strategicBriefId || CurationEntry.strategicBriefId
+  ├── map destination → CREATE_CONTENT | CREATE_TASK | CREATE_OPPORTUNITY
+  └── AuthorizeStrategicDownstream for each strategic item
+      ↓
+Policy: ALL-OR-NOTHING
+  — any unauthorized strategic item → BRIEF_DENIED
+  — entire send blocked BEFORE any CONTENT_DRAFT / AI call
+      ↓
+On success: materialize Content / Task / Opportunity with
+  strategicBriefId, strategicBriefVersion, Brief thesisId,
+  signalIds / supportingEvidenceIds (ContentItem)
+      ↓
+markDeliverySent(packageId, convertedSignalIds) — only signals actually materialized
+```
+
+Multi-thesis packages: each item independently authorized by its corresponding Brief. One Brief does not authorize unrelated thesis contexts.
+
+`DeliveryPackage.strategicNote` = presentation only — **not** authorization.
+
+---
+
+## I. AI advisory (non-authoritative)
+
+```text
 ADVISOR_CURATION_ANGLE / CONTENT_DRAFT via SPEC-005
+      ↓
+proposeAngle requires explicit governed thesisId (no first/primary/legacy fallback)
       ↓
 Structured validated output → suggestion fields only
       ↓
-Human incorporates into Brief revision / approval
-      ↓
-AI output change alone → no new APPROVED revision
+AI cannot approve Brief or bypass AuthorizeStrategicDownstream
 ```
+
+On strategic content paths: **authorization occurs before CONTENT_DRAFT**. Denied authorization → AI Gateway call count = 0.
 
 ---
 
-## I. Evidence chain (target reconstructability)
+## J. Evidence / traceability chain (Phase 4)
 
 ```text
 Signal (sourceUrl, snippet, researchBrief)
   → SPEC-001 routing evidence (thesisScores)
   → SPEC-002 score breakdown + whyNow
-  → StrategicBrief (signalIds, supportingEvidenceIds, decision snapshot)
-  → ContentItem (strategicBriefId)
-  → claimSafety review
+  → StrategicBrief (signalIds, supportingEvidenceIds, decision snapshot, thesisId)
+  → ContentItem / Task / Opportunity
+       ├── strategicBriefId
+       ├── strategicBriefVersion
+       ├── thesisId (from approved Brief — not signal.thesisId authority)
+       ├── signalIds / signalId (where applicable)
+       └── supportingEvidenceIds (ContentItem)
+  → claimSafety review (SPEC-006)
   → publish
 ```
 
-Each hop must preserve **reference ids** — not unlinked snippet copies alone.
+Each hop preserves **reference ids** — not unlinked snippet copies alone.
+
+Legacy pre-Brief ContentItem / Task / Opportunity may lack `strategicBriefId` — readable; **not** proof of governed authorization. No retroactive Brief invent.
 
 ---
 
-## J. Current flow (legacy — to migrate)
+## K. CurationEntry role (Phase 4)
 
 ```text
-Signal → score/route
-  → .btn-send-to-curation → CurationEntry
-  → manager destination
-  → DeliveryPackage (strategicNote)
-  → sendDelivery → CONTENT_DRAFT → saveContent / addTask / addOpportunity
-```
-
-**Bypass (no curation):**
-
-- `form-generate-content`
-- `.btn-generate-scientific-article`
-- `.btn-create-task-from-rec`
-
-Phase 4 replaces strategic authority with Brief gate.
-
----
-
-## K. CurationEntry role (transitional)
-
-```text
-CurationEntry = intake/review queue
-  ├── may reference signalId, thesisId (informational during migration)
-  ├── destination selection → prompts Brief creation, not direct downstream
-  └── must not authorize content/opportunity without strategicBriefId (Phase 4)
+CurationEntry = operational intake/review queue
+  ├── may reference signalId, thesisId (COMPATIBILITY_ONLY / display)
+  ├── may reference strategicBriefId (link only — NOT authority)
+  ├── destination selection informs Brief authorizedAction mapping
+  └── must not authorize content/opportunity/task without Application gate
 ```
 
 ---
 
-## L. DeliveryPackage role (transitional)
+## L. DeliveryPackage role (Phase 4)
 
 ```text
-DeliveryPackage = client delivery artifact
-  ├── items may reference CurationEntry refId during migration
+DeliveryPackage = client delivery / packaging artifact
+  ├── items may reference CurationEntry refId
+  ├── DeliveryItem.strategicBriefId required for strategic materialization
   ├── strategicNote = presentation — NOT Strategic Decision
-  └── Phase 4: strategic items require linked strategicBriefId
+  └── package status alone cannot authorize downstream
 ```
 
 ---
@@ -241,6 +275,7 @@ DeliveryPackage = client delivery artifact
 ```text
 Approved StrategicBrief
   + strategicBriefId
+  + strategicBriefVersion
   + authorizedAction
   + thesisId, signalIds
       ↓
@@ -257,8 +292,8 @@ SPEC-003 owns authorization; SPEC-004 owns execution planning.
 |----------|-------------------|
 | Double CreateBrief same scope | Return existing DRAFT or deterministic reject |
 | Approve already-approved vN | No-op success |
-| Double downstream create same briefId+action | No duplicate artifacts |
-| Regenerate AI angle | No new authoritative version without human revise |
+| Double downstream create same briefId+action | No uncontrolled duplicate artifacts |
+| Regenerate AI angle / content retry | No new authoritative version without explicit new draft/revision; do not use content equality as key |
 
 ---
 
@@ -269,6 +304,7 @@ SPEC-003 owns authorization; SPEC-004 owns execution planning.
 | signalId from other client | `TENANT_CONTEXT_INVALID` |
 | thesisId from other client | `TENANT_CONTEXT_INVALID` |
 | evidenceId from other client | `TENANT_CONTEXT_INVALID` |
+| foreign strategicBriefId | DENIED — writes = 0 |
 | cross-org write | `TENANT_CONTEXT_INVALID` |
 
 All fail closed — no partial Brief persist. Mixed-tenant write units are rejected as a whole (local in-memory + three-key persist rolled back together).
@@ -294,3 +330,12 @@ Retry of an identical successful write unit converges: current projection unchan
 Current projection is operational authority. History is transition evidence only.
 
 Firestore Brief writes: none. Rules contract: **FUTURE_NONBLOCKING / SPEC-009**.
+
+---
+
+## Q. Signal state (Phase 4)
+
+- Brief creation alone does **not** mark Signal CONVERTED.
+- Authorization failure does **not** mark CONVERTED.
+- No auto-DISCARD from Brief lifecycle.
+- `markDeliverySent` converts only signals with actually materialized authorized downstream results.

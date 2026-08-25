@@ -3,9 +3,11 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `003-strategic-brief` |
-| **Phase** | **Phase 3 COMPLETE** · Phase 4 **NOT STARTED** |
+| **Phase** | **Phase 4 COMPLETE** · Phase 5 **NOT STARTED** · Phase 5 **READY** |
 | **Status** | `APPROVED` |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
+| **Phase-4 implementation checkpoint** | `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6` |
+| **Phase-3 frozen checkpoint** | `73004305561be5d12faaf2a524e50405d5e6809e` |
 
 ---
 
@@ -18,15 +20,15 @@ Working operational flows already exist:
 - SPEC-005 AI gateways are structured and advisory
 - SPEC-006 claim safety gates exist downstream
 
-The debt is **missing Brief entity**, **fragmented decision authority**, **bypass paths**, and **no governance hexagon** — not a missing curation concept.
+The debt was **missing Brief entity**, **fragmented decision authority**, **bypass paths**, and **no governance hexagon** — not a missing curation concept.
 
 Therefore:
 
-1. Define Domain contracts + invariants (Phase 1).
-2. Add Application use cases + context reader + gates (Phase 2).
-3. Persist Brief + material history locally (Phase 3).
-4. Migrate consumers to require `strategicBriefId` (Phase 4).
-5. Security/adversarial regression suite (Phase 5).
+1. Define Domain contracts + invariants (Phase 1) — **DONE**.
+2. Add Application use cases + context reader + gates (Phase 2) — **DONE**.
+3. Persist Brief + material history locally (Phase 3) — **DONE**.
+4. Migrate consumers to require approved Brief authorization (Phase 4) — **DONE**.
+5. Security/adversarial regression suite (Phase 5) — **NOT STARTED** (READY to begin).
 6. A1–A36 evidence + human CODE_COMPLETE (Phase 6).
 
 ---
@@ -47,20 +49,24 @@ Exit: no circular ownership with 001/002/005/006.
 
 ---
 
-## Strangler migration target
+## Strangler migration target (Phase 4 achieved)
 
 ```text
-TODAY (invalid strategic authority):
-  Signal → score/route → CurationEntry.destination → DeliveryPackage → Content/Task/Opportunity
+IMPLEMENTED (Phase 4):
+  Signal → SPEC-001 routing → SPEC-002 scoring
+         → CreateStrategicBrief (DRAFT)
+         → human ApproveStrategicBrief (APPROVED)
+         → AuthorizeStrategicDownstream
+         → Content / Task / Opportunity (strategicBriefId + version)
+         → SPEC-005 CONTENT_DRAFT only after authorization
+         → SPEC-006 claimSafety where applicable
 
-TARGET:
-  Signal → score/route → CreateStrategicBrief → ApproveStrategicBrief
-         → downstream (Content/Task/Opportunity) requires strategicBriefId
-  CurationEntry → intake/review only (COMPATIBILITY_ONLY)
-  DeliveryPackage → client delivery only; references Brief where strategic
+  CurationEntry → intake/review only (NOT authority)
+  DeliveryPackage → client packaging only; per-item strategicBriefId for strategic send
+  form-add-task → GENERIC_NON_STRATEGIC (Brief not required)
 ```
 
-Preserve product usability during migration — dual-read/compatibility windows in Phase 4.
+No Signal → Content shortcut. No CurationEntry / DeliveryPackage / managerDecision strategic authority.
 
 ---
 
@@ -68,37 +74,85 @@ Preserve product usability during migration — dual-read/compatibility windows 
 
 | Phase | Goal | Exit gate |
 |-------|------|-----------|
-| **0B** | Formal SPEC package | Human SPEC approval (T-003-010) |
-| **1** | Domain: StrategicBrief, StrategicDecisionSnapshot, status, materiality, invariants | **DONE** — Domain unit tests PASS |
-| **2** | Application: create/approve/reject/revise/override; context reader; tenant/routing gates | **DONE** — Application hexagonal tests PASS; no concrete db |
-| **3** | Persistence: current Brief + append-only history; idempotency; actor audit | **DONE** — local-authoritative stores + tenant/retry tests |
-| **4** | Consumer migration: block bypass paths; wire curation/delivery/sendDelivery/content/opportunity | A10, A28 green |
-| **5** | Security/regression: CONTESTED/UNROUTED, cross-tenant, AI advisory, SPEC-001/002/005/006 regression | P1/P2 closure evidence |
-| **6** | Acceptance A1–A36 + human CODE_COMPLETE sign-off | CODE_COMPLETE |
+| **0B** | Formal SPEC package | Human SPEC approval (T-003-010) — **DONE** |
+| **1** | Domain: StrategicBrief, StrategicDecisionSnapshot, status, materiality, invariants | **DONE** |
+| **2** | Application: create/approve/reject/revise/override; context reader; tenant/routing gates | **DONE** |
+| **3** | Persistence: current Brief + append-only history; idempotency; actor audit | **DONE** |
+| **4** | Consumer migration: approved-Brief mandatory gate; strategic vs generic distinction | **DONE** — A10, A28, A29 PASS |
+| **5** | Security/regression: CONTESTED/UNROUTED, cross-tenant, AI advisory, SPEC-001/002/005/006 regression | **NOT STARTED** |
+| **6** | Acceptance A1–A36 + human CODE_COMPLETE sign-off | **NOT STARTED** |
 
-T-003-010 human SPEC approval **DONE**. Phase 1 **AUTHORIZED**. Do **not** declare Phase 1 complete until Domain exit gate.
+---
+
+## Phase 4 completion record
+
+| Item | Status |
+|------|--------|
+| Approved-Brief mandatory consumer gate | **DONE** — `AuthorizeStrategicDownstream` via `strategicBriefConsumer` |
+| Strategic vs generic task distinction | **DONE** — strategic gated; `form-add-task` preserved ungated |
+| Consumer migration (content / article / rec→task / sendDelivery / opportunity / planner strategic) | **DONE** — ungated strategic executable paths = 0 |
+| Per-item Delivery Brief authorization | **DONE** — `DeliveryItem.strategicBriefId` |
+| Partial delivery denial policy | **DONE** — all-or-nothing; unauthorized item blocks entire send **before AI** |
+| Authorization-before-AI | **DONE** — denied paths: AI calls = 0 |
+| Traceability propagation | **DONE** — `strategicBriefId`, `strategicBriefVersion`, Brief-derived `thesisId`, `signalIds` / `supportingEvidenceIds` on ContentItem |
+| Legacy behavior | **DONE** — no retroactive Brief invent; legacy CLEAR without `selectedThesisId` fail-closed; pre-Brief artifacts readable |
+| P1 closure | **DONE** — F-003-01 / F-003-02 / F-003-03 = **RESOLVED**; P1 UNRESOLVED = 0 |
+| Remaining P2 partials | **2** — P2-003-01 naming collision; P2-003-02 CONTESTED/UNROUTED curation queue fail-open |
+| Phase 5 | **NOT STARTED** · **READY** (no Phase-4 implementation blockers) |
 
 ---
 
 ## P1 closure mapping
 
-| Finding | Closure phase |
-|---------|---------------|
-| F-003-01 Strategic Brief entity absent | Phase 1–3 **IMPLEMENTED_BEFORE_CONSUMER_MIGRATION** |
-| F-003-02 Bypass paths without Brief | Phase 4 **OPEN_PHASE_4** |
-| F-003-03 No auditable override | Phase 1–3 **IMPLEMENTED_AUDIT_PERSISTENCE** (consumers Phase 4) |
+| Finding | Status | Evidence |
+|---------|--------|----------|
+| F-003-01 Strategic Brief entity absent | **RESOLVED** | Domain + Application + Persistence + consumers integrated |
+| F-003-02 Bypass paths without Brief | **RESOLVED** | Strategic ungated executable paths = 0 |
+| F-003-03 No auditable override | **RESOLVED** | Override audit + consumers respect Application gate |
+
+**P1 ORIGINAL = 3 · P1 RESOLVED = 3 · P1 UNRESOLVED = 0 · P1 FINDINGS (unresolved) = 0**
 
 ---
 
 ## P2 closure mapping
 
-| Finding | Closure phase |
-|---------|---------------|
-| Curation/Brief naming collision | Phase 4 migration + docs |
-| CONTESTED/UNROUTED fail-open in curation | **PARTIAL** — Application gate Phase 2 DONE; curation consumer Phase 4 |
-| `proposeAngle` thesis fallback | Phase 4 (require Brief context) |
-| Single-thesis delivery package validation | Phase 4 (per-item Brief ref) |
-| Evidence ID loss signal→content | Phase 1–3 linkage **PARTIAL_PERSISTENCE** + Phase 4 consumer |
+| ID | Finding | Status | Notes |
+|----|---------|--------|-------|
+| P2-003-01 | Curation/Brief naming collision | **PARTIAL / NONBLOCKING** | UI labels distinguish; legacy comments/surfaces remain |
+| P2-003-02 | CONTESTED/UNROUTED fail-open in curation | **PARTIAL / NONBLOCKING** | Queue entry may still occur; **cannot** authorize strategic downstream without governed Brief |
+| P2-003-03 | `proposeAngle` thesis fallback | **RESOLVED** | Explicit governed `thesisId: string` required |
+| P2-003-04 | Single-thesis delivery package validation | **RESOLVED** | Per-item Brief authorization |
+| P2-003-05 | Evidence ID loss signal→content | **RESOLVED** | `supportingEvidenceIds` / `signalIds` propagated on strategic ContentItem |
+
+**P2 ORIGINAL = 5 · P2 RESOLVED = 3 · P2 PARTIAL = 2**
+
+Curation queue entry ≠ strategic authorization.
+
+---
+
+## Phase-5 readiness
+
+Phase 5 tasks (T-003-501+) are **work Phase 5 exists to perform**, not blockers to **starting** Phase 5.
+
+| Criterion | Value |
+|-----------|-------|
+| Phase-4 implementation blockers | **0** |
+| P0 | **0** |
+| Phase-4 exact tasks T-003-401…409 | **DONE** |
+| Approved Brief gate | **PASS** |
+| Working tree at Phase-4 implementation checkpoint | **CLEAN** @ `d2efadf…` |
+| **PHASE 5** | **READY** |
+| **PHASE 5 STATUS** | **NOT_STARTED** |
+
+---
+
+## Nonblocking debt (not Phase-4 blockers)
+
+- P2-003-01 Curation/Brief legacy naming remnants
+- P2-003-02 CONTESTED/UNROUTED operational curation queue behavior (downstream gated)
+- Legacy CLEAR records lacking `selectedThesisId` (fail-closed; no production backfill)
+- SPEC-009 remote Brief rules (**DEFERRED_TO_SPEC-009**)
+- Deployment-only gates D1–D3
 
 ---
 
@@ -107,7 +161,7 @@ T-003-010 human SPEC approval **DONE**. Phase 1 **AUTHORIZED**. Do **not** decla
 Approved StrategicBrief exports:
 
 - `strategicBriefId`
-- `briefVersion`
+- `briefVersion` / `strategicBriefVersion`
 - `authorizedAction`
 - `thesisId`, `signalIds`
 - tenant envelope
@@ -116,21 +170,18 @@ SPEC-004 Planner consumes these — does not recreate strategic authority.
 
 ---
 
-## Test strategy (future)
+## Test strategy
 
-Documented in `acceptance.md` and Phase 5 tasks. Minimum themes:
+Documented in `acceptance.md`. Phase 4 added consumer gate + architecture static checks. Phase 5 expands adversarial / regression suite (T-003-501…510).
 
-- CLEAR / CONTESTED / UNROUTED
+Minimum themes remaining for Phase 5/6:
+
+- CONTESTED / UNROUTED adversarial matrix
 - stale thesisId, cross-client thesis/evidence
-- multi-signal same thesis vs mixed thesis
-- approval / reject / revision / override audit
-- history / version / idempotency
-- content/task/opportunity without brief blocked
+- multi-signal mixed thesis
 - AI advisory failure non-blocking
-- Domain purity + Application hexagonal
-- SPEC-001/002/005/006 regression
-
-No tests implemented in Phase 0B.
+- full architecture ban suite
+- SPEC-001/002/005/006 regression verification at CODE_COMPLETE
 
 ---
 
