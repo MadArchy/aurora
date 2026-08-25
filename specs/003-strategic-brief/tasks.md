@@ -1,7 +1,7 @@
 # Tasks 003 — Strategic Brief
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 4 COMPLETE** · Phase 5 **NOT STARTED** · Phase 5 **READY**  
+**Implementation:** **Phase 5 COMPLETE** · Phase 6 **NOT STARTED** · Phase 6 **READY**  
 **Branch:** `spec/003-strategic-brief`  
 **Base SHA:** `e422359ab90e84d4eb26007db23da6d54390cf15`  
 **Formal SPEC checkpoint:** `3c04c6df42d1d51fe8e38fd96deec3af826995eb`  
@@ -9,6 +9,7 @@
 **Phase-2 checkpoint:** `d4371e8d6a6b57c553c6723a1304e85a7e24f433`  
 **Phase-3 frozen checkpoint:** `73004305561be5d12faaf2a524e50405d5e6809e`  
 **Phase-4 implementation checkpoint:** `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6`  
+**Phase-4 governance checkpoint:** `e049fba24766be656de99a0592a28fd256b44a94`  
 **Human SPEC approval:** **APPROVED** (T-003-010) — 2026-08-24
 
 ---
@@ -140,20 +141,35 @@ P2-003-01 naming = **PARTIAL** · P2-003-02 curation queue fail-open = **PARTIAL
 
 ## Phase 5 — Security / regression
 
-**Status:** **NOT STARTED** · **READY** (Phase-4 gate complete; these tasks are Phase-5 work, not Phase-4 blockers)
+**Status:** **COMPLETE** · Phase 6 **READY** / **NOT_STARTED**
 
-- [ ] **T-003-501** Architecture ban: no Brief authority in `main.ts` direct writes
-- [ ] **T-003-502** CONTESTED / UNROUTED / stale thesis adversarial matrix
-- [ ] **T-003-503** Cross-tenant negative tests (signal, thesis, evidence refs)
-- [ ] **T-003-504** Multi-signal mixed-thesis rejection tests
-- [ ] **T-003-505** Override audit completeness tests
-- [ ] **T-003-506** Idempotency + history regression suite
-- [ ] **T-003-507** SPEC-001 routing regression verification
-- [ ] **T-003-508** SPEC-002 scoring regression verification
-- [ ] **T-003-509** SPEC-005 Gateway regression verification
-- [ ] **T-003-510** SPEC-006 claim safety unchanged regression
+- [x] **T-003-501** Architecture ban: no Brief authority in `main.ts` direct writes
+- [x] **T-003-502** CONTESTED / UNROUTED / stale thesis adversarial matrix
+- [x] **T-003-503** Cross-tenant negative tests (signal, thesis, evidence refs)
+- [x] **T-003-504** Multi-signal mixed-thesis rejection tests
+- [x] **T-003-505** Override audit completeness tests
+- [x] **T-003-506** Idempotency + history regression suite
+- [x] **T-003-507** SPEC-001 routing regression verification
+- [x] **T-003-508** SPEC-002 scoring regression verification
+- [x] **T-003-509** SPEC-005 Gateway regression verification
+- [x] **T-003-510** SPEC-006 claim safety unchanged regression
 
-**Exit:** P0/P1 closure evidence; security suite green.
+**Exit:** P0/P1 closure evidence; security suite green. **DONE**
+
+**Evidence:**
+- `tests/strategicBriefSecurityArchitecture.test.ts` (T-003-501)
+- `tests/strategicBriefPhase5.test.ts` (T-003-502…506)
+- T-003-507…510 verified via existing SPEC-001/002/005/006 suites under `npm run check`
+
+**P0 = 0 · New unresolved P1 = 0**
+
+**P2 after Phase 5:** ORIGINAL **5** · RESOLVED **3** · PARTIAL **2** (unchanged)  
+P2-003-01 naming = **PARTIAL / NONBLOCKING** (no authority risk)  
+P2-003-02 curation queue fail-open = **PARTIAL / NONBLOCKING** — intake may still occur; strategic authorization fail-closed proven
+
+**Local-store threat model:** LOCAL_AUTHORITATIVE — malformed records fail closed; cryptographic tamper-resistance **not claimed** (SPEC-009 deferred).
+
+**Phase 6:** **READY** · **NOT STARTED** — do not declare CODE_COMPLETE without Phase 6 + human sign-off.
 
 ---
 

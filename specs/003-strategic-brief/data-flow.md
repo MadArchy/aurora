@@ -74,7 +74,7 @@ Persist current projection (`postura_strategic_brief_v1`) + CREATED history (`po
 
 **Fail-closed:** CONTESTED / UNROUTED → `ROUTING_NOT_CLEAR` — no actionable Brief.
 
-**Note (P2-003-02 PARTIAL):** A CONTESTED/UNROUTED signal may still enter the **operational** Curation queue if product allows it. Queue entry ≠ Brief creation ≠ downstream authorization.
+**Note (P2-003-02 PARTIAL):** A CONTESTED/UNROUTED signal may still enter the **operational** Curation queue if product allows it. Queue entry ≠ Brief creation ≠ downstream authorization. Phase 5 adversarial evidence proves strategic authorization remains fail-closed.
 
 ---
 

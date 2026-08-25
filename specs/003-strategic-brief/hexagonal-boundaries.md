@@ -159,7 +159,7 @@ Architecture evidence: `tests/strategicBriefArchitecture.test.ts`.
 - bypass gate for strategic content / article / rec→task / sendDelivery / opportunity
 - invent Brief authority from CurationEntry or DeliveryPackage
 
-**Phase 5 remaining:** expanded static architecture ban suite (T-003-501) — not a Phase-4 incompleteness of the gate itself.
+**Phase 5 remaining:** none for T-003-501 — expanded static architecture ban suite implemented in `tests/strategicBriefSecurityArchitecture.test.ts`. Adversarial evidence in `tests/strategicBriefPhase5.test.ts`.
 
 ---
 
@@ -222,3 +222,4 @@ Phase 4 / Phase 3 packages:
 - Application: `src/application/strategicBrief/` — evidence `tests/strategicBriefPhase2.test.ts`
 - Infrastructure: `src/infrastructure/strategicBrief/` — evidence `tests/strategicBriefPhase3.test.ts`
 - Consumer gate: `tests/strategicBriefPhase4.test.ts`, `tests/strategicBriefConsumerArchitecture.test.ts`
+- Phase 5 security: `tests/strategicBriefSecurityArchitecture.test.ts`, `tests/strategicBriefPhase5.test.ts`

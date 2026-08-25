@@ -3,10 +3,11 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `003-strategic-brief` |
-| **Phase** | **Phase 4 COMPLETE** · Phase 5 **NOT STARTED** · Phase 5 **READY** |
+| **Phase** | **Phase 5 COMPLETE** · Phase 6 **NOT STARTED** · Phase 6 **READY** |
 | **Status** | `APPROVED` |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Phase-4 implementation checkpoint** | `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6` |
+| **Phase-4 governance checkpoint** | `e049fba24766be656de99a0592a28fd256b44a94` |
 | **Phase-3 frozen checkpoint** | `73004305561be5d12faaf2a524e50405d5e6809e` |
 
 ---
@@ -28,8 +29,8 @@ Therefore:
 2. Add Application use cases + context reader + gates (Phase 2) — **DONE**.
 3. Persist Brief + material history locally (Phase 3) — **DONE**.
 4. Migrate consumers to require approved Brief authorization (Phase 4) — **DONE**.
-5. Security/adversarial regression suite (Phase 5) — **NOT STARTED** (READY to begin).
-6. A1–A36 evidence + human CODE_COMPLETE (Phase 6).
+5. Security/adversarial regression suite (Phase 5) — **DONE**.
+6. A1–A36 evidence + human CODE_COMPLETE (Phase 6) — **NOT STARTED**.
 
 ---
 
@@ -79,8 +80,8 @@ No Signal → Content shortcut. No CurationEntry / DeliveryPackage / managerDeci
 | **2** | Application: create/approve/reject/revise/override; context reader; tenant/routing gates | **DONE** |
 | **3** | Persistence: current Brief + append-only history; idempotency; actor audit | **DONE** |
 | **4** | Consumer migration: approved-Brief mandatory gate; strategic vs generic distinction | **DONE** — A10, A28, A29 PASS |
-| **5** | Security/regression: CONTESTED/UNROUTED, cross-tenant, AI advisory, SPEC-001/002/005/006 regression | **NOT STARTED** |
-| **6** | Acceptance A1–A36 + human CODE_COMPLETE sign-off | **NOT STARTED** |
+| **5** | Security/regression: CONTESTED/UNROUTED, cross-tenant, AI advisory, SPEC-001/002/005/006 regression | **DONE** — T-003-501…510 |
+| **6** | Acceptance A1–A36 + human CODE_COMPLETE sign-off | **NOT STARTED** · **READY** |
 
 ---
 
@@ -130,6 +131,25 @@ Curation queue entry ≠ strategic authorization.
 
 ---
 
+## Phase-5 completion record
+
+| Item | Status |
+|------|--------|
+| Architecture ban enforcement (T-003-501) | **DONE** — `strategicBriefSecurityArchitecture.test.ts` |
+| CONTESTED / UNROUTED / stale adversarial (T-003-502) | **DONE** — fail-closed |
+| Cross-tenant negative matrix (T-003-503) | **DONE** — no foreign Brief data leakage |
+| Multi-signal mixed-thesis (T-003-504) | **DONE** |
+| Override audit completeness (T-003-505) | **DONE** |
+| Idempotency + history / malformed / legacy (T-003-506) | **DONE** |
+| SPEC-001/002/005/006 regression (T-003-507…510) | **DONE** — via existing suites under `npm run check` |
+| P0 | **0** |
+| New unresolved P1 | **0** |
+| P2 PARTIAL carried | **2** (P2-003-01 naming; P2-003-02 curation intake) |
+| Local-store threat model | Malformed fail-closed; **not** crypto tamper-proof (LOCAL_AUTHORITATIVE) |
+| Phase 6 | **READY** · **NOT STARTED** — CODE_COMPLETE requires Phase 6 + human sign-off |
+
+---
+
 ## Phase-5 readiness
 
 Phase 5 tasks (T-003-501+) are **work Phase 5 exists to perform**, not blockers to **starting** Phase 5.
@@ -141,8 +161,8 @@ Phase 5 tasks (T-003-501+) are **work Phase 5 exists to perform**, not blockers 
 | Phase-4 exact tasks T-003-401…409 | **DONE** |
 | Approved Brief gate | **PASS** |
 | Working tree at Phase-4 implementation checkpoint | **CLEAN** @ `d2efadf…` |
-| **PHASE 5** | **READY** |
-| **PHASE 5 STATUS** | **NOT_STARTED** |
+| **PHASE 5** | **COMPLETE** |
+| **PHASE 6** | **READY** · **NOT_STARTED** |
 
 ---
 
