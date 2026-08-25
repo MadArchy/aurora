@@ -358,12 +358,12 @@ See `threat-model.md`. Threats include: foreign evidence injection, fake source 
 | ID | Sev | Finding | Status after Phase 0 |
 |----|-----|---------|----------------------|
 | **F-006-01** | P1 | No SPEC-006 governance package | **RESOLVED** by Phase 0 package |
-| **F-006-02** | P1 | Constitutional Claim→Evidence→Verification→Source model missing in code | **OPEN** — implementation |
-| **P2-006-01** | P2 | Legacy claim-safety lacks formal requirement traceability | **OPEN** — Domain phase |
-| **P2-006-02** | P2 | No dedicated SPEC-006 architecture/security suite | **OPEN** — Phase 5 |
+| **F-006-02** | P1 | Constitutional Claim→Evidence→Verification→Source model missing in code | **RESOLVED** — Phase 1 Domain model + tests |
+| **P2-006-01** | P2 | Legacy claim-safety lacks formal requirement traceability | **OPEN** — Domain CLAIM-006 path started; legacy still unmapped end-to-end |
+| **P2-006-02** | P2 | No dedicated SPEC-006 architecture/security suite | **PARTIAL** — architecture suite Phase 1; security Phase 5 |
 | **P3-006-01** | P3 | Naming alias drift ("claim safety" vs `006-evidence-claim-linking`) | **OPEN** — nonblocking; docs use canonical title |
 
-**P0 = 0** · **P1 open = 1** (F-006-02) · **P2 = 2** · **P3 = 1**
+**P0 = 0** · **P1 open = 0** · **P2 = 2** (1 open + 1 partial) · **P3 = 1**
 
 ---
 
@@ -373,9 +373,10 @@ See `threat-model.md`. Threats include: foreign evidence injection, fake source 
 |------|-------|
 | Phase 0 governance | **COMPLETE** |
 | Human SPEC approval (T-006-010) | **DONE** — **APPROVED** 2026-08-24 (America/Bogota) |
-| Phase 1 Domain | **AUTHORIZED** |
+| Phase 1 Domain | **COMPLETE** (T-006-101…110) |
+| Phase 2 Application | **NOT_AUTHORIZED** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Execute Phase 1 Domain (T-006-101…T-006-110). Do not begin Phase 2 without separate authorization.
+**Next action:** Human authorization for Phase 2 Application (T-006-201…). Do not begin Phase 2 automatically.

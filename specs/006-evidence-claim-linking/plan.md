@@ -3,11 +3,12 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `006-evidence-claim-linking` |
-| **Phase** | **Phase 0 COMPLETE** · Phase 1 **AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · Phase 2 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Status** | **`APPROVED`** (T-006-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1` |
 | **Phase-0 governance checkpoint** | `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5` |
+| **Human approval checkpoint** | `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d` |
 | **Branch** | `spec/006-evidence-claim-linking` |
 | **Human SPEC approval** | **APPROVED** (T-006-010) — 2026-08-24 (America/Bogota) |
 | **Approval text** | «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.» |
@@ -88,17 +89,18 @@ Legacy modules remain **KEEP** until Phase 4 consumers migrate; then **ADAPT** �
 
 **Exit:** Package complete · `APPROVED` · product code **unchanged** at approval checkpoint.
 
-### Phase 1 — Domain (AUTHORIZED)
+### Phase 1 — Domain (COMPLETE)
 
 - Claim / Evidence / Verification / Source / ClaimEvidenceLink types
-- ClaimStatus state machine + EVIDENCE_REQUIRED semantics
+- ClaimStatus state machine + EVIDENCE_REQUIRED / RESEARCH_REQUIRED semantics
 - Tenant invariants (pure)
 - Publication eligibility predicates (pure)
-- Domain unit + architecture tests
+- Override Domain invariants (non-overridable hard blocks)
+- Domain unit + architecture tests — **28/28 PASS**
 
-**Exit:** Domain tests PASS; no Firebase/db/React imports.
+**Exit:** Domain tests PASS; no Firebase/db/React imports. **MET** · F-006-02 **RESOLVED**
 
-### Phase 2 — Application
+### Phase 2 — Application (NOT AUTHORIZED)
 
 - Minimal use cases (see below)
 - Ports: repositories, readers, clock, actor, optional AI suggestion port
@@ -190,9 +192,9 @@ Physical key names TBD in Phase 3 (follow `postura_*_vN` convention).
 | ID | Sev | Action |
 |----|-----|--------|
 | F-006-01 | P1 | **RESOLVED** Phase 0 |
-| F-006-02 | P1 | Phase 1–4 implementation |
-| P2-006-01 | P2 | Requirement IDs CLAIM-006-* in Domain |
-| P2-006-02 | P2 | Phase 5 suites |
+| F-006-02 | P1 | **RESOLVED** Phase 1 Domain |
+| P2-006-01 | P2 | Requirement IDs CLAIM-006-* — OPEN (legacy still unmapped) |
+| P2-006-02 | P2 | Architecture suite Phase 1 PARTIAL; security Phase 5 |
 | P3-006-01 | P3 | Canonical title in all new docs; legacy module names OK |
 
 ---

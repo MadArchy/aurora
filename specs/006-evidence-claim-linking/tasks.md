@@ -1,10 +1,11 @@
 # Tasks 006 — Evidence Claim Linking
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_1_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **PHASE_1_COMPLETE** · Phase 2 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/006-evidence-claim-linking`  
 **Base SHA:** SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1`  
 **Phase-0 governance checkpoint:** `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5`  
+**Human SPEC approval checkpoint:** `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d`  
 **Human SPEC approval:** **APPROVED** (T-006-010) — 2026-08-24 (America/Bogota)  
 **Approval text:** «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.»
 
@@ -35,22 +36,31 @@ Requirement ID prefix (future Domain): `CLAIM-006-001` …
 
 ---
 
-## Phase 1 — Domain contracts (AUTHORIZED)
+## Phase 1 — Domain contracts (COMPLETE)
 
-- [ ] **T-006-101** Define `Claim` aggregate + identity/tenant/content linkage
-- [ ] **T-006-102** Define `Evidence` entity (adapt `EvidenceVaultItem` contract)
-- [ ] **T-006-103** Define `Source` value object / entity metadata
-- [ ] **T-006-104** Define `Verification` record + authority rules
-- [ ] **T-006-105** Define `ClaimEvidenceLink` association invariants
-- [ ] **T-006-106** `ClaimStatus` state machine (`DETECTED` … `OVERRIDDEN`) including `EVIDENCE_REQUIRED` / `RESEARCH_REQUIRED`
-- [ ] **T-006-107** Tenant isolation pure validators (foreign evidence/claim/verification deny)
-- [ ] **T-006-108** Publication eligibility predicates from Claim set
-- [ ] **T-006-109** Override audit record shape (non-overridable hard blocks)
-- [ ] **T-006-110** Domain unit tests + architecture purity tests
+- [x] **T-006-101** Define `Claim` aggregate + identity/tenant/content linkage — **DONE**
+- [x] **T-006-102** Define `Evidence` entity (adapt `EvidenceVaultItem` contract) — **DONE**
+- [x] **T-006-103** Define `Source` value object / entity metadata — **DONE**
+- [x] **T-006-104** Define `Verification` record + authority rules — **DONE**
+- [x] **T-006-105** Define `ClaimEvidenceLink` association invariants — **DONE**
+- [x] **T-006-106** `ClaimStatus` state machine (`DETECTED` … `OVERRIDDEN`) including `EVIDENCE_REQUIRED` / `RESEARCH_REQUIRED` — **DONE**
+- [x] **T-006-107** Tenant isolation pure validators (foreign evidence/claim/verification deny) — **DONE**
+- [x] **T-006-108** Publication eligibility predicates from Claim set — **DONE**
+- [x] **T-006-109** Override audit record shape (non-overridable hard blocks) — **DONE**
+- [x] **T-006-110** Domain unit tests + architecture purity tests — **DONE**
 
-**Exit:** Domain tests PASS; no Firebase/db/React/provider imports.
+**Exit:** Domain tests PASS; no Firebase/db/React/provider imports. **MET**
 
-**Phase 1 IDs:** T-006-101 … T-006-110
+**Evidence:**
+- Domain: `src/domain/claimCore.ts`, `evidenceCore.ts`, `claimSourceCore.ts`, `claimVerificationCore.ts`, `claimLinkCore.ts`, `claimTenantCore.ts`, `claimGateCore.ts`, `claimOverrideCore.ts`, `claimMaterialityCore.ts`, `claimEvidenceErrors.ts`
+- Tests: `tests/claimEvidenceDomain.test.ts` (22) · `tests/claimEvidenceArchitecture.test.ts` (6) · **28/28 PASS**
+- Legacy claim-safety untouched (strangler)
+
+**Phase 1 IDs:** T-006-101 … T-006-110 — **ALL DONE**
+
+F-006-02 = **RESOLVED** (canonical Domain Claim→Evidence→Verification→Source present + tested). Persistence/Application/consumer migration remain later phases.
+
+Phase 2 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
 
 ---
 
