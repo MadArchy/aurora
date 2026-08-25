@@ -155,7 +155,7 @@ Phase 5 **COMPLETE**. Phase 6 **NOT STARTED** / **NOT AUTHORIZED**.
 
 **PRODUCT CODE CHANGES:** **NONE**
 
-**Phase-5 checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+**Phase-5 checkpoint:** `3735678c9c627e964e66d59c18eeaf3a4a9c8cde` on `spec/006-evidence-claim-linking`
 
 **CODE_COMPLETE = NO** · Phase 6 **NOT AUTHORIZED**.
 
