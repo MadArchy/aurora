@@ -91,7 +91,7 @@ Phase 2 **AUTHORIZED** under separate human go-ahead (2026-08-25).
 
 **Phase 2 IDs:** T-006-201 … T-006-211 — **ALL DONE**
 
-Phase 3 **COMPLETE** (T-006-301…308). Phase 4 **NOT AUTHORIZED**.
+Phase 3 **COMPLETE** (T-006-301…308). Phase 4 **COMPLETE** (T-006-401…407).
 
 ---
 
@@ -112,23 +112,27 @@ Phase 3 **COMPLETE** (T-006-301…308). Phase 4 **NOT AUTHORIZED**.
 
 **Phase-3 checkpoint:** `45c45610fcf0b66f4c8e5627609895b2ba92d9e2`
 
-Phase 4 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
+Phase 4 **COMPLETE**. Phase 5 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
 
 ---
 
-## Phase 4 — Consumer / publication gate migration (NOT AUTHORIZED)
+## Phase 4 — Consumer / publication gate migration ✅ COMPLETE
 
-- [ ] **T-006-401** Migrate `saveContentWithClaimGate` to `AuthorizePublication`
-- [ ] **T-006-402** Migrate Modals / ClaimSafetyPanel to Claim-status display (compatibility OK)
-- [ ] **T-006-403** Migrate `ai.reviewDraftClaims` to advisory ExtractClaims projection (no AI Verification)
-- [ ] **T-006-404** Demote `ContentItem.claimSafety` to COMPATIBILITY_ONLY projection
-- [ ] **T-006-405** Preserve SPEC-003 `strategicBriefId` / version / evidence refs on ContentItem
-- [ ] **T-006-406** Block gated status transitions without governed Claim set
-- [ ] **T-006-407** Consumer architecture tests + migration matrix exit
+- [x] **T-006-401** Migrate `saveContentWithClaimGate` to `AuthorizePublication` — **DONE**
+- [x] **T-006-402** Migrate Modals / ClaimSafetyPanel to Claim-status display (compatibility OK) — **DONE**
+- [x] **T-006-403** Migrate `ai.reviewDraftClaims` to advisory ExtractClaims projection (no AI Verification) — **DONE** (deterministic advisory; RUNTIME extractor DEFERRED)
+- [x] **T-006-404** Demote `ContentItem.claimSafety` to COMPATIBILITY_ONLY projection — **DONE**
+- [x] **T-006-405** Preserve SPEC-003 `strategicBriefId` / version / evidence refs on ContentItem — **DONE**
+- [x] **T-006-406** Block gated status transitions without governed Claim set — **DONE** (canonical AuthorizePublication required)
+- [x] **T-006-407** Consumer architecture tests + migration matrix exit — **DONE**
 
-**Exit:** Legacy claim-safety no longer authoritative for publication.
+**Exit:** Legacy claim-safety no longer authoritative for publication. **MET**.
 
-**Phase 4 IDs:** T-006-401 … T-006-407
+**Phase 4 IDs:** T-006-401 … T-006-407 — **ALL DONE**
+
+**Phase-4 checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+
+Phase 5 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
 
 ---
 

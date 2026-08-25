@@ -2,7 +2,7 @@
 
 **Phase 0:** Formal package **COMPLETE** · Human SPEC approval **APPROVED** (T-006-010)  
 **SPEC-006 FORMAL SPEC:** **APPROVED**  
-**SPEC-006 IMPLEMENTATION:** **PHASE_3_COMPLETE** · CODE_COMPLETE **NO**  
+**SPEC-006 IMPLEMENTATION:** **PHASE_4_COMPLETE** · CODE_COMPLETE **NO**  
 **CODE_COMPLETE CANDIDATE:** **NO**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -14,7 +14,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-0 governance checkpoint:** `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5`  
 **Human approval checkpoint:** `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d`  
 **Phase-1 frozen checkpoint:** `fe1fbc9225919a445eff9463492176356ab0a8f7`  
-**Phase-2 frozen checkpoint:** `55bdb03206a9e986898413828c2343bf2afa25af`
+**Phase-2 frozen checkpoint:** `55bdb03206a9e986898413828c2343bf2afa25af`  
+**Phase-3 frozen checkpoint:** `59880e52b115eea35d858f41a325ee0248922eef`
 
 ### Human SPEC approval (T-006-010)
 
@@ -46,23 +47,23 @@ Phase 1 advances Domain-owned criteria only. Consumer/Application/persistence cr
 | A11 | Verification authority: software/human only; AI advisory | 2–5 | ✅ **PASS** | Application invocation + AI deny |
 | A12 | AI cannot self-approve / set Verification | 2–5 | ✅ **PASS** | `AI_VERIFICATION_FORBIDDEN` |
 | A13 | SPEC-003 boundary: no Brief approve/reject/mutate | 2–5 | ✅ **PASS** | Architecture import bans |
-| A14 | SPEC-003 refs consumable (`strategicBriefId`/version/evidenceIds) | 4 | ☐ PENDING | Consumer carry |
+| A14 | SPEC-003 refs consumable (`strategicBriefId`/version/evidenceIds) | 4 | ✅ **PASS** | saveContentWithClaimGate preserves Brief refs |
 | A15 | Brief `supportingEvidenceIds` are **not** verification authority | 1–5 | ✅ **PASS** | RegisterClaim never auto-verifies |
 | A16 | SPEC-005 boundary: advisory only; no new unauthorized AiOperation | 2–5 | ✅ **PASS** | Extractor port only; RUNTIME DEFERRED |
 | A17 | SPEC-009 auth claims unchanged / OTHER_SPEC | 5–6 | ☐ PENDING | `posturaClaimsCore` + `firebaseClaims` |
-| A18 | Publication gate blocks CLIENT_REVIEW/READY/PUBLISHED on EVIDENCE_REQUIRED | 2–4 | ◐ **PARTIAL** | Application AuthorizePublication PASS; consumer Phase 4 |
+| A18 | Publication gate blocks CLIENT_REVIEW/READY/PUBLISHED on EVIDENCE_REQUIRED | 2–4 | ✅ **PASS** | main + AuthorizePublication strangler |
 | A19 | HARD_BLOCKED / hard thesis limits non-overridable | 1–5 | ✅ **PASS** | Override deny tests |
 | A20 | Human override auditable when permitted | 2–5 | ✅ **PASS** | Override audit + append-only store |
-| A21 | No direct UI authorization from displayed status alone | 4–5 | ☐ PENDING | Architecture / consumer tests |
+| A21 | No direct UI authorization from displayed status alone | 4–5 | ✅ **PASS** | Panel display-only; gate ignores claimSafety |
 | A22 | Material history append-only for verification/link/override | 3–5 | ✅ **PASS** | Phase-3 history tests |
 | A23 | Idempotency for register/verify where applicable | 2–5 | ✅ **PASS** | Register/Link/Verify + reload |
 | A24 | Evidence reuse allowed within same tenant only | 1–5 | ✅ **PASS** | Reuse + tenant tests |
 | A25 | Explainability: claim/evidence/source/verifier/rule/result/override/version | 1–3 | ✅ **PASS** | AuthorizePublication explainability |
 | A26 | Domain framework-pure | 1–5 | ✅ **PASS** | Architecture tests |
 | A27 | Application depends on ports not infrastructure | 2–5 | ✅ **PASS** | Hexagonal application tests |
-| A28 | Legacy claimSafety demoted from authority (COMPATIBILITY or DEPRECATED) | 4 | ☐ PENDING | Migration matrix exit |
-| A29 | Legacy claimSafetyCore + gate suites green or formally superseded | 4–6 | ◐ **PARTIAL** | Legacy 23/23 still PASS (untouched) |
-| A30 | Content draft save allowed with unresolved claims | 4 | ☐ PENDING | Gate policy tests |
+| A28 | Legacy claimSafety demoted from authority (COMPATIBILITY or DEPRECATED) | 4 | ✅ **PASS** | claimSafetyGateCore requires canonical |
+| A29 | Legacy claimSafetyCore + gate suites green or formally superseded | 4–6 | ✅ **PASS** | Core 17 + gate strangler suite green |
+| A30 | Content draft save allowed with unresolved claims | 4 | ✅ **PASS** | Non-gated draft save; NO_CLAIMS Domain PASS |
 | A31 | Stale contentHash / body change invalidates prior verification projection | 2–5 | ✅ **PASS** | AuthorizePublication + Phase-3 reload |
 | A32 | Cross-SPEC: SPEC-001 regression PASS | 6 | ☐ PENDING | Routing suites |
 | A33 | Cross-SPEC: SPEC-002 regression PASS | 6 | ☐ PENDING | Scoring suites |
@@ -70,11 +71,11 @@ Phase 1 advances Domain-owned criteria only. Consumer/Application/persistence cr
 | A35 | Cross-SPEC: SPEC-005 regression PASS | 6 | ☐ PENDING | Gateway suites |
 | A36 | Terminology: SPEC-006 Claim ≠ SPEC-009 auth claims | 1–5 | ✅ **PASS** | Architecture bans vs posturaClaims |
 | A37 | LOCAL_AUTHORITATIVE documented; remote rules not required for CODE_COMPLETE | 3–6 | ✅ **PASS** | Phase-3 stores + plan |
-| A38 | Dedicated SPEC-006 architecture/security suites exist | 5 | ◐ **PARTIAL** | Domain+App+Infra architecture; security Phase 5 |
+| A38 | Dedicated SPEC-006 architecture/security suites exist | 5 | ◐ **PARTIAL** | Domain+App+Infra+Consumer architecture; security Phase 5 |
 | A39 | `npm run check` PASS | 6 | ☐ PENDING | Full suite |
 | A40 | `npm run test:rules` PASS | 6 | ☐ PENDING | Rules suite |
 
-**Implementation acceptance A1–A40:** **26 PASS** · **4 PARTIAL** · **10 PENDING** (after Phase 3)  
+**Implementation acceptance A1–A40:** **32 PASS** · **1 PARTIAL** · **7 PENDING** (after Phase 4)  
 **CODE_COMPLETE CANDIDATE:** **NO**  
 **HUMAN SPEC APPROVAL (T-006-010):** **DONE** — **APPROVED** 2026-08-24 (America/Bogota)  
 **HUMAN CODE_COMPLETE (T-006-604):** **NOT STARTED**
@@ -117,10 +118,11 @@ Phase 1 advances Domain-owned criteria only. Consumer/Application/persistence cr
 | Phase 1 Domain (T-006-101…110) | ✅ **COMPLETE** |
 | Phase 2 Application (T-006-201…211) | ✅ **COMPLETE** |
 | Phase 3 Persistence (T-006-301…308) | ✅ **COMPLETE** |
-| Phase 4–5 implementation | ☐ NOT AUTHORIZED |
+| Phase 4 Consumer migration (T-006-401…407) | ✅ **COMPLETE** |
+| Phase 5 implementation | ☐ NOT AUTHORIZED |
 | Phase 6 T-006-604 Human CODE_COMPLETE | ☐ NOT STARTED |
 | DEPLOYED / DONE | ☐ **NO** |
 
-**Current:** **APPROVED** · **PHASE_3 = COMPLETE** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
+**Current:** **APPROVED** · **PHASE_4 = COMPLETE** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
 
-**Next allowed state:** Separate authorization for Phase 4 consumer migration. Do not begin Phase 4 without human go-ahead.
+**Next allowed state:** Separate authorization for Phase 5 security/adversarial. Do not begin Phase 5 without human go-ahead.

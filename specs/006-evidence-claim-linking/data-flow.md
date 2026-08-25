@@ -22,21 +22,26 @@ Signal
 
 ---
 
-## B. Legacy current flow (KEEP until Phase 4)
+## B. Legacy current flow (COMPATIBILITY_ONLY — Phase 4 demoted)
 
 ```text
 Content body + thesis + EvidenceVault(client)
-  → claimSafetyCore.reviewClaims
-       (regex ClaimKind detection)
-       (token overlap vs verified EvidenceVaultItem + thesis proofPoints)
-  → ClaimSafetyReview { PASS | REVIEW | BLOCK, findings[] }
-  → ai.reviewDraftClaims → ClaimSafetyVerdictRecord on ContentItem
-  → claimSafetyGateCore.assertClaimSafeTransition
-       for target ∈ { CLIENT_REVIEW, READY, PUBLISHED }
-  → saveContentWithClaimGate (main.ts)
+  → claimSafetyCore.reviewClaims  (advisory findings)
+  → ClaimSafetyVerdictRecord on ContentItem  (COMPATIBILITY_ONLY)
+  → UI ClaimSafetyPanel display
 ```
 
-**Gaps vs constitution:** no Claim entity; no Verification; no Source chain; no EVIDENCE_REQUIRED state; proofPoints sentinel; Brief evidence IDs unused by claimSafetyCore.
+**Publication authority (Phase 4):**
+
+```text
+Content gated transition
+  → authorizeContentPublicationGate
+       → AuthorizePublication (current Claims/Verifications)
+       → assertClaimSafeTransition(..., { canonical })
+  → pipeline / publish side effect ONLY if allowed
+```
+
+Legacy `claimSafety.verdict` is **ignored** for allow/deny.
 
 ---
 

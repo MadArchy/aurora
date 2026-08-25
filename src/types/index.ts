@@ -640,7 +640,7 @@ export interface ContentItem {
   createdAt: string;
   updatedAt: string;
   readyAt?: string;
-  /** Veredicto del Claim Safety Engine sobre el cuerpo del contenido. */
+  /** Veredicto advisory en ContentItem — COMPATIBILITY_ONLY; no es autoridad de publicación (SPEC-006). */
   claimSafety?: ClaimSafetyVerdictRecord;
   /** Governed Strategic Brief authorization reference (SPEC-003 Phase 4). */
   strategicBriefId?: string;
@@ -651,7 +651,7 @@ export interface ContentItem {
   supportingEvidenceIds?: string[];
 }
 
-/** Resultado persistido de `reviewClaims`, para no re-evaluar en cada render. */
+/** Proyección advisory COMPATIBILITY_ONLY de `reviewClaims` — no es Verification ni gate de publicación. */
 export interface ClaimSafetyVerdictRecord {
   verdict: 'PASS' | 'REVIEW' | 'BLOCK';
   summary: string;

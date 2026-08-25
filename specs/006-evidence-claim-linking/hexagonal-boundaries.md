@@ -105,7 +105,9 @@ Ports ← Infrastructure (local stores, EvidenceVault adapter,
 
 **Must not:** set Verification result, clear EVIDENCE_REQUIRED, forge override, mutate Claim status via DOM alone.
 
-Legacy `ClaimSafetyPanel` = **ADAPT** display surface.
+Legacy `ClaimSafetyPanel` = **ADAPT** display surface (COMPATIBILITY_ONLY; Phase 4).
+
+Consumer publication seam: `authorizeContentPublicationGate` → Application `AuthorizePublication`.
 
 ---
 

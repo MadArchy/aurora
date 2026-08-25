@@ -15,6 +15,7 @@ import { calculateStrategicScore, type ScoringContext } from './scoring';
 import { assertAiQuota, assertComparativeAllowed } from './entitlements';
 import { academicDraftSkeleton } from '../domain/scientificFocusCore';
 import { reviewClaims } from '../domain/claimSafetyCore';
+import { projectAdvisoryClaimSafety } from '../composition/claimEvidence/advisoryClaimSafetyProjection';
 import { FIREBASE_ENABLED } from '../firebase/config';
 import {
   executeContentDraftViaGateway,
@@ -41,15 +42,6 @@ import {
   mergeChallengeWithAi,
   type ThesisChallengeResult,
 } from '../domain/thesisChallengeCore';
-
-/** Hash síncrono liviano para invalidar claim safety cuando cambia el texto. */
-function simpleContentHash(text: string): string {
-  let hash = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
-  }
-  return `h${hash.toString(16)}`;
-}
 
 /**
  * Browser AI facade — all structured LLM ops route through the server Gateway.
@@ -202,25 +194,13 @@ class AIService {
   }
 
   /**
-   * Pasa el borrador por el Claim Safety Engine. Un cargo o premio sin respaldo
-   * no debería llegar a revisión del cliente sin aviso explícito.
+   * Advisory claim projection for UI / ContentItem.claimSafety (COMPATIBILITY_ONLY).
+   * Uses deterministic claimSafetyCore patterns — NOT Verification, NOT publication authority.
+   * Runtime ClaimExtractorPort AI adapter remains DEFERRED (SPEC-005); no provider calls here.
    */
   public reviewDraftClaims(body: string, thesis: PositioningThesis): ClaimSafetyVerdictRecord {
     const review = reviewClaims(body, thesis, dbService.getEvidenceVaultByClient(thesis.clientId));
-    return {
-      verdict: review.verdict,
-      summary: review.summary,
-      reviewedAt: new Date().toISOString(),
-      contentHash: simpleContentHash(body),
-      findings: review.findings.map((finding) => ({
-        kind: finding.kind,
-        severity: finding.severity,
-        claim: finding.claim,
-        detail: finding.detail,
-        action: finding.action,
-        supportingEvidenceIds: finding.supportingEvidenceIds,
-      })),
-    };
+    return projectAdvisoryClaimSafety(review, body, new Date().toISOString());
   }
 
   public async generateContentDraft(

@@ -19,6 +19,7 @@ import { formatDossierMarkdown, downloadDossierMarkdown } from './services/dossi
 import { generatePositioningAdvice, proposeAngle } from './services/advisor';
 import { ScoringContext } from './services/scoring';
 import { createStrategicSignalRoutingUseCases } from './composition/strategicSignalRouting/composeStrategicSignalRouting';
+import { authorizeContentPublicationGate } from './composition/claimEvidence/contentClaimPublicationGate';
 import { StrategicRoutingError } from './application/strategicSignalRouting';
 import {
   buildMergedProfileKeywords,
@@ -3264,13 +3265,37 @@ class App {
     const content = dbService.getContentById(contentId);
     if (!content) return false;
 
-    const claimSafety = options?.claimSafetyOverride || content.claimSafety;
-    const gate = assertClaimSafeTransition(content.status, legacyStatus, claimSafety, {
-      reviewAcknowledged: options?.reviewAcknowledged,
-      requireReviewAck: options?.requireReviewAck,
+    const user = authService.getCurrentUser();
+    if (!user) {
+      this.showToast('Sesión requerida para avanzar contenido.', 'warning');
+      return false;
+    }
+
+    // Compatibility projection may be refreshed by callers; never used as authority.
+    void options?.claimSafetyOverride;
+    void options?.reviewAcknowledged;
+    void options?.requireReviewAck;
+    void content.claimSafety;
+
+    const canonical = authorizeContentPublicationGate({
+      contentId: content.id,
+      organizationId: content.organizationId,
+      clientId: content.clientId,
+      targetStatus: legacyStatus,
+      actorId: user.uid,
+      actorRole: user.role,
+      now: new Date().toISOString(),
+    });
+
+    const gate = assertClaimSafeTransition(content.status, legacyStatus, content.claimSafety, {
+      canonical: {
+        allowed: canonical.allowed,
+        reason: canonical.reason,
+        reasonCode: canonical.reasonCode,
+      },
     });
     if (!gate.allowed) {
-      this.showToast(gate.reason || 'Claim safety bloquea el avance', 'warning');
+      this.showToast(gate.reason || 'Claim publication gate blocks advancement', 'warning');
       return false;
     }
 
@@ -3290,7 +3315,11 @@ class App {
     }
   }
 
-  /** Persiste contenido y solo avanza a estados gated si Claim Safety lo permite. */
+  /**
+   * Persists draft (non-gated) then advances only if AuthorizePublication allows.
+   * ContentItem.claimSafety is COMPATIBILITY_ONLY advisory projection.
+   * SPEC-003 strategicBriefId / version / evidence refs on content are preserved.
+   */
   private saveContentWithClaimGate(
     content: import('./types').ContentItem,
     targetStatus: ContentStatus,
@@ -3301,18 +3330,24 @@ class App {
       this.showToast('No se encontró la tesis asociada al contenido.', 'warning');
       return false;
     }
+    // Advisory projection for UI — not publication authority.
     const claimSafety = aiService.reviewDraftClaims(content.body, thesis);
     const now = new Date().toISOString();
 
-    // Guarda primero como borrador con el veredicto; el avance es un paso aparte.
+    // Non-gated draft persist first (preserves Brief traceability fields on content).
     dbService.saveContent({
       ...content,
       claimSafety,
       status: 'AI_GENERATED',
       createdAt: content.createdAt || now,
       updatedAt: now,
+      strategicBriefId: content.strategicBriefId,
+      strategicBriefVersion: content.strategicBriefVersion,
+      signalIds: content.signalIds,
+      supportingEvidenceIds: content.supportingEvidenceIds,
     });
 
+    // Authorize BEFORE gated side effect.
     return this.syncContentToPipelineStatus(content.id, targetStatus, comment, {
       claimSafetyOverride: claimSafety,
     });
@@ -3462,11 +3497,29 @@ class App {
     const targetLegacy = syncLegacyStatusFromPipeline(targetPipeline);
 
     if (action === 'mark_ready' || action === 'publish') {
+      const user = authService.getCurrentUser();
+      if (!user) {
+        this.showToast('Sesión requerida para avanzar contenido.', 'warning');
+        return false;
+      }
+      const canonical = authorizeContentPublicationGate({
+        contentId: content.id,
+        organizationId: content.organizationId,
+        clientId: content.clientId,
+        targetStatus: targetLegacy,
+        actorId: user.uid,
+        actorRole: user.role,
+        now: new Date().toISOString(),
+      });
       const gate = assertClaimSafeTransition(content.status, targetLegacy, content.claimSafety, {
-        requireReviewAck: action === 'publish',
+        canonical: {
+          allowed: canonical.allowed,
+          reason: canonical.reason,
+          reasonCode: canonical.reasonCode,
+        },
       });
       if (!gate.allowed) {
-        this.showToast(gate.reason || 'Claim safety bloquea el avance', 'warning');
+        this.showToast(gate.reason || 'Claim publication gate blocks advancement', 'warning');
         return false;
       }
     }

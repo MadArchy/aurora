@@ -1,3 +1,11 @@
+/**
+ * Publication gate shim — Phase 4 demoted.
+ *
+ * Canonical authority: Application AuthorizePublication (via options.canonical).
+ * ContentItem.claimSafety / legacy verdicts are COMPATIBILITY_ONLY and never
+ * authorize gated CLIENT_REVIEW / READY / PUBLISHED alone.
+ */
+
 import type { ClaimSafetyVerdictRecord, ContentStatus } from '../types';
 
 /** Estados que exponen el contenido al cliente o al público. */
@@ -11,46 +19,53 @@ export interface ClaimSafetyGateResult {
   requiresAck?: boolean;
 }
 
+export interface CanonicalPublicationGateInput {
+  allowed: boolean;
+  reason?: string;
+  reasonCode?: string;
+}
+
 /**
- * Gate centralizado: BLOCK nunca avanza.
- * REVIEW solo se frena cuando `requireReviewAck` es true y no hay ack.
+ * Gate centralizado (Phase 4 strangler).
+ * Gated targets require `options.canonical` from AuthorizePublication.
+ * Legacy `claimSafety` is ignored for allow/deny (COMPATIBILITY_ONLY).
  */
 export function assertClaimSafeTransition(
   currentStatus: ContentStatus,
   targetStatus: ContentStatus,
   claimSafety: ClaimSafetyVerdictRecord | undefined,
-  options?: { reviewAcknowledged?: boolean; requireReviewAck?: boolean }
+  options?: {
+    reviewAcknowledged?: boolean;
+    requireReviewAck?: boolean;
+    /** From AuthorizePublication — sole gated publication authority. */
+    canonical?: CanonicalPublicationGateInput;
+  }
 ): ClaimSafetyGateResult {
   if (!CLAIM_GATED_STATUSES.includes(targetStatus)) {
     return { allowed: true, status: targetStatus };
   }
 
-  if (!claimSafety) {
+  // Explicitly discard legacy verdict as authority.
+  void claimSafety;
+  void options?.reviewAcknowledged;
+  void options?.requireReviewAck;
+
+  if (!options?.canonical) {
     return {
       allowed: false,
       status: currentStatus,
-      reason: 'Falta pasar el contenido por Claim Safety antes de avanzar.',
+      reason:
+        'Canonical AuthorizePublication decision is required before gated content status advances.',
     };
   }
 
-  if (claimSafety.verdict === 'BLOCK') {
+  if (!options.canonical.allowed) {
     return {
       allowed: false,
       status: currentStatus,
-      reason: `Claim safety bloquea el avance: ${claimSafety.summary}`,
-    };
-  }
-
-  if (
-    claimSafety.verdict === 'REVIEW' &&
-    options?.requireReviewAck &&
-    !options?.reviewAcknowledged
-  ) {
-    return {
-      allowed: false,
-      status: currentStatus,
-      requiresAck: true,
-      reason: `Hay afirmaciones por revisar: ${claimSafety.summary}`,
+      reason:
+        options.canonical.reason ||
+        'Claim publication gate blocks this content status advance.',
     };
   }
 

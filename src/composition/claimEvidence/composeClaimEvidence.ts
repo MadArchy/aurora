@@ -24,8 +24,8 @@ import {
 } from '../../infrastructure/claimEvidence';
 
 /**
- * Phase 3 composition: wire Application use cases to local-authoritative adapters.
- * Does not hook UI panels, main.ts publication, or legacy claim-safety consumers.
+ * Phase 3–4 composition: wire Application use cases to local-authoritative adapters.
+ * Phase 4 consumers call authorizeContentPublicationGate / getClaimEvidenceRuntime.
  */
 export function composeClaimEvidence(options: {
   content: ClaimContentSource;

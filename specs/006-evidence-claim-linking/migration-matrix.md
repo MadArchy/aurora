@@ -12,16 +12,16 @@ Legend: **KEEP** · **MIGRATE** · **ADAPT** · **DEPRECATE** · **OTHER_SPEC** 
 
 | Component | Path | Classification | Notes | Owning phase |
 |-----------|------|----------------|-------|--------------|
-| Claim review engine | `src/domain/claimSafetyCore.ts` | **ADAPT** → Domain extractors + eligibility | Regex kinds useful; not full Claim lifecycle | 1–4 |
-| Publication gate | `src/domain/claimSafetyGateCore.ts` | **MIGRATE** → `AuthorizePublication` / claimGateCore | Preserve gated statuses | 1–4 |
-| UI panel | `src/components/ClaimSafetyPanel.ts` | **ADAPT** | Display Claim statuses | 4 |
-| Live bind / save gate | `src/main.ts` (`saveContentWithClaimGate`, `refreshClaimSafetyLive`, …) | **MIGRATE** | Orchestration → Application | 4 |
-| Draft review wrapper | `src/services/ai.ts` `reviewDraftClaims` | **ADAPT** | Must remain non-authoritative Verification | 2–4 |
-| Modals claim UI | `src/components/Modals.ts` | **ADAPT** | Ack for REVIEW → ReviewClaim | 4 |
-| Manager badges | `src/components/ManagerCockpit.ts` | **ADAPT** | Display only | 4 |
-| Client workspace flags | `src/components/ClientWorkspace.ts` | **ADAPT** | Display only | 4 |
+| Claim review engine | `src/domain/claimSafetyCore.ts` | **ADAPT** → advisory extractors | Regex kinds; COMPATIBILITY display | 1–4 ✅ |
+| Publication gate | `src/domain/claimSafetyGateCore.ts` | **MIGRATE** → requires `canonical` from AuthorizePublication | Legacy verdict ignored | 1–4 ✅ |
+| UI panel | `src/components/ClaimSafetyPanel.ts` | **ADAPT** | Display advisory only | 4 ✅ |
+| Live bind / save gate | `src/main.ts` (`saveContentWithClaimGate`, `refreshClaimSafetyLive`, …) | **MIGRATE** | `authorizeContentPublicationGate` | 4 ✅ |
+| Draft review wrapper | `src/services/ai.ts` `reviewDraftClaims` | **ADAPT** | Advisory COMPATIBILITY_ONLY | 2–4 ✅ |
+| Modals claim UI | `src/components/Modals.ts` | **ADAPT** | Display + ack informational | 4 ✅ |
+| Manager badges | `src/components/ManagerCockpit.ts` | **ADAPT** | Display only | 4 ✅ |
+| Client workspace flags | `src/components/ClientWorkspace.ts` | **ADAPT** | Display only | 4 ✅ |
 | Content publish helpers | `src/domain/contentPublishCore.ts` | **KEEP** | Pipeline labels; not claim authority | — |
-| Verdict on ContentItem | `types` `ClaimSafetyVerdictRecord` | **DEPRECATE** (compat projection) | After Claim aggregate | 4 |
+| Verdict on ContentItem | `types` `ClaimSafetyVerdictRecord` | **DEPRECATE** (compat projection) | COMPATIBILITY_ONLY | 4 ✅ |
 | Evidence vault type | `types` `EvidenceVaultItem` | **MIGRATE** → Evidence entity | Keep fields; add Source | 1–3 |
 | Evidence persistence | `db.ts` `postura_evidence_v5` | **ADAPT** behind `LocalEvidenceVaultAdapter` | LOCAL current + local ClaimEvidence | 3 |
 | Evidence UI vault | ClientWorkspace evidence rows | **KEEP** / **ADAPT** | Tenant vault UX | 4 |
@@ -85,11 +85,13 @@ Legend: **KEEP** · **MIGRATE** · **ADAPT** · **DEPRECATE** · **OTHER_SPEC** 
 
 ---
 
-## Exit criteria (Phase 4 — future)
+## Exit criteria (Phase 4)
 
-- Zero authoritative publication paths using only legacy aggregate without Claim set
-- `ContentItem.claimSafety` COMPATIBILITY_ONLY or removed
-- EVIDENCE_REQUIRED blocks gated statuses
-- SPEC-003 Brief refs preserved
-- 23 legacy tests green or formally superseded with mapped successors
-- F-006-02 closed
+- Zero authoritative publication paths using only legacy aggregate without Claim set — **MET**
+- `ContentItem.claimSafety` COMPATIBILITY_ONLY — **MET**
+- EVIDENCE_REQUIRED blocks gated statuses — **MET** (AuthorizePublication)
+- SPEC-003 Brief refs preserved — **MET**
+- Legacy tests green or formally superseded — **MET** (core kept; gate suite strangler-updated)
+- F-006-02 closed — **MET** (Phase 1+)
+
+**Phase 4 consumer migration = COMPLETE** (T-006-401…407).

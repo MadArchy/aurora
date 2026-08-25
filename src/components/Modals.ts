@@ -536,13 +536,13 @@ export function renderContentEditorModal(contentId: string): string {
           </div>
 
           <div class="form-group">
-            <label class="form-label">Claim safety</label>
+            <label class="form-label">Afirmaciones (proyección advisory)</label>
             <div id="claim-safety-live">
               ${renderClaimSafetyPanel(content.claimSafety)}
             </div>
             <label id="claim-review-ack-row" class="claim-review-ack${content.claimSafety?.verdict === 'REVIEW' ? '' : ' hidden'}">
               <input type="checkbox" id="claim-review-ack" />
-              Confirmo que revisé las afirmaciones señaladas
+              Confirmé la revisión advisory (la publicación usa el Claim gate canónico)
             </label>
           </div>
 

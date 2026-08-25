@@ -2,9 +2,9 @@ import { esc } from '../lib/escape';
 import type { ClaimSafetyVerdictRecord } from '../types';
 
 const VERDICT_LABELS: Record<ClaimSafetyVerdictRecord['verdict'], string> = {
-  PASS: 'Claim safety OK',
-  REVIEW: 'Revisar afirmaciones',
-  BLOCK: 'Bloqueado',
+  PASS: 'Revisión advisory OK',
+  REVIEW: 'Revisar afirmaciones (advisory)',
+  BLOCK: 'Señales de bloqueo (advisory)',
 };
 
 const KIND_LABELS: Record<string, string> = {
@@ -16,20 +16,23 @@ const KIND_LABELS: Record<string, string> = {
   HARD_BLOCK: 'Límite de la tesis',
 };
 
-/** Insignia compacta para listas de contenido. */
+/** Insignia compacta — COMPATIBILITY_ONLY display; not publication authority. */
 export function renderClaimSafetyBadge(record?: ClaimSafetyVerdictRecord): string {
   if (!record) return '';
   return `
-    <span class="claim-badge claim-badge-${record.verdict.toLowerCase()}">
+    <span class="claim-badge claim-badge-${record.verdict.toLowerCase()}" title="Proyección de compatibilidad — la publicación usa el Claim gate canónico">
       ${esc(VERDICT_LABELS[record.verdict])}
     </span>
   `;
 }
 
-/** Panel completo con cada afirmación señalada y qué hacer con ella. */
+/**
+ * Panel de proyección advisory / COMPATIBILITY_ONLY.
+ * No escribe Claim/Verification. La publicación se autoriza vía AuthorizePublication.
+ */
 export function renderClaimSafetyPanel(record?: ClaimSafetyVerdictRecord): string {
   if (!record) {
-    return '<p class="muted small">Este contenido todavía no ha pasado por el Claim Safety Engine.</p>';
+    return '<p class="muted small">Sin proyección advisory de afirmaciones. La publicación se gobierna por el Claim gate canónico (SPEC-006).</p>';
   }
 
   return `
@@ -38,13 +41,14 @@ export function renderClaimSafetyPanel(record?: ClaimSafetyVerdictRecord): strin
         ${renderClaimSafetyBadge(record)}
         <span class="muted small">${esc(record.summary)}</span>
       </div>
+      <p class="muted small">Proyección de compatibilidad — no autoriza publicación por sí sola.</p>
       ${record.findings.length
         ? `<ul class="claim-finding-list">
              ${record.findings.map((finding) => `
                <li class="claim-finding claim-finding-${finding.severity.toLowerCase()}">
                  <div class="claim-finding-head">
                    <strong>${esc(KIND_LABELS[finding.kind] || finding.kind)}</strong>
-                   <span>${finding.severity === 'BLOCK' ? 'bloquea' : 'revisar'}</span>
+                   <span>${finding.severity === 'BLOCK' ? 'señal fuerte' : 'revisar'}</span>
                  </div>
                  <p class="claim-finding-quote">“${esc(finding.claim)}”</p>
                  <p>${esc(finding.detail)}</p>
@@ -64,10 +68,7 @@ export function renderClaimSafetyPanel(record?: ClaimSafetyVerdictRecord): strin
                </li>
              `).join('')}
            </ul>`
-        : '<p class="muted small">Todas las afirmaciones detectadas tienen respaldo verificado.</p>'}
-      ${record.verdict === 'BLOCK'
-        ? '<p class="warn-strip">No se puede enviar al cliente ni marcar como listo hasta resolver los bloqueos.</p>'
-        : ''}
+        : '<p class="muted small">Sin hallazgos advisory en el texto actual.</p>'}
     </div>
   `;
 }

@@ -130,8 +130,18 @@ describe('SPEC-006 Phase 3 — claim evidence infrastructure architecture (T-006
       'posturaClaimsCore',
       'firebase/claims',
     ];
-    for (const file of [...collectTsFiles(INFRA_CLAIM), ...collectTsFiles(COMPOSITION)]) {
+    // Infrastructure remains free of legacy claim-safety. Composition may adapt
+    // advisoryClaimSafetyProjection (Phase 4) — exclude that file from this ban.
+    for (const file of collectTsFiles(INFRA_CLAIM)) {
       const rel = relative(ROOT, file).replace(/\\/g, '/');
+      const content = readFileSync(file, 'utf8');
+      for (const token of banned) {
+        if (content.includes(token)) hits.push(`${rel}: ${token}`);
+      }
+    }
+    for (const file of collectTsFiles(COMPOSITION)) {
+      const rel = relative(ROOT, file).replace(/\\/g, '/');
+      if (rel.endsWith('advisoryClaimSafetyProjection.ts')) continue;
       const content = readFileSync(file, 'utf8');
       for (const token of banned) {
         if (content.includes(token)) hits.push(`${rel}: ${token}`);
@@ -168,10 +178,8 @@ describe('SPEC-006 Phase 3 — claim evidence infrastructure architecture (T-006
       const rel = relative(ROOT, file).replace(/\\/g, '/');
       const content = readFileSync(file, 'utf8');
       for (const specifier of extractImportSpecifiers(content)) {
-        if (
-          specifier.includes('infrastructure/claimEvidence') ||
-          specifier.includes('composition/claimEvidence')
-        ) {
+        // Phase 4: main may import composition seam; never Infrastructure adapters.
+        if (specifier.includes('infrastructure/claimEvidence')) {
           hits.push(`${rel} → ${specifier}`);
         }
       }
