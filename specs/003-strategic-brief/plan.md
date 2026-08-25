@@ -3,9 +3,10 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `003-strategic-brief` |
-| **Phase** | **Phase 5 COMPLETE** · Phase 6 **NOT STARTED** · Phase 6 **READY** |
+| **Phase** | **Phase 6 ACCEPTANCE EVIDENCE COMPLETE** · CODE_COMPLETE CANDIDATE **YES** · Human sign-off **PENDING** · CODE_COMPLETE **NOT DECLARED** |
 | **Status** | `APPROVED` |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
+| **Phase-5 frozen checkpoint** | `68a2d7db12f4cd5e3d9436418af98a83c90faae2` |
 | **Phase-4 implementation checkpoint** | `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6` |
 | **Phase-4 governance checkpoint** | `e049fba24766be656de99a0592a28fd256b44a94` |
 | **Phase-3 frozen checkpoint** | `73004305561be5d12faaf2a524e50405d5e6809e` |
@@ -30,7 +31,7 @@ Therefore:
 3. Persist Brief + material history locally (Phase 3) — **DONE**.
 4. Migrate consumers to require approved Brief authorization (Phase 4) — **DONE**.
 5. Security/adversarial regression suite (Phase 5) — **DONE**.
-6. A1–A36 evidence + human CODE_COMPLETE (Phase 6) — **NOT STARTED**.
+6. A1–A36 evidence consolidation (Phase 6) — **EVIDENCE COMPLETE** · Human CODE_COMPLETE sign-off — **PENDING**.
 
 ---
 
@@ -81,7 +82,7 @@ No Signal → Content shortcut. No CurationEntry / DeliveryPackage / managerDeci
 | **3** | Persistence: current Brief + append-only history; idempotency; actor audit | **DONE** |
 | **4** | Consumer migration: approved-Brief mandatory gate; strategic vs generic distinction | **DONE** — A10, A28, A29 PASS |
 | **5** | Security/regression: CONTESTED/UNROUTED, cross-tenant, AI advisory, SPEC-001/002/005/006 regression | **DONE** — T-003-501…510 |
-| **6** | Acceptance A1–A36 + human CODE_COMPLETE sign-off | **NOT STARTED** · **READY** |
+| **6** | Acceptance A1–A36 evidence + human CODE_COMPLETE sign-off | **EVIDENCE COMPLETE** · T-003-604 **PENDING_HUMAN_APPROVAL** · CODE_COMPLETE **NOT DECLARED** |
 
 ---
 
@@ -146,7 +147,30 @@ Curation queue entry ≠ strategic authorization.
 | New unresolved P1 | **0** |
 | P2 PARTIAL carried | **2** (P2-003-01 naming; P2-003-02 curation intake) |
 | Local-store threat model | Malformed fail-closed; **not** crypto tamper-proof (LOCAL_AUTHORITATIVE) |
-| Phase 6 | **READY** · **NOT STARTED** — CODE_COMPLETE requires Phase 6 + human sign-off |
+| Phase 6 | **ACCEPTANCE EVIDENCE COMPLETE** · **CODE_COMPLETE CANDIDATE = YES** · Human sign-off **PENDING** · CODE_COMPLETE **NOT DECLARED** |
+| DEPLOYED / DONE | **NO** — D1–D3 **DEPLOYMENT_ONLY_PENDING** |
+
+---
+
+## Phase-6 acceptance candidate record
+
+| Gate | Result |
+|------|--------|
+| A1–A36 | **36/36 PASS** |
+| Acceptance failures | **0** |
+| P0 | **0** |
+| P1 unresolved | **0** |
+| Blocking P2 | **0** (2 PARTIAL_NONBLOCKING) |
+| Strategic bypass | **0** |
+| Architecture enforcement | **PASS** |
+| Tenant / adversarial | **PASS** |
+| Cross-SPEC regressions | **PASS** |
+| `npm run check` | **844/844 PASS** |
+| `npm run test:rules` | **91/91 PASS** |
+| **CODE_COMPLETE CANDIDATE** | **YES** |
+| **HUMAN SIGN-OFF (T-003-604)** | **PENDING** |
+| **CODE_COMPLETE declared** | **NO** |
+| **Next action** | **HUMAN_APPROVAL_REQUIRED** |
 
 ---
 
@@ -162,7 +186,7 @@ Phase 5 tasks (T-003-501+) are **work Phase 5 exists to perform**, not blockers 
 | Approved Brief gate | **PASS** |
 | Working tree at Phase-4 implementation checkpoint | **CLEAN** @ `d2efadf…` |
 | **PHASE 5** | **COMPLETE** |
-| **PHASE 6** | **READY** · **NOT_STARTED** |
+| **PHASE 6** | **ACCEPTANCE EVIDENCE COMPLETE** · CODE_COMPLETE **PENDING HUMAN** |
 
 ---
 
