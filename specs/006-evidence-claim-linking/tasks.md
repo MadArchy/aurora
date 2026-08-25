@@ -112,7 +112,7 @@ Phase 3 **COMPLETE** (T-006-301…308). Phase 4 **COMPLETE** (T-006-401…407).
 
 **Phase-3 checkpoint:** `45c45610fcf0b66f4c8e5627609895b2ba92d9e2`
 
-Phase 4 **COMPLETE**. Phase 5 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
+Phase 4 **COMPLETE**. Phase 5 **COMPLETE** (T-006-501…510).
 
 ---
 
@@ -130,26 +130,34 @@ Phase 4 **COMPLETE**. Phase 5 **NOT STARTED** / **NOT AUTHORIZED** without separ
 
 **Phase 4 IDs:** T-006-401 … T-006-407 — **ALL DONE**
 
-**Phase-4 checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+**Phase-4 checkpoint:** `30d4fc51f9693f21371554e3b8d0d1121eec4b35`
 
-Phase 5 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
+Phase 5 **COMPLETE**. Phase 6 **NOT STARTED** / **NOT AUTHORIZED**.
 
 ---
 
-## Phase 5 — Security / adversarial (NOT AUTHORIZED)
+## Phase 5 — Security / adversarial ✅ COMPLETE
 
-- [ ] **T-006-501** Architecture bans: Domain purity; no UI authorization from status alone
-- [ ] **T-006-502** Cross-tenant evidence/claim/verification deny matrix
-- [ ] **T-006-503** AI self-verification / spoof deny tests
-- [ ] **T-006-504** Link tampering / stale contentHash / deleted evidence tests
-- [ ] **T-006-505** Override abuse / hard-block non-override tests
-- [ ] **T-006-506** Legacy bypass path static inventory = 0
-- [ ] **T-006-507** SPEC-003 regression (Brief frozen contract)
-- [ ] **T-006-508** SPEC-005 regression (no paid AI; advisory only)
-- [ ] **T-006-509** SPEC-009 auth-claims suites unchanged (`posturaClaimsCore`, `firebaseClaims`)
-- [ ] **T-006-510** Legacy claimSafety suites remain green or formally superseded
+- [x] **T-006-501** Architecture bans: Domain purity; no UI authorization from status alone — **DONE**
+- [x] **T-006-502** Cross-tenant evidence/claim/verification deny matrix — **DONE**
+- [x] **T-006-503** AI self-verification / spoof deny tests — **DONE**
+- [x] **T-006-504** Link tampering / stale contentHash / deleted evidence tests — **DONE**
+- [x] **T-006-505** Override abuse / hard-block non-override tests — **DONE**
+- [x] **T-006-506** Legacy bypass path static inventory = 0 — **DONE**
+- [x] **T-006-507** SPEC-003 regression (Brief frozen contract) — **DONE**
+- [x] **T-006-508** SPEC-005 regression (no paid AI; advisory only) — **DONE**
+- [x] **T-006-509** SPEC-009 auth-claims suites unchanged (`posturaClaimsCore`, `firebaseClaims`) — **DONE**
+- [x] **T-006-510** Legacy claimSafety suites remain green or formally superseded — **DONE**
 
-**Phase 5 IDs:** T-006-501 … T-006-510
+**Phase 5 IDs:** T-006-501 … T-006-510 — **ALL DONE**
+
+**Threat coverage T-006-01…14:** **PASS**
+
+**PRODUCT CODE CHANGES:** **NONE**
+
+**Phase-5 checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+
+**CODE_COMPLETE = NO** · Phase 6 **NOT AUTHORIZED**.
 
 ---
 

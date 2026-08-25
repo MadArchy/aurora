@@ -210,7 +210,7 @@ Local tamper resistance = structural validation only (**KNOWN_LIMITATION** vs th
 | F-006-01 | P1 | **RESOLVED** Phase 0 |
 | F-006-02 | P1 | **RESOLVED** Phase 1 Domain |
 | P2-006-01 | P2 | Requirement IDs CLAIM-006-* — PARTIAL (authority migrated; legacy ID map open) |
-| P2-006-02 | P2 | Architecture suite Domain+App+Infra+Consumer PARTIAL; security Phase 5 |
+| P2-006-02 | P2 | Architecture/security suite — **RESOLVED** Phase 5 |
 | P3-006-01 | P3 | Canonical title in all new docs; legacy module names OK |
 
 ---

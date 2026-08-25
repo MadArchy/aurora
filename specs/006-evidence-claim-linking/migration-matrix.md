@@ -55,7 +55,7 @@ Legend: **KEEP** · **MIGRATE** · **ADAPT** · **DEPRECATE** · **OTHER_SPEC** 
 | Material history | None for claims | Missing | **P2** | Append-only stores | 3 ✅ |
 | Override audit | REVIEW ack boolean | Weak | **P2** | OverrideClaimGate + store | 2–3 ✅ |
 | Requirement traceability | None | P2-006-01 | **P2** | CLAIM-006-* IDs | 1 |
-| Architecture/security suites | None dedicated | P2-006-02 | **P2** | Infra arch Phase 3; security Phase 5 | 3–5 |
+| Architecture/security suites | None dedicated | P2-006-02 | **P2→RESOLVED** | Phase 5 security suites | 3–5 ✅ |
 | Naming canonical title | "claim safety" modules | P3-006-01 | **P3** | Docs first; rename later | 0 / later |
 | Governance package | Was missing | F-006-01 | **P1→RESOLVED** | Phase 0 docs | 0 |
 

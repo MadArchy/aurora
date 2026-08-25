@@ -131,3 +131,18 @@ Consumer publication seam: `authorizeContentPublicationGate` → Application `Au
 4. AI actor sets Verification → **FAIL**
 5. SPEC-006 imports mutate Brief/routing/score modules as writers → **FAIL**
 6. Confusing SPEC-009 `posturaClaims` into SPEC-006 Domain → **FAIL**
+
+### Phase-5 enforcement evidence (T-006-501…509)
+
+Executable: `tests/claimEvidenceSecurityArchitecture.test.ts` (+ Phase-5 adversarial suite).
+
+| Ban | Evidence | Status |
+|-----|----------|--------|
+| Domain → Application/Infrastructure/UI | AST scan | PASS |
+| Application → Infrastructure/UI | AST scan | PASS |
+| UI → LocalClaim* repositories / `postura_claim_*` | AST scan | PASS |
+| consumer → OpenAI/Anthropic/provider | AST scan | PASS |
+| legacy publication authority | gate + inventory | PASS = 0 |
+| SPEC-009 auth claims coupling | AST scan Domain/Application | PASS |
+| SPEC-003 mutation coupling | Brief AST scan | PASS |
+| SPEC-005 behavior coupling | `authorizePublication` unchanged | PASS |
