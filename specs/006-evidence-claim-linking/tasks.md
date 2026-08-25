@@ -174,7 +174,7 @@ Phase 5 **COMPLETE**. Phase 6 acceptance evidence **COMPLETE** · Human CODE_COM
 **CODE_COMPLETE CANDIDATE:** **YES**  
 **CODE_COMPLETE:** **NO** (requires T-006-604)  
 **PRODUCT / TEST CHANGES (Phase 6):** **NONE**  
-**Phase-6 acceptance evidence checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+**Phase-6 acceptance evidence checkpoint:** `adb04b16c9b59e711aeed28aebd9896660d2710a` on `spec/006-evidence-claim-linking`
 
 **Residual (nonblocking):** P2-006-01 PARTIAL_NONBLOCKING · P3-006-01 OPEN_NONBLOCKING · runtime extractor DEFERRED_NONBLOCKING · UI Register/Link/Verify buttons DEFERRED_NONBLOCKING · local tamper KNOWN_LIMITATION_NONBLOCKING
 
