@@ -374,9 +374,10 @@ See `threat-model.md`. Threats include: foreign evidence injection, fake source 
 | Phase 0 governance | **COMPLETE** |
 | Human SPEC approval (T-006-010) | **DONE** — **APPROVED** 2026-08-24 (America/Bogota) |
 | Phase 1 Domain | **COMPLETE** (T-006-101…110) |
-| Phase 2 Application | **NOT_AUTHORIZED** |
+| Phase 2 Application | **COMPLETE** (T-006-201…211) |
+| Phase 3 Persistence | **NOT_AUTHORIZED** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Human authorization for Phase 2 Application (T-006-201…). Do not begin Phase 2 automatically.
+**Next action:** Human authorization for Phase 3 Persistence (T-006-301…). Do not begin Phase 3 automatically.

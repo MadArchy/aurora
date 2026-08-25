@@ -3,12 +3,13 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `006-evidence-claim-linking` |
-| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · Phase 2 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · Phase 3 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Status** | **`APPROVED`** (T-006-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1` |
 | **Phase-0 governance checkpoint** | `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5` |
 | **Human approval checkpoint** | `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d` |
+| **Phase-1 frozen checkpoint** | `fe1fbc9225919a445eff9463492176356ab0a8f7` |
 | **Branch** | `spec/006-evidence-claim-linking` |
 | **Human SPEC approval** | **APPROVED** (T-006-010) — 2026-08-24 (America/Bogota) |
 | **Approval text** | «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.» |
@@ -100,15 +101,17 @@ Legacy modules remain **KEEP** until Phase 4 consumers migrate; then **ADAPT** �
 
 **Exit:** Domain tests PASS; no Firebase/db/React imports. **MET** · F-006-02 **RESOLVED**
 
-### Phase 2 — Application (NOT AUTHORIZED)
+### Phase 2 — Application (COMPLETE)
 
-- Minimal use cases (see below)
-- Ports: repositories, readers, clock, actor, optional AI suggestion port
-- Controlled error model
+- Use cases T-006-201…208
+- Ports T-006-209 (no Infrastructure adapters)
+- TrustedActorContext + SOFTWARE authority non-spoofable
+- Application hexagonal tests — **21/21 PASS**
+- RUNTIME EXTRACTOR = **DEFERRED** (port only)
 
-**Exit:** Application hexagonal tests; no concrete db in use cases.
+**Exit:** Application depends on ports only. **MET**
 
-### Phase 3 — Persistence
+### Phase 3 — Persistence (NOT AUTHORIZED)
 
 - Local-authoritative Claim / Verification / Link stores
 - Evidence vault adaptation behind ports

@@ -1,11 +1,12 @@
 # Tasks 006 — Evidence Claim Linking
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_1_COMPLETE** · Phase 2 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **PHASE_2_COMPLETE** · Phase 3 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/006-evidence-claim-linking`  
 **Base SHA:** SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1`  
 **Phase-0 governance checkpoint:** `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5`  
 **Human SPEC approval checkpoint:** `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d`  
+**Phase-1 frozen checkpoint:** `fe1fbc9225919a445eff9463492176356ab0a8f7`  
 **Human SPEC approval:** **APPROVED** (T-006-010) — 2026-08-24 (America/Bogota)  
 **Approval text:** «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.»
 
@@ -60,27 +61,37 @@ Requirement ID prefix (future Domain): `CLAIM-006-001` …
 
 F-006-02 = **RESOLVED** (canonical Domain Claim→Evidence→Verification→Source present + tested). Persistence/Application/consumer migration remain later phases.
 
-Phase 2 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
+Phase 2 **AUTHORIZED** under separate human go-ahead (2026-08-25).
 
 ---
 
-## Phase 2 — Application / governance (NOT AUTHORIZED)
+## Phase 2 — Application / governance (COMPLETE)
 
-- [ ] **T-006-201** `ExtractClaims` use case
-- [ ] **T-006-202** `RegisterClaim` use case
-- [ ] **T-006-203** `LinkEvidenceToClaim` use case
-- [ ] **T-006-204** `RequireEvidence` use case
-- [ ] **T-006-205** `VerifyClaim` / `RejectClaimVerification` use cases
-- [ ] **T-006-206** `ReviewClaim` use case
-- [ ] **T-006-207** `OverrideClaimGate` use case (auditable)
-- [ ] **T-006-208** `AuthorizePublication` use case
-- [ ] **T-006-209** Ports: ClaimRepository, EvidenceReader, VerificationStore, HistoryPort, Clock, Actor, optional ClaimSuggestionPort
-- [ ] **T-006-210** Controlled error model (`CLAIM_NOT_FOUND`, `EVIDENCE_TENANT_MISMATCH`, `VERIFICATION_FORBIDDEN`, …)
-- [ ] **T-006-211** Application hexagonal tests
+- [x] **T-006-201** `ExtractClaims` use case — **DONE** (port-only; runtime AI DEFERRED)
+- [x] **T-006-202** `RegisterClaim` use case — **DONE**
+- [x] **T-006-203** `LinkEvidenceToClaim` use case — **DONE**
+- [x] **T-006-204** `RequireEvidence` use case — **DONE**
+- [x] **T-006-205** `VerifyClaim` / `RejectClaimVerification` use cases — **DONE**
+- [x] **T-006-206** `ReviewClaim` use case — **DONE**
+- [x] **T-006-207** `OverrideClaimGate` use case (auditable) — **DONE**
+- [x] **T-006-208** `AuthorizePublication` use case — **DONE** (decision only; no consumer write)
+- [x] **T-006-209** Ports: ClaimRepository, EvidenceReader, VerificationStore, HistoryPort, Actor, ClaimContentReader, ClaimExtractorPort — **DONE**
+- [x] **T-006-210** Controlled error model (`CLAIM_NOT_FOUND`, `EVIDENCE_TENANT_MISMATCH`, `VERIFICATION_FORBIDDEN`, …) — **DONE**
+- [x] **T-006-211** Application hexagonal tests — **DONE**
 
-**Exit:** Application depends on ports only.
+**Exit:** Application depends on ports only. **MET**
 
-**Phase 2 IDs:** T-006-201 … T-006-211
+**Evidence:**
+- Application: `src/application/claimEvidence/` (use cases + ports + trustedContext)
+- Tests: `tests/claimEvidencePhase2.test.ts` (17) · `tests/claimEvidenceApplicationArchitecture.test.ts` (4) · **21/21 PASS**
+- Phase-1 Domain regression **28/28 PASS** · Legacy claim-safety **23/23 PASS**
+- No Infrastructure adapters · No UI · No consumer migration
+
+**RUNTIME EXTRACTOR = DEFERRED** (ClaimExtractorPort + test double only; no new SPEC-005 AiOperation)
+
+**Phase 2 IDs:** T-006-201 … T-006-211 — **ALL DONE**
+
+Phase 3 **NOT STARTED** / **NOT AUTHORIZED** without separate go-ahead.
 
 ---
 
