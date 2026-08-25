@@ -1,11 +1,12 @@
 # Acceptance 003 — Strategic Brief
 
-**Phase 6:** Acceptance evidence **COMPLETE** · Human sign-off **PENDING**  
-**CODE_COMPLETE:** **NOT DECLARED** (requires T-003-604 human approval)  
-**CODE_COMPLETE CANDIDATE:** **YES**
+**Phase 6:** Acceptance evidence **COMPLETE** · Human sign-off **APPROVED** (T-003-604)  
+**SPEC-003 IMPLEMENTATION:** **CODE_COMPLETE**  
+**CODE_COMPLETE CANDIDATE:** **YES** (superseded by declared CODE_COMPLETE)  
+**DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
-Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (Phase 6 T-003-604).  
-Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
+Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (Phase 6 T-003-604) — **SATISFIED**.  
+Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate) — **NOT STARTED**.
 
 **Implementation baseline:** SPEC-002 CODE_COMPLETE @ `ab01c46` product; `e422359` governance.
 
@@ -13,7 +14,17 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 **Phase-4 governance:** `e049fba24766be656de99a0592a28fd256b44a94`  
 **Phase-4 implementation:** `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6`  
 **Phase-3 corrected:** `73004305561be5d12faaf2a524e50405d5e6809e`  
-**SPEC-001 compatibility:** `80c93d8b0b03a5eaa0e3a75e953131e4700873d5`
+**SPEC-001 compatibility:** `80c93d8b0b03a5eaa0e3a75e953131e4700873d5`  
+**Phase-6 acceptance evidence:** `2cfe13cc8f3369e3da59b0c4829022e0cc10a0c7`
+
+### Human CODE_COMPLETE approval
+
+| Field | Value |
+|-------|--------|
+| **Task** | T-003-604 |
+| **Status** | **DONE** |
+| **Date** | **2026-08-24** (America/Bogota) |
+| **Authorization text** | «Apruebo SPEC-003 como CODE_COMPLETE y autorizo el cierre de T-003-604.» |
 
 ---
 
@@ -60,9 +71,10 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate).
 
 **Implementation acceptance A1–A36:** **36/36 PASS**  
 **Acceptance failures:** **0**  
-**CODE_COMPLETE CANDIDATE:** **YES**  
-**CODE_COMPLETE (declared):** **NO** — awaiting T-003-604 human sign-off  
-**HUMAN SIGN-OFF:** **PENDING**
+**CODE_COMPLETE CANDIDATE:** **YES** (pre-approval)  
+**HUMAN SIGN-OFF (T-003-604):** **APPROVED** — 2026-08-24 (America/Bogota)  
+**SPEC-003 IMPLEMENTATION:** **CODE_COMPLETE**  
+**DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED** · **D1–D3:** **PENDING_DEPLOYMENT_ONLY**
 
 ---
 
@@ -149,11 +161,13 @@ First/primary = **0** · Legacy thesis fallback = **0** · Routing/score mutatio
 | Phase 6 T-003-601 A1–A36 evidence | ✅ **COMPLETE** |
 | Phase 6 T-003-602 `npm run check` | ✅ **PASS** (844/844) |
 | Phase 6 T-003-603 `npm run test:rules` | ✅ **PASS** (91/91) |
-| Phase 6 T-003-604 Human sign-off → CODE_COMPLETE | ☐ **PENDING_HUMAN_APPROVAL** |
+| Phase 6 T-003-604 Human sign-off → CODE_COMPLETE | ✅ **DONE** — 2026-08-24 (America/Bogota) |
 | Phase 6 T-003-605 DEPLOYED/DONE separate | ✅ **CONFIRMED** — DEPLOYED=NO · DONE=NO |
-| CODE_COMPLETE | ☐ **NOT DECLARED** |
-| DEPLOYED / DONE | ☐ **NO** |
+| **SPEC-003 IMPLEMENTATION** | ✅ **CODE_COMPLETE** |
+| DEPLOYED / DONE | ☐ **NO** — D1–D3 **PENDING_DEPLOYMENT_ONLY** |
 
-**Current:** `APPROVED` · Phase 6 acceptance evidence **COMPLETE** · **CODE_COMPLETE CANDIDATE = YES** · **HUMAN SIGN-OFF = PENDING** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
+**Human approval recorded:** «Apruebo SPEC-003 como CODE_COMPLETE y autorizo el cierre de T-003-604.»
 
-**Next required action:** Explicit human owner approval (T-003-604).
+**Current:** **IMPLEMENTATION = CODE_COMPLETE** · **HUMAN SIGN-OFF = APPROVED** · **DEPLOYED = NO** · **DEPLOYMENT = NOT_STARTED** · **DONE = NO**
+
+**Next allowed state:** Separate deployment authorization only (D1–D3). Do not conflate CODE_COMPLETE with DEPLOYED/DONE.

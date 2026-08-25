@@ -4,16 +4,17 @@
 |-------|--------|
 | **Spec ID** | `003-strategic-brief` |
 | **Display name** | **SPEC-003 — Strategic Brief** |
-| **Status** | **`APPROVED`** (T-003-010 human SPEC approval 2026-08-24) |
-| **Phase** | 0B COMPLETE / HUMAN APPROVED · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **NOT STARTED** |
-| **Branch (recommended)** | `spec/003-strategic-brief` from governance checkpoint `e422359` |
+| **Status** | **`CODE_COMPLETE`** (implementation) · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | Phase 0B–6 **COMPLETE** · T-003-604 human CODE_COMPLETE approval **2026-08-24** (America/Bogota) |
+| **Branch** | `spec/003-strategic-brief` |
 | **Implementation baseline** | Phase 0 inventory @ SPEC-002 CODE_COMPLETE (`ab01c46` product; `e422359` governance) |
 | **Priority** | P1 (constitution §4, §12 — Strategic Brief gate) |
 | **Constitution** | §4 Thesis First · §5 Multi-thesis · §11 Strategic Decision ≠ Content Format · §12 Strategic Brief Obligatorio · §AI SUGGESTS, SOFTWARE GOVERNS |
 | **Depends on** | SPEC-001 (CODE_COMPLETE — routing authority); SPEC-002 (CODE_COMPLETE — scoring authority); SPEC-005 (CODE_COMPLETE — advisory AI); SPEC-006 (claim safety downstream); SPEC-009 (CODE_AVAILABLE; production DEFERRED) |
 | **Blocks** | Governed strategic downstream action (Planner / Content / Opportunity — SPEC-004 adjacent) |
 | **Phase 0 inventory** | Chat Phase 0 (2026-08-24) — Brief absent; curation/delivery substitute |
-| **Test baseline (entering)** | `npm run check` → **677/677 PASS**; `npm run test:rules` → **91/91 PASS** |
+| **Test baseline (CODE_COMPLETE)** | `npm run check` → **844/844 PASS**; `npm run test:rules` → **91/91 PASS** |
+| **Human CODE_COMPLETE approval** | «Apruebo SPEC-003 como CODE_COMPLETE y autorizo el cierre de T-003-604.» — 2026-08-24 (America/Bogota) |
 
 ---
 

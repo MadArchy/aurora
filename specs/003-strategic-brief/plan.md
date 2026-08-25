@@ -3,13 +3,15 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `003-strategic-brief` |
-| **Phase** | **Phase 6 ACCEPTANCE EVIDENCE COMPLETE** · CODE_COMPLETE CANDIDATE **YES** · Human sign-off **PENDING** · CODE_COMPLETE **NOT DECLARED** |
-| **Status** | `APPROVED` |
+| **Phase** | **IMPLEMENTATION = CODE_COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED** |
+| **Status** | **`CODE_COMPLETE`** (implementation) · SPEC package previously `APPROVED` (T-003-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Phase-5 frozen checkpoint** | `68a2d7db12f4cd5e3d9436418af98a83c90faae2` |
 | **Phase-4 implementation checkpoint** | `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6` |
 | **Phase-4 governance checkpoint** | `e049fba24766be656de99a0592a28fd256b44a94` |
 | **Phase-3 frozen checkpoint** | `73004305561be5d12faaf2a524e50405d5e6809e` |
+| **Phase-6 acceptance evidence checkpoint** | `2cfe13cc8f3369e3da59b0c4829022e0cc10a0c7` |
+| **Human CODE_COMPLETE (T-003-604)** | **APPROVED** — 2026-08-24 (America/Bogota) — «Apruebo SPEC-003 como CODE_COMPLETE y autorizo el cierre de T-003-604.» |
 
 ---
 
@@ -31,7 +33,7 @@ Therefore:
 3. Persist Brief + material history locally (Phase 3) — **DONE**.
 4. Migrate consumers to require approved Brief authorization (Phase 4) — **DONE**.
 5. Security/adversarial regression suite (Phase 5) — **DONE**.
-6. A1–A36 evidence consolidation (Phase 6) — **EVIDENCE COMPLETE** · Human CODE_COMPLETE sign-off — **PENDING**.
+6. A1–A36 evidence consolidation (Phase 6) — **EVIDENCE COMPLETE** · Human CODE_COMPLETE sign-off (T-003-604) — **DONE** · **IMPLEMENTATION = CODE_COMPLETE**.
 
 ---
 
@@ -82,7 +84,7 @@ No Signal → Content shortcut. No CurationEntry / DeliveryPackage / managerDeci
 | **3** | Persistence: current Brief + append-only history; idempotency; actor audit | **DONE** |
 | **4** | Consumer migration: approved-Brief mandatory gate; strategic vs generic distinction | **DONE** — A10, A28, A29 PASS |
 | **5** | Security/regression: CONTESTED/UNROUTED, cross-tenant, AI advisory, SPEC-001/002/005/006 regression | **DONE** — T-003-501…510 |
-| **6** | Acceptance A1–A36 evidence + human CODE_COMPLETE sign-off | **EVIDENCE COMPLETE** · T-003-604 **PENDING_HUMAN_APPROVAL** · CODE_COMPLETE **NOT DECLARED** |
+| **6** | Acceptance A1–A36 evidence + human CODE_COMPLETE sign-off | **DONE** — T-003-601…605 · **IMPLEMENTATION = CODE_COMPLETE** · DEPLOYED **NO** · DONE **NO** |
 
 ---
 
@@ -147,7 +149,7 @@ Curation queue entry ≠ strategic authorization.
 | New unresolved P1 | **0** |
 | P2 PARTIAL carried | **2** (P2-003-01 naming; P2-003-02 curation intake) |
 | Local-store threat model | Malformed fail-closed; **not** crypto tamper-proof (LOCAL_AUTHORITATIVE) |
-| Phase 6 | **ACCEPTANCE EVIDENCE COMPLETE** · **CODE_COMPLETE CANDIDATE = YES** · Human sign-off **PENDING** · CODE_COMPLETE **NOT DECLARED** |
+| Phase 6 | **COMPLETE** · **IMPLEMENTATION = CODE_COMPLETE** · Human sign-off **APPROVED** (T-003-604) |
 | DEPLOYED / DONE | **NO** — D1–D3 **DEPLOYMENT_ONLY_PENDING** |
 
 ---
@@ -168,9 +170,13 @@ Curation queue entry ≠ strategic authorization.
 | `npm run check` | **844/844 PASS** |
 | `npm run test:rules` | **91/91 PASS** |
 | **CODE_COMPLETE CANDIDATE** | **YES** |
-| **HUMAN SIGN-OFF (T-003-604)** | **PENDING** |
-| **CODE_COMPLETE declared** | **NO** |
-| **Next action** | **HUMAN_APPROVAL_REQUIRED** |
+| **HUMAN SIGN-OFF (T-003-604)** | **APPROVED** — 2026-08-24 (America/Bogota) |
+| **SPEC-003 IMPLEMENTATION** | **CODE_COMPLETE** |
+| **DEPLOYED** | **NO** |
+| **DEPLOYMENT** | **NOT_STARTED** |
+| **DONE** | **NO** |
+| **Approval text** | «Apruebo SPEC-003 como CODE_COMPLETE y autorizo el cierre de T-003-604.» |
+| **Next allowed** | Deployment gates D1–D3 only under separate authorization |
 
 ---
 
@@ -186,7 +192,7 @@ Phase 5 tasks (T-003-501+) are **work Phase 5 exists to perform**, not blockers 
 | Approved Brief gate | **PASS** |
 | Working tree at Phase-4 implementation checkpoint | **CLEAN** @ `d2efadf…` |
 | **PHASE 5** | **COMPLETE** |
-| **PHASE 6** | **ACCEPTANCE EVIDENCE COMPLETE** · CODE_COMPLETE **PENDING HUMAN** |
+| **PHASE 6** | **COMPLETE** · **IMPLEMENTATION = CODE_COMPLETE** |
 
 ---
 

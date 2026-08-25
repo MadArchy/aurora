@@ -1,7 +1,7 @@
 # Tasks 003 — Strategic Brief
 
 **Spec status:** `APPROVED`  
-**Implementation:** **Phase 6 ACCEPTANCE EVIDENCE COMPLETE** · **CODE_COMPLETE CANDIDATE = YES** · Human sign-off **PENDING** · CODE_COMPLETE **NOT DECLARED**  
+**Implementation:** **CODE_COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/003-strategic-brief`  
 **Base SHA:** `e422359ab90e84d4eb26007db23da6d54390cf15`  
 **Formal SPEC checkpoint:** `3c04c6df42d1d51fe8e38fd96deec3af826995eb`  
@@ -11,7 +11,10 @@
 **Phase-4 implementation checkpoint:** `d2efadf14e930fd45cc46cf4805d4b8a278bd6a6`  
 **Phase-4 governance checkpoint:** `e049fba24766be656de99a0592a28fd256b44a94`  
 **Phase-5 frozen checkpoint:** `68a2d7db12f4cd5e3d9436418af98a83c90faae2`  
-**Human SPEC approval:** **APPROVED** (T-003-010) — 2026-08-24
+**Phase-6 acceptance evidence checkpoint:** `2cfe13cc8f3369e3da59b0c4829022e0cc10a0c7`  
+**Human SPEC approval:** **APPROVED** (T-003-010) — 2026-08-24  
+**Human CODE_COMPLETE approval (T-003-604):** **APPROVED** — 2026-08-24 (America/Bogota)  
+**Approval text:** «Apruebo SPEC-003 como CODE_COMPLETE y autorizo el cierre de T-003-604.»
 
 ---
 
@@ -176,22 +179,43 @@ P2-003-02 curation queue fail-open = **PARTIAL / NONBLOCKING** — intake may st
 
 ## Phase 6 — Acceptance / CODE_COMPLETE
 
-**Status:** Acceptance evidence **COMPLETE** · CODE_COMPLETE CANDIDATE **YES** · Human sign-off **PENDING** · CODE_COMPLETE **NOT DECLARED**
+**Status:** **IMPLEMENTATION = CODE_COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**
 
 - [x] **T-003-601** Acceptance matrix A1–A36 evidence filled
-- [x] **T-003-602** `npm run check` PASS — **844/844** (fresh Phase 6)
-- [x] **T-003-603** `npm run test:rules` PASS — **91/91** (fresh Phase 6)
-- [ ] **T-003-604** Human sign-off → **CODE_COMPLETE** — **PENDING_HUMAN_APPROVAL**
+- [x] **T-003-602** `npm run check` PASS — **844/844** (Phase 6 evidence + closure re-verify)
+- [x] **T-003-603** `npm run test:rules` PASS — **91/91** (Phase 6 evidence + closure re-verify)
+- [x] **T-003-604** Human sign-off → **CODE_COMPLETE** — **DONE**
 - [x] **T-003-605** Confirm DEPLOYED/DONE remain separate / NOT STARTED — **CONFIRMED** (DEPLOYED=NO · DONE=NO · D1–D3 DEPLOYMENT_ONLY_PENDING)
 
-**Exit:** Implementation acceptance **36/36 PASS** · Human sign-off **PENDING** · CODE_COMPLETE **not declared**.
+**Exit:** Implementation acceptance **36/36 PASS** · Human sign-off **APPROVED** · **IMPLEMENTATION = CODE_COMPLETE**.
 
-**Candidate gate:** P0=0 · P1 unresolved=0 · blocking P2=0 · strategic bypass=0 · architecture PASS · tenant/adversarial PASS · cross-SPEC PASS · check PASS · rules PASS.
+### Human CODE_COMPLETE approval (T-003-604)
 
-**Do not mark T-003-604 DONE without explicit human owner approval.**  
-**Do not declare SPEC-003 CODE_COMPLETE in this evidence checkpoint.**
+| Field | Value |
+|-------|--------|
+| **Status** | **DONE** |
+| **Date** | **2026-08-24** (America/Bogota) |
+| **Authorization text** | «Apruebo SPEC-003 como CODE_COMPLETE y autorizo el cierre de T-003-604.» |
+| **Basis** | A1–A36 = 36/36 PASS · P0 = 0 · P1 unresolved = 0 · blocking P2 = 0 · cross-SPEC PASS · check PASS · rules PASS · Phase-6 evidence checkpoint `2cfe13cc8f3369e3da59b0c4829022e0cc10a0c7` |
 
-**Next action:** **HUMAN_APPROVAL_REQUIRED** (T-003-604).
+### T-003-605 meaning (unchanged)
+
+**Confirm DEPLOYED/DONE remain separate / NOT STARTED** — not a second CODE_COMPLETE declaration. Remains **CONFIRMED**: CODE_COMPLETE ≠ DEPLOYED ≠ DONE. D1–D3 stay **PENDING_DEPLOYMENT_ONLY**.
+
+### Final implementation status
+
+| Field | Value |
+|-------|--------|
+| **SPEC-003 IMPLEMENTATION** | **CODE_COMPLETE** |
+| **DEPLOYED** | **NO** |
+| **DEPLOYMENT** | **NOT_STARTED** |
+| **DONE** | **NO** |
+| **D1–D3** | **PENDING_DEPLOYMENT_ONLY** |
+| **LOCAL_AUTHORITATIVE** | **KNOWN_LIMITATION_NONBLOCKING** |
+| **LEGACY CLEAR MIGRATION** | **DEFERRED_NONBLOCKING** |
+| **SPEC-009 PRODUCTION** | **DEFERRED_UNCHANGED** |
+
+**Prohibited without separate authorization:** deploy · merge main · D1–D3 · production backfill · SPEC-009 production changes · start another SPEC.
 
 ---
 
