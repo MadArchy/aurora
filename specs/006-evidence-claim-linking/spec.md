@@ -359,11 +359,11 @@ See `threat-model.md`. Threats include: foreign evidence injection, fake source 
 |----|-----|---------|----------------------|
 | **F-006-01** | P1 | No SPEC-006 governance package | **RESOLVED** by Phase 0 package |
 | **F-006-02** | P1 | Constitutional Claim→Evidence→Verification→Source model missing in code | **RESOLVED** — Phase 1 Domain model + tests |
-| **P2-006-01** | P2 | Legacy claim-safety lacks formal requirement traceability | **PARTIAL** — publication authority migrated; CLAIM-006-* ID map on legacy module names still open |
+| **P2-006-01** | P2 | Legacy claim-safety lacks formal requirement traceability | **PARTIAL_NONBLOCKING** — publication authority migrated; CLAIM-006-* legacy module ID map still open (Phase-6 did not authorize map closure) |
 | **P2-006-02** | P2 | No dedicated SPEC-006 architecture/security suite | **RESOLVED** — Domain+App+Infra+Consumer+Security/adversarial suites (T-006-501…510) |
-| **P3-006-01** | P3 | Naming alias drift ("claim safety" vs `006-evidence-claim-linking`) | **OPEN** — nonblocking; docs use canonical title |
+| **P3-006-01** | P3 | Naming alias drift ("claim safety" vs `006-evidence-claim-linking`) | **OPEN_NONBLOCKING** — docs use canonical title; no rename churn |
 
-**P0 = 0** · **P1 open = 0** · **P2 = 1** (PARTIAL) · **P3 = 1**
+**P0 = 0** · **P1 open = 0** · **P2 = 1** (PARTIAL_NONBLOCKING) · **P3 = 1** (OPEN_NONBLOCKING)
 
 ---
 
@@ -378,9 +378,11 @@ See `threat-model.md`. Threats include: foreign evidence injection, fake source 
 | Phase 3 Persistence | **COMPLETE** (T-006-301…308) |
 | Phase 4 Consumer migration | **COMPLETE** (T-006-401…407) |
 | Phase 5 Security | **COMPLETE** (T-006-501…510) |
-| Phase 6 Acceptance | **NOT_AUTHORIZED** |
+| Phase 6 Acceptance evidence | **COMPLETE** (T-006-601…603, T-006-605) · A1–A40 **40/40 PASS** |
+| Human CODE_COMPLETE (T-006-604) | **PENDING** |
+| CODE_COMPLETE CANDIDATE | **YES** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Human authorization for Phase 6 acceptance (T-006-601…). Do not declare CODE_COMPLETE without T-006-604.
+**Next action:** Human CODE_COMPLETE approval (T-006-604). Do not declare CODE_COMPLETE without that sign-off.

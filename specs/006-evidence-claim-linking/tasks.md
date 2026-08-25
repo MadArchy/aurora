@@ -1,7 +1,7 @@
 # Tasks 006 — Evidence Claim Linking
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_2_COMPLETE** · Phase 3 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **PHASE_6_ACCEPTANCE_EVIDENCE_COMPLETE** · CODE_COMPLETE **NO** · CODE_COMPLETE_CANDIDATE **YES** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/006-evidence-claim-linking`  
 **Base SHA:** SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1`  
 **Phase-0 governance checkpoint:** `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5`  
@@ -132,7 +132,7 @@ Phase 4 **COMPLETE**. Phase 5 **COMPLETE** (T-006-501…510).
 
 **Phase-4 checkpoint:** `30d4fc51f9693f21371554e3b8d0d1121eec4b35`
 
-Phase 5 **COMPLETE**. Phase 6 **NOT STARTED** / **NOT AUTHORIZED**.
+Phase 5 **COMPLETE**. Phase 6 acceptance evidence **COMPLETE** · Human CODE_COMPLETE (T-006-604) **PENDING**.
 
 ---
 
@@ -157,19 +157,26 @@ Phase 5 **COMPLETE**. Phase 6 **NOT STARTED** / **NOT AUTHORIZED**.
 
 **Phase-5 checkpoint:** `3735678c9c627e964e66d59c18eeaf3a4a9c8cde` on `spec/006-evidence-claim-linking`
 
-**CODE_COMPLETE = NO** · Phase 6 **NOT AUTHORIZED**.
+**CODE_COMPLETE = NO** · Phase 6 acceptance evidence **AUTHORIZED** and **COMPLETE** (T-006-601…603, T-006-605). Human sign-off **PENDING**.
 
 ---
 
-## Phase 6 — Acceptance / CODE_COMPLETE (NOT AUTHORIZED)
+## Phase 6 — Acceptance / CODE_COMPLETE ✅ EVIDENCE COMPLETE · HUMAN PENDING
 
-- [ ] **T-006-601** Consolidate A1–A40 evidence matrix
-- [ ] **T-006-602** `npm run check` PASS
-- [ ] **T-006-603** `npm run test:rules` PASS
-- [ ] **T-006-604** Human CODE_COMPLETE sign-off — **PENDING** (separate from T-006-010)
-- [ ] **T-006-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED
+- [x] **T-006-601** Consolidate A1–A40 evidence matrix — **DONE** (40/40 PASS)
+- [x] **T-006-602** `npm run check` PASS — **DONE** (**976/976**)
+- [x] **T-006-603** `npm run test:rules` PASS — **DONE** (**91/91**)
+- [ ] **T-006-604** Human CODE_COMPLETE sign-off — **PENDING** (separate from T-006-010; do not mark DONE here)
+- [x] **T-006-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED — **DONE** (CONFIRMED)
 
 **Phase 6 IDs:** T-006-601 … T-006-605
+
+**CODE_COMPLETE CANDIDATE:** **YES**  
+**CODE_COMPLETE:** **NO** (requires T-006-604)  
+**PRODUCT / TEST CHANGES (Phase 6):** **NONE**  
+**Phase-6 acceptance evidence checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+
+**Residual (nonblocking):** P2-006-01 PARTIAL_NONBLOCKING · P3-006-01 OPEN_NONBLOCKING · runtime extractor DEFERRED_NONBLOCKING · UI Register/Link/Verify buttons DEFERRED_NONBLOCKING · local tamper KNOWN_LIMITATION_NONBLOCKING
 
 ---
 

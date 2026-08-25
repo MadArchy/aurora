@@ -2,12 +2,12 @@
 
 **Phase 0:** Formal package **COMPLETE** · Human SPEC approval **APPROVED** (T-006-010)  
 **SPEC-006 FORMAL SPEC:** **APPROVED**  
-**SPEC-006 IMPLEMENTATION:** **PHASE_5_COMPLETE** · CODE_COMPLETE **NO**  
-**CODE_COMPLETE CANDIDATE:** **NO**  
+**SPEC-006 IMPLEMENTATION:** **PHASE_6_ACCEPTANCE_EVIDENCE_COMPLETE** · CODE_COMPLETE **NO**  
+**CODE_COMPLETE CANDIDATE:** **YES**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
 Spec **APPROVED** requires T-006-010 human SPEC approval — **SATISFIED**.  
-Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-006-604) — **NOT STARTED**.  
+Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-006-604) — **HUMAN PENDING**.  
 Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STARTED**.
 
 **Implementation baseline:** SPEC-003 CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -16,7 +16,9 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-1 frozen checkpoint:** `fe1fbc9225919a445eff9463492176356ab0a8f7`  
 **Phase-2 frozen checkpoint:** `55bdb03206a9e986898413828c2343bf2afa25af`  
 **Phase-3 frozen checkpoint:** `59880e52b115eea35d858f41a325ee0248922eef`  
-**Phase-4 frozen checkpoint:** `30d4fc51f9693f21371554e3b8d0d1121eec4b35`
+**Phase-4 frozen checkpoint:** `30d4fc51f9693f21371554e3b8d0d1121eec4b35`  
+**Phase-5 frozen checkpoint:** `da7beea02f0533686e31db4a4ed77d878fd489e3`  
+**Phase-5 security work:** `3735678c9c627e964e66d59c18eeaf3a4a9c8cde`
 
 ### Human SPEC approval (T-006-010)
 
@@ -31,27 +33,25 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 
 ## Required (implementation → CODE_COMPLETE candidate)
 
-Phase 1 advances Domain-owned criteria only. Consumer/Application/persistence criteria remain PENDING.
-
-| # | Criterion | Phase | Status | Evidence target |
-|---|-----------|-------|--------|-----------------|
-| A1 | Canonical Claim model exists (aggregate, tenant, content link, text, kind, status) | 1 | ✅ **PASS** | `claimCore.ts` + domain tests |
-| A2 | Canonical Evidence model (adapt vault; tenant; Source linkage) | 1 | ✅ **PASS** | `evidenceCore.ts` |
+| # | Criterion | Phase | Status | Evidence |
+|---|-----------|-------|--------|----------|
+| A1 | Canonical Claim model exists (aggregate, tenant, content link, text, kind, status) | 1 | ✅ **PASS** | `claimCore.ts` + `claimEvidenceDomain.test.ts` |
+| A2 | Canonical Evidence model (adapt vault; tenant; Source linkage) | 1 | ✅ **PASS** | `evidenceCore.ts` + domain tests |
 | A3 | Canonical Verification model (actor, rule, result, timestamp, version) | 1 | ✅ **PASS** | `claimVerificationCore.ts` |
 | A4 | Canonical Source model (provenance metadata; no news-platform redesign) | 1 | ✅ **PASS** | `claimSourceCore.ts` |
 | A5 | Claim→Evidence→Verification→Source reconstructable | 1–3 | ✅ **PASS** | Domain + local stores + vault adapter |
 | A6 | Claim lifecycle includes `EVIDENCE_REQUIRED` | 1 | ✅ **PASS** | State machine tests |
 | A7 | `RESEARCH_REQUIRED` distinct where constitution applies | 1 | ✅ **PASS** | State machine tests |
-| A8 | Tenant isolation: foreign evidence cannot verify local claim | 1–5 | ✅ **PASS** | Domain + Application + Phase-3 isolation |
+| A8 | Tenant isolation: foreign evidence cannot verify local claim | 1–5 | ✅ **PASS** | Domain + Application + Phase-3/5 isolation |
 | A9 | Foreign claim/verification cannot authorize local publication | 2–5 | ✅ **PASS** | Tenant-scoped repo + AuthorizePublication |
 | A10 | Evidence provenance required for verification | 1–3 | ✅ **PASS** | Source required; vault map fail-closed |
 | A11 | Verification authority: software/human only; AI advisory | 2–5 | ✅ **PASS** | Application invocation + AI deny |
 | A12 | AI cannot self-approve / set Verification | 2–5 | ✅ **PASS** | `AI_VERIFICATION_FORBIDDEN` |
-| A13 | SPEC-003 boundary: no Brief approve/reject/mutate | 2–5 | ✅ **PASS** | Architecture import bans |
+| A13 | SPEC-003 boundary: no Brief approve/reject/mutate | 2–5 | ✅ **PASS** | Architecture import bans + Brief suites |
 | A14 | SPEC-003 refs consumable (`strategicBriefId`/version/evidenceIds) | 4 | ✅ **PASS** | saveContentWithClaimGate preserves Brief refs |
 | A15 | Brief `supportingEvidenceIds` are **not** verification authority | 1–5 | ✅ **PASS** | RegisterClaim never auto-verifies |
-| A16 | SPEC-005 boundary: advisory only; no new unauthorized AiOperation | 2–5 | ✅ **PASS** | Extractor port only; RUNTIME DEFERRED |
-| A17 | SPEC-009 auth claims unchanged / OTHER_SPEC | 5–6 | ✅ **PASS** | Phase-5 import bans + rules suite green |
+| A16 | SPEC-005 boundary: advisory only; no new unauthorized AiOperation | 2–5 | ✅ **PASS** | Extractor port only; RUNTIME DEFERRED_NONBLOCKING |
+| A17 | SPEC-009 auth claims unchanged / OTHER_SPEC | 5–6 | ✅ **PASS** | Import bans + `posturaClaimsCore`/`firebaseClaims` + rules |
 | A18 | Publication gate blocks CLIENT_REVIEW/READY/PUBLISHED on EVIDENCE_REQUIRED | 2–4 | ✅ **PASS** | main + AuthorizePublication strangler |
 | A19 | HARD_BLOCKED / hard thesis limits non-overridable | 1–5 | ✅ **PASS** | Override deny + Phase-5 HARD_BLOCK attacks |
 | A20 | Human override auditable when permitted | 2–5 | ✅ **PASS** | Override audit + append-only store |
@@ -66,20 +66,31 @@ Phase 1 advances Domain-owned criteria only. Consumer/Application/persistence cr
 | A29 | Legacy claimSafetyCore + gate suites green or formally superseded | 4–6 | ✅ **PASS** | Core 17 + gate strangler suite green |
 | A30 | Content draft save allowed with unresolved claims | 4 | ✅ **PASS** | Non-gated draft save; NO_CLAIMS Domain PASS |
 | A31 | Stale contentHash / body change invalidates prior verification projection | 2–5 | ✅ **PASS** | AuthorizePublication + Phase-5 stale attacks |
-| A32 | Cross-SPEC: SPEC-001 regression PASS | 6 | ☐ PENDING | Routing suites |
-| A33 | Cross-SPEC: SPEC-002 regression PASS | 6 | ☐ PENDING | Scoring suites |
-| A34 | Cross-SPEC: SPEC-003 regression PASS | 6 | ☐ PENDING | Brief suites (Phase-5 bans only) |
-| A35 | Cross-SPEC: SPEC-005 regression PASS | 6 | ☐ PENDING | Gateway suites (Phase-5 bans only) |
+| A32 | Cross-SPEC: SPEC-001 regression PASS | 6 | ✅ **PASS** | Routing suites **102/102 PASS** |
+| A33 | Cross-SPEC: SPEC-002 regression PASS | 6 | ✅ **PASS** | Scoring suites **108/108 PASS** |
+| A34 | Cross-SPEC: SPEC-003 regression PASS | 6 | ✅ **PASS** | Brief suites **162/162 PASS** (+ Phase-5 bans) |
+| A35 | Cross-SPEC: SPEC-005 regression PASS | 6 | ✅ **PASS** | Gateway suites **201/201 PASS** (+ Phase-5 bans) |
 | A36 | Terminology: SPEC-006 Claim ≠ SPEC-009 auth claims | 1–5 | ✅ **PASS** | Architecture bans vs posturaClaims |
 | A37 | LOCAL_AUTHORITATIVE documented; remote rules not required for CODE_COMPLETE | 3–6 | ✅ **PASS** | Phase-3 stores + plan |
 | A38 | Dedicated SPEC-006 architecture/security suites exist | 5 | ✅ **PASS** | Domain+App+Infra+Consumer+Security suites |
-| A39 | `npm run check` PASS | 6 | ☐ PENDING | Full suite (Phase 6) |
-| A40 | `npm run test:rules` PASS | 6 | ☐ PENDING | Rules suite (Phase 6) |
+| A39 | `npm run check` PASS | 6 | ✅ **PASS** | **976/976 PASS** (Phase-6 evidence run) |
+| A40 | `npm run test:rules` PASS | 6 | ✅ **PASS** | **91/91 PASS** (Phase-6 evidence run) |
 
-**Implementation acceptance A1–A40:** **34 PASS** · **0 PARTIAL** · **6 PENDING** (after Phase 5)  
-**CODE_COMPLETE CANDIDATE:** **NO**  
+**Implementation acceptance A1–A40:** **40 PASS** · **0 FAIL** · **0 PARTIAL**  
+**CODE_COMPLETE CANDIDATE:** **YES**  
 **HUMAN SPEC APPROVAL (T-006-010):** **DONE** — **APPROVED** 2026-08-24 (America/Bogota)  
-**HUMAN CODE_COMPLETE (T-006-604):** **NOT STARTED**
+**HUMAN CODE_COMPLETE (T-006-604):** **PENDING**
+
+### Phase-6 residual classification (nonblocking)
+
+| ID | Classification | Note |
+|----|----------------|------|
+| **P2-006-01** | **PARTIAL_NONBLOCKING** | Publication authority migrated; CLAIM-006-* legacy module ID/traceability map still open — Phase-6 tasks do not authorize map closure |
+| **P2-006-02** | **RESOLVED** | Dedicated architecture/security suites |
+| **P3-006-01** | **OPEN_NONBLOCKING** | Naming alias drift; no rename churn |
+| Local tamper | **KNOWN_LIMITATION_NONBLOCKING** | Threat-model; SPEC-009 remote authority future |
+| Runtime claim extractor | **DEFERRED_NONBLOCKING** | Port-only; A16 PASS; no new AiOperation |
+| UI Register/Link/Verify buttons | **DEFERRED_NONBLOCKING** | Not required by A*; publication gate via composition/main; UI display-only (A21) |
 
 ---
 
@@ -95,18 +106,26 @@ Phase 1 advances Domain-owned criteria only. Consumer/Application/persistence cr
 
 ---
 
-## Phase 0 verification record
+## Phase-6 verification record
 
 | Suite | Result |
 |-------|--------|
-| Legacy `claimSafetyCore` | **17/17 PASS** (baseline; unchanged) |
-| Legacy `claimSafetyGateCore` | **6/6 PASS** (baseline; unchanged) |
-| Legacy claim-adjacent total | **23/23 PASS** |
-| SPEC-009 auth claims (`posturaClaimsCore`, `firebaseClaims`) | OTHER_SPEC — included in full check; **not** SPEC-006 |
-| `npm run check` | **844/844 PASS** (Phase 0 baseline) |
-| `npm run test:rules` | **91/91 PASS** (Phase 0 baseline) |
-| Product code changes | **NONE** |
-| Test behavior changes | **NONE** |
+| Phase 1 Domain+Arch | **28/28 PASS** |
+| Phase 2 App+Arch | **21/21 PASS** |
+| Phase 3 Infra+Arch | **28/28 PASS** |
+| Phase 4 Consumer+Arch | **20/20 PASS** |
+| Phase 5 Security+Arch | **35/35 PASS** |
+| Legacy claim-safety | **23/23 PASS** |
+| SPEC-001 routing | **102/102 PASS** |
+| SPEC-002 scoring | **108/108 PASS** |
+| SPEC-003 Brief | **162/162 PASS** |
+| SPEC-005 AI Gateway | **201/201 PASS** |
+| SPEC-009 auth claims (local) | **12/12 PASS** (`posturaClaimsCore` 8 + `firebaseClaims` 4) |
+| `npm run check` | **976/976 PASS** |
+| `npm run test:rules` | **91/91 PASS** |
+| Product code changes (Phase 6) | **NONE** |
+| Test code changes (Phase 6) | **NONE** |
+| New secrets | **0** |
 
 ---
 
@@ -121,9 +140,10 @@ Phase 1 advances Domain-owned criteria only. Consumer/Application/persistence cr
 | Phase 3 Persistence (T-006-301…308) | ✅ **COMPLETE** |
 | Phase 4 Consumer migration (T-006-401…407) | ✅ **COMPLETE** |
 | Phase 5 Security / adversarial (T-006-501…510) | ✅ **COMPLETE** |
-| Phase 6 T-006-604 Human CODE_COMPLETE | ☐ NOT STARTED |
+| Phase 6 T-006-601…603 / T-006-605 evidence | ✅ **COMPLETE** |
+| Phase 6 T-006-604 Human CODE_COMPLETE | ☐ **PENDING** |
 | DEPLOYED / DONE | ☐ **NO** |
 
-**Current:** **APPROVED** · **PHASE_5 = COMPLETE** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
+**Current:** **APPROVED** · **PHASE_6_ACCEPTANCE_EVIDENCE = COMPLETE** · **CODE_COMPLETE_CANDIDATE = YES** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
 
-**Next allowed state:** Separate authorization for Phase 6 acceptance. Do not declare CODE_COMPLETE without T-006-604.
+**Next allowed state:** Human CODE_COMPLETE approval (T-006-604). Do **not** declare CODE_COMPLETE without that sign-off.

@@ -38,7 +38,9 @@ Constitution: §8 AI suggests / software governs · §17 Risk & professional saf
 | T-006-13 | Silent override | Manager bypass without audit | OverrideClaimGate required fields | **PASS** |
 | T-006-14 | Hard-block override | Guarantee/hard thesis published | Domain non-overridable | **PASS** |
 
-**Local tamper resistance:** structurally valid local fabrication remains **KNOWN_LIMITATION** (not SPEC-009 cryptographic authority). Malformed tampering → FAIL_CLOSED.
+**Local tamper resistance:** structurally valid local fabrication remains **KNOWN_LIMITATION_NONBLOCKING** (not SPEC-009 cryptographic authority). Malformed tampering → FAIL_CLOSED. Remote enforcement = SPEC-009/future.
+
+**Phase-6 acceptance evidence:** A1–A40 **40/40 PASS** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** (T-006-604 PENDING).
 
 ---
 

@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `006-evidence-claim-linking` |
-| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · Phase 3 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | **Phases 0–5 COMPLETE** · **Phase 6 acceptance evidence COMPLETE** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Status** | **`APPROVED`** (T-006-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1` |
@@ -209,9 +209,9 @@ Local tamper resistance = structural validation only (**KNOWN_LIMITATION** vs th
 |----|-----|--------|
 | F-006-01 | P1 | **RESOLVED** Phase 0 |
 | F-006-02 | P1 | **RESOLVED** Phase 1 Domain |
-| P2-006-01 | P2 | Requirement IDs CLAIM-006-* — PARTIAL (authority migrated; legacy ID map open) |
+| P2-006-01 | P2 | Requirement IDs CLAIM-006-* — **PARTIAL_NONBLOCKING** (authority migrated; legacy ID map open; Phase-6 did not authorize closure) |
 | P2-006-02 | P2 | Architecture/security suite — **RESOLVED** Phase 5 |
-| P3-006-01 | P3 | Canonical title in all new docs; legacy module names OK |
+| P3-006-01 | P3 | Canonical title in all new docs; legacy module names OK — **OPEN_NONBLOCKING** |
 
 ---
 
