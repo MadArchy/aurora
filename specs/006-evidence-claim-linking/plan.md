@@ -3,12 +3,14 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `006-evidence-claim-linking` |
-| **Phase** | **Phase 0 COMPLETE** (governance) · Implementation **NOT_AUTHORIZED** |
-| **Status** | **`READY_FOR_HUMAN_APPROVAL`** |
+| **Phase** | **Phase 0 COMPLETE** · Phase 1 **AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** (T-006-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1` |
+| **Phase-0 governance checkpoint** | `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5` |
 | **Branch** | `spec/006-evidence-claim-linking` |
-| **Human SPEC approval** | **PENDING** (T-006-010) |
+| **Human SPEC approval** | **APPROVED** (T-006-010) — 2026-08-24 (America/Bogota) |
+| **Approval text** | «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.» |
 
 ---
 
@@ -77,16 +79,16 @@ Legacy modules remain **KEEP** until Phase 4 consumers migrate; then **ADAPT** �
 
 ## Phase plan
 
-### Phase 0 — Inventory + formal package (CURRENT)
+### Phase 0 — Inventory + formal package (DONE)
 
 - Author governance docs
 - Inventory legacy code/tests
 - Define models, gates, boundaries, findings
-- Human SPEC approval gate **PENDING**
+- Human SPEC approval gate **DONE** (T-006-010)
 
-**Exit:** Package complete · `READY_FOR_HUMAN_APPROVAL` · product code **unchanged**.
+**Exit:** Package complete · `APPROVED` · product code **unchanged** at approval checkpoint.
 
-### Phase 1 — Domain
+### Phase 1 — Domain (AUTHORIZED)
 
 - Claim / Evidence / Verification / Source / ClaimEvidenceLink types
 - ClaimStatus state machine + EVIDENCE_REQUIRED semantics

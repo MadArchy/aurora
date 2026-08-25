@@ -4,16 +4,17 @@
 |-------|--------|
 | **Spec ID** | `006-evidence-claim-linking` |
 | **Display name** | **SPEC-006 — Evidence Claim Linking** |
-| **Status** | **`READY_FOR_HUMAN_APPROVAL`** (Phase 0 package authored 2026-08-24) |
-| **Phase** | Phase 0 **COMPLETE** (governance / discovery only) · Implementation **NOT_AUTHORIZED** |
+| **Status** | **`APPROVED`** (human SPEC approval T-006-010 · 2026-08-24 America/Bogota) |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Branch** | `spec/006-evidence-claim-linking` |
 | **Baseline SHA** | SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1` |
+| **Phase-0 governance checkpoint** | `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5` |
 | **Priority** | P1 (constitution §9 Evidence before Claim · §17 Risk & professional safety) |
 | **Constitution** | §8 AI suggests / software governs · §9 Claim→Evidence→Verification→Source · §10 Explainable intelligence · §14 Provenance · §17 Hard/Soft limits |
 | **Depends on** | SPEC-003 (CODE_COMPLETE — Brief gate upstream, frozen); SPEC-005 (CODE_COMPLETE — advisory AI); SPEC-001/002 (CODE_COMPLETE — thesis/routing/scoring context); SPEC-009 (CODE_AVAILABLE; production DEFERRED) |
 | **Blocks** | Governed publication of claim-bearing content; SPEC-004 adjacent planner/content publish paths that require verified claims |
 | **Test baseline (Phase 0)** | `npm run check` → **844/844**; `npm run test:rules` → **91/91**; legacy claim suites **23/23** |
-| **Human SPEC approval** | **PENDING** (T-006-010) |
+| **Human SPEC approval** | **APPROVED** (T-006-010) — «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.» — 2026-08-24 (America/Bogota) |
 
 ---
 
@@ -370,10 +371,11 @@ See `threat-model.md`. Threats include: foreign evidence injection, fake source 
 
 | Gate | State |
 |------|-------|
-| Phase 0 governance | **COMPLETE** (this package) |
-| Human SPEC approval (T-006-010) | **PENDING** |
-| Implementation | **NOT_AUTHORIZED** |
+| Phase 0 governance | **COMPLETE** |
+| Human SPEC approval (T-006-010) | **DONE** — **APPROVED** 2026-08-24 (America/Bogota) |
+| Phase 1 Domain | **AUTHORIZED** |
+| CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Human SPEC approval → status `APPROVED` → Phase 1 Domain may be authorized separately.
+**Next action:** Execute Phase 1 Domain (T-006-101…T-006-110). Do not begin Phase 2 without separate authorization.

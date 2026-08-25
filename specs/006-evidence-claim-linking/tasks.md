@@ -1,10 +1,12 @@
 # Tasks 006 — Evidence Claim Linking
 
-**Spec status:** `READY_FOR_HUMAN_APPROVAL`  
-**Implementation:** **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED`  
+**Implementation:** **PHASE_1_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/006-evidence-claim-linking`  
 **Base SHA:** SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1`  
-**Human SPEC approval:** **PENDING** (T-006-010)
+**Phase-0 governance checkpoint:** `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5`  
+**Human SPEC approval:** **APPROVED** (T-006-010) — 2026-08-24 (America/Bogota)  
+**Approval text:** «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.»
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -23,17 +25,17 @@ Requirement ID prefix (future Domain): `CLAIM-006-001` …
 - [x] **T-006-007** Author `hexagonal-boundaries.md`
 - [x] **T-006-008** Author `migration-matrix.md` (legacy claim-safety inventory)
 - [x] **T-006-009** Author `claim-model.md` + `threat-model.md`
-- [ ] **T-006-010** Human SPEC approval → status `APPROVED` — **PENDING**
+- [x] **T-006-010** Human SPEC approval → status `APPROVED` — **DONE** (2026-08-24 America/Bogota)
 
-**Phase 0 gate:** Package authored · Human SPEC approval **PENDING**
+**Phase 0 gate:** Package authored · Human SPEC approval **DONE**
 
-**Exit:** Formal package complete · **READY_FOR_HUMAN_APPROVAL** · Phase 1 implementation **NOT AUTHORIZED** until T-006-010 **DONE**
+**Exit:** Formal package complete · **APPROVED** · Phase 1 **AUTHORIZED** · Phase 1 implementation starts after this approval checkpoint.
 
 **Newly authored Phase 0 IDs:** T-006-001 … T-006-010
 
 ---
 
-## Phase 1 — Domain contracts (NOT AUTHORIZED)
+## Phase 1 — Domain contracts (AUTHORIZED)
 
 - [ ] **T-006-101** Define `Claim` aggregate + identity/tenant/content linkage
 - [ ] **T-006-102** Define `Evidence` entity (adapt `EvidenceVaultItem` contract)

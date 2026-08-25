@@ -1,15 +1,26 @@
 # Acceptance 006 — Evidence Claim Linking
 
-**Phase 0:** Formal package **COMPLETE** · Human SPEC approval **PENDING** (T-006-010)  
-**SPEC-006 IMPLEMENTATION:** **NOT_AUTHORIZED**  
+**Phase 0:** Formal package **COMPLETE** · Human SPEC approval **APPROVED** (T-006-010)  
+**SPEC-006 FORMAL SPEC:** **APPROVED**  
+**SPEC-006 IMPLEMENTATION:** **PHASE_1_AUTHORIZED** · CODE_COMPLETE **NO**  
 **CODE_COMPLETE CANDIDATE:** **NO**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
-Spec **APPROVED** requires T-006-010 human SPEC approval.  
+Spec **APPROVED** requires T-006-010 human SPEC approval — **SATISFIED**.  
 Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-006-604) — **NOT STARTED**.  
 Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STARTED**.
 
-**Implementation baseline:** SPEC-003 CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1`
+**Implementation baseline:** SPEC-003 CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1`  
+**Phase-0 governance checkpoint:** `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5`
+
+### Human SPEC approval (T-006-010)
+
+| Field | Value |
+|-------|--------|
+| **Task** | T-006-010 |
+| **Status** | **DONE** |
+| **Date** | **2026-08-24** (America/Bogota) |
+| **Authorization text** | «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.» |
 
 ---
 
@@ -60,9 +71,9 @@ Status column remains **PENDING** until evidence is produced in later phases. Do
 | A39 | `npm run check` PASS | 6 | ☐ PENDING | Full suite |
 | A40 | `npm run test:rules` PASS | 6 | ☐ PENDING | Rules suite |
 
-**Implementation acceptance A1–A40:** **0/40 PASS** (Phase 0 — not evaluated)  
+**Implementation acceptance A1–A40:** **0/40 PASS** (Phase 1 Domain will advance A1–A8, A10–A11, A18–A19, A24–A26, A36 partially)  
 **CODE_COMPLETE CANDIDATE:** **NO**  
-**HUMAN SPEC APPROVAL (T-006-010):** **PENDING**  
+**HUMAN SPEC APPROVAL (T-006-010):** **DONE** — **APPROVED** 2026-08-24 (America/Bogota)  
 **HUMAN CODE_COMPLETE (T-006-604):** **NOT STARTED**
 
 ---
@@ -99,11 +110,12 @@ Status column remains **PENDING** until evidence is produced in later phases. Do
 | Milestone | Status |
 |-----------|--------|
 | Phase 0 package | ✅ COMPLETE |
-| T-006-010 Human SPEC approval | ☐ **PENDING** |
-| Phase 1–5 implementation | ☐ NOT AUTHORIZED |
+| T-006-010 Human SPEC approval | ✅ **DONE** — **APPROVED** 2026-08-24 (America/Bogota) |
+| Phase 1 Domain (T-006-101…110) | ☐ **AUTHORIZED** — in progress after approval checkpoint |
+| Phase 2–5 implementation | ☐ NOT AUTHORIZED |
 | Phase 6 T-006-604 Human CODE_COMPLETE | ☐ NOT STARTED |
 | DEPLOYED / DONE | ☐ **NO** |
 
-**Current:** **FORMAL_SPEC_READY** · **HUMAN_SPEC_APPROVAL = PENDING** · **IMPLEMENTATION = NOT_AUTHORIZED** · **DEPLOYED = NO** · **DONE = NO**
+**Current:** **APPROVED** · **HUMAN_SPEC_APPROVAL = DONE** · **PHASE_1 = AUTHORIZED** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
 
-**Next allowed state:** Human SPEC approval (T-006-010). Do not begin Domain implementation before approval.
+**Next allowed state:** Phase 1 Domain implementation (T-006-101…T-006-110). Do not begin Phase 2 without separate authorization.
