@@ -181,7 +181,7 @@ Phase 5 **COMPLETE**. Phase 6 acceptance evidence **COMPLETE** · Human CODE_COM
 **HUMAN CODE_COMPLETE SIGN-OFF:** **APPROVED**  
 **PRODUCT / TEST CHANGES (Phase 6 / closure):** **NONE**  
 **Phase-6 acceptance evidence checkpoint:** `67cceb0120aea87e9859da705203332290569c19`  
-**SPEC-006 CODE_COMPLETE governance checkpoint:** pending commit on `spec/006-evidence-claim-linking`
+**SPEC-006 CODE_COMPLETE governance checkpoint:** `104d42763470cb82455be3d7f5d826ba78760a3d` on `spec/006-evidence-claim-linking`
 
 **Residual (nonblocking; preserved):** P2-006-01 PARTIAL_NONBLOCKING · P3-006-01 OPEN_NONBLOCKING · runtime extractor DEFERRED_NONBLOCKING · UI Register/Link/Verify buttons DEFERRED_NONBLOCKING · local tamper KNOWN_LIMITATION_NONBLOCKING
 
