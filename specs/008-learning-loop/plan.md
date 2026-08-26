@@ -180,3 +180,41 @@ TARGET:
 Findings without a formal threat mapping in `threat-model.md` are **not** closed by
 Phase 5: repository truth assigns them no Phase-5 task, and closing them without
 evidence would be manufactured.
+
+---
+
+## AUDIT008 CODE_COMPLETE blocker classification (Phase 6 · T-008-601)
+
+The CODE_COMPLETE gate is defined by `acceptance.md`: **Required (A\*) full PASS + human
+sign-off (T-008-604)**. It is *not* defined by AUDIT008 IDs. A finding therefore blocks
+CODE_COMPLETE only if it holds an A-criterion below PASS. With **A1–A38 = 38 PASS**, no
+open finding blocks CODE_COMPLETE.
+
+**Governance gap (recorded, not resolved):** AUDIT008-02, -07 and -12 have **never** carried
+a definition text anywhere in repository history — `git log -S` finds only dispositions in
+`plan.md` since the Phase-0 governance commit `deaf797`. Their substance cannot be verified
+from repository truth, so they are **not** marked RESOLVED. They are classified by what the
+repository *does* say: no threat mapping, no A-criterion dependency, no owning task.
+
+| ID | Phase 6 status | Blocker classification | Basis |
+|----|----------------|------------------------|-------|
+| AUDIT008-01 | **RESOLVED** | none | formal package exists |
+| AUDIT008-02 | **DESIGN_RESOLVED · IMPLEMENTATION_PENDING** | **NONBLOCKING** — undefined-scope governance debt | no definition in repo history · no threat mapping · no A-criterion |
+| AUDIT008-03 (runtime) | **RESOLVED** | none | T-008-09/10/23 PASS · A24/A25 PASS · P0 = 0 |
+| AUDIT008-03 (design) | **RESOLVED** | none | `spec.md` P0 section |
+| AUDIT008-04 | **RESOLVED** | none | T-008-04 PASS · A11/A12 PASS |
+| AUDIT008-05 | **RESOLVED** | none | T-008-02 PASS · A13 PASS |
+| AUDIT008-06 | **RESOLVED** | none | T-008-17 PASS · A17 PASS |
+| AUDIT008-07 | **DESIGN_RESOLVED · IMPLEMENTATION_PENDING** | **NONBLOCKING** — undefined-scope governance debt | as AUDIT008-02 |
+| AUDIT008-08 | **DESIGN_RESOLVED · IMPLEMENTATION_PARTIAL** | **NONBLOCKING** — future UI capability | no Phase-6 task owns approval UI · no A-criterion requires the UI to exist · A8/A10 assert the properties and PASS |
+| AUDIT008-09 | **RESOLVED** | none | T-008-09/11/12 PASS |
+| AUDIT008-10 | **RESOLVED** | none | formal task/acceptance/threat package |
+| AUDIT008-11 | **RESOLVED** | none | T-008-05/06 PASS |
+| AUDIT008-12 | **DESIGN_RESOLVED · IMPLEMENTATION_PENDING** | **NONBLOCKING** — undefined-scope governance debt | as AUDIT008-02 |
+
+**Blocking findings:** **0** · **Nonblocking findings:** **4** (AUDIT008-02, -07, -08, -12)  
+**Product changes in Phase 6:** **0** · **RUNTIME P0 after Phase 6:** **0**
+
+Recommended follow-up (not Phase 6): restore or retire the AUDIT008-02/-07/-12 definition
+texts so their dispositions become verifiable, and formally assign approval-UI ownership
+(AUDIT008-08) to a future phase or SPEC.

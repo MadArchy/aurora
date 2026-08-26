@@ -2,6 +2,11 @@
 
 **Phase 0 formal threats.** Phase 5 adversarial implementation **COMPLETE** — **26/26 PASS**.
 
+**Phase 6 threat freeze (T-008-601/602):** Phase 6 changed **0 product files**, so no threat surface
+was altered and no threat could regress. Re-confirmed at Phase-6 closure: **26/26 PASS · 0 PARTIAL ·
+0 FAIL · 0 PENDING** · P0 **0** · P1 **0** · authority bypasses **0** · full check **1466/1466 PASS** ·
+rules **91/91 PASS**. Threat matrix is **FROZEN** for the CODE_COMPLETE candidate.
+
 Constitution: Observation ≠ authority · Learning ≠ mutation · Recommendation ≠ approval · AI advisory · Tenant · Multi-thesis.
 
 Baseline: SPEC-007 FROZEN @ `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0`

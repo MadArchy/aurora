@@ -6,13 +6,16 @@
 **Phase 3:** Persistence **COMPLETE** (T-008-301…308)  
 **Phase 4:** Consumer / legacy migration **COMPLETE** (T-008-401…407)  
 **Phase 5:** Security / adversarial hardening **COMPLETE** (T-008-501…510) — **26/26 threats PASS**  
-**Phase 6:** **NOT STARTED**  
-**SPEC-008 IMPLEMENTATION:** Phase 5 Security **COMPLETE**  
-**CODE_COMPLETE:** **NO**  
+**Phase 6:** Acceptance closure **EVIDENCE_COMPLETE** (T-008-601…603 **DONE**) · T-008-604 human gate **PENDING**  
+**SPEC-008 IMPLEMENTATION:** **IMPLEMENTATION_COMPLETE**  
+**A1-A38:** **38 PASS** · **0 PARTIAL** · **0 FAIL** · **0 PENDING**  
+**CODE_COMPLETE_CANDIDATE:** **YES** · **CODE_COMPLETE:** **NO**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
 Spec **APPROVED** requires T-008-010 human SPEC approval — **SATISFIED** (2026-08-26 America/Bogota).  
-Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008-604) — **NOT STARTED**.
+Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008-604).  
+Required (A\*) full PASS = **SATISFIED** (38/38). Human sign-off (T-008-604) = **PENDING** — the only
+remaining gate. No automation may close it.
 
 **Human SPEC approval model:** TASK-LEVEL only (T-008-010).  
 **Human CODE_COMPLETE model:** TASK-LEVEL only (T-008-604).  
@@ -47,7 +50,7 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 | A9 | AI advisory only — cannot approve or apply | 1–5 | ✅ PASS | Phase 5 T-008-503: AI actor kind zero authority · 0 provider calls |
 | A10 | UI intent/display only — zero authoritative learning writes | 4–5 | ✅ PASS | Phase 5 T-008-510: 0 UI repo imports · consumer 0 direct store writes |
 | A11 | Trusted actor wins over caller `actorUid`/`createdBy` spoof | 2–5 | ✅ PASS | Phase 5 T-008-503: persisted `actorUid`/`approvedBy` = trusted actor |
-| A12 | No hard-coded actor fallbacks (`user_admin_01`, `"client"`) | 4–5 | ⏳ PARTIAL | Canonical learning runtime = 0 (Phase 5 T-008-510) · 13 non-learning `main.ts` fallbacks remain out of SPEC-008 scope |
+| A12 | No hard-coded actor fallbacks (`user_admin_01`, `"client"`) | 4–5 | ✅ PASS | Phase 6 T-008-601: canonical learning runtime = 0 · learning intents pass no actor identity · all 13 residual `main.ts` fallbacks mechanically attributed to non-learning other-SPEC paths |
 | A13 | Tenant isolation `(organizationId, clientId, entityId)` | 1–5 | ✅ PASS | Phase 5 T-008-502: tenant spoof denied · same-ID isolated |
 | A14 | No id-only `getSignalOutcome(signalId)` authority | 4 | ✅ PASS | Phase 5 T-008-502: repository `getById` requires tenant scope |
 | A15 | No unscoped authoritative list reads | 3–4 | ✅ PASS | Phase 5 T-008-502: `list()` tenant-scoped · foreign list = `[]` |
@@ -73,20 +76,45 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 | A35 | `APPROVED_NOT_APPLIED` when target port unavailable | 1–2 | ✅ PASS | Phase 5 T-008-504: verified at runtime for unsupported + rejected targets |
 | A36 | feedbackScoringHints may exist DISPLAY_ONLY at most | 4 | ✅ PASS | Phase 5 T-008-507: **DEAD** definition + TEST_ONLY · 0 src call sites |
 | A37 | Threat model T-008-01…26 PASS | 5 | ✅ PASS | Phase 5: **26/26** formal threats PASS with individual evidence |
-| A38 | Full check + rules regression at CODE_COMPLETE | 6 | ⏳ PENDING | T-008-602 (Phase 6) |
+| A38 | Full check + rules regression at CODE_COMPLETE | 6 | ✅ PASS | Phase 6 T-008-602: full check **1466/1466 PASS** · rules **91/91 PASS** |
 
 **Acceptance count:** **38** (A1–A38)  
-**Phase 5 evidence:** **36 PASS** · **1 PARTIAL** (A12) · **0 FAIL** · **1 PENDING** (A38)
+**Phase 5 evidence:** **36 PASS** · **1 PARTIAL** (A12) · **0 FAIL** · **1 PENDING** (A38)  
+**Phase 6 evidence:** **38 PASS** · **0 PARTIAL** · **0 FAIL** · **0 PENDING**
+
+### A12 scope determination (Phase 6 · T-008-601)
+
+A12 is a **SPEC-008 criterion**: `spec.md` § *Trusted actor* governs the Learning Loop trusted-actor
+contract. Closure evidence (`tests/learningLoopPhase6Acceptance.test.ts`):
+
+| Check | Result |
+|-------|--------|
+| `user_admin_01` in canonical learning runtime | **0** |
+| `\|\| 'client'` actor/role fallback in canonical learning runtime | **0** |
+| Actor identity passed by UI learning intents | **0** fields (`actorUid`/`createdBy`/`approvedBy`/`actorType`) |
+| Residual `main.ts` fallbacks attributed to non-learning owners | **13 / 13** |
+| Residual fallbacks co-located with a learning write | **0** |
+
+**Residual out-of-scope debt (not SPEC-008):** 13 `main.ts` fallbacks on client onboarding
+(`createClient`, `createInvitation`), thesis edit (`getThesesByClient`), radar sources (`addSource`),
+curation (`getCurationById`, `decideCuration`, `addToCuration`) and delivery (`ensureDraftDelivery`).
+These are owned by frozen **SPEC-001…007** runtime paths. Removing them would require modifying frozen
+implementations, which Phase 6 forbids (SPEC-001…007 modifications = **0**). Recorded as
+**KNOWN_LIMITATION · OUT_OF_SPEC_008_SCOPE**, carried to the owning SPEC — **not** a SPEC-008
+CODE_COMPLETE blocker.
 
 **Governance correction:** the previous Phase-4 header read *16 PASS / 18 PARTIAL /
 4 PENDING*, which did not reconcile with its own table. The Phase-4 table actually
 held **15 PASS / 21 PARTIAL / 2 PENDING** (= 38). Phase 5 converted 21 PARTIAL and
 1 PENDING to PASS on fresh adversarial evidence, giving 36 / 1 / 0 / 1.
 
-**A12 remains PARTIAL by evidence:** the canonical Learning Loop runtime has **zero**
-authoritative actor fallbacks, but `src/main.ts` still contains 13 `user_admin_01`
-occurrences on **non-learning** paths owned by other SPECs. Closing A12 would require
-work outside the SPEC-008 Phase-5 file scope, so it is not claimed.
+**A12 was PARTIAL after Phase 5** because the residual `main.ts` fallbacks had not been
+attributed. Phase 6 T-008-601 attributed all 13 mechanically to non-learning other-SPEC
+owners and proved the canonical learning runtime and UI learning intents carry **zero**
+actor authority, moving A12 to **PASS** within SPEC-008 scope. See *A12 scope determination*.
+
+**A38 was PENDING after Phase 5** by design: its evidence is the Phase-6 CODE_COMPLETE
+regression, produced by T-008-602. Now **PASS**.
 
 ---
 
@@ -132,12 +160,26 @@ work outside the SPEC-008 Phase-5 file scope, so it is not claimed.
 
 ---
 
-## Human CODE_COMPLETE (T-008-604) — FUTURE
+## Human CODE_COMPLETE (T-008-604) — OPEN · AWAITING HUMAN
 
 | Field | Value |
 |-------|--------|
 | **Task** | T-008-604 |
-| **Status** | **TODO** |
+| **Status** | **TODO** — **PENDING HUMAN** (not closable by automation) |
+| **Classification** | HUMAN |
+| **Precondition** | Required (A\*) full PASS — **SATISFIED** (38/38) |
 | **Authorization text** | «Apruebo formalmente el CODE_COMPLETE de SPEC-008 — Learning Loop y autorizo el cierre de T-008-604.» |
 
-Required (A\*) criteria must be **PASS** before T-008-604 may close.
+Required (A\*) criteria must be **PASS** before T-008-604 may close — **satisfied**.
+T-008-604 is therefore the **sole** remaining gate between `CODE_COMPLETE_CANDIDATE` and
+`CODE_COMPLETE`. Until the exact authorization text above is provided by the human owner:
+
+| State | Value |
+|-------|--------|
+| IMPLEMENTATION_COMPLETE | **YES** |
+| CODE_COMPLETE_CANDIDATE | **YES** |
+| HUMAN SIGNOFF | **PENDING** |
+| CODE_COMPLETE | **NO** |
+| DEPLOYMENT | **NOT_STARTED** |
+| DEPLOYED | **NO** |
+| DONE | **NO** |

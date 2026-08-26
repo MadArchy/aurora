@@ -181,21 +181,62 @@ assigns it, so it remains **IMPLEMENTATION_PENDING** for Phase 6. No UI was inve
 
 ---
 
-## Phase 6 — Acceptance / CODE_COMPLETE (NOT AUTHORIZED)
+## Phase 6 — Acceptance / CODE_COMPLETE (TECHNICAL CLOSURE COMPLETE)
 
-- [ ] **T-008-601** Run full acceptance matrix A1–A38 — **TODO**
-- [ ] **T-008-602** Full check + rules regression — **TODO**
-- [ ] **T-008-603** Evidence bundle + governance closure doc — **TODO**
-- [ ] **T-008-604** Human CODE_COMPLETE approval — **TODO**
+- [x] **T-008-601** Run full acceptance matrix A1–A38 — **DONE**
+- [x] **T-008-602** Full check + rules regression — **DONE**
+- [x] **T-008-603** Evidence bundle + governance closure doc — **DONE**
+- [ ] **T-008-604** Human CODE_COMPLETE approval — **TODO · PENDING HUMAN**
 
 **Phase 6 IDs:** T-008-601 … T-008-604  
 **Depends on:** Phase 5 DONE  
 
-**Required human CODE_COMPLETE statement (T-008-604) — future:**
+### Phase 6 task contract
+
+| ID | Title | Class | Depends on | Acceptance | Product change | Status |
+|----|-------|-------|-----------|------------|----------------|--------|
+| T-008-601 | Run full acceptance matrix A1–A38 | TECHNICAL | Phase 5 DONE | A1–A38 (closes **A12**) | **NOT AUTHORIZED** — evidence only | **DONE** |
+| T-008-602 | Full check + rules regression | TECHNICAL | T-008-601 | **A38** | **NOT AUTHORIZED** | **DONE** |
+| T-008-603 | Evidence bundle + governance closure doc | TECHNICAL | T-008-601, T-008-602 | governance closure | **NOT AUTHORIZED** | **DONE** |
+| T-008-604 | Human CODE_COMPLETE approval | **HUMAN** | T-008-601…603 | CODE_COMPLETE gate | n/a | **TODO · PENDING HUMAN** |
+
+**No Phase-6 task authorizes product code change.** Phase 6 is closure/evidence only.
+**Product files changed in Phase 6: 0.**
+
+### Phase 6 evidence
+
+| Suite | File | Tests |
+|-------|------|-------|
+| Acceptance matrix evidence | `tests/learningLoopPhase6Acceptance.test.ts` | 14 PASS |
+
+**A12:** PARTIAL → **PASS** — canonical learning runtime fallbacks = 0 · UI learning intents pass
+0 actor identity fields · 13/13 residual `main.ts` fallbacks attributed to non-learning
+**SPEC-001…007** paths (KNOWN_LIMITATION, out of SPEC-008 scope, frozen — not a blocker).  
+**A38:** PENDING → **PASS** — full check **1466/1466 PASS** · rules **91/91 PASS**.
+
+**A1-A38:** **38 PASS / 0 PARTIAL / 0 FAIL / 0 PENDING**  
+**Formal threats:** **26/26 PASS** — unchanged; 0 product changes in Phase 6, so no threat re-exposure.  
+**P0:** 0 · **P1:** 0 · **P2:** 0 · **P3:** 0 · **Authority bypasses:** 0  
+**SPEC-001…007 modifications:** **0** · **SPEC-009 production:** **DEFERRED_UNCHANGED**
+
+**NOT owned by Phase 6 — approval UI (AUDIT008-08):** no Phase-6 task assigns approval UI or
+runtime approval closure. The UI intent path in `data-flow.md` § *UI data flow (target)* is **target
+design**, not a Phase-6 assignment. No UI was invented. AUDIT008-08 remains
+**DESIGN_RESOLVED · IMPLEMENTATION_PARTIAL**. Acceptance impact: **none** — no A-criterion requires
+an approval UI to exist; A8/A10 assert the human-gate and zero-UI-authority *properties*, both PASS.
+Consequence is a **capability** gap (no in-app manager approval surface yet), tracked for a future
+SPEC/phase that formally owns it.
+
+**Exit (pre-human):** technical closure **EVIDENCE_COMPLETE** · `IMPLEMENTATION_COMPLETE` **YES** ·
+`CODE_COMPLETE_CANDIDATE` **YES** · `HUMAN SIGNOFF` **PENDING** · `CODE_COMPLETE` **NO** ·
+deployment **NOT_STARTED** · `DONE` **NO**
+
+**Required human CODE_COMPLETE statement (T-008-604) — REQUIRED NOW:**
 
 > «Apruebo formalmente el CODE_COMPLETE de SPEC-008 — Learning Loop y autorizo el cierre de T-008-604.»
 
-**Exit:** CODE_COMPLETE **YES** · FREEZE candidate · deployment still **NOT_STARTED**
+This statement must be provided by the human owner. It has **not** been given.
+No automation may write it, infer it, or mark T-008-604 DONE.
 
 ---
 
@@ -220,8 +261,8 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 2 | T-008-201…211 | 11 | 11 DONE |
 | 3 | T-008-301…308 | 8 | 8 DONE |
 | 4 | T-008-401…407 | 7 | 7 DONE |
-| 5 | T-008-501…510 | 10 | TODO |
-| 6 | T-008-601…604 | 4 | TODO |
+| 5 | T-008-501…510 | 10 | 10 DONE |
+| 6 | T-008-601…604 | 4 | 3 DONE · 1 PENDING HUMAN (T-008-604) |
 | Deploy | D1–D3 | 3 | NOT_STARTED |
 
 **Total formal tasks:** 63 (60 implementation + 3 deployment)

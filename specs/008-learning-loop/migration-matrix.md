@@ -133,3 +133,27 @@ projected as `COMPATIBILITY_ONLY` with `MIGRATION_REVIEW_REQUIRED` /
 - [x] Outcome registration append-only via Application
 - [x] Tenant-scoped reads only
 - [x] P0 runtime closed
+
+---
+
+## Phase 6 verification — residual actor fallbacks (A12 · T-008-601)
+
+`src/main.ts` retains **13** `user_admin_01` fallbacks. Phase-6 evidence
+(`tests/learningLoopPhase6Acceptance.test.ts`) attributes **13/13** to non-learning operations
+and proves **0** are co-located with a learning write:
+
+| Owning operation | Owning SPEC surface | Count |
+|------------------|--------------------|-------|
+| `createClient`, `createInvitation` | client / org onboarding | 2 |
+| `getThesesByClient` (thesis edit) | SPEC-001 thesis | 1 |
+| `addSource` | SPEC-001 radar sources | 5 |
+| `getCurationById`, `decideCuration`, `addToCuration` | SPEC-003 curation | 4 |
+| `ensureDraftDelivery` | SPEC-004 delivery | 2 |
+
+**Canonical learning runtime fallbacks:** **0**  
+**Actor identity fields passed by UI learning intents:** **0** (`actorUid`, `createdBy`,
+`approvedBy`, `actorType` all absent — trusted actor derived inside the consumer)
+
+**Classification:** **KNOWN_LIMITATION · OUT_OF_SPEC_008_SCOPE**. These paths belong to frozen
+**SPEC-001…007** implementations; Phase 6 requires SPEC-001…007 modifications = **0**, so they are
+carried to the owning SPEC rather than changed here. Not a SPEC-008 CODE_COMPLETE blocker.
