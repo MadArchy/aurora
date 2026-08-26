@@ -95,8 +95,8 @@ Requirement ID prefix (future Domain): `PLAN-004-001` …
 - F-004-03 remains **OPEN** (consumer migration Phase 4)
 - F-004-04 remains **OPEN_NONBLOCKING**
 
-**Phase-2 implementation SHA:** pending commit  
-**Phase-2 governance checkpoint:** pending
+**Phase-2 implementation SHA:** `6413ee48064d0dfed8b90d1204d1d977c2eee8e7`  
+**Phase-2 governance checkpoint:** pending (this commit)
 
 Phase 3 **NOT_AUTHORIZED**.
 
