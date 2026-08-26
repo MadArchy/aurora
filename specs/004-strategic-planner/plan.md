@@ -3,12 +3,12 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `004-strategic-planner` |
-| **Phase** | **Phase 0 COMPLETE** · Phase 1 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`READY_FOR_HUMAN_APPROVAL`** (T-004-010 **PENDING**) |
+| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · Phase 2 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** (T-004-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
 | **Branch** | `spec/004-strategic-planner` |
-| **Human SPEC approval** | **PENDING** (T-004-010) |
+| **Human SPEC approval** | **APPROVED** (T-004-010) — 2026-08-25 (America/Bogota) |
 
 ---
 
@@ -150,7 +150,7 @@ Content → **downstream** (SPEC-006 publication).
 | ID | Sev | Action |
 |----|-----|--------|
 | F-004-01 | P1 | **RESOLVED** Phase 0 |
-| F-004-02 | P1 | Domain/App Phase 1–2 |
+| F-004-02 | P1 | Domain **RESOLVED** Phase 1; Application Phase 2 |
 | F-004-03 | P2 | Strangler Phase 4 |
 | F-004-04 | P3 | Docs title; legacy names OK |
 

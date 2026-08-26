@@ -1,11 +1,13 @@
 # Tasks 004 — Strategic Planner
 
-**Spec status:** `READY_FOR_HUMAN_APPROVAL`  
-**Implementation:** **NOT_STARTED** · Phase 1 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED`  
+**Implementation:** **PHASE_1_COMPLETE** · Phase 2 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/004-strategic-planner`  
 **Base SHA:** SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
-**Human SPEC approval:** **PENDING** (T-004-010)
+**Phase-0 governance checkpoint:** `6ee32f5e6c303abd98f9b17966bfdffa2a7a0338`  
+**Human SPEC approval:** **APPROVED** (T-004-010) — 2026-08-25 (America/Bogota)  
+**Approval text:** «Apruebo formalmente SPEC-004 — Strategic Planner y autorizo el cierre de T-004-010 y el inicio de la Phase 1 de implementación.»
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -24,31 +26,42 @@ Requirement ID prefix (future Domain): `PLAN-004-001` …
 - [x] **T-004-007** Author `hexagonal-boundaries.md` — **DONE**
 - [x] **T-004-008** Author `migration-matrix.md` (legacy planner-adjacent inventory) — **DONE**
 - [x] **T-004-009** Author `planner-model.md` + `threat-model.md` — **DONE**
-- [ ] **T-004-010** Human SPEC approval → status `APPROVED` — **PENDING**
+- [x] **T-004-010** Human SPEC approval → status `APPROVED` — **DONE** (2026-08-25 America/Bogota)
 
-**Phase 0 gate:** Package authored · Human SPEC approval **PENDING**
+**Phase 0 gate:** Package authored · Human SPEC approval **DONE**
 
-**Exit:** Formal package complete · **READY_FOR_HUMAN_APPROVAL** · Phase 1 **NOT_AUTHORIZED** until T-004-010.
+**Exit:** Formal package complete · **APPROVED** · Phase 1 **AUTHORIZED** after T-004-010.
 
 **Newly authored Phase 0 IDs:** T-004-001 … T-004-010
 
 ---
 
-## Phase 1 — Domain contracts (NOT AUTHORIZED)
+## Phase 1 — Domain contracts ✅ COMPLETE
 
-- [ ] **T-004-101** Define `StrategicPlan` aggregate + Brief/thesis/tenant linkage
-- [ ] **T-004-102** Define `PlanItem` entity + action bound to Brief.authorizedAction
-- [ ] **T-004-103** `PlanStatus` / `PlanItemStatus` state machines
-- [ ] **T-004-104** Tenant isolation pure validators
-- [ ] **T-004-105** Stale/superseded Brief fail-closed predicates
-- [ ] **T-004-106** `AuthorizePlannedAction` Domain predicates
-- [ ] **T-004-107** Materiality / supersession rules
-- [ ] **T-004-108** Explainability projection shapes
-- [ ] **T-004-109** Multi-Brief aggregation deny + multi-thesis safety
-- [ ] **T-004-110** Domain unit tests + architecture purity tests
+- [x] **T-004-101** Define `StrategicPlan` aggregate + Brief/thesis/tenant linkage — **DONE**
+- [x] **T-004-102** Define `PlanItem` entity + action bound to Brief.authorizedAction — **DONE**
+- [x] **T-004-103** `PlanStatus` / `PlanItemStatus` state machines — **DONE**
+- [x] **T-004-104** Tenant isolation pure validators — **DONE**
+- [x] **T-004-105** Stale/superseded Brief fail-closed predicates — **DONE**
+- [x] **T-004-106** `AuthorizePlannedAction` Domain predicates — **DONE**
+- [x] **T-004-107** Materiality / supersession rules — **DONE**
+- [x] **T-004-108** Explainability projection shapes — **DONE**
+- [x] **T-004-109** Multi-Brief aggregation deny + multi-thesis safety — **DONE**
+- [x] **T-004-110** Domain unit tests + architecture purity tests — **DONE**
 
-**Phase 1 IDs:** T-004-101 … T-004-110  
-**Depends on:** T-004-010 DONE
+**Exit:** Domain tests PASS; no Firebase/db/React/provider imports. **MET**
+
+**Evidence:**
+- Domain: `strategicPlanCore.ts`, `planItemCore.ts`, `planTenantCore.ts`, `planBriefContextCore.ts`, `planGateCore.ts`, `planMaterialityCore.ts`, `planExplainabilityCore.ts`, `strategicPlanErrors.ts`
+- Tests: `tests/strategicPlanDomain.test.ts` (19) · `tests/strategicPlanArchitecture.test.ts` (4) · **23/23 PASS**
+- Adjacent legacy regression **28/28 PASS**
+- F-004-02 = **RESOLVED**
+
+**Phase 1 IDs:** T-004-101 … T-004-110 — **ALL DONE**
+
+**Phase-1 implementation checkpoint:** pending commit on `spec/004-strategic-planner`
+
+Phase 2 **NOT_AUTHORIZED**.
 
 ---
 

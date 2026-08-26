@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `004-strategic-planner` |
 | **Display name** | **SPEC-004 — Strategic Planner** |
-| **Status** | **`READY_FOR_HUMAN_APPROVAL`** (Phase 0 package complete · T-004-010 **PENDING**) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** (T-004-010 · 2026-08-25 America/Bogota) |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Branch** | `spec/004-strategic-planner` |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
 | **Upstream SPEC-003** | CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1` · **FROZEN** |
@@ -15,7 +15,7 @@
 | **Depends on** | SPEC-003 (Brief authorization — frozen); SPEC-006 (claim publication — frozen); SPEC-001/002 (read-only context); SPEC-005 (advisory AI); SPEC-009 (CODE_AVAILABLE; production DEFERRED) |
 | **Blocks** | Governed execution planning after Brief; strangler of legacy curation→content/delivery/task/opportunity paths |
 | **Test baseline (Phase 0)** | `npm run check` → **976/976**; `npm run test:rules` → **91/91** |
-| **Human SPEC approval** | **PENDING** (T-004-010) |
+| **Human SPEC approval** | **APPROVED** (T-004-010) — «Apruebo formalmente SPEC-004 — Strategic Planner y autorizo el cierre de T-004-010 y el inicio de la Phase 1 de implementación.» — 2026-08-25 (America/Bogota) |
 
 ---
 
@@ -219,11 +219,11 @@ Remote Firestore/rules: **DEPLOYMENT_ONLY / DEFERRED_TO_SPEC-009**.
 | ID | Sev | Finding | Status after Phase 0 |
 |----|-----|---------|----------------------|
 | **F-004-01** | P1 | No SPEC-004 governance package | **RESOLVED** by Phase 0 package |
-| **F-004-02** | P1 | No canonical StrategicPlan Domain/Application | **OPEN** — Phase 1–2 |
+| **F-004-02** | P1 | No canonical StrategicPlan Domain/Application | **RESOLVED** for Domain (Phase 1); Application remains Phase 2 work |
 | **F-004-03** | P2 | Legacy curation/delivery/content split execution authority | **OPEN** — Phase 4 strangler |
 | **F-004-04** | P3 | Historic “curation/delivery only” naming vs Strategic Planner | **OPEN_NONBLOCKING** |
 
-**P0 = 0** · **P1 open = 1** (F-004-02) · **P2 = 1** · **P3 = 1**
+**P0 = 0** · **P1 open = 0** · **P2 = 1** · **P3 = 1**
 
 Audit mapping: AUDIT-004-01 → F-004-01; AUDIT-004-02 → F-004-03; AUDIT-004-03 → F-004-03; AUDIT-004-04 → F-004-04.
 
@@ -234,10 +234,11 @@ Audit mapping: AUDIT-004-01 → F-004-01; AUDIT-004-02 → F-004-03; AUDIT-004-0
 | Gate | State |
 |------|-------|
 | Phase 0 governance | **COMPLETE** |
-| Human SPEC approval (T-004-010) | **PENDING** |
-| Phase 1 Domain | **NOT_AUTHORIZED** |
+| Human SPEC approval (T-004-010) | **DONE** — **APPROVED** 2026-08-25 (America/Bogota) |
+| Phase 1 Domain | **COMPLETE** (T-004-101…110) |
+| Phase 2 Application | **NOT_AUTHORIZED** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Human SPEC approval (T-004-010). Do not begin Phase 1 without approval.
+**Next action:** Human authorization for Phase 2 Application. Do not begin T-004-201… without approval.
