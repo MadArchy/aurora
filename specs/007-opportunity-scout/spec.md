@@ -4,15 +4,15 @@
 |-------|--------|
 | **Spec ID** | `007-opportunity-scout` |
 | **Display name** | **SPEC-007 — Opportunity Scout** |
-| **Status** | **`APPROVED`** · Phase 2 Application **COMPLETE** |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** · Phase 3+ **NOT_AUTHORIZED** |
+| **Status** | **`APPROVED`** · Phase 3 Persistence **COMPLETE** · **LOCAL_AUTHORITATIVE** |
+| **Phase** | Phase 0–3 **COMPLETE** · Phase 4+ **NOT_AUTHORIZED** |
 | **Branch** | `spec/007-opportunity-scout` |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE final freeze `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Priority** | P1 (constitution §32 Strategic Circuit — Opportunity Intelligence + Opportunity Execution) |
 | **Constitution** | Thesis-first · Multi-thesis native · Explainable Opportunity Score · AI suggests / software governs · Tenant security |
 | **Depends on** | SPEC-001/002 (read-only context); SPEC-003 (Brief — frozen); SPEC-004 (CREATE_OPPORTUNITY gate — frozen); SPEC-005 (advisory AI — optional future); SPEC-006 (publication — frozen, non-ownership); SPEC-009 (CODE_AVAILABLE; production DEFERRED) |
 | **Blocks** | Governed Opportunity Intelligence and post-Plan Opportunity lifecycle |
-| **Test baseline (Phase 2)** | Phase-2 focused + App arch · Phase-1 Domain regression · legacy Opportunity · full check + rules at Phase-2 exit |
+| **Test baseline (Phase 3)** | Persistence + Infra arch · Phase-2/1 regression · legacy Opportunity · full check + rules at Phase-3 exit |
 | **Human SPEC approval** | **APPROVED** (T-007-010) — «Apruebo formalmente SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-010 y el inicio de la Phase 1 de implementación.» — 2026-08-26 (America/Bogota) |
 
 ---
@@ -128,14 +128,14 @@ SPEC-006     = MAY claim-bearing content publish? (orthogonal)
 |----|-----|---------|---------------------|
 | **F-007-01** | P1 | No SPEC-007 governance package | **RESOLVED** by this package (AUDIT007-01) |
 | **F-007-02** | P1 | No Application/ports; authority in db/UI/main | **APPLICATION_IMPLEMENTED_MIGRATION_PENDING** (AUDIT007-02) |
-| **F-007-03** | P2 | Dual `OpportunityStatus` / `lifecycleStage` | **DOMAIN_IMPLEMENTED_MIGRATION_PENDING** (AUDIT007-03) |
-| **F-007-04** | P2 | `getOpportunityById` id-only | **PORT_CONTRACT_IMPLEMENTED_LEGACY_PENDING** — tenant-safe ports; db.ts unchanged (AUDIT007-04) |
+| **F-007-03** | P2 | Dual `OpportunityStatus` / `lifecycleStage` | **PERSISTENCE_READY_MIGRATION_PENDING** (AUDIT007-03) |
+| **F-007-04** | P2 | `getOpportunityById` id-only | **INFRASTRUCTURE_TENANT_SAFE_LEGACY_PENDING** — canonical store tenant-safe; db.ts unchanged (AUDIT007-04) |
 | **F-007-05** | P2 | No explainable Opportunity Score artifact | **APPLICATION_SCORE_WORKFLOW_IMPLEMENTED_CONSUMER_PENDING** (AUDIT007-05) |
 | **F-007-06** | P2 | Pre-Brief intelligence vs post-Plan create ambiguity | **RESOLVED** — Stage A/B split (AUDIT007-06) |
-| **F-007-07** | P3 | No Opportunity-owned history | **DOMAIN_MODEL_IMPLEMENTED_PERSISTENCE_PENDING** (AUDIT007-07) |
+| **F-007-07** | P3 | No Opportunity-owned history | **RESOLVED** — durable LOCAL history AUDIT_ONLY (AUDIT007-07) |
 | **F-007-08** | P3 | Spotlight `[0]` after heuristic sort | **OPEN_NONBLOCKING** (AUDIT007-08) |
 
-**P0 = 0** · **P1 open = 1** (F-007-02 migration remaining) · **P2 = 0 open** · **P3 = 1 open nonblocking + 1 persistence pending**
+**P0 = 0** · **P1 open = 1** (F-007-02 migration) · **P2 = 0 open** · **P3 = 1 open nonblocking**
 
 ---
 
@@ -147,9 +147,10 @@ SPEC-006     = MAY claim-bearing content publish? (orthogonal)
 | Human SPEC approval (T-007-010) | **DONE** · **APPROVED** 2026-08-26 (America/Bogota) |
 | Phase 1 Domain | **COMPLETE** (T-007-101…110) |
 | Phase 2 Application | **COMPLETE** (T-007-201…211) |
-| Phase 3 Persistence | **NOT_AUTHORIZED** |
+| Phase 3 Persistence | **COMPLETE** (T-007-301…308) · **LOCAL_AUTHORITATIVE** |
+| Phase 4 Consumer | **NOT_AUTHORIZED** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Phase 3 Persistence only after separate authorization. Do not begin T-007-301… yet.
+**Next action:** Phase 4 Consumer migration only after separate authorization. Do not begin T-007-401… yet.

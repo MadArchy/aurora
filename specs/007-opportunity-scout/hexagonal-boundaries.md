@@ -2,7 +2,7 @@
 
 ---
 
-## Target layering (Phase 2 Application + ports implemented; Infrastructure Phase 3+)
+## Target layering (Phase 3 Infrastructure adapters implemented; Composition/consumer Phase 4+)
 
 ```text
 Interfaces / UI (OpportunityPanel, ClientPortal, main.ts)

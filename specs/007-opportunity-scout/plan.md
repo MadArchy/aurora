@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `007-opportunity-scout` |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** · Phase 3+ **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`APPROVED`** · Phase 2 **COMPLETE** |
+| **Phase** | Phase 0–3 **COMPLETE** · Phase 4+ **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** · Phase 3 Persistence **COMPLETE** · **LOCAL_AUTHORITATIVE** |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Branch** | `spec/007-opportunity-scout` |
@@ -98,11 +98,14 @@ TARGET:
 - No Infrastructure adapters — **NONE**
 - RUNTIME AI advisor = port-only optional (unimplemented)
 
-### Phase 3 — Persistence (NOT AUTHORIZED)
+### Phase 3 — Persistence ✅ COMPLETE
 
-- Local-authoritative candidate/opportunity/history stores
-- Idempotency
-- LOCAL_AUTHORITATIVE
+- Local-authoritative Candidate / Opportunity / history / idempotency stores — **DONE**
+- Schema version + malformed fail-closed — **DONE**
+- Stale write / duplicate-current fail-closed — **DONE**
+- Legacy `postura_opportunities_v5` COMPATIBILITY reader — **DONE** (not authority)
+- db.ts / consumer / UI — **NONE**
+- Guarantee: coherent in-memory write unit + persist (not distributed ACID)
 
 ### Phase 4 — Consumer migration (NOT AUTHORIZED)
 
@@ -156,12 +159,12 @@ Legacy key `postura_opportunities_v5` → migrate under Phase 3–4 adapters (CO
 | ID | Sev | Action |
 |----|-----|--------|
 | F-007-01 | P1 | **RESOLVED** Phase 0 |
-| F-007-02 | P1 | **APPLICATION_IMPLEMENTED_MIGRATION_PENDING** (App/ports done; db/UI/main until Phase 4) |
-| F-007-03 | P2 | **DOMAIN_IMPLEMENTED_MIGRATION_PENDING** |
-| F-007-04 | P2 | **PORT_CONTRACT_IMPLEMENTED_LEGACY_PENDING** (tenant-safe ports; db.ts unchanged) |
+| F-007-02 | P1 | **APPLICATION_IMPLEMENTED_MIGRATION_PENDING** (db/UI/main until Phase 4) |
+| F-007-03 | P2 | **PERSISTENCE_READY_MIGRATION_PENDING** |
+| F-007-04 | P2 | **INFRASTRUCTURE_TENANT_SAFE_LEGACY_PENDING** (canonical ports+store; db.ts id-only remains) |
 | F-007-05 | P2 | **APPLICATION_SCORE_WORKFLOW_IMPLEMENTED_CONSUMER_PENDING** |
 | F-007-06 | P2 | **RESOLVED** Phase 0 design |
-| F-007-07 | P3 | **DOMAIN_MODEL_IMPLEMENTED_PERSISTENCE_PENDING** |
+| F-007-07 | P3 | **RESOLVED** (durable Opportunity-owned history LOCAL_AUTHORITATIVE) |
 | F-007-08 | P3 | **OPEN_NONBLOCKING** display |
 
 ---

@@ -1,7 +1,7 @@
 # Tasks 007 — Opportunity Scout
 
-**Spec status:** `APPROVED` · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** · Phase 3 **NOT_STARTED**  
-**Implementation:** Phase 1–2 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED` · Phase 1–3 **COMPLETE** · Phase 4 **NOT_STARTED**  
+**Implementation:** Phase 1–3 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/007-opportunity-scout`  
 **Base SHA:** SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -11,7 +11,9 @@
 **Phase-1 implementation SHA:** `cdcb5a04cf4e97baaaf7db7d7a62dccc15afcc98`  
 **Phase-1 checkpoint:** `2899386c1a660e79bf90a15a991ffdcf157567f8`  
 **Phase-2 implementation SHA:** `ddd43002c9501b3853744409c343012aae5943ec`  
-**Phase-2 checkpoint:** `5eafd7a170791995f31ce647fa1777dea63e16e3`
+**Phase-2 checkpoint:** `5eafd7a170791995f31ce647fa1777dea63e16e3`  
+**Phase-3 implementation SHA:** _(pinned at governance checkpoint)_  
+**Phase-3 checkpoint:** _(pinned at governance checkpoint)_
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -98,24 +100,32 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 **Tests:** `tests/opportunityScoutPhase2.test.ts` · `tests/opportunityScoutApplicationArchitecture.test.ts`  
 **Persistence / Consumer migration:** **NONE**
 
-**Exit:** Phase 2 Application COMPLETE · Phase 3 **NOT AUTHORIZED**.
+**Exit:** Phase 2 Application COMPLETE · Phase 3 **AUTHORIZED** after Phase 2.
 
 ---
 
-## Phase 3 — Persistence (NOT AUTHORIZED)
+## Phase 3 — Persistence ✅ COMPLETE
 
-- [ ] **T-007-301** Local-authoritative OpportunityCandidate store
-- [ ] **T-007-302** Local-authoritative Opportunity store (tenant keys)
-- [ ] **T-007-303** Append-only Opportunity history adapter
-- [ ] **T-007-304** SchemaVersion + malformed fail-closed
-- [ ] **T-007-305** Version conflict / stale write / duplicate-current fail-closed
-- [ ] **T-007-306** Idempotency keys (create/evaluate/materialize/lifecycle)
-- [ ] **T-007-307** Legacy `postura_opportunities_v5` read adapter (COMPATIBILITY)
-- [ ] **T-007-308** Infrastructure architecture purity tests
+- [x] **T-007-301** Local-authoritative OpportunityCandidate store — **DONE**
+- [x] **T-007-302** Local-authoritative Opportunity store (tenant keys) — **DONE**
+- [x] **T-007-303** Append-only Opportunity history adapter — **DONE**
+- [x] **T-007-304** SchemaVersion + malformed fail-closed — **DONE**
+- [x] **T-007-305** Version conflict / stale write / duplicate-current fail-closed — **DONE**
+- [x] **T-007-306** Idempotency keys (create/evaluate/materialize/lifecycle) — **DONE**
+- [x] **T-007-307** Legacy `postura_opportunities_v5` read adapter (COMPATIBILITY) — **DONE**
+- [x] **T-007-308** Infrastructure architecture purity tests — **DONE**
 
 **Phase 3 IDs:** T-007-301 … T-007-308  
 **Depends on:** Phase 2 DONE  
-**Maps to:** A17–A19, A39
+**Maps to:** A17–A19, A39  
+
+**Infrastructure:** `src/infrastructure/opportunityScout/`  
+**Keys:** `postura_opportunity_candidate_v1` · `postura_opportunity_v1` · history · idempotency (LOCAL_AUTHORITATIVE; distinct from legacy v5)  
+**Legacy:** `LegacyOpportunityV5CompatibilityReader` — COMPATIBILITY_ONLY · ambiguous → MIGRATION_REVIEW_REQUIRED  
+**db.ts / consumer / UI:** **NONE**  
+**Tests:** `tests/opportunityScoutPersistence.test.ts` · `tests/opportunityScoutInfrastructureArchitecture.test.ts`
+
+**Exit:** Phase 3 Persistence COMPLETE · Phase 4 **NOT AUTHORIZED**.
 
 ---
 
