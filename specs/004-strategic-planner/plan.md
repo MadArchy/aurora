@@ -3,12 +3,13 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `004-strategic-planner` |
-| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · **Phase 4 COMPLETE** · **Phase 5 COMPLETE** · **Phase 6 EVIDENCE COMPLETE** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`APPROVED`** (T-004-010) |
+| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · **Phase 4 COMPLETE** · **Phase 5 COMPLETE** · **Phase 6 COMPLETE** · **CODE_COMPLETE** · DEPLOYED **NO** · DONE **NO** · **FREEZE ACTIVE** |
+| **Status** | **`CODE_COMPLETE`** (T-004-604) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
 | **Branch** | `spec/004-strategic-planner` |
 | **Human SPEC approval** | **APPROVED** (T-004-010) — 2026-08-25 (America/Bogota) |
+| **Human CODE_COMPLETE approval** | **APPROVED** (T-004-604) — 2026-08-25 (America/Bogota) |
 
 ---
 
@@ -114,12 +115,11 @@ Content → **downstream** (SPEC-006 publication).
 - Cross-SPEC regressions green; product fixes = 0
 - SPEC-009 production deferred unchanged
 
-### Phase 6 — Acceptance ✅ EVIDENCE COMPLETE
+### Phase 6 — Acceptance ✅ COMPLETE
 
-- A1–A42 = **42/42 PASS** (fresh cross-SPEC + full baseline)
-- T-004-601/602/603/605 **DONE**
-- T-004-604 human CODE_COMPLETE sign-off **PENDING**
-- CODE_COMPLETE_CANDIDATE = **YES** · CODE_COMPLETE = **NO**
+- A1–A42 = **42/42 PASS**
+- T-004-601…605 **DONE** (T-004-604 human sign-off 2026-08-25 America/Bogota)
+- CODE_COMPLETE = **YES** · DEPLOYMENT = **NOT_STARTED**
 
 ---
 

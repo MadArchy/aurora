@@ -1,7 +1,7 @@
 ﻿# Tasks 004 â€” Strategic Planner
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_6_EVIDENCE_COMPLETE** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **CODE_COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED** · **SPEC-004 FREEZE ACTIVE**  
 **Branch:** `spec/004-strategic-planner`  
 **Base SHA:** SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -192,16 +192,16 @@ Phase 5 **AUTHORIZED** (2026-08-25) · **COMPLETE**.
 **Phase-5 security implementation SHA:** `51a64bc4cd528531c7b5887979bd59c919236191`  
 **Phase-5 governance checkpoint:** `24482dc2e51c146051c2afb8b053626b81fb8a08`
 
-Phase 6 **AUTHORIZED** (2026-08-25) · evidence **COMPLETE** · human gate **PENDING**.
+Phase 6 **COMPLETE** (2026-08-25) · T-004-604 human sign-off **APPROVED**.
 
 ---
 
-## Phase 6 — Acceptance / CODE_COMPLETE ✅ EVIDENCE COMPLETE
+## Phase 6 — Acceptance / CODE_COMPLETE ✅ COMPLETE
 
 - [x] **T-004-601** Consolidate A1–A42 evidence matrix — **DONE**
 - [x] **T-004-602** `npm run check` PASS — **DONE** (1120/1120 fresh)
 - [x] **T-004-603** `npm run test:rules` PASS — **DONE** (91/91 fresh)
-- [ ] **T-004-604** Human CODE_COMPLETE sign-off — **PENDING** (separate from T-004-010)
+- [x] **T-004-604** Human CODE_COMPLETE sign-off — **DONE** (2026-08-25 America/Bogota)
 - [x] **T-004-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED — **DONE**
 
 **Phase 6 IDs:** T-004-601 … T-004-605
@@ -212,12 +212,15 @@ Phase 6 **AUTHORIZED** (2026-08-25) · evidence **COMPLETE** · human gate **PEN
 - Phase regressions: P5 **50/50** · P4 **20/20** · P3 **19/19** · P2 **32/32** · P1 **23/23** · Adjacent **28/28**
 - Threats **17/17 PASS** · F-004-03 **RESOLVED** · F-004-04 **OPEN_NONBLOCKING**
 - Product changes **0** · Test changes **0**
-- CODE_COMPLETE_CANDIDATE = **YES** · CODE_COMPLETE = **NO** (T-004-604 pending)
+- CODE_COMPLETE = **YES** · DEPLOYMENT = **NOT_STARTED** · DEPLOYED = **NO** · DONE = **NO**
+
+**Human CODE_COMPLETE authorization (T-004-604):** "Apruebo formalmente SPEC-004 — Strategic Planner como CODE_COMPLETE y autorizo el cierre de T-004-604." — 2026-08-25 (America/Bogota)
 
 **Phase-6 acceptance evidence SHA:** `30716797badcd59b0839d5695b945d39ba0bedb6`  
-**CODE_COMPLETE candidate checkpoint:** `30716797badcd59b0839d5695b945d39ba0bedb6`
+**CODE_COMPLETE candidate checkpoint:** `49c998e95f2ac92f5c389545a605a4d86cd98e36`  
+**CODE_COMPLETE declaration SHA:** _(recorded at commit)_
 
-Human sign-off task T-004-604 remains **PENDING**. Do not mark DONE without explicit human approval.
+**SPEC-004 FREEZE = ACTIVE.** No further implementation without formal change request or authorized deployment work.
 
 ---
 

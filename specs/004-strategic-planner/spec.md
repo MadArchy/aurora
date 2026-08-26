@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `004-strategic-planner` |
 | **Display name** | **SPEC-004 — Strategic Planner** |
-| **Status** | **`APPROVED`** (T-004-010 · 2026-08-25 America/Bogota) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **COMPLETE** · Phase 4 **COMPLETE** · Phase 5 **COMPLETE** · Phase 6 **EVIDENCE COMPLETE** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`CODE_COMPLETE`** (T-004-604 · 2026-08-25 America/Bogota) |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **COMPLETE** · Phase 4 **COMPLETE** · Phase 5 **COMPLETE** · Phase 6 **COMPLETE** · **CODE_COMPLETE** · DEPLOYED **NO** · DONE **NO** · **FREEZE ACTIVE** |
 | **Branch** | `spec/004-strategic-planner` |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
 | **Upstream SPEC-003** | CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1` · **FROZEN** |
@@ -16,6 +16,7 @@
 | **Blocks** | Governed execution planning after Brief; strangler of legacy curation→content/delivery/task/opportunity paths |
 | **Test baseline (Phase 0)** | `npm run check` → **976/976**; `npm run test:rules` → **91/91** |
 | **Human SPEC approval** | **APPROVED** (T-004-010) — «Apruebo formalmente SPEC-004 — Strategic Planner y autorizo el cierre de T-004-010 y el inicio de la Phase 1 de implementación.» — 2026-08-25 (America/Bogota) |
+| **Human CODE_COMPLETE approval** | **APPROVED** (T-004-604) — "Apruebo formalmente SPEC-004 — Strategic Planner como CODE_COMPLETE y autorizo el cierre de T-004-604." — 2026-08-25 (America/Bogota) |
 
 ---
 
@@ -240,11 +241,11 @@ Audit mapping: AUDIT-004-01 → F-004-01; AUDIT-004-02 → F-004-03; AUDIT-004-0
 | Phase 3 Persistence | **COMPLETE** (T-004-301…308) · **LOCAL_AUTHORITATIVE** |
 | Phase 4 Consumer | **COMPLETE** (T-004-401…407) · F-004-03 **RESOLVED** |
 | Phase 5 Security | **COMPLETE** (T-004-501…510) · Threats **17/17 PASS** |
-| Phase 6 Acceptance evidence | **COMPLETE** (T-004-601/602/603/605) · A1–A42 **42/42 PASS** |
-| Human CODE_COMPLETE (T-004-604) | **PENDING** |
-| CODE_COMPLETE_CANDIDATE | **YES** |
-| CODE_COMPLETE | **NO** |
+| Phase 6 Acceptance | **COMPLETE** (T-004-601…605) · A1–A42 **42/42 PASS** |
+| Human CODE_COMPLETE (T-004-604) | **DONE** — **APPROVED** 2026-08-25 (America/Bogota) |
+| CODE_COMPLETE | **YES** |
+| SPEC-004 FREEZE | **ACTIVE** |
 | Deployment | **NOT_STARTED** |
-| DONE | **NO** |
+| DEPLOYED / DONE | **NO** |
 
-**Next action:** Human CODE_COMPLETE sign-off (T-004-604). Do not declare CODE_COMPLETE without explicit approval.
+**Next action:** Return to constitutional roadmap. SPEC-007 not authorized by this closure. Deployment D1–D3 require separate authorization.

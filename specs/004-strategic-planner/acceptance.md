@@ -2,11 +2,10 @@
 
 **Phase 0:** Formal package **COMPLETE** · Human SPEC approval **APPROVED** (T-004-010)  
 **SPEC-004 FORMAL SPEC:** **APPROVED**  
-**SPEC-004 IMPLEMENTATION:** **PHASE_6_EVIDENCE_COMPLETE** · **CODE_COMPLETE_CANDIDATE** · CODE_COMPLETE **NO**  
-**DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
+**SPEC-004 IMPLEMENTATION:** **CODE_COMPLETE** · DEPLOYED **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
 Spec **APPROVED** requires T-004-010 human SPEC approval — **SATISFIED**.  
-Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-004-604) — **CANDIDATE READY** · human gate **PENDING**.  
+Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-004-604) — **SATISFIED**.  
 Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STARTED**.
 
 **Implementation baseline:** SPEC-006 CODE_COMPLETE @ `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
@@ -17,6 +16,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-3 checkpoint:** `2e27e08cf28530c1935af5e49adf69747ca0e92c`  
 **Phase-4 checkpoint:** `c2bfdc70fa2d519cdb7cd5d75d9a06f8dd5bffdc`  
 **Phase-5 checkpoint:** `a599e34f76ea2e2e239b9aa005758583d82173da`  
+**Phase-6 acceptance evidence SHA:** `30716797badcd59b0839d5695b945d39ba0bedb6`  
+**CODE_COMPLETE candidate checkpoint:** `49c998e95f2ac92f5c389545a605a4d86cd98e36`  
 **Branch:** `spec/004-strategic-planner`
 
 ### Human SPEC approval (T-004-010)
@@ -33,8 +34,9 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | Field | Value |
 |-------|--------|
 | **Task** | T-004-604 |
-| **Status** | **PENDING** |
-| **Required authorization text** | «Apruebo formalmente SPEC-004 — Strategic Planner como CODE_COMPLETE y autorizo el cierre de T-004-604.» |
+| **Status** | **DONE** |
+| **Date** | **2026-08-25** (America/Bogota) |
+| **Authorization text** | "Apruebo formalmente SPEC-004 — Strategic Planner como CODE_COMPLETE y autorizo el cierre de T-004-604." |
 
 ---
 
@@ -86,9 +88,9 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | A42 | Legacy planner-adjacent suites green | 4–6 | ✅ **PASS** | delivery/content/work/opportunity/stateMachine/claimSafety — **28/28** fresh |
 
 **Implementation acceptance A1–A42:** **42 PASS** · **0 PARTIAL** · **0 FAIL** · **0 PENDING**  
-**CODE_COMPLETE CANDIDATE:** **YES** (pending T-004-604 human sign-off)  
+**CODE_COMPLETE CANDIDATE:** **YES**  
 **HUMAN SPEC APPROVAL (T-004-010):** **DONE**  
-**HUMAN CODE_COMPLETE (T-004-604):** **PENDING**
+**HUMAN CODE_COMPLETE (T-004-604):** **APPROVED**
 
 ### Acceptance discrepancy resolution (Phase 5 → Phase 6)
 
@@ -143,13 +145,13 @@ Phase 5 summary stated **36 PASS / 6 PENDING**, but the authoritative matrix at 
 |-----------|--------|
 | Phase 0–5 | ✅ COMPLETE |
 | Phase 6 Evidence (T-004-601/602/603/605) | ✅ **COMPLETE** |
-| Phase 6 Human Gate (T-004-604) | ☐ **PENDING** |
+| Phase 6 Human Gate (T-004-604) | ✅ **APPROVED** |
 | F-004-03 | ✅ **RESOLVED** |
-| F-004-04 | ☐ **OPEN_NONBLOCKING** |
+| F-004-04 | ☐ **OPEN_NONBLOCKING** (does not affect executable strategic authority; does not block CODE_COMPLETE) |
 | CODE_COMPLETE_CANDIDATE | ✅ **YES** |
-| CODE_COMPLETE | ☐ **NO** |
+| CODE_COMPLETE | ✅ **YES** |
 | DEPLOYED / DONE | ☐ **NO** |
 
-**Current:** **APPROVED** · **PHASE_6_EVIDENCE = COMPLETE** · **CODE_COMPLETE_CANDIDATE = YES** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
+**Current:** **APPROVED** · **CODE_COMPLETE = YES** · **DEPLOYED = NO** · **DONE = NO** · **SPEC-004 FREEZE = ACTIVE**
 
-**Next allowed state:** Human CODE_COMPLETE sign-off (T-004-604).
+**Next allowed state:** Constitutional roadmap — SPEC-007 (not authorized by this closure). Deployment D1–D3 remain separate authorization.
