@@ -1,6 +1,6 @@
 # Opportunity scoring 007 — Opportunity Scout
 
-**Phase 0.** Opportunity Score is **formalized as a contract** with a **PROPOSED_FOR_HUMAN_APPROVAL** dimension formula.
+**Phase 1.** Opportunity Score formal contract is **APPROVED** via T-007-010 (2026-08-26 America/Bogota) as part of the complete SPEC-007 package. Dimension formula below is **authoritative for Domain implementation** — no alternate silent formula.
 
 Constitution (§10): *Ningún Opportunity Score debe ser una caja negra.*
 
@@ -52,7 +52,7 @@ Properties:
 
 ---
 
-## PROPOSED_FOR_HUMAN_APPROVAL dimension set
+## APPROVED dimension set (T-007-010)
 
 Repository evidence:
 
@@ -61,22 +61,22 @@ Repository evidence:
 - SPEC-002 already owns signal strategic relevance
 - Fase docs describe CREATE_OPPORTUNITY as “acción externa concreta”
 
-**Proposed dimensions (not approved for implementation until T-007-010 + Phase 1 refinement):**
+**Approved dimensions** (model version identity remains `opportunity-score-v1-proposed`):
 
-| Key | Intent | Weight (proposed) | Evidence notes |
-|-----|--------|-------------------|----------------|
+| Key | Intent | Weight | Evidence notes |
+|-----|--------|--------|----------------|
 | `strategicFit` | Fit to evaluated thesis context | 0.25 | May consume read-only Strategic Score band as **input**, not as total |
 | `timeliness` | Deadline / whyNow urgency | 0.20 | Legacy deadline heuristics in `clientOpportunityCore` |
 | `actionability` | Concrete external action possible | 0.20 | Constitutional CREATE_OPPORTUNITY framing |
-| `expectedUpside` | Positioning / visibility upside | 0.15 | Proposed — needs human confirmation |
-| `effortCost` | Effort inverse (higher effort → lower contribution) | 0.10 | Proposed |
+| `expectedUpside` | Positioning / visibility upside | 0.15 | Approved with package |
+| `effortCost` | Effort inverse (higher effort → lower contribution) | 0.10 | Approved with package |
 | `risk` | Compliance / reputation risk inverse | 0.10 | Aligns with riskFlags |
 
 `totalScore = round(100 * Σ contribution_i)` with contributions clamped.
 
-**Band thresholds (proposed):** LOW `<40` · MEDIUM `40–69` · HIGH `70–84` · CRITICAL `≥85`.
+**Band thresholds:** LOW `<40` · MEDIUM `40–69` · HIGH `70–84` · CRITICAL `≥85`.
 
-These weights/thresholds are **PROPOSED_FOR_HUMAN_APPROVAL**. Phase 1 Domain must not ship alternate silent formulas.
+**OPPORTUNITY SCORE FORMAL CONTRACT = APPROVED** · Domain: `src/domain/opportunityScoreCore.ts`.
 
 ---
 

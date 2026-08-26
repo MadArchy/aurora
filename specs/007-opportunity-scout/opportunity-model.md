@@ -1,6 +1,6 @@
 # Opportunity model 007 — Opportunity Scout
 
-**Phase 0 design.** No Domain implementation in this phase.
+**Phase 1 Domain implemented.** Canonical models live under `src/domain/opportunity*`.
 
 ---
 

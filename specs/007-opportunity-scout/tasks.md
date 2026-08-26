@@ -1,12 +1,15 @@
 # Tasks 007 — Opportunity Scout
 
-**Spec status:** `READY_FOR_HUMAN_APPROVAL`  
-**Implementation:** **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED` · Phase 1 Domain **COMPLETE** · Phase 2 **NOT_STARTED**  
+**Implementation:** Phase 1 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/007-opportunity-scout`  
 **Base SHA:** SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
 **Upstream SPEC-006:** `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
-**Human SPEC approval:** **PENDING** (T-007-010)
+**Human SPEC approval:** **APPROVED** (T-007-010) — 2026-08-26 (America/Bogota)  
+**Approval text:** «Apruebo formalmente SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-010 y el inicio de la Phase 1 de implementación.»  
+**Phase-1 implementation SHA:** _(pinned at governance checkpoint)_  
+**Phase-1 checkpoint:** _(pinned at governance checkpoint)_
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -25,39 +28,48 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 - [x] **T-007-007** Author `migration-matrix.md` (legacy Opportunity inventory) — **DONE**
 - [x] **T-007-008** Author `opportunity-model.md` (candidate + materialized + lifecycle) — **DONE**
 - [x] **T-007-009** Author `opportunity-scoring.md` + `threat-model.md` — **DONE**
-- [ ] **T-007-010** Human SPEC approval → status `APPROVED` — **PENDING**
+- [x] **T-007-010** Human SPEC approval → status `APPROVED` — **DONE** (2026-08-26 America/Bogota)
 
-**Phase 0 gate:** Package authored · Human SPEC approval **PENDING**
+**Phase 0 gate:** Package authored · Human SPEC approval **DONE**
 
-**Exit:** Formal package complete · **READY_FOR_HUMAN_APPROVAL** · Phase 1 **NOT_AUTHORIZED** until T-007-010.
+**Exit:** Formal package complete · **APPROVED** · Phase 1 **AUTHORIZED** after T-007-010.
 
 **Newly authored Phase 0 IDs:** T-007-001 … T-007-010
 
 **Phase-0 package SHA:** `23ba8b2934cb170831621f8186523ae14f88d5d4`  
-**Phase-0 final checkpoint:** `23ba8b2934cb170831621f8186523ae14f88d5d4` (package commit; no endless self-SHA pin)
+**Phase-0 final checkpoint:** `551679e9fd562771d1e700807c2b373f0cc07b3d`
 
-**Required human approval statement (T-007-010):**
+**Required human approval statement (T-007-010) — recorded verbatim:**
 
 > «Apruebo formalmente SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-010 y el inicio de la Phase 1 de implementación.»
 
+**FORMAL SPEC APPROVAL:** APPROVED · **PHASE-1 AUTHORIZATION:** YES · **PHASE-2 AUTHORIZATION:** NO
+
 ---
 
-## Phase 1 — Domain contracts (NOT AUTHORIZED)
+## Phase 1 — Domain contracts ✅ COMPLETE
 
-- [ ] **T-007-101** Define `OpportunityCandidate` aggregate + tenant/thesis evaluation context
-- [ ] **T-007-102** Define `OpportunityScore` value object + versioned dimensions
-- [ ] **T-007-103** Define materialized `Opportunity` aggregate + Brief/Plan/PlanItem linkage
-- [ ] **T-007-104** Canonical Opportunity lifecycle state machine (unify dual legacy statuses)
-- [ ] **T-007-105** Tenant isolation pure validators (org|client|id)
-- [ ] **T-007-106** Multi-thesis evaluation predicates (no primary/[0])
-- [ ] **T-007-107** Materialize gate predicates (require SPEC-004 allow decision input)
-- [ ] **T-007-108** Materiality / supersession / version rules
-- [ ] **T-007-109** Explainability projection shapes + reason codes
-- [ ] **T-007-110** Domain unit tests + architecture purity tests
+- [x] **T-007-101** Define `OpportunityCandidate` aggregate + tenant/thesis evaluation context — **DONE**
+- [x] **T-007-102** Define `OpportunityScore` value object + versioned dimensions — **DONE**
+- [x] **T-007-103** Define materialized `Opportunity` aggregate + Brief/Plan/PlanItem linkage — **DONE**
+- [x] **T-007-104** Canonical Opportunity lifecycle state machine (unify dual legacy statuses) — **DONE**
+- [x] **T-007-105** Tenant isolation pure validators (org|client|id) — **DONE**
+- [x] **T-007-106** Multi-thesis evaluation predicates (no primary/[0]) — **DONE**
+- [x] **T-007-107** Materialize gate predicates (require SPEC-004 allow decision input) — **DONE**
+- [x] **T-007-108** Materiality / supersession / version rules — **DONE**
+- [x] **T-007-109** Explainability projection shapes + reason codes — **DONE**
+- [x] **T-007-110** Domain unit tests + architecture purity tests — **DONE**
 
 **Phase 1 IDs:** T-007-101 … T-007-110  
 **Depends on:** T-007-010 DONE  
-**Maps to:** A1–A12, A21, A30
+**Maps to:** A1–A12, A21, A30  
+
+**Domain:** `src/domain/opportunity{ScoutErrors,TenantCore,ScoreCore,CandidateCore,LifecycleCore,MultiThesisCore,MaterializeGateCore,Core,MaterialityCore,ExplainabilityCore,LegacyMappingCore}.ts`  
+**Tests:** `tests/opportunityScoutDomain.test.ts` · `tests/opportunityScoutArchitecture.test.ts`  
+**Opportunity Score formal contract:** **APPROVED** (T-007-010) — model `opportunity-score-v1-proposed`  
+**Application / Persistence / Consumer migration:** **NONE**
+
+**Exit:** Phase 1 Domain COMPLETE · Phase 2 **NOT AUTHORIZED**.
 
 ---
 
@@ -160,7 +172,7 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 
 - SPEC-003 / 001 / 002 / 004 / 005 / 006 product changes
 - SPEC-009 production rules / auth claims changes
-- Phase 1 before T-007-010
+- Phase 2+ without separate authorization
 - New AiOperation without SPEC-005 coordination
 - Production opportunity backfill as Phase 1–6 blocker
 

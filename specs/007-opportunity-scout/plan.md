@@ -3,12 +3,12 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `007-opportunity-scout` |
-| **Phase** | Phase 0 **COMPLETE** (governance) · Implementation **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`READY_FOR_HUMAN_APPROVAL`** (T-007-010 PENDING) |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2+ **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** · Phase 1 **COMPLETE** (T-007-010 DONE) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Branch** | `spec/007-opportunity-scout` |
-| **Human SPEC approval** | **PENDING** (T-007-010) |
+| **Human SPEC approval** | **APPROVED** (T-007-010) — 2026-08-26 (America/Bogota) |
 
 ---
 
@@ -72,21 +72,23 @@ TARGET:
 
 ## Phase plan
 
-### Phase 0 — Formal package (DONE this commit)
+### Phase 0 — Formal package ✅ COMPLETE
 
 - Author governance docs
 - Inventory legacy surfaces
 - Resolve pre-Brief vs post-Plan split
 - Define models, gates, threats, acceptance, tasks
-- Human SPEC approval gate **PENDING** (T-007-010)
+- Human SPEC approval gate **DONE** (T-007-010 · 2026-08-26 America/Bogota)
 
-### Phase 1 — Domain (NOT AUTHORIZED)
+### Phase 1 — Domain ✅ COMPLETE
 
-- OpportunityCandidate / OpportunityScore / Opportunity
-- Canonical lifecycle machine
-- Tenant + thesis validators
-- Materialize gate predicates (consume Plan authorization decision)
-- Explainability shapes
+- OpportunityCandidate / OpportunityScore / Opportunity — **DONE**
+- Canonical lifecycle machine — **DONE**
+- Tenant + thesis validators — **DONE**
+- Materialize gate predicates (consume Plan authorization decision) — **DONE**
+- Explainability shapes — **DONE**
+- Domain + architecture tests — **DONE**
+- Application / Persistence / Consumer — **NONE**
 
 ### Phase 2 — Application (NOT AUTHORIZED)
 
@@ -153,13 +155,13 @@ Legacy key `postura_opportunities_v5` → migrate under Phase 3–4 adapters (CO
 | ID | Sev | Action |
 |----|-----|--------|
 | F-007-01 | P1 | **RESOLVED** Phase 0 |
-| F-007-02 | P1 | Application Phases 2–4 |
-| F-007-03 | P2 | Domain Phase 1 + migrate Phase 4 |
-| F-007-04 | P2 | Ports/Infra Phase 2–3 |
-| F-007-05 | P2 | Domain Phase 1 + App Phase 2 |
+| F-007-02 | P1 | **OPEN** — Application Phases 2–4 |
+| F-007-03 | P2 | **DOMAIN_IMPLEMENTED_MIGRATION_PENDING** |
+| F-007-04 | P2 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** (db.ts unchanged Phase 1) |
+| F-007-05 | P2 | **DOMAIN_IMPLEMENTED_APP_PENDING** |
 | F-007-06 | P2 | **RESOLVED** Phase 0 design |
-| F-007-07 | P3 | Infra Phase 3 |
-| F-007-08 | P3 | OPEN_NONBLOCKING display |
+| F-007-07 | P3 | **DOMAIN_MODEL_IMPLEMENTED_PERSISTENCE_PENDING** |
+| F-007-08 | P3 | **OPEN_NONBLOCKING** display |
 
 ---
 
