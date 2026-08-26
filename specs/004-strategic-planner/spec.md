@@ -5,7 +5,7 @@
 | **Spec ID** | `004-strategic-planner` |
 | **Display name** | **SPEC-004 — Strategic Planner** |
 | **Status** | **`APPROVED`** (T-004-010 · 2026-08-25 America/Bogota) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **COMPLETE** · Phase 4 **COMPLETE** · Phase 5 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **COMPLETE** · Phase 4 **COMPLETE** · Phase 5 **COMPLETE** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Branch** | `spec/004-strategic-planner` |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
 | **Upstream SPEC-003** | CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1` · **FROZEN** |
@@ -239,9 +239,9 @@ Audit mapping: AUDIT-004-01 → F-004-01; AUDIT-004-02 → F-004-03; AUDIT-004-0
 | Phase 2 Application | **COMPLETE** (T-004-201…211) |
 | Phase 3 Persistence | **COMPLETE** (T-004-301…308) · **LOCAL_AUTHORITATIVE** |
 | Phase 4 Consumer | **COMPLETE** (T-004-401…407) · F-004-03 **RESOLVED** |
-| Phase 5 Security | **NOT_AUTHORIZED** |
+| Phase 5 Security | **COMPLETE** (T-004-501…510) · Threats **17/17 PASS** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Human authorization for Phase 5 Security. Do not begin T-004-501… without approval.
+**Next action:** Human authorization for Phase 6 Acceptance. Do not begin T-004-601… without approval.

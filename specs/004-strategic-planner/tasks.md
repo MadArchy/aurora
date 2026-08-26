@@ -1,7 +1,7 @@
-# Tasks 004 â€” Strategic Planner
+﻿# Tasks 004 â€” Strategic Planner
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_4_COMPLETE** · Phase 5 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **PHASE_5_COMPLETE** · Phase 6 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/004-strategic-planner`  
 **Base SHA:** SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -160,25 +160,39 @@ Phase 4 **COMPLETE**.
 **Phase-4 implementation SHA:** `65dc7238d62e3ef8b27e518731c2b5528c92da63`  
 **Phase-4 governance checkpoint:** d61696f5ac8c2ddb11c2441973b7533e7d11788a
 
-Phase 5 **NOT_AUTHORIZED**.
+Phase 5 **AUTHORIZED** (2026-08-25) · **COMPLETE**.
 
 ---
 
-## Phase 5 — Security / adversarial (NOT AUTHORIZED)
+## Phase 5 — Security / adversarial ✅ COMPLETE
 
-- [ ] **T-004-501** Architecture bans (Domain purity; no UI status authority; no `[0]`)
-- [ ] **T-004-502** Cross-tenant plan/Brief deny matrix
-- [ ] **T-004-503** AI self-approval / role spoof deny tests
-- [ ] **T-004-504** Stale/superseded Brief + unauthorized action tests
-- [ ] **T-004-505** History-as-authority / forged status tests
-- [ ] **T-004-506** Legacy curation bypass inventory = 0
-- [ ] **T-004-507** SPEC-003 regression (Brief frozen)
-- [ ] **T-004-508** SPEC-005 regression (advisory only; no paid AI)
-- [ ] **T-004-509** SPEC-006 regression (publication authority preserved)
-- [ ] **T-004-510** SPEC-001/002 regression + no thesis fallback
+- [x] **T-004-501** Architecture bans (Domain purity; no UI status authority; no `[0]`) — **DONE**
+- [x] **T-004-502** Cross-tenant plan/Brief deny matrix — **DONE**
+- [x] **T-004-503** AI self-approval / role spoof deny tests — **DONE**
+- [x] **T-004-504** Stale/superseded Brief + unauthorized action tests — **DONE**
+- [x] **T-004-505** History-as-authority / forged status tests — **DONE**
+- [x] **T-004-506** Legacy curation bypass inventory = 0 — **DONE**
+- [x] **T-004-507** SPEC-003 regression (Brief frozen) — **DONE**
+- [x] **T-004-508** SPEC-005 regression (advisory only; no paid AI) — **DONE**
+- [x] **T-004-509** SPEC-006 regression (publication authority preserved) — **DONE**
+- [x] **T-004-510** SPEC-001/002 regression + no thesis fallback — **DONE**
 
-**Threat coverage T-004-01â€¦17**  
-**Phase 5 IDs:** T-004-501 â€¦ T-004-510
+**Threat coverage T-004-01…17 = 17/17 PASS** (evidence in `threat-model.md`)  
+**Phase 5 IDs:** T-004-501 … T-004-510
+
+**Evidence:**
+- Adversarial: `tests/strategicPlanPhase5.test.ts` (**38**)
+- Security architecture: `tests/strategicPlanSecurityArchitecture.test.ts` (**12**)
+- Phase-5 focused = **50/50 PASS**
+- Regressions: Phase-4 **20/20** · Phase-3 **19/19** · Phase-2 **32/32** · Phase-1 **23/23** · Adjacent **28/28**
+- Product fixes = **0** (tests-only)
+- F-004-04 remains **OPEN_NONBLOCKING**
+- SPEC-009 PRODUCTION = **DEFERRED_UNCHANGED**
+
+**Phase-5 security implementation SHA:** `51a64bc4cd528531c7b5887979bd59c919236191`  
+**Phase-5 governance checkpoint:** _(next commit)_
+
+Phase 6 **NOT_AUTHORIZED**.
 
 ---
 

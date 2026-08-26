@@ -67,6 +67,20 @@
 
 ---
 
+## Phase-5 security confirmation
+
+| Authority surface | Result |
+|-------------------|--------|
+| Legacy strategic fallbacks | **0** |
+| CurationEntry / Delivery / Content / Opp / Task Plan authority | **0** |
+| UI / caller snapshot / AI execution | **0** |
+| SPEC-003 Brief mutation by 004 | **0** |
+| SPEC-006 publication replacement | **0** |
+| SPEC-009 production | **DEFERRED_UNCHANGED** |
+| Threats T-004-01…17 | **17/17 PASS** |
+
+---
+
 ## Findings linkage
 
 | Audit | Formal ID | Disposition |

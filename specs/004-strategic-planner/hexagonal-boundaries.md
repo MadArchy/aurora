@@ -90,15 +90,19 @@ Ports ← Infrastructure (local stores, Brief reader, clock, actor,
 
 ---
 
-## Architecture bans (enforce in Phase 1/5 tests)
+## Architecture bans (Phase 5 enforced — PASS)
 
-1. Domain → Infrastructure/UI/Firebase → **FAIL**
-2. Application → concrete db/UI → **FAIL**
-3. UI → direct plan repository / storage keys → **FAIL**
-4. AI actor approve/activate → **FAIL**
-5. SPEC-004 mutates Brief/routing/score/claim Verification → **FAIL**
-6. Implicit `theses[0]` / primary as plan thesis → **FAIL**
-7. CurationEntry as current Plan authority after migration → **FAIL**
+Evidence: `tests/strategicPlanSecurityArchitecture.test.ts` + prior Phase 1–4 arch suites.
+
+1. Domain → Infrastructure/UI/Firebase → **0** (PASS)
+2. Application → concrete db/UI → **0** (PASS)
+3. UI → direct plan repository / storage keys → **0** (PASS)
+4. AI actor approve/activate → **0** (PASS)
+5. SPEC-004 mutates Brief/routing/score/claim Verification → **0** (PASS)
+6. Implicit `theses[0]` / primary as plan thesis → **0** (PASS)
+7. CurationEntry as current Plan authority after migration → **0** (PASS)
+8. Direct provider SDK in SPEC-004 paths → **0** (PASS)
+9. SPEC-009 auth-claim / rules mutation from SPEC-004 → **0** (PASS)
 
 ---
 

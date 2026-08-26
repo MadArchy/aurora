@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `004-strategic-planner` |
-| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · **Phase 4 COMPLETE** · Phase 5 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · **Phase 4 COMPLETE** · **Phase 5 COMPLETE** · Phase 6 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Status** | **`APPROVED`** (T-004-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
@@ -107,10 +107,12 @@ Content → **downstream** (SPEC-006 publication).
 - Demote CurationEntry authority
 - Preserve SPEC-003 / SPEC-006 gates
 
-### Phase 5 — Security (NOT AUTHORIZED)
+### Phase 5 — Security ✅ COMPLETE
 
-- Threats T-004-01…17
-- Cross-SPEC regressions
+- Threats T-004-01…17 = **17/17 PASS**
+- Dedicated suites: `strategicPlanPhase5` + `strategicPlanSecurityArchitecture` (**50/50**)
+- Cross-SPEC regressions green; product fixes = 0
+- SPEC-009 production deferred unchanged
 
 ### Phase 6 — Acceptance (NOT AUTHORIZED)
 

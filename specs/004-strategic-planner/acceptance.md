@@ -2,7 +2,7 @@
 
 **Phase 0:** Formal package **COMPLETE** · Human SPEC approval **APPROVED** (T-004-010)  
 **SPEC-004 FORMAL SPEC:** **APPROVED**  
-**SPEC-004 IMPLEMENTATION:** **PHASE_4_COMPLETE** · CODE_COMPLETE **NO**  
+**SPEC-004 IMPLEMENTATION:** **PHASE_5_COMPLETE** · CODE_COMPLETE **NO**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
 Spec **APPROVED** requires T-004-010 human SPEC approval — **SATISFIED**.  
@@ -15,6 +15,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-1 checkpoint:** `6e8de53673ed8a2e7e7caf033ee51bca51307a19`  
 **Phase-2 checkpoint:** `b6c2712d3f0183c76259680cbf03c9ec0abdd59e`  
 **Phase-3 checkpoint:** `2e27e08cf28530c1935af5e49adf69747ca0e92c`  
+**Phase-4 checkpoint:** `c2bfdc70fa2d519cdb7cd5d75d9a06f8dd5bffdc`  
 **Branch:** `spec/004-strategic-planner`
 
 ### Human SPEC approval (T-004-010)
@@ -68,14 +69,14 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | A34 | SPEC-003 regression PASS | 6 | ☐ PENDING | Phase 6 |
 | A35 | SPEC-005 regression PASS | 6 | ☐ PENDING | Phase 6 |
 | A36 | SPEC-006 regression PASS | 6 | ☐ PENDING | Phase 6 |
-| A37 | SPEC-009 auth claims boundary | 5–6 | ☐ PENDING | Phase 5–6 |
-| A38 | Dedicated SPEC-004 security suites | 5 | ☐ PENDING | Phase 5 |
+| A37 | SPEC-009 auth claims boundary | 5–6 | ✅ **PASS** | Phase 5 — no auth-claim migration; DEFERRED_UNCHANGED |
+| A38 | Dedicated SPEC-004 security suites | 5 | ✅ **PASS** | Phase5 38 + SecurityArch 12 = **50/50** |
 | A39 | LOCAL_AUTHORITATIVE documented | 3–6 | ✅ **PASS** | Phase 3 |
-| A40 | `npm run check` PASS | 6 | ☐ PENDING | 1070 green baseline |
-| A41 | `npm run test:rules` PASS | 6 | ☐ PENDING | 91 green baseline |
+| A40 | `npm run check` PASS | 6 | ☐ PENDING | Phase 6 (baseline green; not Phase-6 gate yet) |
+| A41 | `npm run test:rules` PASS | 6 | ☐ PENDING | Phase 6 (baseline green; not Phase-6 gate yet) |
 | A42 | Legacy planner-adjacent suites green | 4–6 | ✅ **PASS** | 28/28 adjacent |
 
-**Implementation acceptance A1–A42:** **34 PASS** · **0 PARTIAL** · **8 PENDING** (after Phase 4)  
+**Implementation acceptance A1–A42:** **36 PASS** · **0 PARTIAL** · **6 PENDING** (after Phase 5)  
 **CODE_COMPLETE CANDIDATE:** **NO**  
 **HUMAN SPEC APPROVAL (T-004-010):** **DONE**
 
@@ -90,6 +91,24 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | D3 | Post-deploy verification | ☐ PENDING |
 
 **SPEC-009 PRODUCTION = DEFERRED_UNCHANGED**
+
+---
+
+## Phase-5 verification record
+
+| Suite | Result |
+|-------|--------|
+| Phase-5 Security + Arch | **50/50 PASS** |
+| Threats T-004-01…17 | **17/17 PASS** |
+| Phase-4 Consumer + Arch | **20/20 PASS** |
+| Phase-3 Persistence + Arch | **19/19 PASS** |
+| Phase-2 Application + Arch | **32/32 PASS** |
+| Phase-1 Domain + Arch | **23/23 PASS** |
+| Adjacent legacy | **28/28 PASS** |
+| Product fixes | **0** |
+| F-004-04 | **OPEN_NONBLOCKING** |
+| `npm run check` (Phase-5 exit) | **1120/1120 PASS** |
+| `npm run test:rules` (Phase-5 exit) | **91/91 PASS** |
 
 ---
 
@@ -111,13 +130,14 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 
 | Milestone | Status |
 |-----------|--------|
-| Phase 0–3 | ✅ COMPLETE |
-| Phase 4 Consumer (T-004-401…407) | ✅ **COMPLETE** |
+| Phase 0–4 | ✅ COMPLETE |
+| Phase 5 Security (T-004-501…510) | ✅ **COMPLETE** |
 | F-004-03 | ✅ **RESOLVED** |
-| Phase 5 Security | ☐ NOT_AUTHORIZED |
+| F-004-04 | ☐ **OPEN_NONBLOCKING** |
+| Phase 6 Acceptance | ☐ NOT_AUTHORIZED |
 | CODE_COMPLETE | ☐ NO |
 | DEPLOYED / DONE | ☐ **NO** |
 
-**Current:** **APPROVED** · **PHASE_4 = COMPLETE** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
+**Current:** **APPROVED** · **PHASE_5 = COMPLETE** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
 
-**Next allowed state:** Separate authorization for Phase 5 Security.
+**Next allowed state:** Separate authorization for Phase 6 Acceptance / CODE_COMPLETE.

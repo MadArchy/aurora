@@ -1,7 +1,6 @@
 # Threat model 004 — Strategic Planner
 
-**Phase 0 documentation only.** No security implementation in this phase.
-
+**Phase 5 COMPLETE** — adversarial + architecture evidence recorded.  
 Constitution: AI suggests / software governs · Tenant · Explainability · Thesis-first.
 
 ---
@@ -41,6 +40,32 @@ Constitution: AI suggests / software governs · Tenant · Explainability · Thes
 | T-004-17 | SPEC-006 publication bypass | Publish without claim gate | Explicit non-ownership; tests | 4–5 |
 
 **Local tamper resistance:** structurally valid local fabrication = **KNOWN_LIMITATION** until SPEC-009 remote authority. Malformed → FAIL_CLOSED.
+
+---
+
+## Phase-5 threat evidence matrix
+
+| Threat ID | Attack test | Expected defense | Result | Test file / name | Status |
+|-----------|-------------|------------------|--------|------------------|--------|
+| T-004-01 | Caller tenant spoof / claimed org+client | Trusted tenant wins; DENY | PASS | `strategicPlanPhase5` · caller tenant spoof | **PASS** |
+| T-004-02 | CLIENT trusted / forged ADMIN approvedBy | ADMIN-only approve; trusted actor wins | PASS | `strategicPlanPhase5` · role spoof | **PASS** |
+| T-004-03 | AI actorKind / softwareAuthority payload | AI cannot approve; trusted HUMAN wins | PASS | `strategicPlanPhase5` · AI self-approval | **PASS** |
+| T-004-04 | Brief version drift after Plan approve | STALE_BRIEF fail closed | PASS | `strategicPlanPhase5` · stale Brief | **PASS** |
+| T-004-05 | Brief SUPERSEDED after Plan approve | Fail closed | PASS | `strategicPlanPhase5` · superseded Brief | **PASS** |
+| T-004-06 | NONE / RESEARCH_ONLY / action mismatch | ACTION_NOT_AUTHORIZED | PASS | `strategicPlanPhase5` · unauthorized action | **PASS** |
+| T-004-07 | Thesis A Plan vs Brief thesis B | THESIS_MISMATCH deny | PASS | `strategicPlanPhase5` · thesis mismatch | **PASS** |
+| T-004-08 | Cross-org / cross-client / same-ID | Isolated; undefined foreign | PASS | `strategicPlanPhase5` · cross-tenant | **PASS** |
+| T-004-09 | Forged Plan APPROVED snapshot on DRAFT | Repository Plan governs | PASS | `strategicPlanPhase5` · forged Plan | **PASS** |
+| T-004-10 | History PLAN_APPROVED + SUPERSEDED plan | History authority NONE | PASS | `strategicPlanPhase5` · history | **PASS** |
+| T-004-11 | UI toggle / status-alone | Zero Application writes | PASS | `strategicPlanPhase5` + `SecurityArchitecture` | **PASS** |
+| T-004-12 | Direct store / UI repository | Consumer/UI bans = 0 | PASS | `strategicPlanSecurityArchitecture` | **PASS** |
+| T-004-13 | primaryThesis / `[0]` patterns | Static ban = 0 | PASS | `strategicPlanSecurityArchitecture` | **PASS** |
+| T-004-14 | Two current plans same Brief revision | Fail closed | PASS | `strategicPlanPhase5` · duplicate current | **PASS** |
+| T-004-15 | Replay create intentKey / cross-tenant key | Idempotent; no cross-tenant collision | PASS | `strategicPlanPhase5` · idempotency | **PASS** |
+| T-004-16 | Curation / Delivery / Content / Task spoof | Legacy strategic fallbacks = 0 | PASS | `strategicPlanPhase5` · legacy spoof | **PASS** |
+| T-004-17 | Planner ALLOW + missing content publish | SPEC-006 deny; publication side effects 0 | PASS | `strategicPlanPhase5` · SPEC-006 | **PASS** |
+
+**Threat PASS = 17 · PARTIAL = 0 · FAIL = 0**
 
 ---
 
