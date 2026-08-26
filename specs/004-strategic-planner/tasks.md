@@ -59,7 +59,8 @@ Requirement ID prefix (future Domain): `PLAN-004-001` …
 
 **Phase 1 IDs:** T-004-101 … T-004-110 — **ALL DONE**
 
-**Phase-1 implementation checkpoint:** pending commit on `spec/004-strategic-planner`
+**Phase-1 implementation SHA:** `609b17f85a6c9bce3c4ce4afc26d76c0749a9aea`  
+**Phase-1 governance checkpoint:** pending (this commit)
 
 Phase 2 **NOT_AUTHORIZED**.
 

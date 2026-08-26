@@ -79,7 +79,7 @@ Content → **downstream** (SPEC-006 publication).
 - Define models, gates, threats, acceptance, tasks
 - Human SPEC approval gate **PENDING** (T-004-010)
 
-### Phase 1 — Domain (NOT AUTHORIZED)
+### Phase 1 — Domain ✅ COMPLETE
 
 - StrategicPlan / PlanItem types
 - PlanStatus / PlanItemStatus machines
