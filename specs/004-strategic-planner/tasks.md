@@ -157,8 +157,8 @@ Phase 4 **COMPLETE**.
 - F-004-03 = **RESOLVED**
 - F-004-04 remains **OPEN_NONBLOCKING**
 
-**Phase-4 implementation SHA:** pending commit  
-**Phase-4 governance checkpoint:** pending
+**Phase-4 implementation SHA:** `65dc7238d62e3ef8b27e518731c2b5528c92da63`  
+**Phase-4 governance checkpoint:** pending (this commit)
 
 Phase 5 **NOT_AUTHORIZED**.
 
