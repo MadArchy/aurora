@@ -174,3 +174,50 @@ export function transitionMaterializedOpportunity(
     version: opportunity.version + 1,
   });
 }
+
+/**
+ * Checklist mutation allowed only on ACCEPTED or CHECKLIST.
+ * May transition ACCEPTED → CHECKLIST when actor may enter CHECKLIST.
+ */
+export function updateMaterializedOpportunityChecklist(
+  opportunity: MaterializedOpportunity,
+  checklist: OpportunityChecklistItem[],
+  actorKind: OpportunityActorKind,
+  updatedAt: string
+): OpportunityDomainResult<MaterializedOpportunity> {
+  if (!Array.isArray(checklist)) {
+    return oppFail('INVALID_OPPORTUNITY', 'checklist must be an array');
+  }
+  for (const item of checklist) {
+    if (!item || !nonEmpty(item.id) || !nonEmpty(item.label) || typeof item.done !== 'boolean') {
+      return oppFail('INVALID_OPPORTUNITY', 'checklist items malformed');
+    }
+  }
+  const at = nonEmpty(updatedAt);
+  if (!at) return oppFail('INVALID_OPPORTUNITY', 'updatedAt required');
+
+  let next = opportunity;
+  if (opportunity.status === 'ACCEPTED') {
+    const toChecklist = transitionMaterializedOpportunity(
+      opportunity,
+      'CHECKLIST',
+      actorKind,
+      at
+    );
+    if (!toChecklist.ok) return toChecklist;
+    next = toChecklist.value;
+  } else if (opportunity.status !== 'CHECKLIST') {
+    return oppFail(
+      'INVALID_TRANSITION',
+      `checklist updates require ACCEPTED or CHECKLIST (current=${opportunity.status})`
+    );
+  }
+
+  return oppOk({
+    ...next,
+    submissionChecklist: checklist.map((c) => ({ ...c })),
+    updatedAt: at,
+    version:
+      opportunity.status === 'ACCEPTED' ? next.version : opportunity.version + 1,
+  });
+}

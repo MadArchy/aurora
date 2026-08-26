@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `007-opportunity-scout` |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2+ **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`APPROVED`** · Phase 1 **COMPLETE** (T-007-010 DONE) |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** · Phase 3+ **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** · Phase 2 **COMPLETE** |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Branch** | `spec/007-opportunity-scout` |
@@ -90,12 +90,13 @@ TARGET:
 - Domain + architecture tests — **DONE**
 - Application / Persistence / Consumer — **NONE**
 
-### Phase 2 — Application (NOT AUTHORIZED)
+### Phase 2 — Application ✅ COMPLETE
 
-- Use cases T-007-201…
-- Ports + trusted actor
-- No Infrastructure adapters yet
-- RUNTIME AI advisor = DEFERRED / port-only if needed
+- Use cases T-007-201…211 — **DONE**
+- Ports + trusted actor — **DONE**
+- SPEC-004 authorization facade consumption — **DONE**
+- No Infrastructure adapters — **NONE**
+- RUNTIME AI advisor = port-only optional (unimplemented)
 
 ### Phase 3 — Persistence (NOT AUTHORIZED)
 
@@ -155,10 +156,10 @@ Legacy key `postura_opportunities_v5` → migrate under Phase 3–4 adapters (CO
 | ID | Sev | Action |
 |----|-----|--------|
 | F-007-01 | P1 | **RESOLVED** Phase 0 |
-| F-007-02 | P1 | **OPEN** — Application Phases 2–4 |
+| F-007-02 | P1 | **APPLICATION_IMPLEMENTED_MIGRATION_PENDING** (App/ports done; db/UI/main until Phase 4) |
 | F-007-03 | P2 | **DOMAIN_IMPLEMENTED_MIGRATION_PENDING** |
-| F-007-04 | P2 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** (db.ts unchanged Phase 1) |
-| F-007-05 | P2 | **DOMAIN_IMPLEMENTED_APP_PENDING** |
+| F-007-04 | P2 | **PORT_CONTRACT_IMPLEMENTED_LEGACY_PENDING** (tenant-safe ports; db.ts unchanged) |
+| F-007-05 | P2 | **APPLICATION_SCORE_WORKFLOW_IMPLEMENTED_CONSUMER_PENDING** |
 | F-007-06 | P2 | **RESOLVED** Phase 0 design |
 | F-007-07 | P3 | **DOMAIN_MODEL_IMPLEMENTED_PERSISTENCE_PENDING** |
 | F-007-08 | P3 | **OPEN_NONBLOCKING** display |

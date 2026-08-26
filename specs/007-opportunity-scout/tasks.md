@@ -1,7 +1,7 @@
 # Tasks 007 — Opportunity Scout
 
-**Spec status:** `APPROVED` · Phase 1 Domain **COMPLETE** · Phase 2 **NOT_STARTED**  
-**Implementation:** Phase 1 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED` · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** · Phase 3 **NOT_STARTED**  
+**Implementation:** Phase 1–2 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/007-opportunity-scout`  
 **Base SHA:** SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -9,7 +9,9 @@
 **Human SPEC approval:** **APPROVED** (T-007-010) — 2026-08-26 (America/Bogota)  
 **Approval text:** «Apruebo formalmente SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-010 y el inicio de la Phase 1 de implementación.»  
 **Phase-1 implementation SHA:** `cdcb5a04cf4e97baaaf7db7d7a62dccc15afcc98`  
-**Phase-1 checkpoint:** `2899386c1a660e79bf90a15a991ffdcf157567f8`
+**Phase-1 checkpoint:** `2899386c1a660e79bf90a15a991ffdcf157567f8`  
+**Phase-2 implementation SHA:** _(pinned at governance checkpoint)_  
+**Phase-2 checkpoint:** _(pinned at governance checkpoint)_
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -69,27 +71,34 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 **Opportunity Score formal contract:** **APPROVED** (T-007-010) — model `opportunity-score-v1-proposed`  
 **Application / Persistence / Consumer migration:** **NONE**
 
-**Exit:** Phase 1 Domain COMPLETE · Phase 2 **NOT AUTHORIZED**.
+**Exit:** Phase 1 Domain COMPLETE · Phase 2 **AUTHORIZED** after Phase 1.
 
 ---
 
-## Phase 2 — Application / ports (NOT AUTHORIZED)
+## Phase 2 — Application / ports ✅ COMPLETE
 
-- [ ] **T-007-201** `RegisterOpportunityCandidate` / `EvaluateOpportunityCandidate` / `ReevaluateOpportunityCandidate`
-- [ ] **T-007-202** `RecommendOpportunityCandidate`
-- [ ] **T-007-203** `MaterializeOpportunity` (SPEC-004 authorization required)
-- [ ] **T-007-204** `AcceptOpportunity` / `DeclineOpportunity`
-- [ ] **T-007-205** `UpdateOpportunityChecklist`
-- [ ] **T-007-206** `SubmitOpportunity` / `CompleteOpportunity` / `ArchiveOpportunity`
-- [ ] **T-007-207** `GetOpportunity` / `ListOpportunities` (tenant-safe)
-- [ ] **T-007-208** Trusted actor + tenant context; caller snapshot ignore
-- [ ] **T-007-209** Ports: CandidateRepository, OpportunityRepository, History, BriefReader, PlanAuth reader, optional Advisor
-- [ ] **T-007-210** Application architecture purity tests
-- [ ] **T-007-211** Application use-case tests (spoof/deny matrix)
+- [x] **T-007-201** `RegisterOpportunityCandidate` / `EvaluateOpportunityCandidate` / `ReevaluateOpportunityCandidate` — **DONE**
+- [x] **T-007-202** `RecommendOpportunityCandidate` — **DONE**
+- [x] **T-007-203** `MaterializeOpportunity` (SPEC-004 authorization required) — **DONE**
+- [x] **T-007-204** `AcceptOpportunity` / `DeclineOpportunity` — **DONE**
+- [x] **T-007-205** `UpdateOpportunityChecklist` — **DONE**
+- [x] **T-007-206** `SubmitOpportunity` / `CompleteOpportunity` / `ArchiveOpportunity` — **DONE**
+- [x] **T-007-207** `GetOpportunity` / `ListOpportunities` (tenant-safe) — **DONE**
+- [x] **T-007-208** Trusted actor + tenant context; caller snapshot ignore — **DONE**
+- [x] **T-007-209** Ports: CandidateRepository, OpportunityRepository, History, BriefReader, PlanAuth reader, optional Advisor — **DONE**
+- [x] **T-007-210** Application architecture purity tests — **DONE**
+- [x] **T-007-211** Application use-case tests (spoof/deny matrix) — **DONE**
 
 **Phase 2 IDs:** T-007-201 … T-007-211  
 **Depends on:** Phase 1 DONE  
-**Maps to:** A8–A11, A13–A16, A22, A28–A29
+**Maps to:** A8–A11, A13–A16, A22, A28–A29  
+
+**Application:** `src/application/opportunityScout/`  
+**Ports:** CandidateRepository · OpportunityRepository · History · BriefReader · StrategicPlanAuthorizationPort · StrategicContextReader · OpportunityAdvisorPort  
+**Tests:** `tests/opportunityScoutPhase2.test.ts` · `tests/opportunityScoutApplicationArchitecture.test.ts`  
+**Persistence / Consumer migration:** **NONE**
+
+**Exit:** Phase 2 Application COMPLETE · Phase 3 **NOT AUTHORIZED**.
 
 ---
 
