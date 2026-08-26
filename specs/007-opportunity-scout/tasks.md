@@ -19,7 +19,7 @@
 **Phase-5 security/test SHA:** `2e52626cc57f0f34d5e759e2309a6df108134f58`  
 **Phase-5 checkpoint:** `ed6c916f96ac5e46be1d366a69a670b1e2ed92b3`  
 **Phase-6 acceptance evidence SHA:** `9c7536a217e81d32a4c7fa3e14e1f956b292d7b8`  
-**Phase-6 CODE_COMPLETE candidate checkpoint:** *(pinned after checkpoint commit)*
+**Phase-6 CODE_COMPLETE candidate checkpoint:** `9fb70d791383bfa9f2be3080bae5d6cc3e9998e1`
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
