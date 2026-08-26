@@ -1,7 +1,7 @@
 # Tasks 007 — Opportunity Scout
 
-**Spec status:** `APPROVED` · Phase 1–3 **COMPLETE** · Phase 4 **NOT_STARTED**  
-**Implementation:** Phase 1–3 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED` · Phase 1–4 **COMPLETE** · Phase 5 **NOT_STARTED**  
+**Implementation:** Phase 1–4 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/007-opportunity-scout`  
 **Base SHA:** SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -13,7 +13,9 @@
 **Phase-2 implementation SHA:** `ddd43002c9501b3853744409c343012aae5943ec`  
 **Phase-2 checkpoint:** `5eafd7a170791995f31ce647fa1777dea63e16e3`  
 **Phase-3 implementation SHA:** `78f5c4dade7c411fd9ce143d69e41d70efa30f4f`  
-**Phase-3 checkpoint:** `248b37e1c32cb8a635dc12d864f769be709ceca7`
+**Phase-3 checkpoint:** `248b37e1c32cb8a635dc12d864f769be709ceca7`  
+**Phase-4 implementation SHA:** *(pinned after implementation commit)*  
+**Phase-4 checkpoint:** *(pinned after checkpoint commit)*
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -125,23 +127,31 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 **db.ts / consumer / UI:** **NONE**  
 **Tests:** `tests/opportunityScoutPersistence.test.ts` · `tests/opportunityScoutInfrastructureArchitecture.test.ts`
 
-**Exit:** Phase 3 Persistence COMPLETE · Phase 4 **NOT AUTHORIZED**.
+**Exit:** Phase 3 Persistence COMPLETE · Phase 4 **AUTHORIZED**.
 
 ---
 
-## Phase 4 — Consumer / legacy migration (NOT AUTHORIZED)
+## Phase 4 — Consumer / legacy migration ✅ COMPLETE
 
-- [ ] **T-007-401** Composition root `composeOpportunityScout` + consumer facade
-- [ ] **T-007-402** Strangle `main.ts` Opportunity create to Application Materialize
-- [ ] **T-007-403** Demote `dbService` Opportunity methods from authority
-- [ ] **T-007-404** Migrate OpportunityPanel / ClientPortal to consumer triggers
-- [ ] **T-007-405** Preserve SPEC-003/004 gates; no parallel CREATE_OPPORTUNITY
-- [ ] **T-007-406** Preserve SPEC-006 publication non-ownership
-- [ ] **T-007-407** Consumer architecture bans + adjacent regression suites
+- [x] **T-007-401** Composition root `composeOpportunityScout` + consumer facade — **DONE**
+- [x] **T-007-402** Strangle `main.ts` Opportunity create to Application Materialize — **DONE**
+- [x] **T-007-403** Demote `dbService` Opportunity methods from authority — **DONE**
+- [x] **T-007-404** Migrate OpportunityPanel / ClientPortal to consumer triggers — **DONE**
+- [x] **T-007-405** Preserve SPEC-003/004 gates; no parallel CREATE_OPPORTUNITY — **DONE**
+- [x] **T-007-406** Preserve SPEC-006 publication non-ownership — **DONE**
+- [x] **T-007-407** Consumer architecture bans + adjacent regression suites — **DONE**
 
 **Phase 4 IDs:** T-007-401 … T-007-407  
 **Depends on:** Phase 3 DONE  
-**Maps to:** A23–A29, A42
+**Maps to:** A23–A29 (A42 N/A — acceptance matrix is A1–A40)
+
+**Composition:** `src/composition/opportunityScout/composeOpportunityScout.ts` + `StrategicPlanAuthorizationAdapter.ts`  
+**Consumer:** `src/services/opportunityScoutConsumer.ts`  
+**Migrated:** `main.ts` create + lifecycle · `OpportunityPanel.ts` · `ClientPortal.ts` Scout reads  
+**dbService:** Opportunity mutators **DEPRECATED_AUTHORITY_REMOVED** · `getOpportunityById` **LEGACY_DEAD_OR_COMPATIBILITY_NONAUTHORITY** · `mirrorOpportunityCompatibility` **COMPATIBILITY_WRITE_MIRROR** (after canonical success only)  
+**Tests:** `tests/opportunityScoutPhase4.test.ts` · `tests/opportunityScoutConsumerArchitecture.test.ts`
+
+**Exit:** Phase 4 Consumer COMPLETE · Phase 5 **NOT AUTHORIZED** until separate authorization.
 
 ---
 

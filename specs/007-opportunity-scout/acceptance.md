@@ -4,7 +4,8 @@
 **Phase 1:** Domain **COMPLETE** (T-007-101…110)  
 **Phase 2:** Application + ports **COMPLETE** (T-007-201…211)  
 **Phase 3:** Persistence **COMPLETE** (T-007-301…308) · **LOCAL_AUTHORITATIVE**  
-**SPEC-007 IMPLEMENTATION:** Phase 1–3 **COMPLETE** · Phase 4+ **NOT_AUTHORIZED**  
+**Phase 4:** Consumer / legacy migration **COMPLETE** (T-007-401…407)  
+**SPEC-007 IMPLEMENTATION:** Phase 1–4 **COMPLETE** · Phase 5+ **NOT_AUTHORIZED**  
 **CODE_COMPLETE CANDIDATE:** **NO**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -22,7 +23,9 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-2 implementation SHA:** `ddd43002c9501b3853744409c343012aae5943ec`  
 **Phase-2 checkpoint:** `5eafd7a170791995f31ce647fa1777dea63e16e3`  
 **Phase-3 implementation SHA:** `78f5c4dade7c411fd9ce143d69e41d70efa30f4f`  
-**Phase-3 checkpoint:** `248b37e1c32cb8a635dc12d864f769be709ceca7`
+**Phase-3 checkpoint:** `248b37e1c32cb8a635dc12d864f769be709ceca7`  
+**Phase-4 implementation SHA:** *(pinned after implementation commit)*  
+**Phase-4 checkpoint:** *(pinned after checkpoint commit)*
 
 ### Human SPEC approval (T-007-010)
 
@@ -33,8 +36,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | **Date** | 2026-08-26 |
 | **Timezone** | America/Bogota |
 | **Authorization text** | «Apruebo formalmente SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-010 y el inicio de la Phase 1 de implementación.» |
-| **PHASE-1–3 AUTHORIZATION** | YES (completed) |
-| **PHASE-4 AUTHORIZATION** | NO |
+| **PHASE-1–4 AUTHORIZATION** | YES (completed) |
+| **PHASE-5 AUTHORIZATION** | NO |
 
 ---
 
@@ -45,34 +48,34 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | A1 | Canonical `OpportunityCandidate` aggregate exists | 1 | ✅ PASS | Domain `opportunityCandidateCore.ts` |
 | A2 | Canonical materialized `Opportunity` model | 1 | ✅ PASS | Domain `opportunityCore.ts` |
 | A3 | Stage A intelligence ≠ Stage B execution authority | 0–1 | ✅ PASS | spec + Domain gate |
-| A4 | Thesis explicit — no `[0]` / primary / winner | 1–5 | ◐ PARTIAL | Domain + App + Infra; main pending |
-| A5 | Opportunity Score exists and is explainable | 1–2 | ◐ PARTIAL | Domain + App; consumer pending |
-| A6 | Opportunity Score ≠ SPEC-002 Strategic Score | 1–5 | ◐ PARTIAL | Domain + App + Infra fidelity; circuit pending |
+| A4 | Thesis explicit — no `[0]` / primary / winner | 1–5 | ◐ PARTIAL | Domain+App+Infra+consumer; Phase 5 circuit |
+| A5 | Opportunity Score exists and is explainable | 1–2 | ◐ PARTIAL | Domain + App; UI score surface limited |
+| A6 | Opportunity Score ≠ SPEC-002 Strategic Score | 1–5 | ◐ PARTIAL | Domain + App + Infra; Phase 5 circuit |
 | A7 | Multi-thesis evaluation explicit on candidates | 1–2 | ✅ PASS | Domain + App register/evaluate |
-| A8 | Materialized Opportunity binds exactly one thesisId | 1–4 | ◐ PARTIAL | Domain + App + Infra; migrate pending |
-| A9 | Materialize requires SPEC-004 CREATE_OPPORTUNITY allow | 2–5 | ◐ PARTIAL | App PlanAuth port; consumer pending |
-| A10 | Trusted actor wins over caller spoof | 2–5 | ◐ PARTIAL | App trusted context; consumer pending |
-| A11 | Tenant isolation (org\|client\|id) | 1–5 | ◐ PARTIAL | Domain + App + Infra ports; legacy db pending |
-| A12 | Cross-org / cross-client deny | 1–5 | ◐ PARTIAL | Domain + App + Infra; legacy db pending |
-| A13 | Human accept/decline governed | 2–5 | ◐ PARTIAL | App use cases; consumer pending |
-| A14 | AI cannot authorize materialize/accept/submit | 2–5 | ◐ PARTIAL | Domain + App actor deny |
-| A15 | Caller snapshot authority = 0 | 2–5 | ◐ PARTIAL | App ignores snapshots; consumer pending |
-| A16 | UI status-alone authority = 0 | 4–5 | ☐ PENDING | Arch bans |
+| A8 | Materialized Opportunity binds exactly one thesisId | 1–4 | ✅ PASS | Domain + App + Infra + consumer |
+| A9 | Materialize requires SPEC-004 CREATE_OPPORTUNITY allow | 2–5 | ✅ PASS | App + consumer PlanAuth adapter |
+| A10 | Trusted actor wins over caller spoof | 2–5 | ✅ PASS | App + consumer trusted context |
+| A11 | Tenant isolation (org\|client\|id) | 1–5 | ✅ PASS | Domain + App + Infra + consumer |
+| A12 | Cross-org / cross-client deny | 1–5 | ✅ PASS | Domain + App + Infra + consumer |
+| A13 | Human accept/decline governed | 2–5 | ✅ PASS | App + consumer lifecycle |
+| A14 | AI cannot authorize materialize/accept/submit | 2–5 | ◐ PARTIAL | Domain + App actor deny; Phase 5 adversarial |
+| A15 | Caller snapshot authority = 0 | 2–5 | ✅ PASS | App + consumer ignore snapshots |
+| A16 | UI status-alone authority = 0 | 4–5 | ✅ PASS | Panel display-only; main → Application |
 | A17 | History append-only | 3–5 | ✅ PASS | Infra history adapter |
 | A18 | History is not current authority | 3–5 | ✅ PASS | AUDIT_ONLY + adversarial test |
-| A19 | Idempotent register/evaluate/materialize/lifecycle | 2–5 | ◐ PARTIAL | App + durable local keys; consumer pending |
+| A19 | Idempotent register/evaluate/materialize/lifecycle | 2–5 | ✅ PASS | App + durable keys + consumer materialize |
 | A20 | Explainability projection (why/whyNow/score/risks) | 1–3 | ◐ PARTIAL | Domain + App projections |
 | A21 | Domain framework-pure | 1–5 | ✅ PASS | Arch tests Phase 1 |
 | A22 | Application depends on ports | 2–5 | ✅ PASS | App arch tests Phase 2 |
-| A23 | `dbService` Opportunity demoted from authority | 4 | ☐ PENDING | Migration + gate |
-| A24 | OpportunityPanel / ClientPortal triggers only | 4 | ☐ PENDING | Consumer |
-| A25 | main.ts create path uses Application Materialize | 4 | ☐ PENDING | Consumer |
-| A26 | SPEC-003 Brief mutation by 007 = 0 | 4–5 | ☐ PENDING | Arch bans |
-| A27 | SPEC-004 Plan gate preserved / no parallel | 4–5 | ☐ PENDING | Tests |
-| A28 | SPEC-006 publication not owned by 007 | 4–5 | ◐ PARTIAL | App/Infra arch bans; consumer pending |
-| A29 | Denied Plan → materialize side effects 0 | 4–5 | ◐ PARTIAL | App deny tests; consumer pending |
-| A30 | Canonical lifecycle unifies dual legacy statuses | 1–4 | ◐ PARTIAL | Domain + App + legacy compat reader; migrate Phase 4 |
-| A31 | Legacy status mapping documented / no silent coerce of ambiguous | 0–4 | ◐ PARTIAL | Domain map + Phase 3 MIGRATION_REVIEW_REQUIRED |
+| A23 | `dbService` Opportunity demoted from authority | 4 | ✅ PASS | Demotion + mirror-only + arch scan |
+| A24 | OpportunityPanel / ClientPortal triggers only | 4 | ✅ PASS | Consumer list + main intent handlers |
+| A25 | main.ts create path uses Application Materialize | 4 | ✅ PASS | `materializeOpportunityForDelivery` |
+| A26 | SPEC-003 Brief mutation by 007 = 0 | 4–5 | ✅ PASS | Consumer/arch bans |
+| A27 | SPEC-004 Plan gate preserved / no parallel | 4–5 | ✅ PASS | PlanAuth adapter + deny tests |
+| A28 | SPEC-006 publication not owned by 007 | 4–5 | ✅ PASS | App/Infra/consumer arch bans |
+| A29 | Denied Plan → materialize side effects 0 | 4–5 | ✅ PASS | App + consumer deny/no-mirror |
+| A30 | Canonical lifecycle unifies dual legacy statuses | 1–4 | ✅ PASS | Canonical status in UI; dual COMPATIBILITY only |
+| A31 | Legacy status mapping documented / no silent coerce of ambiguous | 0–4 | ✅ PASS | Domain map + MIGRATION_REVIEW_REQUIRED |
 | A32 | SPEC-001 regression PASS | 6 | ☐ PENDING | Phase 6 |
 | A33 | SPEC-002 regression PASS | 6 | ☐ PENDING | Phase 6 |
 | A34 | SPEC-003 regression PASS | 6 | ☐ PENDING | Phase 6 |
@@ -83,7 +86,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | A39 | LOCAL_AUTHORITATIVE documented | 3–6 | ✅ PASS | Phase 3 store keys + plan |
 | A40 | `npm run check` + `test:rules` PASS | 6 | ☐ PENDING | Phase 6 |
 
-**Implementation acceptance A1–A40 (Phase 3):** **9 PASS** · **17 PARTIAL** · **0 FAIL** · **14 PENDING**  
+**Implementation acceptance A1–A40 (Phase 4):** **27 PASS** · **5 PARTIAL** · **0 FAIL** · **8 PENDING**  
 **CODE_COMPLETE CANDIDATE:** **NO**  
 **HUMAN SPEC APPROVAL (T-007-010):** **DONE**
 
@@ -101,6 +104,21 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 
 ---
 
+## Findings disposition (Phase 4)
+
+| Audit | Disposition |
+|-------|-------------|
+| AUDIT007-02 | **RESOLVED** — active create/lifecycle authority is SPEC-007 Application via consumer |
+| AUDIT007-03 | **RESOLVED** — dual legacy lifecycle no longer active authority (COMPATIBILITY mirror only) |
+| AUDIT007-04 | **RESOLVED** — no active authoritative id-only consumer path (`getOpportunityById` dead on SPEC-007 paths) |
+| AUDIT007-05 | **RESOLVED** — consumers use Application list/get; UI does not recompute OpportunityScore / materialize from score |
+| AUDIT007-07 | **RESOLVED** (unchanged) |
+| AUDIT007-08 | **OPEN_NONBLOCKING** — spotlight `[0]` remains DISPLAY_ONLY (proven; no thesis/lifecycle/materialize authority) |
+
+**P0 = 0 · P1 = 0 · P2 = 0 · P3 = 1**
+
+---
+
 ## Sign-off tracking
 
 | Milestone | Status |
@@ -110,10 +128,11 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | Phase 1 Domain | ✅ COMPLETE |
 | Phase 2 Application | ✅ COMPLETE |
 | Phase 3 Persistence | ✅ COMPLETE · LOCAL_AUTHORITATIVE |
-| Phase 4–6 | ☐ NOT_AUTHORIZED / NOT_STARTED |
+| Phase 4 Consumer | ✅ COMPLETE |
+| Phase 5–6 | ☐ NOT_AUTHORIZED / NOT_STARTED |
 | CODE_COMPLETE | ☐ NO |
 | DEPLOYED / DONE | ☐ **NO** |
 
-**Current:** Phase 3 **COMPLETE** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
+**Current:** Phase 4 **COMPLETE** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
 
-**Next allowed state:** Phase 4 Consumer migration (requires separate authorization) — **STOP**.
+**Next allowed state:** Phase 5 Security / adversarial (requires separate authorization) — **STOP**.

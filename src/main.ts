@@ -121,6 +121,14 @@ import {
   formatPlannedAuthorizationDenial,
   requirePlannedAuthorization,
 } from './services/strategicPlanConsumer';
+import {
+  acceptClientOpportunity,
+  declineClientOpportunity,
+  materializeOpportunityForDelivery,
+  OpportunityApplicationError,
+  submitClientOpportunity,
+  toggleClientOpportunityChecklistItem,
+} from './services/opportunityScoutConsumer';
 import { fetchSourceItems } from './services/sourceApi';
 import { labelSourceRunError } from './domain/sourceIngestCore';
 import { esc } from './lib/escape';
@@ -3200,9 +3208,12 @@ class App {
           createdTasks += 1;
           for (const sid of plan.gate.signalIds) convertedSignalIds.push(sid);
         } else if (plan.kind === 'opportunity') {
-          dbService.addOpportunity({
-            organizationId: plan.thesis.organizationId,
+          // SPEC-007 Phase 4: canonical MaterializeOpportunity after SPEC-004 gate.
+          // No dbService.addOpportunity authority; no legacy fallback on deny.
+          materializeOpportunityForDelivery({
             clientId,
+            planId: plan.gate.planId,
+            planItemId: plan.gate.planItemId,
             thesisId: plan.thesis.id,
             title: plan.item.title.slice(0, 120),
             organization: plan.entry?.sourceName || 'Por confirmar',
@@ -3210,10 +3221,10 @@ class App {
             deadline: new Date(Date.now() + 21 * 86400000).toISOString(),
             description: plan.item.note || plan.item.title,
             fitRationale: plan.item.rationale || 'Alineado con la tesis activa.',
-            status: 'SENT_TO_CLIENT',
             strategicBriefId: plan.gate.briefId,
             strategicBriefVersion: plan.gate.version,
             signalId: plan.gate.signalIds[0],
+            intentKey: `delivery:${packageId}:opp:${plan.item.id || plan.item.title}`,
           });
           for (const sid of plan.gate.signalIds) convertedSignalIds.push(sid);
         } else if (plan.kind === 'evidence') {
@@ -4167,8 +4178,26 @@ class App {
         dbService.updateTaskStatus(targetId, 'IN_PROGRESS', undefined, notes);
         this.showToast('Observaciones enviadas a tu Brand Manager', 'info');
       } else if (type === 'OPPORTUNITY') {
-        dbService.updateOpportunityDecision(targetId, 'REJECTED', notes);
-        this.showToast('Oportunidad descartada con tus observaciones', 'info');
+        const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
+        if (!clientId) {
+          this.showToast('Cliente no resuelto — no se puede declinar la oportunidad', 'warning');
+          return;
+        }
+        try {
+          declineClientOpportunity({
+            clientId,
+            opportunityId: targetId,
+            notes,
+          });
+          this.showToast('Oportunidad descartada con tus observaciones', 'info');
+        } catch (err) {
+          const message =
+            err instanceof OpportunityApplicationError
+              ? err.message
+              : 'No se pudo declinar la oportunidad';
+          this.showToast(message, 'warning');
+          return;
+        }
       } else if (type === 'CONTENT') {
         this.rejectClientArticle(targetId, notes, taskId);
       }
@@ -4286,18 +4315,32 @@ class App {
       btn.addEventListener('click', (e) => {
         const oppId = (e.currentTarget as HTMLElement).getAttribute('data-opp-id');
         if (!oppId) return;
-        const opp = dbService.getOpportunityById(oppId);
-        dbService.updateOpportunityDecision(oppId, 'ACCEPTED', 'Aceptado con disponibilidad completa.');
-        if (opp?.clientId) {
+        const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
+        if (!clientId) {
+          this.showToast('Cliente no resuelto — no se puede aceptar la oportunidad', 'warning');
+          return;
+        }
+        try {
+          const opp = acceptClientOpportunity({
+            clientId,
+            opportunityId: oppId,
+            notes: 'Aceptado con disponibilidad completa.',
+          });
           notifyManager(opp.clientId, {
             type: 'OPPORTUNITY',
             title: 'Oportunidad aceptada',
             body: `«${opp.title}» — el cliente completará el checklist de postulación.`,
             href: 'ws-briefing',
           });
+          this.showToast('Oportunidad aceptada. Completa el checklist de postulación.', 'success');
+          this.render();
+        } catch (err) {
+          const message =
+            err instanceof OpportunityApplicationError
+              ? err.message
+              : 'No se pudo aceptar la oportunidad';
+          this.showToast(message, 'warning');
         }
-        this.showToast('Oportunidad aceptada. Completa el checklist de postulación.', 'success');
-        this.render();
       });
     });
 
@@ -4307,8 +4350,26 @@ class App {
         const oppId = el.getAttribute('data-opp-id');
         const itemId = el.getAttribute('data-item-id');
         if (!oppId || !itemId) return;
-        dbService.toggleOpportunityChecklistItem(oppId, itemId, el.checked);
-        this.render();
+        const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
+        if (!clientId) {
+          this.showToast('Cliente no resuelto', 'warning');
+          return;
+        }
+        try {
+          toggleClientOpportunityChecklistItem({
+            clientId,
+            opportunityId: oppId,
+            itemId,
+            done: el.checked,
+          });
+          this.render();
+        } catch (err) {
+          const message =
+            err instanceof OpportunityApplicationError
+              ? err.message
+              : 'No se pudo actualizar el checklist';
+          this.showToast(message, 'warning');
+        }
       });
     });
 
@@ -4316,21 +4377,31 @@ class App {
       btn.addEventListener('click', (e) => {
         const oppId = (e.currentTarget as HTMLElement).getAttribute('data-opp-id');
         if (!oppId) return;
-        const opp = dbService.getOpportunityById(oppId);
-        if (!dbService.submitOpportunity(oppId)) {
-          this.showToast('Completa todos los ítems del checklist antes de enviar.', 'warning');
+        const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
+        if (!clientId) {
+          this.showToast('Cliente no resuelto', 'warning');
           return;
         }
-        if (opp?.clientId) {
+        try {
+          const opp = submitClientOpportunity({
+            clientId,
+            opportunityId: oppId,
+          });
           notifyManager(opp.clientId, {
             type: 'OPPORTUNITY',
             title: 'Postulación enviada',
             body: `«${opp.title}» — el cliente marcó la postulación como enviada.`,
             href: 'ws-briefing',
           });
+          this.showToast('Postulación marcada como enviada. Tu Brand Manager fue notificado.', 'success');
+          this.render();
+        } catch (err) {
+          const message =
+            err instanceof OpportunityApplicationError
+              ? err.message
+              : 'Completa todos los ítems del checklist antes de enviar.';
+          this.showToast(message, 'warning');
         }
-        this.showToast('Postulación marcada como enviada. Tu Brand Manager fue notificado.', 'success');
-        this.render();
       });
     });
 

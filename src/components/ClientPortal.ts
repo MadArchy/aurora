@@ -6,6 +6,10 @@ import { icon } from '../lib/icons';
 import { renderClientProfileBody } from './ClientProfilePanel';
 import { renderProofWall, renderServiceLinesReadOnly } from './ProofWallPanel';
 import { renderClientOpportunitiesBody, renderOpportunityCard, renderOpportunitySpotlight } from './OpportunityPanel';
+import {
+  listOpportunitiesForClient,
+  type OpportunityDisplayProjection,
+} from '../services/opportunityScoutConsumer';
 import { renderKpiHomeDashboard, renderKpiSummaryTiles, renderKpiWeeklyChart } from './KpiWeeklyChart';
 import { CAMP_ADOPTION } from '../data/juanCampaignSeed';
 import { deliveryItemKindLabel, deliveryStatusLabel } from '../domain/deliveryCore';
@@ -107,7 +111,12 @@ export function renderClientPortal(
   const tasks = dbService.getTasksForClient(client.id, campaignId);
   const theses = dbService.getThesesByClient(client.id);
   const profile = dbService.getMasterProfile(client.id);
-  const opportunities = dbService.getOpportunitiesByClient(client.id);
+  let opportunities: OpportunityDisplayProjection[] = [];
+  try {
+    opportunities = listOpportunitiesForClient(client.id);
+  } catch {
+    opportunities = [];
+  }
   const campaigns = dbService.getCampaignsByClient(client.id);
   const effectiveCampaignId = campaignId || campaigns[0]?.id || CAMP_ADOPTION;
 
@@ -423,7 +432,7 @@ function renderClientHomeBody(
   `;
 }
 
-function renderClientTaskFeedBody(_client: ReturnType<typeof dbService.getClientById>, tasks: ReturnType<typeof dbService.getTasksByClient>, opportunities: ReturnType<typeof dbService.getOpportunitiesByClient>): string {
+function renderClientTaskFeedBody(_client: ReturnType<typeof dbService.getClientById>, tasks: ReturnType<typeof dbService.getTasksByClient>, opportunities: OpportunityDisplayProjection[]): string {
   const pendingTasks = tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
 
   return `
@@ -508,7 +517,6 @@ function renderClientTaskFeedBody(_client: ReturnType<typeof dbService.getClient
         <div class="opportunity-list">
           ${opportunities.length
             ? opportunities
-                .filter((o) => o.status !== 'ARCHIVED')
                 .map((opp) => renderOpportunityCard(opp))
                 .join('')
             : '<p class="empty-state">No hay oportunidades pendientes por ahora.</p>'}

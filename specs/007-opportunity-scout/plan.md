@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `007-opportunity-scout` |
-| **Phase** | Phase 0–3 **COMPLETE** · Phase 4+ **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`APPROVED`** · Phase 3 Persistence **COMPLETE** · **LOCAL_AUTHORITATIVE** |
+| **Phase** | Phase 0–4 **COMPLETE** · Phase 5+ **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** · Phase 4 Consumer **COMPLETE** · canonical Opportunity authority = SPEC-007 |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Branch** | `spec/007-opportunity-scout` |
@@ -16,10 +16,10 @@
 
 Working Opportunity flows already exist:
 
-- SPEC-003/004 gate on `CREATE_OPPORTUNITY` before `dbService.addOpportunity` in `main.ts`
-- Client “The Scout” UI with accept/decline/checklist/submit
-- Domain helpers: `opportunityLifecycle`, `clientOpportunityCore`
-- Local persistence: `postura_opportunities_v5`
+- SPEC-003/004 gate on `CREATE_OPPORTUNITY` before canonical `MaterializeOpportunity` (via `opportunityScoutConsumer`)
+- Client “The Scout” UI with accept/decline/checklist/submit via Application
+- Domain helpers: `opportunityLifecycle` (COMPATIBILITY templates), `clientOpportunityCore` (DISPLAY_ONLY spotlight)
+- Local persistence: canonical `postura_opportunity_v1*` + legacy `postura_opportunities_v5` COMPATIBILITY mirror
 
 Debt is **missing Opportunity Intelligence ownership + governed lifecycle Application**, not absence of any Opportunity path.
 
@@ -107,10 +107,14 @@ TARGET:
 - db.ts / consumer / UI — **NONE**
 - Guarantee: coherent in-memory write unit + persist (not distributed ACID)
 
-### Phase 4 — Consumer migration (NOT AUTHORIZED)
+### Phase 4 — Consumer migration ✅ COMPLETE
 
-- Strangle main/db/UI Opportunity paths through Application
-- Preserve SPEC-003/004 gates; demote raw db authority
+- Composition: `composeOpportunityScout` + `opportunityScoutConsumer` — **DONE**
+- `main.ts` CREATE_OPPORTUNITY → `materializeOpportunityForDelivery` — **DONE**
+- OpportunityPanel / ClientPortal → Application list + intent triggers — **DONE**
+- `dbService` Opportunity mutators demoted; mirror after canonical success only — **DONE**
+- SPEC-003/004/006 boundaries preserved — **DONE**
+- Spotlight `[0]` remains DISPLAY_ONLY (AUDIT007-08 OPEN_NONBLOCKING)
 
 ### Phase 5 — Security (NOT AUTHORIZED)
 
@@ -159,10 +163,10 @@ Legacy key `postura_opportunities_v5` → migrate under Phase 3–4 adapters (CO
 | ID | Sev | Action |
 |----|-----|--------|
 | F-007-01 | P1 | **RESOLVED** Phase 0 |
-| F-007-02 | P1 | **APPLICATION_IMPLEMENTED_MIGRATION_PENDING** (db/UI/main until Phase 4) |
-| F-007-03 | P2 | **PERSISTENCE_READY_MIGRATION_PENDING** |
-| F-007-04 | P2 | **INFRASTRUCTURE_TENANT_SAFE_LEGACY_PENDING** (canonical ports+store; db.ts id-only remains) |
-| F-007-05 | P2 | **APPLICATION_SCORE_WORKFLOW_IMPLEMENTED_CONSUMER_PENDING** |
+| F-007-02 | P1 | **RESOLVED** (consumer Application authority; db/UI/main demoted) |
+| F-007-03 | P2 | **RESOLVED** (dual lifecycle COMPATIBILITY only; canonical status authoritative) |
+| F-007-04 | P2 | **RESOLVED** (id-only `getOpportunityById` not on active SPEC-007 paths) |
+| F-007-05 | P2 | **RESOLVED** (consumers use Application; no UI score→materialize) |
 | F-007-06 | P2 | **RESOLVED** Phase 0 design |
 | F-007-07 | P3 | **RESOLVED** (durable Opportunity-owned history LOCAL_AUTHORITATIVE) |
 | F-007-08 | P3 | **OPEN_NONBLOCKING** display |

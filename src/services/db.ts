@@ -1739,14 +1739,29 @@ class DataService {
   }
 
   // Opportunities
+  /**
+   * SPEC-007 Phase 4 — COMPATIBILITY_READ_ONLY.
+   * Prefer opportunityScoutConsumer.listOpportunitiesForClient (canonical Application).
+   * Not SPEC-007 authority.
+   */
   public getOpportunitiesByClient(clientId: string): Opportunity[] {
     return this.opportunities.filter(o => o.clientId === clientId);
   }
 
+  /**
+   * SPEC-007 Phase 4 — LEGACY_DEAD_OR_COMPATIBILITY_NONAUTHORITY (AUDIT007-04).
+   * Id-only lookup must NOT be used as canonical Opportunity authority.
+   * Canonical reads require organizationId + clientId + opportunityId via Application.
+   */
   public getOpportunityById(id: string): Opportunity | undefined {
     return this.opportunities.find((opp) => opp.id === id);
   }
 
+  /**
+   * SPEC-007 Phase 4 — DEPRECATED_AUTHORITY_REMOVED from strategic consumers.
+   * Retained for legacy test/compat surfaces only — NOT Opportunity authority.
+   * Active SPEC-007 paths use acceptClientOpportunity / declineClientOpportunity.
+   */
   public updateOpportunityDecision(id: string, decision: 'ACCEPTED' | 'REJECTED', notes?: string): void {
     const opp = this.opportunities.find(o => o.id === id);
     if (!opp) return;
@@ -1763,6 +1778,10 @@ class DataService {
     this.saveAll();
   }
 
+  /**
+   * SPEC-007 Phase 4 — DEPRECATED_AUTHORITY_REMOVED.
+   * Active paths: toggleClientOpportunityChecklistItem via Application.
+   */
   public toggleOpportunityChecklistItem(oppId: string, itemId: string, done: boolean): boolean {
     const opp = this.getOpportunityById(oppId);
     if (!opp?.submissionChecklist) return false;
@@ -1775,6 +1794,10 @@ class DataService {
     return true;
   }
 
+  /**
+   * SPEC-007 Phase 4 — DEPRECATED_AUTHORITY_REMOVED.
+   * Active paths: submitClientOpportunity via Application.
+   */
   public submitOpportunity(oppId: string): boolean {
     const opp = this.getOpportunityById(oppId);
     if (!opp?.submissionChecklist?.every((item) => item.done)) return false;
@@ -1783,6 +1806,22 @@ class DataService {
     opp.submittedAt = new Date().toISOString();
     this.saveAll();
     return true;
+  }
+
+  /**
+   * SPEC-007 Phase 4 — COMPATIBILITY_WRITE_MIRROR only.
+   * Called AFTER canonical Application success from opportunityScoutConsumer.
+   * Must never be used as fallback after Application deny, and must not establish
+   * dual lifecycle authority (legacy status/stage are display/compat only).
+   */
+  public mirrorOpportunityCompatibility(opp: Opportunity): void {
+    const idx = this.opportunities.findIndex((row) => row.id === opp.id);
+    if (idx >= 0) {
+      this.opportunities[idx] = { ...this.opportunities[idx], ...opp };
+    } else {
+      this.opportunities.unshift({ ...opp });
+    }
+    this.saveAll();
   }
 
   // Campaigns (F8-D08)
@@ -2074,6 +2113,12 @@ class DataService {
     }
   }
 
+  /**
+   * SPEC-007 Phase 4 — DEPRECATED_AUTHORITY_REMOVED from strategic create path.
+   * main.ts CREATE_OPPORTUNITY must use materializeOpportunityForDelivery.
+   * Retained for seed/legacy tests only — NOT strategic Opportunity authority.
+   * Prefer: mirrorOpportunityCompatibility after canonical Materialize success.
+   */
   public addOpportunity(opp: Omit<Opportunity, 'id' | 'createdAt'>): Opportunity {
     const item: Opportunity = {
       ...opp,
@@ -2086,6 +2131,14 @@ class DataService {
     return item;
   }
 
+  /**
+   * SPEC-007 Phase 4 — COMPATIBILITY_READ_ONLY / UNCHANGED_NONAUTHORITATIVE.
+   * Global list — never use as tenant-filtered-after-load authority.
+   */
+  public getAllOpportunities(): Opportunity[] {
+    return this.opportunities;
+  }
+
   public addResult(result: Omit<ResultRecord, 'id' | 'createdAt'>): ResultRecord {
     const item: ResultRecord = { ...result, id: createId('res'), createdAt: new Date().toISOString() };
     this.results.unshift(item);
@@ -2095,10 +2148,6 @@ class DataService {
 
   public getResultsByClient(clientId: string): ResultRecord[] {
     return this.results.filter((r) => r.clientId === clientId);
-  }
-
-  public getAllOpportunities(): Opportunity[] {
-    return this.opportunities;
   }
 
   // ==========================================

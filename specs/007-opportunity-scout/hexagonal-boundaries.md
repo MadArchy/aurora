@@ -2,17 +2,17 @@
 
 ---
 
-## Target layering (Phase 3 Infrastructure adapters implemented; Composition/consumer Phase 4+)
+## Target layering (Phase 4 composition + consumer wired)
 
 ```text
-Interfaces / UI (OpportunityPanel, ClientPortal, main.ts)
+Interfaces / UI (OpportunityPanel, ClientPortal, main.ts) — intent / display only
         ↓
-Composition seam (future: opportunityScoutConsumer / composeOpportunityScout)
+Composition seam (opportunityScoutConsumer / composeOpportunityScout)
         ↓
 Application (Register/Evaluate/Materialize/Accept/Checklist/Submit/…)
         ↓
 Domain (opportunityCandidateCore, opportunityCore, opportunityScoreCore,
-        opportunityGateCore, opportunityTenantCore, opportunityLifecycleCore)
+        opportunityMaterializeGateCore, opportunityTenantCore, opportunityLifecycleCore)
         ↑
 Ports ← Infrastructure (local stores, Brief/Plan readers, clock, actor,
                         optional OpportunityAdvisorPort → SPEC-005)
