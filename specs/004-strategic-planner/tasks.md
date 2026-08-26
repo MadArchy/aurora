@@ -178,4 +178,4 @@ Deploy:   D1, D2, D3
 
 **Total authored task IDs:** 10 + 10 + 11 + 8 + 7 + 10 + 5 = **61** (+ 3 deploy)
 
-**Phase-0 governance checkpoint:** pending commit on `spec/004-strategic-planner`
+**Phase-0 governance checkpoint:** `c851d4070151e3927bb3dd3c1e2628d1faddf2da` on `spec/004-strategic-planner`
