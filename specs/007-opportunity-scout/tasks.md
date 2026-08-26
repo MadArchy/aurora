@@ -33,6 +33,9 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 
 **Newly authored Phase 0 IDs:** T-007-001 … T-007-010
 
+**Phase-0 package SHA:** `23ba8b2934cb170831621f8186523ae14f88d5d4`  
+**Phase-0 final checkpoint:** `23ba8b2934cb170831621f8186523ae14f88d5d4` (package commit; no endless self-SHA pin)
+
 **Required human approval statement (T-007-010):**
 
 > «Apruebo formalmente SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-010 y el inicio de la Phase 1 de implementación.»
