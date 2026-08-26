@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `004-strategic-planner` |
-| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · **Phase 4 COMPLETE** · **Phase 5 COMPLETE** · Phase 6 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · **Phase 4 COMPLETE** · **Phase 5 COMPLETE** · **Phase 6 EVIDENCE COMPLETE** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Status** | **`APPROVED`** (T-004-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
@@ -114,9 +114,12 @@ Content → **downstream** (SPEC-006 publication).
 - Cross-SPEC regressions green; product fixes = 0
 - SPEC-009 production deferred unchanged
 
-### Phase 6 — Acceptance (NOT AUTHORIZED)
+### Phase 6 — Acceptance ✅ EVIDENCE COMPLETE
 
-- A* evidence + human CODE_COMPLETE (T-004-604)
+- A1–A42 = **42/42 PASS** (fresh cross-SPEC + full baseline)
+- T-004-601/602/603/605 **DONE**
+- T-004-604 human CODE_COMPLETE sign-off **PENDING**
+- CODE_COMPLETE_CANDIDATE = **YES** · CODE_COMPLETE = **NO**
 
 ---
 

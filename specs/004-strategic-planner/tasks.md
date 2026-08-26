@@ -1,7 +1,7 @@
 ﻿# Tasks 004 â€” Strategic Planner
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_5_COMPLETE** · Phase 6 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **PHASE_6_EVIDENCE_COMPLETE** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/004-strategic-planner`  
 **Base SHA:** SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -192,23 +192,35 @@ Phase 5 **AUTHORIZED** (2026-08-25) · **COMPLETE**.
 **Phase-5 security implementation SHA:** `51a64bc4cd528531c7b5887979bd59c919236191`  
 **Phase-5 governance checkpoint:** `24482dc2e51c146051c2afb8b053626b81fb8a08`
 
-Phase 6 **NOT_AUTHORIZED**.
+Phase 6 **AUTHORIZED** (2026-08-25) · evidence **COMPLETE** · human gate **PENDING**.
 
 ---
 
-## Phase 6 â€” Acceptance / CODE_COMPLETE (NOT AUTHORIZED)
+## Phase 6 — Acceptance / CODE_COMPLETE ✅ EVIDENCE COMPLETE
 
-- [ ] **T-004-601** Consolidate A1â€“A42 evidence matrix
-- [ ] **T-004-602** `npm run check` PASS
-- [ ] **T-004-603** `npm run test:rules` PASS
-- [ ] **T-004-604** Human CODE_COMPLETE sign-off â€” **PENDING** (separate from T-004-010)
-- [ ] **T-004-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED
+- [x] **T-004-601** Consolidate A1–A42 evidence matrix — **DONE**
+- [x] **T-004-602** `npm run check` PASS — **DONE** (1120/1120 fresh)
+- [x] **T-004-603** `npm run test:rules` PASS — **DONE** (91/91 fresh)
+- [ ] **T-004-604** Human CODE_COMPLETE sign-off — **PENDING** (separate from T-004-010)
+- [x] **T-004-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED — **DONE**
 
-**Phase 6 IDs:** T-004-601 â€¦ T-004-605
+**Phase 6 IDs:** T-004-601 … T-004-605
+
+**Evidence:**
+- A1–A42 = **42/42 PASS** · 0 PARTIAL · 0 FAIL · 0 PENDING
+- Cross-SPEC: SPEC-001 **68/68** · SPEC-002 **63/63** · SPEC-003 **43/43** · SPEC-005 **24/24** · SPEC-006 **35/35**
+- Phase regressions: P5 **50/50** · P4 **20/20** · P3 **19/19** · P2 **32/32** · P1 **23/23** · Adjacent **28/28**
+- Threats **17/17 PASS** · F-004-03 **RESOLVED** · F-004-04 **OPEN_NONBLOCKING**
+- Product changes **0** · Test changes **0**
+- CODE_COMPLETE_CANDIDATE = **YES** · CODE_COMPLETE = **NO** (T-004-604 pending)
+
+**Phase-6 acceptance evidence SHA:** _(recorded at commit)_
+
+Human sign-off task T-004-604 remains **PENDING**. Do not mark DONE without explicit human approval.
 
 ---
 
-## Deployment (SEPARATE AUTHORIZATION â€” NOT STARTED)
+## Deployment (SEPARATE AUTHORIZATION — NOT STARTED)
 
 - [ ] **D1** Remote persistence / rules plan with SPEC-009
 - [ ] **D2** Production deploy authorization
