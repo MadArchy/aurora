@@ -190,7 +190,7 @@ Phase 5 **AUTHORIZED** (2026-08-25) · **COMPLETE**.
 - SPEC-009 PRODUCTION = **DEFERRED_UNCHANGED**
 
 **Phase-5 security implementation SHA:** `51a64bc4cd528531c7b5887979bd59c919236191`  
-**Phase-5 governance checkpoint:** _(next commit)_
+**Phase-5 governance checkpoint:** `24482dc2e51c146051c2afb8b053626b81fb8a08`
 
 Phase 6 **NOT_AUTHORIZED**.
 
