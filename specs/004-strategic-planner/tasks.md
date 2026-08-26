@@ -127,7 +127,7 @@ Firestore Plan rules = FUTURE / SPEC-009
 - F-004-04 remains **OPEN_NONBLOCKING**
 
 **Phase-3 implementation SHA:** `e569e67aa78feeade33cccab283e63701c879e52`  
-**Phase-3 governance checkpoint:** pending (this commit)
+**Phase-3 governance checkpoint:** ca9a6c926fd7cceee975893abc8d0dae896718f0
 
 Phase 4 **NOT_AUTHORIZED**.
 
