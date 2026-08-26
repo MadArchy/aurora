@@ -32,7 +32,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-4 checkpoint:** `85dc11255da419cdb6be1588a5e86584b38d6f4f`  
 **Phase-5 security/test SHA:** `2e52626cc57f0f34d5e759e2309a6df108134f58`  
 **Phase-5 checkpoint:** `ed6c916f96ac5e46be1d366a69a670b1e2ed92b3`  
-**Phase-6 acceptance evidence SHA:** *(pinned after evidence commit)*  
+**Phase-6 acceptance evidence SHA:** `9c7536a217e81d32a4c7fa3e14e1f956b292d7b8`  
 **Phase-6 CODE_COMPLETE candidate checkpoint:** *(pinned after checkpoint commit)*
 
 ### Human SPEC approval (T-007-010)
