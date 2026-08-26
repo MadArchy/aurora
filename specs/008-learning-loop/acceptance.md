@@ -12,7 +12,8 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 **Human SPEC approval model:** TASK-LEVEL only (T-008-010).  
 **Human CODE_COMPLETE model:** TASK-LEVEL only (T-008-604).  
 **Implementation baseline:** SPEC-007 CODE_COMPLETE @ `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0`  
-**Branch:** `spec/008-learning-loop`
+**Branch:** `spec/008-learning-loop`  
+**Phase-0 checkpoint:** `deaf797b2aa38d8ef724a0fadb9886de0e848f70`
 
 ### Human SPEC approval (T-008-010) — REQUIRED
 

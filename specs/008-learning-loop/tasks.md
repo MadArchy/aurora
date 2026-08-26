@@ -6,8 +6,8 @@
 **Base SHA:** SPEC-007 CODE_COMPLETE `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0`  
 **Upstream SPEC-007:** `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0` · **FROZEN**  
 **Human SPEC approval:** **PENDING** (T-008-010)  
-**Phase-0 package SHA:** *(recorded after commit)*  
-**Phase-0 checkpoint SHA:** *(recorded after commit)*
+**Phase-0 package SHA:** `deaf797b2aa38d8ef724a0fadb9886de0e848f70`  
+**Phase-0 final checkpoint:** `deaf797b2aa38d8ef724a0fadb9886de0e848f70`
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
