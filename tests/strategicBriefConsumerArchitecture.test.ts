@@ -10,11 +10,17 @@ function stripComments(content: string): string {
 }
 
 describe('SPEC-003 Phase 4 — strategic consumer architecture', () => {
-  it('main.ts strategic paths call gateStrategicDownstream or requireStrategicAuthorization', () => {
+  it('main.ts strategic paths call gateStrategicDownstream with Plan+Brief mediation', () => {
     const content = readFileSync(MAIN, 'utf8');
     expect(content).toContain('gateStrategicDownstream');
-    expect(content).toContain('requireStrategicAuthorization');
-    expect(content).toContain('formatAuthorizationDenial');
+    expect(content).toContain('requirePlannedAuthorization');
+    // Brief AuthorizeStrategicDownstream still invoked inside SPEC-004 Plan consumer.
+    const planConsumer = readFileSync(
+      join(ROOT, 'src/services/strategicPlanConsumer.ts'),
+      'utf8'
+    );
+    expect(planConsumer).toContain('requireStrategicAuthorization');
+    expect(planConsumer).toContain('formatAuthorizationDenial');
   });
 
   it('main.ts does not authorize strategic content via direct brief.status checks', () => {

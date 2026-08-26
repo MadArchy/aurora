@@ -148,7 +148,12 @@ describe('SPEC-003 Phase 5 — security architecture bans (T-003-501)', () => {
       /brief\.status\s*===\s*['"]APPROVED['"]\s*&&[\s\S]{0,200}generateContentDraft/
     );
     expect(main).toContain('gateStrategicDownstream');
-    expect(main).toContain('requireStrategicAuthorization');
+    // SPEC-004 strangler: main calls Plan gate; Brief authorize remains inside Plan consumer.
+    expect(main).toContain('requirePlannedAuthorization');
+    const planConsumer = stripComments(
+      readFileSync(join(ROOT, 'src/services/strategicPlanConsumer.ts'), 'utf8')
+    );
+    expect(planConsumer).toContain('requireStrategicAuthorization');
     const consumer = stripComments(readFileSync(CONSUMER, 'utf8'));
     expect(consumer).toMatch(/AuthorizeStrategicDownstream|authorizeStrategicDownstream|composeStrategicBrief/);
   });

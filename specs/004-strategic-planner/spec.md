@@ -5,7 +5,7 @@
 | **Spec ID** | `004-strategic-planner` |
 | **Display name** | **SPEC-004 — Strategic Planner** |
 | **Status** | **`APPROVED`** (T-004-010 · 2026-08-25 America/Bogota) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **COMPLETE** · Phase 4 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **COMPLETE** · Phase 4 **COMPLETE** · Phase 5 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Branch** | `spec/004-strategic-planner` |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
 | **Upstream SPEC-003** | CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1` · **FROZEN** |
@@ -220,10 +220,10 @@ Remote Firestore/rules: **DEPLOYMENT_ONLY / DEFERRED_TO_SPEC-009**.
 |----|-----|---------|----------------------|
 | **F-004-01** | P1 | No SPEC-004 governance package | **RESOLVED** by Phase 0 package |
 | **F-004-02** | P1 | No canonical StrategicPlan Domain/Application | **RESOLVED** for Domain (Phase 1); Application remains Phase 2 work |
-| **F-004-03** | P2 | Legacy curation/delivery/content split execution authority | **OPEN** — Phase 4 strangler |
+| **F-004-03** | P2 | Legacy curation/delivery/content split execution authority | **RESOLVED** Phase 4 (executable legacy planning authority = 0) |
 | **F-004-04** | P3 | Historic “curation/delivery only” naming vs Strategic Planner | **OPEN_NONBLOCKING** |
 
-**P0 = 0** · **P1 open = 0** · **P2 = 1** · **P3 = 1**
+**P0 = 0** · **P1 open = 0** · **P2 = 0** · **P3 = 1**
 
 Audit mapping: AUDIT-004-01 → F-004-01; AUDIT-004-02 → F-004-03; AUDIT-004-03 → F-004-03; AUDIT-004-04 → F-004-04.
 
@@ -238,9 +238,10 @@ Audit mapping: AUDIT-004-01 → F-004-01; AUDIT-004-02 → F-004-03; AUDIT-004-0
 | Phase 1 Domain | **COMPLETE** (T-004-101…110) |
 | Phase 2 Application | **COMPLETE** (T-004-201…211) |
 | Phase 3 Persistence | **COMPLETE** (T-004-301…308) · **LOCAL_AUTHORITATIVE** |
-| Phase 4 Consumer | **NOT_AUTHORIZED** |
+| Phase 4 Consumer | **COMPLETE** (T-004-401…407) · F-004-03 **RESOLVED** |
+| Phase 5 Security | **NOT_AUTHORIZED** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Human authorization for Phase 4 Consumer migration. Do not begin T-004-401… without approval.
+**Next action:** Human authorization for Phase 5 Security. Do not begin T-004-501… without approval.

@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `004-strategic-planner` |
-| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · Phase 4 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · **Phase 4 COMPLETE** · Phase 5 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Status** | **`APPROVED`** (T-004-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
@@ -101,7 +101,7 @@ Content → **downstream** (SPEC-006 publication).
 - Idempotency
 - LOCAL_AUTHORITATIVE
 
-### Phase 4 — Consumer migration (NOT AUTHORIZED)
+### Phase 4 — Consumer migration ✅ COMPLETE
 
 - Strangle main curation→execution paths through StrategicPlan
 - Demote CurationEntry authority
@@ -151,7 +151,7 @@ Content → **downstream** (SPEC-006 publication).
 |----|-----|--------|
 | F-004-01 | P1 | **RESOLVED** Phase 0 |
 | F-004-02 | P1 | Domain **RESOLVED** Phase 1; Application Phase 2 |
-| F-004-03 | P2 | Strangler Phase 4 |
+| F-004-03 | P2 | **RESOLVED** Phase 4 |
 | F-004-04 | P3 | Docs title; legacy names OK |
 
 ---

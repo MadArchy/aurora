@@ -1,7 +1,7 @@
-# Tasks 004 â€” Strategic Planner
+﻿# Tasks 004 â€” Strategic Planner
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_3_COMPLETE** · Phase 4 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **PHASE_4_COMPLETE** · Phase 5 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/004-strategic-planner`  
 **Base SHA:** SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -129,25 +129,42 @@ Firestore Plan rules = FUTURE / SPEC-009
 **Phase-3 implementation SHA:** `e569e67aa78feeade33cccab283e63701c879e52`  
 **Phase-3 governance checkpoint:** ca9a6c926fd7cceee975893abc8d0dae896718f0
 
-Phase 4 **NOT_AUTHORIZED**.
+Phase 4 **COMPLETE**.
 
 ---
 
-## Phase 4 — Consumer / strangler migration (NOT AUTHORIZED)
+## Phase 4 — Consumer / strangler migration ✅ COMPLETE
 
-- [ ] **T-004-401** Migrate content-generation path through StrategicPlan + AuthorizePlannedAction
-- [ ] **T-004-402** Migrate opportunity/task creation paths through plan items
-- [ ] **T-004-403** Migrate delivery materialization to require planned authorization where strategic
-- [ ] **T-004-404** Demote CurationEntry from Plan authority (COMPATIBILITY intake)
-- [ ] **T-004-405** Preserve SPEC-003 Brief refs on downstream artifacts
-- [ ] **T-004-406** Preserve SPEC-006 AuthorizePublication on gated content statuses
-- [ ] **T-004-407** Consumer architecture tests + migration matrix exit
+- [x] **T-004-401** Migrate content-generation path through StrategicPlan + AuthorizePlannedAction — **DONE**
+- [x] **T-004-402** Migrate opportunity/task creation paths through plan items — **DONE**
+- [x] **T-004-403** Migrate delivery materialization to require planned authorization where strategic — **DONE**
+- [x] **T-004-404** Demote CurationEntry from Plan authority (COMPATIBILITY intake) — **DONE**
+- [x] **T-004-405** Preserve SPEC-003 Brief refs on downstream artifacts — **DONE**
+- [x] **T-004-406** Preserve SPEC-006 AuthorizePublication on gated content statuses — **DONE**
+- [x] **T-004-407** Consumer architecture tests + migration matrix exit — **DONE**
 
-**Phase 4 IDs:** T-004-401 â€¦ T-004-407
+**Phase 4 IDs:** T-004-401 … T-004-407 — **ALL DONE**
+
+**Exit:** Canonical Plan authority in main consumers; legacy strategic fallbacks = 0. **MET**
+
+**Evidence:**
+- Composition: `src/composition/strategicPlan/composeStrategicPlan.ts`
+- Consumer: `src/services/strategicPlanConsumer.ts` (`requirePlannedAuthorization`)
+- main.ts: `gateStrategicDownstream` → Plan+Brief; Curation demoted; no first-match Brief pick
+- Tests: `strategicPlanPhase4.test.ts` (12) · `strategicPlanConsumerArchitecture.test.ts` (8) · **20/20 PASS**
+- Regressions: Phase-3 **19/19** · Phase-2 **32/32** · Phase-1 **23/23** · Adjacent **28/28**
+- Full check **1070/1070 PASS** · Rules **91/91 PASS**
+- F-004-03 = **RESOLVED**
+- F-004-04 remains **OPEN_NONBLOCKING**
+
+**Phase-4 implementation SHA:** pending commit  
+**Phase-4 governance checkpoint:** pending
+
+Phase 5 **NOT_AUTHORIZED**.
 
 ---
 
-## Phase 5 â€” Security / adversarial (NOT AUTHORIZED)
+## Phase 5 — Security / adversarial (NOT AUTHORIZED)
 
 - [ ] **T-004-501** Architecture bans (Domain purity; no UI status authority; no `[0]`)
 - [ ] **T-004-502** Cross-tenant plan/Brief deny matrix

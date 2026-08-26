@@ -112,12 +112,15 @@ import type { StrategicDownstreamAction } from './domain/strategicBriefCore';
 import {
   approveStrategicBrief,
   createBriefFromCurationEntry,
-  formatAuthorizationDenial,
   findApprovedBriefForSignal,
   getStrategicBrief,
   listStrategicBriefs,
-  requireStrategicAuthorization,
 } from './services/strategicBriefConsumer';
+import {
+  assertCurationNotPlanAuthority,
+  formatPlannedAuthorizationDenial,
+  requirePlannedAuthorization,
+} from './services/strategicPlanConsumer';
 import { fetchSourceItems } from './services/sourceApi';
 import { labelSourceRunError } from './domain/sourceIngestCore';
 import { esc } from './lib/escape';
@@ -2959,19 +2962,35 @@ class App {
     });
   }
 
-  /** Materializa el briefing: valida, genera borradores IA, persiste en un solo lote. */
+  /**
+   * Strategic downstream gate: SPEC-003 Brief + SPEC-004 StrategicPlan.
+   * CurationEntry / DeliveryPackage / caller snapshots are not Plan authority.
+   */
   private gateStrategicDownstream(
     clientId: string,
     briefId: string | undefined,
     action: StrategicDownstreamAction
   ):
-    | { ok: true; briefId: string; version?: number; thesisId: string; signalIds: string[]; evidenceIds: string[] }
+    | {
+        ok: true;
+        briefId: string;
+        version?: number;
+        thesisId: string;
+        signalIds: string[];
+        evidenceIds: string[];
+        planId: string;
+        planItemId: string;
+      }
     | { ok: false; message: string } {
-    const auth = requireStrategicAuthorization({ clientId, briefId, requestedAction: action });
-    if (!auth.authorized) {
-      return { ok: false, message: formatAuthorizationDenial(auth) };
+    const planned = requirePlannedAuthorization({
+      clientId,
+      briefId,
+      requestedAction: action,
+    });
+    if (!planned.authorized || !planned.planId || !planned.planItemId || !planned.thesisId) {
+      return { ok: false, message: formatPlannedAuthorizationDenial(planned) };
     }
-    const brief = getStrategicBrief(auth.briefId, clientId);
+    const brief = getStrategicBrief(planned.briefId, clientId);
     if (!brief) {
       return {
         ok: false,
@@ -2981,10 +3000,12 @@ class App {
     return {
       ok: true,
       briefId: brief.id,
-      version: auth.version ?? brief.version,
-      thesisId: brief.thesisId,
-      signalIds: [...brief.signalIds],
-      evidenceIds: [...brief.supportingEvidenceIds],
+      version: planned.briefVersion ?? brief.version,
+      thesisId: planned.thesisId,
+      signalIds: planned.signalIds ?? [...brief.signalIds],
+      evidenceIds: planned.evidenceIds ?? [...brief.supportingEvidenceIds],
+      planId: planned.planId,
+      planItemId: planned.planItemId,
     };
   }
 
@@ -3005,12 +3026,23 @@ class App {
           return { ok: false, message: 'Strategic destination requires Brief authorization.' };
         }
         const entry = item.refId ? dbService.getCurationById(item.refId) : undefined;
+        // CurationEntry is intake/COMPATIBILITY only — never Plan authority.
+        assertCurationNotPlanAuthority(entry);
         const briefId = item.strategicBriefId || entry?.strategicBriefId;
-        const auth = requireStrategicAuthorization({ clientId, briefId, requestedAction: action });
-        if (!auth.authorized) {
-          return { ok: false, message: formatAuthorizationDenial(auth) };
+        const planned = requirePlannedAuthorization({
+          clientId,
+          briefId,
+          requestedAction: action,
+        });
+        if (!planned.authorized) {
+          return { ok: false, message: formatPlannedAuthorizationDenial(planned) };
         }
-        return { ok: true, briefId: auth.briefId, action, version: auth.version };
+        return {
+          ok: true,
+          briefId: planned.briefId,
+          action,
+          version: planned.briefVersion,
+        };
       }
     );
     if (!validation.ok) {
@@ -3026,14 +3058,28 @@ class App {
           destination: 'TASK_VIDEO' | 'TASK_ARTICLE';
           draft: Awaited<ReturnType<typeof aiService.generateContentDraft>>;
           thesis: PositioningThesis;
-          gate: { briefId: string; version?: number; signalIds: string[]; evidenceIds: string[] };
+          gate: {
+            briefId: string;
+            version?: number;
+            signalIds: string[];
+            evidenceIds: string[];
+            planId: string;
+            planItemId: string;
+          };
         }
       | {
           kind: 'opportunity';
           item: DeliveryItem;
           entry?: CurationEntry;
           thesis: PositioningThesis;
-          gate: { briefId: string; version?: number; signalIds: string[]; evidenceIds: string[] };
+          gate: {
+            briefId: string;
+            version?: number;
+            signalIds: string[];
+            evidenceIds: string[];
+            planId: string;
+            planItemId: string;
+          };
         }
       | { kind: 'evidence'; item: DeliveryItem; entry?: CurationEntry; thesis: PositioningThesis }
       | {
@@ -3041,7 +3087,14 @@ class App {
           item: DeliveryItem;
           entry?: CurationEntry;
           thesis: PositioningThesis;
-          gate: { briefId: string; version?: number; signalIds: string[]; evidenceIds: string[] };
+          gate: {
+            briefId: string;
+            version?: number;
+            signalIds: string[];
+            evidenceIds: string[];
+            planId: string;
+            planItemId: string;
+          };
         };
 
     const plans: DraftPlan[] = [];
@@ -3635,10 +3688,22 @@ class App {
             !b.supersededByBriefId &&
             b.decision.authorizedAction === 'CREATE_CONTENT'
         );
-        const brief =
-          approved.find((b) => !this.filterState.thesisId || b.thesisId === this.filterState.thesisId) ??
-          approved[0];
-        const gate = this.gateStrategicDownstream(clientId, brief?.id, 'CREATE_CONTENT');
+        const thesisFilter = this.filterState.thesisId;
+        const scoped = thesisFilter
+          ? approved.filter((b) => b.thesisId === thesisFilter)
+          : approved;
+        // No first-match planner authority — require explicit unique Brief.
+        if (scoped.length !== 1) {
+          this.showToast(
+            scoped.length === 0
+              ? 'No approved CREATE_CONTENT Strategic Brief for this context.'
+              : 'Multiple approved Briefs match — select an explicit thesis/Brief before generating.',
+            'warning'
+          );
+          return;
+        }
+        const brief = scoped[0];
+        const gate = this.gateStrategicDownstream(clientId, brief.id, 'CREATE_CONTENT');
         if (!gate.ok) {
           this.showToast(gate.message, 'warning');
           return;
@@ -3927,13 +3992,17 @@ class App {
                 action: 'CREATE_TASK',
               })
             : undefined) ??
-          listStrategicBriefs(rec.clientId).find(
-            (b) =>
-              b.status === 'APPROVED' &&
-              !b.supersededByBriefId &&
-              b.decision.authorizedAction === 'CREATE_TASK' &&
-              b.thesisId === rec.thesisId
-          );
+          (() => {
+            const matches = listStrategicBriefs(rec.clientId).filter(
+              (b) =>
+                b.status === 'APPROVED' &&
+                !b.supersededByBriefId &&
+                b.decision.authorizedAction === 'CREATE_TASK' &&
+                b.thesisId === rec.thesisId
+            );
+            // Fail closed on multi-Brief ambiguity — no first-match authority.
+            return matches.length === 1 ? matches[0] : undefined;
+          })();
         const gate = this.gateStrategicDownstream(rec.clientId, brief?.id, 'CREATE_TASK');
         if (!gate.ok) {
           this.showToast(gate.message, 'warning');
