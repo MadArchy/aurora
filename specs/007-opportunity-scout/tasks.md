@@ -1,7 +1,7 @@
 # Tasks 007 — Opportunity Scout
 
-**Spec status:** `APPROVED` · Phase 1–4 **COMPLETE** · Phase 5 **NOT_STARTED**  
-**Implementation:** Phase 1–4 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED` · Phase 1–5 **COMPLETE** · Phase 6 **NOT_STARTED**  
+**Implementation:** Phase 1–5 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/007-opportunity-scout`  
 **Base SHA:** SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -15,7 +15,9 @@
 **Phase-3 implementation SHA:** `78f5c4dade7c411fd9ce143d69e41d70efa30f4f`  
 **Phase-3 checkpoint:** `248b37e1c32cb8a635dc12d864f769be709ceca7`  
 **Phase-4 implementation SHA:** `69fb4457644fdf6af530c065e5897c87b74b4384`  
-**Phase-4 checkpoint:** `85dc11255da419cdb6be1588a5e86584b38d6f4f`
+**Phase-4 checkpoint:** `85dc11255da419cdb6be1588a5e86584b38d6f4f`  
+**Phase-5 security/test SHA:** *(pinned after implementation commit)*  
+**Phase-5 checkpoint:** *(pinned after checkpoint commit)*
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -151,27 +153,33 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 **dbService:** Opportunity mutators **DEPRECATED_AUTHORITY_REMOVED** · `getOpportunityById` **LEGACY_DEAD_OR_COMPATIBILITY_NONAUTHORITY** · `mirrorOpportunityCompatibility` **COMPATIBILITY_WRITE_MIRROR** (after canonical success only)  
 **Tests:** `tests/opportunityScoutPhase4.test.ts` · `tests/opportunityScoutConsumerArchitecture.test.ts`
 
-**Exit:** Phase 4 Consumer COMPLETE · Phase 5 **NOT AUTHORIZED** until separate authorization.
+**Exit:** Phase 4 Consumer COMPLETE · Phase 5 **AUTHORIZED**.
 
 ---
 
-## Phase 5 — Security / adversarial (NOT AUTHORIZED)
+## Phase 5 — Security / adversarial ✅ COMPLETE
 
-- [ ] **T-007-501** Architecture bans (Domain purity; no UI status authority; no `[0]` thesis)
-- [ ] **T-007-502** Cross-tenant Opportunity deny matrix
-- [ ] **T-007-503** AI / role / caller snapshot spoof deny
-- [ ] **T-007-504** Stale candidate / Opportunity / Brief / Plan authorization tests
-- [ ] **T-007-505** History-as-authority / dual-lifecycle ambiguity tests
-- [ ] **T-007-506** Legacy db bypass inventory = 0
-- [ ] **T-007-507** SPEC-003 / SPEC-004 regression (frozen)
-- [ ] **T-007-508** SPEC-005 advisory-only; no paid AI
-- [ ] **T-007-509** SPEC-006 publication authority preserved
-- [ ] **T-007-510** SPEC-001/002 regression + Opportunity Score ≠ Strategic Score
+- [x] **T-007-501** Architecture bans (Domain purity; no UI status authority; no `[0]` thesis) — **DONE**
+- [x] **T-007-502** Cross-tenant Opportunity deny matrix — **DONE**
+- [x] **T-007-503** AI / role / caller snapshot spoof deny — **DONE**
+- [x] **T-007-504** Stale candidate / Opportunity / Brief / Plan authorization tests — **DONE**
+- [x] **T-007-505** History-as-authority / dual-lifecycle ambiguity tests — **DONE**
+- [x] **T-007-506** Legacy db bypass inventory = 0 — **DONE**
+- [x] **T-007-507** SPEC-003 / SPEC-004 regression (frozen) — **DONE**
+- [x] **T-007-508** SPEC-005 advisory-only; no paid AI — **DONE**
+- [x] **T-007-509** SPEC-006 publication authority preserved — **DONE**
+- [x] **T-007-510** SPEC-001/002 regression + Opportunity Score ≠ Strategic Score — **DONE**
 
-**Threat coverage T-007-01…18**  
+**Threat coverage T-007-01…18:** **18/18 PASS** (local tamper = KNOWN_LIMITATION nonblocking per threat-model)  
 **Phase 5 IDs:** T-007-501 … T-007-510  
 **Depends on:** Phase 4 DONE  
-**Maps to:** A32–A38
+**Maps to:** A32–A38  
+
+**Product fixes:** **0**  
+**Tests:** `tests/opportunityScoutPhase5Security.test.ts` · `tests/opportunityScoutPhase5Architecture.test.ts`  
+**AUDIT007-08:** remains **OPEN_NONBLOCKING** (spotlight DISPLAY_ONLY proven adversarially)
+
+**Exit:** Phase 5 Security COMPLETE · Phase 6 **NOT AUTHORIZED** until separate authorization.
 
 ---
 

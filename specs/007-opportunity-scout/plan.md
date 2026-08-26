@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `007-opportunity-scout` |
-| **Phase** | Phase 0–4 **COMPLETE** · Phase 5+ **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`APPROVED`** · Phase 4 Consumer **COMPLETE** · canonical Opportunity authority = SPEC-007 |
+| **Phase** | Phase 0–5 **COMPLETE** · Phase 6 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** · Phase 5 Security **COMPLETE** · threats **18/18 PASS** · product fixes **0** |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Branch** | `spec/007-opportunity-scout` |
@@ -116,10 +116,12 @@ TARGET:
 - SPEC-003/004/006 boundaries preserved — **DONE**
 - Spotlight `[0]` remains DISPLAY_ONLY (AUDIT007-08 OPEN_NONBLOCKING)
 
-### Phase 5 — Security (NOT AUTHORIZED)
+### Phase 5 — Security ✅ COMPLETE
 
-- Threats T-007-01…18
-- Cross-SPEC regressions
+- Threats T-007-01…18 — **18/18 PASS**
+- Architecture / legacy bypass / cross-SPEC regressions — **DONE**
+- Product fixes — **0**
+- AUDIT007-08 remains OPEN_NONBLOCKING (DISPLAY_ONLY spotlight)
 
 ### Phase 6 — Acceptance (NOT AUTHORIZED)
 
