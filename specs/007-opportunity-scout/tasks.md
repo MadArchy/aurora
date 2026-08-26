@@ -15,7 +15,7 @@
 **Phase-3 implementation SHA:** `78f5c4dade7c411fd9ce143d69e41d70efa30f4f`  
 **Phase-3 checkpoint:** `248b37e1c32cb8a635dc12d864f769be709ceca7`  
 **Phase-4 implementation SHA:** `69fb4457644fdf6af530c065e5897c87b74b4384`  
-**Phase-4 checkpoint:** *(pinned after checkpoint commit)*
+**Phase-4 checkpoint:** `85dc11255da419cdb6be1588a5e86584b38d6f4f`
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
