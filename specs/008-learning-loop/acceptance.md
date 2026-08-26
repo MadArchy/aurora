@@ -3,8 +3,9 @@
 **Phase 0:** Formal package **COMPLETE** · Human SPEC approval **APPROVED** (T-008-010)  
 **Phase 1:** Domain **COMPLETE** (T-008-101…110)  
 **Phase 2:** Application + Ports **COMPLETE** (T-008-201…211)  
-**Phase 3–6:** **NOT STARTED**  
-**SPEC-008 IMPLEMENTATION:** Phase 2 Application **COMPLETE**  
+**Phase 3:** Persistence **COMPLETE** (T-008-301…308)  
+**Phase 4–6:** **NOT STARTED**  
+**SPEC-008 IMPLEMENTATION:** Phase 3 Persistence **COMPLETE**  
 **CODE_COMPLETE:** **NO**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -49,11 +50,11 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 | A14 | No id-only `getSignalOutcome(signalId)` authority | 4 | ⏳ PENDING | Consumer migration |
 | A15 | No unscoped authoritative list reads | 3–4 | ⏳ PENDING | Infra + consumer |
 | A16 | Multi-thesis explicit scope — no `[0]`/primary/winner | 1–5 | ✅ PASS | `learningThesisScopeCore.ts` + arch tests |
-| A17 | Append-only material observations — no silent replace | 1–4 | ⏳ PARTIAL | Domain PASS · legacy migration Phase 4 |
-| A18 | History audit-only — not current strategic authority | 1–3 | ✅ PASS | `learningMaterialityCore.ts` |
-| A19 | RecommendationDecision append-only human audit | 1–3 | ⏳ PARTIAL | Domain PASS · persistence Phase 3 |
-| A20 | Schema version + fail-closed malformed parse | 3 | ⏳ PENDING | Infra tests |
-| A21 | Idempotency on register/propose/approve/apply | 2–3 | ⏳ PARTIAL | App contract PASS · durable Phase 3 |
+| A17 | Append-only material observations — no silent replace | 1–4 | ⏳ PARTIAL | Domain + canonical persistence PASS · consumer Phase 4 |
+| A18 | History audit-only — not current strategic authority | 1–3 | ✅ PASS | Domain + persistence adapters |
+| A19 | RecommendationDecision append-only human audit | 1–3 | ⏳ PARTIAL | Domain + persistence PASS · consumer pending |
+| A20 | Schema version + fail-closed malformed parse | 3 | ⏳ PARTIAL | Infra serialization PASS · Phase 5 adversarial pending |
+| A21 | Idempotency on register/propose/approve/apply | 2–3 | ⏳ PARTIAL | App + durable local store PASS |
 | A22 | ApplyApprovedRecommendation dispatches to TargetSpecApplyPort only | 2 | ⏳ PARTIAL | App + tests · adapter Phase 3 |
 | A23 | SPEC-008 does not write SPEC-002 storage directly | 1–5 | ⏳ PARTIAL | Domain + App arch PASS · legacy runtime open |
 | A24 | **P0:** feedbackScoringHints removed from scoring authority path | 4 | ⏳ PENDING | Phase 4 T-008-405 |
@@ -63,8 +64,8 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 | A28 | SPEC-001 boundary — no routing authority from learning | 4–5 | ⏳ PENDING | Migration + T-008-509 |
 | A29 | SPEC-007 Opportunity outcomes ingested read-only | 2–4 | ⏳ PARTIAL | OpportunityOutcomeReader port · consumer Phase 4 |
 | A30 | Materiality/version — post-approval change requires supersession | 1–2 | ✅ PASS | `learningMaterialityCore.ts` |
-| A31 | LOCAL_AUTHORITATIVE persistence Phase 3 | 3 | ⏳ PENDING | Infra |
-| A32 | Legacy key compat readers during migration | 3–4 | ⏳ PENDING | Infra |
+| A31 | LOCAL_AUTHORITATIVE persistence Phase 3 | 3 | ⏳ PARTIAL | Infra implemented · consumer wiring Phase 4 |
+| A32 | Legacy key compat readers during migration | 3–4 | ⏳ PARTIAL | Compatibility reader PASS · consumer Phase 4 |
 | A33 | Explainability — source ids, metrics, reason codes; no CoT | 1–2 | ✅ PASS | `learningExplainabilityCore.ts` |
 | A34 | Opportunity accept/decline/complete as learning input | 4 | ⏳ PENDING | Consumer ingest |
 | A35 | `APPROVED_NOT_APPLIED` when target port unavailable | 1–2 | ⏳ PARTIAL | Domain + App lifecycle PASS |
@@ -73,7 +74,7 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 | A38 | Full check + rules regression at CODE_COMPLETE | 6 | ⏳ PENDING | T-008-602 |
 
 **Acceptance count:** **38** (A1–A38)  
-**Phase 2 evidence:** **11 PASS** · **13 PARTIAL** · **14 PENDING**
+**Phase 3 evidence:** **12 PASS** · **16 PARTIAL** · **10 PENDING**
 
 ---
 

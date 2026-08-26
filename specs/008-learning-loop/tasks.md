@@ -95,20 +95,24 @@ Requirement ID prefix (future Domain): `LRN-008-001` …
 
 ---
 
-## Phase 3 — Persistence (NOT AUTHORIZED)
+## Phase 3 — Persistence ✅ COMPLETE
 
-- [ ] **T-008-301** Local-authoritative LearningObservation store — **TODO**
-- [ ] **T-008-302** Local-authoritative LearningEvidence store — **TODO**
-- [ ] **T-008-303** Local-authoritative StrategicRecommendation store — **TODO**
-- [ ] **T-008-304** Append-only LearningHistory + RecommendationDecision adapters — **TODO**
-- [ ] **T-008-305** Idempotency store — **TODO**
-- [ ] **T-008-306** Schema version + fail-closed parse — **TODO**
-- [ ] **T-008-307** Legacy compat readers (`signal_outcomes`, `results`) — **TODO**
-- [ ] **T-008-308** Persistence + infrastructure architecture tests — **TODO**
+- [x] **T-008-301** Local-authoritative LearningObservation store — **DONE**
+- [x] **T-008-302** Local-authoritative LearningEvidence store — **DONE**
+- [x] **T-008-303** Local-authoritative StrategicRecommendation store — **DONE**
+- [x] **T-008-304** Append-only LearningHistory + RecommendationDecision adapters — **DONE**
+- [x] **T-008-305** Idempotency store — **DONE**
+- [x] **T-008-306** Schema version + fail-closed parse — **DONE**
+- [x] **T-008-307** Legacy compat readers (`signal_outcomes`, `results`) — **DONE**
+- [x] **T-008-308** Persistence + infrastructure architecture tests — **DONE**
 
 **Phase 3 IDs:** T-008-301 … T-008-308  
 **Depends on:** Phase 2 DONE  
 **Maps to:** A17–A20, A31–A32  
+
+**Infrastructure:** `src/infrastructure/learningLoop/`  
+**Tests:** `tests/learningLoopPersistence.test.ts` · `tests/learningLoopInfrastructureArchitecture.test.ts`  
+**Consumer migration / runtime P0:** **NONE** (Phase 4)
 
 **Exit:** Phase 3 Persistence COMPLETE · Phase 4 **AUTHORIZED** after Phase 3.
 
@@ -190,7 +194,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 0 | T-008-001…010 | 10 | 10 DONE |
 | 1 | T-008-101…110 | 10 | 10 DONE |
 | 2 | T-008-201…211 | 11 | 11 DONE |
-| 3 | T-008-301…308 | 8 | TODO |
+| 3 | T-008-301…308 | 8 | 8 DONE |
 | 4 | T-008-401…407 | 7 | TODO |
 | 5 | T-008-501…510 | 10 | TODO |
 | 6 | T-008-601…604 | 4 | TODO |

@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `008-learning-loop` |
 | **Display name** | **SPEC-008 — Learning Loop** |
-| **Status** | **`APPROVED`** · Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** |
-| **Phase** | Phase 2 Application **COMPLETE** · Phase 3+ **NOT STARTED** · deployment **NOT_STARTED** |
+| **Status** | **`APPROVED`** · Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** · Phase 3 Persistence **COMPLETE** |
+| **Phase** | Phase 3 Persistence **COMPLETE** · Phase 4+ **NOT STARTED** · deployment **NOT_STARTED** |
 | **Branch** | `spec/008-learning-loop` |
 | **Baseline SHA** | SPEC-007 CODE_COMPLETE final freeze `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0` |
 | **Priority** | P1 (constitution §19 + §32 — RESULTS → LEARNING → STRATEGIC RECOMMENDATION) |
@@ -239,6 +239,6 @@ Firestore `signalOutcomes` / `results` / `feedbackEvents` = secondary sync / SPE
 
 ## Phase 0 exit
 
-Formal package complete · Human SPEC approval **DONE** (T-008-010) · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE**
+Formal package complete · Human SPEC approval **DONE** (T-008-010) · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** · Phase 3 Persistence **COMPLETE**
 
-**Next action:** Phase 3 Persistence (T-008-301…308) when authorized to implement.
+**Next action:** Phase 4 Consumer / legacy migration (T-008-401…407) when authorized to implement.
