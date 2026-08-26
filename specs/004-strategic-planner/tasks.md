@@ -1,4 +1,4 @@
-﻿# Tasks 004 â€” Strategic Planner
+# Tasks 004 â€” Strategic Planner
 
 **Spec status:** `APPROVED`  
 **Implementation:** **PHASE_4_COMPLETE** · Phase 5 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
@@ -158,7 +158,7 @@ Phase 4 **COMPLETE**.
 - F-004-04 remains **OPEN_NONBLOCKING**
 
 **Phase-4 implementation SHA:** `65dc7238d62e3ef8b27e518731c2b5528c92da63`  
-**Phase-4 governance checkpoint:** pending (this commit)
+**Phase-4 governance checkpoint:** d61696f5ac8c2ddb11c2441973b7533e7d11788a
 
 Phase 5 **NOT_AUTHORIZED**.
 
