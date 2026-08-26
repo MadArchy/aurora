@@ -5,8 +5,9 @@
 **Phase 2:** Application + Ports **COMPLETE** (T-008-201…211)  
 **Phase 3:** Persistence **COMPLETE** (T-008-301…308)  
 **Phase 4:** Consumer / legacy migration **COMPLETE** (T-008-401…407)  
-**Phase 5–6:** **NOT STARTED**  
-**SPEC-008 IMPLEMENTATION:** Phase 4 Consumer **COMPLETE**  
+**Phase 5:** Security / adversarial hardening **COMPLETE** (T-008-501…510) — **26/26 threats PASS**  
+**Phase 6:** **NOT STARTED**  
+**SPEC-008 IMPLEMENTATION:** Phase 5 Security **COMPLETE**  
 **CODE_COMPLETE:** **NO**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -41,41 +42,51 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 | A4 | `LearningEvidence` + `LearningAssessment` explainable projections | 1 | ✅ PASS | `learningEvidenceCore.ts` |
 | A5 | `StrategicRecommendation` first-class versioned aggregate | 1 | ✅ PASS | `strategicRecommendationCore.ts` |
 | A6 | RAW RESULT ≠ LEARNING ≠ RECOMMENDATION ≠ APPROVED CHANGE | 0–1 | ✅ PASS | spec + `learningAuthorityCore.ts` |
-| A7 | Learning does not auto-mutate thesis/weights/voice/audience/objective | 1–4 | ⏳ PARTIAL | Domain PASS · P0 path removed Phase 4 |
-| A8 | Recommendation ≠ approval — lifecycle enforces human gate | 1–2 | ⏳ PARTIAL | Domain + App PASS · consumer wired Phase 4 |
-| A9 | AI advisory only — cannot approve or apply | 1–5 | ⏳ PARTIAL | Domain + App actor ban PASS · Phase 5 pending |
-| A10 | UI intent/display only — zero authoritative learning writes | 4–5 | ⏳ PARTIAL | ClientWorkspace display + main intents Phase 4 |
-| A11 | Trusted actor wins over caller `actorUid`/`createdBy` spoof | 2–5 | ⏳ PARTIAL | App + consumer runtime PASS · Phase 5 pending |
-| A12 | No hard-coded actor fallbacks (`user_admin_01`, `"client"`) | 4–5 | ⏳ PARTIAL | Learning paths clean · other main.ts fallbacks remain |
-| A13 | Tenant isolation `(organizationId, clientId, entityId)` | 1–5 | ⏳ PARTIAL | Domain + Infra PASS · Phase 5 pending |
-| A14 | No id-only `getSignalOutcome(signalId)` authority | 4 | ⏳ PARTIAL | Consumer tenant-scoped display |
-| A15 | No unscoped authoritative list reads | 3–4 | ⏳ PARTIAL | Canonical tenant-scoped list Phase 4 |
-| A16 | Multi-thesis explicit scope — no `[0]`/primary/winner | 1–5 | ✅ PASS | `learningThesisScopeCore.ts` + arch tests |
-| A17 | Append-only material observations — no silent replace | 1–4 | ⏳ PARTIAL | Domain + canonical persistence PASS · consumer Phase 4 |
-| A18 | History audit-only — not current strategic authority | 1–3 | ✅ PASS | Domain + persistence adapters |
-| A19 | RecommendationDecision append-only human audit | 1–3 | ⏳ PARTIAL | Domain + persistence PASS · consumer pending |
-| A20 | Schema version + fail-closed malformed parse | 3 | ⏳ PARTIAL | Infra serialization PASS · Phase 5 adversarial pending |
-| A21 | Idempotency on register/propose/approve/apply | 2–3 | ⏳ PARTIAL | App + durable local store PASS |
-| A22 | ApplyApprovedRecommendation dispatches to TargetSpecApplyPort only | 2 | ⏳ PARTIAL | App + tests · adapter Phase 3 |
-| A23 | SPEC-008 does not write SPEC-002 storage directly | 1–5 | ⏳ PARTIAL | No direct SPEC-002 writes Phase 4 |
+| A7 | Learning does not auto-mutate thesis/weights/voice/audience/objective | 1–4 | ✅ PASS | Phase 5 T-008-507/508: 0 hint call sites · 0 rescore sites · apply port-only |
+| A8 | Recommendation ≠ approval — lifecycle enforces human gate | 1–2 | ✅ PASS | Phase 5 T-008-503: software approve denied · PROPOSED→APPROVED denied |
+| A9 | AI advisory only — cannot approve or apply | 1–5 | ✅ PASS | Phase 5 T-008-503: AI actor kind zero authority · 0 provider calls |
+| A10 | UI intent/display only — zero authoritative learning writes | 4–5 | ✅ PASS | Phase 5 T-008-510: 0 UI repo imports · consumer 0 direct store writes |
+| A11 | Trusted actor wins over caller `actorUid`/`createdBy` spoof | 2–5 | ✅ PASS | Phase 5 T-008-503: persisted `actorUid`/`approvedBy` = trusted actor |
+| A12 | No hard-coded actor fallbacks (`user_admin_01`, `"client"`) | 4–5 | ⏳ PARTIAL | Canonical learning runtime = 0 (Phase 5 T-008-510) · 13 non-learning `main.ts` fallbacks remain out of SPEC-008 scope |
+| A13 | Tenant isolation `(organizationId, clientId, entityId)` | 1–5 | ✅ PASS | Phase 5 T-008-502: tenant spoof denied · same-ID isolated |
+| A14 | No id-only `getSignalOutcome(signalId)` authority | 4 | ✅ PASS | Phase 5 T-008-502: repository `getById` requires tenant scope |
+| A15 | No unscoped authoritative list reads | 3–4 | ✅ PASS | Phase 5 T-008-502: `list()` tenant-scoped · foreign list = `[]` |
+| A16 | Multi-thesis explicit scope — no `[0]`/primary/winner | 1–5 | ✅ PASS | `learningThesisScopeCore.ts` + Phase 5 T-008-510 |
+| A17 | Append-only material observations — no silent replace | 1–4 | ✅ PASS | Phase 5 T-008-505: supersession retains prior · overwrite FAIL_CLOSED |
+| A18 | History audit-only — not current strategic authority | 1–3 | ✅ PASS | Domain + persistence adapters + Phase 5 T-008-505 |
+| A19 | RecommendationDecision append-only human audit | 1–3 | ✅ PASS | Phase 5 T-008-505: decisions `AUDIT_ONLY` · replay holds no authority |
+| A20 | Schema version + fail-closed malformed parse | 3 | ✅ PASS | Phase 5 T-008-506: 7 malformed-persistence attacks FAIL_CLOSED |
+| A21 | Idempotency on register/propose/approve/apply | 2–3 | ✅ PASS | Phase 5 T-008-506: replay · collision · cross-tenant governed |
+| A22 | ApplyApprovedRecommendation dispatches to TargetSpecApplyPort only | 2 | ✅ PASS | Phase 5 T-008-504: single `port.apply(` dispatch site |
+| A23 | SPEC-008 does not write SPEC-002 storage directly | 1–5 | ✅ PASS | Phase 5 T-008-509: 0 SPEC-002 store imports or mutators |
 | A24 | **P0:** feedbackScoringHints removed from scoring authority path | 4 | ✅ PASS | main.ts + DbStrategicSignalRoutingAdapter |
 | A25 | **P0:** post-outcome mass rescore removed | 4 | ✅ PASS | main.ts outcome handler |
-| A26 | Approved SPEC-002 changes only via future SPEC-002 apply port | 2–4 | ⏳ PARTIAL | TargetSpecApplyPort contract |
-| A27 | Legacy `dbService` outcome/result mutators demoted | 4 | ✅ PASS | mirror-only + LEGACY_AUTHORITY_REMOVED |
-| A28 | SPEC-001 boundary — no routing authority from learning | 4–5 | ⏳ PARTIAL | No learning reroute Phase 4 · T-008-509 pending |
-| A29 | SPEC-007 Opportunity outcomes ingested read-only | 2–4 | ⏳ PARTIAL | LocalOpportunityOutcomeReader + ingest |
-| A30 | Materiality/version — post-approval change requires supersession | 1–2 | ✅ PASS | `learningMaterialityCore.ts` |
-| A31 | LOCAL_AUTHORITATIVE persistence Phase 3 | 3–4 | ⏳ PARTIAL | Infra + consumer wiring Phase 4 |
-| A32 | Legacy key compat readers during migration | 3–4 | ⏳ PARTIAL | Mirror-after-canonical Phase 4 |
+| A26 | Approved SPEC-002 changes only via future SPEC-002 apply port | 2–4 | ✅ PASS | Phase 5 T-008-504: no route to SPEC-002 exists other than the apply port |
+| A27 | Legacy `dbService` outcome/result mutators demoted | 4 | ✅ PASS | mirror-only + LEGACY_AUTHORITY_REMOVED (re-verified against real `dbService`) |
+| A28 | SPEC-001 boundary — no routing authority from learning | 4–5 | ✅ PASS | Phase 5 T-008-509: 0 routing mutators · no SPEC-001 port registered |
+| A29 | SPEC-007 Opportunity outcomes ingested read-only | 2–4 | ✅ PASS | Phase 5 T-008-509: 7 ingest attacks · Opportunity byte-identical after ingest |
+| A30 | Materiality/version — post-approval change requires supersession | 1–2 | ✅ PASS | `learningMaterialityCore.ts` + Phase 5 T-008-506 |
+| A31 | LOCAL_AUTHORITATIVE persistence Phase 3 | 3–4 | ✅ PASS | Phase 5 T-008-506: store authoritative · rollback verified |
+| A32 | Legacy key compat readers during migration | 3–4 | ✅ PASS | Phase 5 T-008-507: forged legacy rows stay COMPATIBILITY_ONLY |
 | A33 | Explainability — source ids, metrics, reason codes; no CoT | 1–2 | ✅ PASS | `learningExplainabilityCore.ts` |
 | A34 | Opportunity accept/decline/complete as learning input | 4 | ✅ PASS | opportunityScoutConsumer ingest |
-| A35 | `APPROVED_NOT_APPLIED` when target port unavailable | 1–2 | ⏳ PARTIAL | Domain + App lifecycle PASS |
-| A36 | feedbackScoringHints may exist DISPLAY_ONLY at most | 4 | ✅ PASS | Domain/tests only |
-| A37 | Threat model T-008-01…26 PASS | 5 | ⏳ PENDING | Phase 5 suite |
-| A38 | Full check + rules regression at CODE_COMPLETE | 6 | ⏳ PENDING | T-008-602 |
+| A35 | `APPROVED_NOT_APPLIED` when target port unavailable | 1–2 | ✅ PASS | Phase 5 T-008-504: verified at runtime for unsupported + rejected targets |
+| A36 | feedbackScoringHints may exist DISPLAY_ONLY at most | 4 | ✅ PASS | Phase 5 T-008-507: **DEAD** definition + TEST_ONLY · 0 src call sites |
+| A37 | Threat model T-008-01…26 PASS | 5 | ✅ PASS | Phase 5: **26/26** formal threats PASS with individual evidence |
+| A38 | Full check + rules regression at CODE_COMPLETE | 6 | ⏳ PENDING | T-008-602 (Phase 6) |
 
 **Acceptance count:** **38** (A1–A38)  
-**Phase 4 evidence:** **16 PASS** · **18 PARTIAL** · **4 PENDING**
+**Phase 5 evidence:** **36 PASS** · **1 PARTIAL** (A12) · **0 FAIL** · **1 PENDING** (A38)
+
+**Governance correction:** the previous Phase-4 header read *16 PASS / 18 PARTIAL /
+4 PENDING*, which did not reconcile with its own table. The Phase-4 table actually
+held **15 PASS / 21 PARTIAL / 2 PENDING** (= 38). Phase 5 converted 21 PARTIAL and
+1 PENDING to PASS on fresh adversarial evidence, giving 36 / 1 / 0 / 1.
+
+**A12 remains PARTIAL by evidence:** the canonical Learning Loop runtime has **zero**
+authoritative actor fallbacks, but `src/main.ts` still contains 13 `user_admin_01`
+occurrences on **non-learning** paths owned by other SPECs. Closing A12 would require
+work outside the SPEC-008 Phase-5 file scope, so it is not claimed.
 
 ---
 
@@ -83,9 +94,12 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 
 | Field | Value |
 |-------|--------|
-| **Runtime status** | `RESOLVED` (Phase 4 T-008-405/406) |
+| **Runtime status** | `RESOLVED` (Phase 4 T-008-405/406 · re-verified adversarially Phase 5 T-008-507/508) |
 | **Design status** | `RESOLVED` |
 | **Blocking acceptance** | A24, A25 **PASS** |
+| **P0** | **0** · **P1** | **0** |
+| **feedbackScoringHints strategic authority** | **0** (DEAD definition · 0 src call sites) |
+| **Learning-triggered auto-rescore authority** | **0** |
 
 ---
 

@@ -141,24 +141,43 @@ Requirement ID prefix (future Domain): `LRN-008-001` …
 
 ---
 
-## Phase 5 — Security / adversarial (NOT AUTHORIZED)
+## Phase 5 — Security / adversarial (COMPLETE)
 
-- [ ] **T-008-501** Threat suite T-008-01…18 implementation — **TODO**
-- [ ] **T-008-502** Tenant spoof / same-ID cross-tenant matrix — **TODO**
-- [ ] **T-008-503** Caller/UI/AI approval spoof matrix — **TODO**
-- [ ] **T-008-504** Target-SPEC bypass / apply-before-approval matrix — **TODO**
-- [ ] **T-008-505** History replay / latest-outcome authority tests — **TODO**
-- [ ] **T-008-506** Malformed persistence / stale write / idempotency replay — **TODO**
-- [ ] **T-008-507** feedbackScoringHints bypass regression — **TODO**
-- [ ] **T-008-508** Auto-rescore regression — **TODO**
-- [ ] **T-008-509** Cross-SPEC authority theft regression (001/002/007) — **TODO**
-- [ ] **T-008-510** Security architecture purity tests — **TODO**
+- [x] **T-008-501** Threat suite T-008-01…18 implementation — **DONE** (extended to T-008-01…26)
+- [x] **T-008-502** Tenant spoof / same-ID cross-tenant matrix — **DONE**
+- [x] **T-008-503** Caller/UI/AI approval spoof matrix — **DONE**
+- [x] **T-008-504** Target-SPEC bypass / apply-before-approval matrix — **DONE**
+- [x] **T-008-505** History replay / latest-outcome authority tests — **DONE**
+- [x] **T-008-506** Malformed persistence / stale write / idempotency replay — **DONE**
+- [x] **T-008-507** feedbackScoringHints bypass regression — **DONE**
+- [x] **T-008-508** Auto-rescore regression — **DONE**
+- [x] **T-008-509** Cross-SPEC authority theft regression (001/002/007) — **DONE**
+- [x] **T-008-510** Security architecture purity tests — **DONE**
 
 **Phase 5 IDs:** T-008-501 … T-008-510  
 **Depends on:** Phase 4 DONE  
 **Maps to:** A37–A38  
 
-**Exit:** Threats PASS · Phase 6 **AUTHORIZED** after Phase 5.
+### Phase 5 evidence
+
+| Suite | File | Tests |
+|-------|------|-------|
+| Runtime adversarial | `tests/learningLoopPhase5Security.test.ts` | 66 PASS |
+| Consumer-boundary adversarial | `tests/learningLoopPhase5Consumer.test.ts` | 13 PASS |
+| Security architecture purity | `tests/learningLoopPhase5Architecture.test.ts` | 23 PASS |
+
+**Phase-5 security total:** **79/79 PASS** · **Phase-5 architecture:** **23/23 PASS**  
+**Formal threats:** **26/26 PASS** (T-008-01 … T-008-26)  
+**Product files modified:** **0** — no Phase-5 defect required a product fix  
+**Full check:** 1452/1452 PASS · **Rules:** 91/91 PASS  
+**Runtime P0 (AUDIT008-03):** **RESOLVED** (re-verified from fresh Phase-5 evidence)  
+**P0:** 0 · **P1:** 0 · new P0/P1 introduced: **0**
+
+**NOT owned by Phase 5:** approval UI runtime closure (AUDIT008-08). No Phase-5 task
+assigns it, so it remains **IMPLEMENTATION_PENDING** for Phase 6. No UI was invented.
+
+**Exit:** Threats **26/26 PASS** · Phase 6 **AUTHORIZED** after Phase 5.  
+**CODE_COMPLETE:** **NO** (Phase 6) · **DEPLOYMENT:** **NOT_STARTED**
 
 ---
 

@@ -143,11 +143,14 @@ TARGET SPEC  = owns actual strategic mutation after validation
 
 ## Critical P0 — auto-learning (AUDIT008-03)
 
-**Runtime status:** `RESOLVED` (Phase 4 T-008-405/406)
+**Runtime status:** `RESOLVED` (Phase 4 T-008-405/406 · re-verified adversarially in Phase 5 T-008-507/508)
 
-**Design status:** `RESOLVED_IMPLEMENTATION_PENDING`
+**Design status:** `RESOLVED`
 
-Current unsafe path:
+**Phase 5:** `feedbackScoringHints` strategic authority = **0** · learning-triggered
+auto-rescore authority = **0** · **P0 = 0** · **P1 = 0**.
+
+Former unsafe path — **REMOVED**, no longer present in runtime:
 
 ```text
 SignalOutcome → feedbackScoringHints → scoring/routing context → mass rescore

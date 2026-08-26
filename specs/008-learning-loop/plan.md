@@ -155,22 +155,28 @@ TARGET:
 
 ---
 
-## AUDIT008 disposition (Phase 0)
+## AUDIT008 disposition (Phase 0 → Phase 5)
 
-| ID | Phase 0 disposition |
-|----|---------------------|
-| AUDIT008-01 | **RESOLVED** — formal package created |
-| AUDIT008-02 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-03 | **RUNTIME_OPEN_P0** + **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-04 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-05 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-06 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-07 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-08 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-09 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-10 | **RESOLVED** — formal T-008 + acceptance + threat package |
-| AUDIT008-11 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
-| AUDIT008-12 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** |
+| ID | Phase 0 disposition | Phase 5 disposition (fresh evidence) |
+|----|---------------------|--------------------------------------|
+| AUDIT008-01 | **RESOLVED** — formal package created | **RESOLVED** |
+| AUDIT008-02 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **DESIGN_RESOLVED · IMPLEMENTATION_PENDING** — no threat mapping, no Phase-5 task owns it |
+| AUDIT008-03 | **RUNTIME_OPEN_P0** + **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **RESOLVED** (runtime + design) — T-008-09/10/23 PASS · P0 = 0 |
+| AUDIT008-04 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **RESOLVED** — T-008-04 PASS |
+| AUDIT008-05 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **RESOLVED** — T-008-02 PASS |
+| AUDIT008-06 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **RESOLVED** — T-008-17 PASS |
+| AUDIT008-07 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **DESIGN_RESOLVED · IMPLEMENTATION_PENDING** — no threat mapping, no Phase-5 task owns it |
+| AUDIT008-08 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **DESIGN_RESOLVED · IMPLEMENTATION_PARTIAL** — approval UI runtime closure unassigned in Phase 5; deferred to Phase 6 |
+| AUDIT008-09 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **RESOLVED** — T-008-09/11/12 PASS |
+| AUDIT008-10 | **RESOLVED** — formal T-008 + acceptance + threat package | **RESOLVED** |
+| AUDIT008-11 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **RESOLVED** — T-008-05/06 PASS |
+| AUDIT008-12 | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** | **DESIGN_RESOLVED · IMPLEMENTATION_PENDING** — no threat mapping, no Phase-5 task owns it |
 
 **RUNTIME P0 after Phase 0:** **1** (expected — implementation not authorized)  
-**PHASE-0 DESIGN BLOCKERS:** **0**
+**RUNTIME P0 after Phase 5:** **0**  
+**PHASE-0 DESIGN BLOCKERS:** **0**  
+**P0 / P1 after Phase 5:** **0 / 0** — no new P0 or P1 introduced
+
+Findings without a formal threat mapping in `threat-model.md` are **not** closed by
+Phase 5: repository truth assigns them no Phase-5 task, and closing them without
+evidence would be manufactured.

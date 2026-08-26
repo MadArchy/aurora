@@ -68,6 +68,14 @@ Legend: **KEEP** · **MIGRATE** · **ADAPT** · **DEPRECATE** · **OTHER_SPEC** 
 | Effect | Alters `bilingualTerms` / `avoidedFramings` → rescore | **Zero** strategic mutation until APPROVED recommendation applied via SPEC-002 port |
 | Phase | — | Phase 4 consumer migration |
 
+**Phase 5 verified classification (T-008-507):** `feedbackScoringHints` has **zero**
+call sites in `src/**`. The only occurrence is its own exported definition in
+`src/domain/radarFeedbackCore.ts` — classified **DEAD** — plus **TEST_ONLY** usage in
+`tests/radarSprintC.test.ts`. No `CANONICAL_STRATEGIC` and no `AUTHORITY_BYPASS`
+occurrence exists.
+
+**feedbackScoringHints strategic authority = 0.**
+
 ---
 
 ## Critical migration — mass rescore (AUDIT008-03)
@@ -77,6 +85,13 @@ Legend: **KEEP** · **MIGRATE** · **ADAPT** · **DEPRECATE** · **OTHER_SPEC** 
 | Trigger | Outcome button in `main.ts` | Observation registration only |
 | Effect | Rescores up to 40 open signals | **REMOVED** |
 | Replacement | — | Optional human-triggered rescore via SPEC-002 canonical path only after approved recommendation |
+
+**Phase 5 verified (T-008-508):** zero `rescore` / `scoreSignal` / routing-recompute
+call sites in the canonical learning runtime, and the `main.ts` outcome handler
+contains only `registerSignalOutcomeIntent`. New outcomes, results and Opportunity
+outcome ingestion produce **no** automatic scoring or routing change.
+
+**Learning-triggered auto-rescore authority = 0.**
 
 ---
 
@@ -99,7 +114,14 @@ Legend: **KEEP** · **MIGRATE** · **ADAPT** · **DEPRECATE** · **OTHER_SPEC** 
 
 See `plan.md` § AUDIT008 disposition.
 
-**RUNTIME P0** remains until Phase 4 completes feedbackScoringHints + rescore removal.
+**RUNTIME P0:** **RESOLVED** — Phase 4 removed `feedbackScoringHints` and the mass
+rescore from the authority path; Phase 5 re-verified both adversarially.
+**RUNTIME P0 = 0** · **P0 = 0** · **P1 = 0**.
+
+**Legacy storage forgery (Phase 5 T-008-507):** forged rows injected into
+`postura_signal_outcomes_v1`, `postura_results_v5` and `postura_feedback_v1` are
+projected as `COMPATIBILITY_ONLY` with `MIGRATION_REVIEW_REQUIRED` /
+`SKIPPED_MALFORMED` dispositions. **Legacy storage authority = 0.**
 
 ---
 
