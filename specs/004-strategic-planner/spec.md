@@ -5,7 +5,7 @@
 | **Spec ID** | `004-strategic-planner` |
 | **Display name** | **SPEC-004 — Strategic Planner** |
 | **Status** | **`APPROVED`** (T-004-010 · 2026-08-25 America/Bogota) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** · Phase 3 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Branch** | `spec/004-strategic-planner` |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
 | **Upstream SPEC-003** | CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1` · **FROZEN** |
@@ -236,9 +236,10 @@ Audit mapping: AUDIT-004-01 → F-004-01; AUDIT-004-02 → F-004-03; AUDIT-004-0
 | Phase 0 governance | **COMPLETE** |
 | Human SPEC approval (T-004-010) | **DONE** — **APPROVED** 2026-08-25 (America/Bogota) |
 | Phase 1 Domain | **COMPLETE** (T-004-101…110) |
-| Phase 2 Application | **NOT_AUTHORIZED** |
+| Phase 2 Application | **COMPLETE** (T-004-201…211) |
+| Phase 3 Persistence | **NOT_AUTHORIZED** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Human authorization for Phase 2 Application. Do not begin T-004-201… without approval.
+**Next action:** Human authorization for Phase 3 Persistence. Do not begin T-004-301… without approval.

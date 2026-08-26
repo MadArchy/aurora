@@ -1,11 +1,13 @@
 # Tasks 004 — Strategic Planner
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_1_COMPLETE** · Phase 2 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **PHASE_2_COMPLETE** · Phase 3 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/004-strategic-planner`  
 **Base SHA:** SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
 **Phase-0 governance checkpoint:** `6ee32f5e6c303abd98f9b17966bfdffa2a7a0338`  
+**Phase-1 implementation SHA:** `609b17f85a6c9bce3c4ce4afc26d76c0749a9aea`  
+**Phase-1 checkpoint:** `6e8de53673ed8a2e7e7caf033ee51bca51307a19`  
 **Human SPEC approval:** **APPROVED** (T-004-010) — 2026-08-25 (America/Bogota)  
 **Approval text:** «Apruebo formalmente SPEC-004 — Strategic Planner y autorizo el cierre de T-004-010 y el inicio de la Phase 1 de implementación.»
 
@@ -60,28 +62,43 @@ Requirement ID prefix (future Domain): `PLAN-004-001` …
 **Phase 1 IDs:** T-004-101 … T-004-110 — **ALL DONE**
 
 **Phase-1 implementation SHA:** `609b17f85a6c9bce3c4ce4afc26d76c0749a9aea`  
-**Phase-1 governance checkpoint:** `47d694d2b8feb4f5e322752100082f342b4df479`
-
-Phase 2 **NOT_AUTHORIZED**.
+**Phase-1 governance checkpoint:** `47d694d2b8feb4f5e322752100082f342b4df479`  
+**Phase-1 tip checkpoint:** `6e8de53673ed8a2e7e7caf033ee51bca51307a19`
 
 ---
 
-## Phase 2 — Application / governance (NOT AUTHORIZED)
+## Phase 2 — Application / governance ✅ COMPLETE
 
-- [ ] **T-004-201** `CreateStrategicPlan` use case
-- [ ] **T-004-202** `AddPlanItem` / `RemovePlanItem` use cases
-- [ ] **T-004-203** `ProposeStrategicPlan` use case
-- [ ] **T-004-204** `ApproveStrategicPlan` / `RejectStrategicPlan` use cases
-- [ ] **T-004-205** `ReviseStrategicPlan` use case
-- [ ] **T-004-206** `AuthorizePlannedAction` use case (decision only)
-- [ ] **T-004-207** `ActivatePlanItem` / `CompletePlanItem` / `CancelPlanItem`
-- [ ] **T-004-208** `RevalidatePlanAgainstBrief` use case
-- [ ] **T-004-209** Ports: PlanRepository, PlanItemStore, History, BriefReader, Actor, Clock, optional Advisor
-- [ ] **T-004-210** Controlled error model
-- [ ] **T-004-211** Application hexagonal tests
+- [x] **T-004-201** `CreateStrategicPlan` use case — **DONE**
+- [x] **T-004-202** `AddPlanItem` / `RemovePlanItem` use cases — **DONE**
+- [x] **T-004-203** `ProposeStrategicPlan` use case — **DONE**
+- [x] **T-004-204** `ApproveStrategicPlan` / `RejectStrategicPlan` use cases — **DONE**
+- [x] **T-004-205** `ReviseStrategicPlan` use case — **DONE**
+- [x] **T-004-206** `AuthorizePlannedAction` use case (decision only) — **DONE**
+- [x] **T-004-207** `ActivatePlanItem` / `CompletePlanItem` / `CancelPlanItem` — **DONE**
+- [x] **T-004-208** `RevalidatePlanAgainstBrief` use case — **DONE**
+- [x] **T-004-209** Ports: PlanRepository, PlanItemStore, History, BriefReader, Actor, Clock, optional Advisor — **DONE**
+- [x] **T-004-210** Controlled error model — **DONE**
+- [x] **T-004-211** Application hexagonal tests — **DONE**
 
 **RUNTIME ADVISOR = DEFERRED** (PlannerAdvisorPort only; no new AiOperation)  
-**Phase 2 IDs:** T-004-201 … T-004-211
+**Phase 2 IDs:** T-004-201 … T-004-211 — **ALL DONE**
+
+**Exit:** Application orchestrates Domain; ports only; no Infrastructure/UI/consumer. **MET**
+
+**Evidence:**
+- Application: `src/application/strategicPlan/` (use cases + ports + trustedContext)
+- Tests: `tests/strategicPlanPhase2.test.ts` (27) · `tests/strategicPlanApplicationArchitecture.test.ts` (5) · **32/32 PASS**
+- Phase-1 Domain regression **23/23 PASS**
+- Adjacent legacy regression **28/28 PASS**
+- Full check **1031/1031 PASS** · Rules **91/91 PASS**
+- F-004-03 remains **OPEN** (consumer migration Phase 4)
+- F-004-04 remains **OPEN_NONBLOCKING**
+
+**Phase-2 implementation SHA:** pending commit  
+**Phase-2 governance checkpoint:** pending
+
+Phase 3 **NOT_AUTHORIZED**.
 
 ---
 
