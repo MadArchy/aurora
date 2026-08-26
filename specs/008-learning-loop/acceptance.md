@@ -2,8 +2,9 @@
 
 **Phase 0:** Formal package **COMPLETE** · Human SPEC approval **APPROVED** (T-008-010)  
 **Phase 1:** Domain **COMPLETE** (T-008-101…110)  
-**Phase 2–6:** **NOT STARTED**  
-**SPEC-008 IMPLEMENTATION:** Phase 1 Domain **COMPLETE**  
+**Phase 2:** Application + Ports **COMPLETE** (T-008-201…211)  
+**Phase 3–6:** **NOT STARTED**  
+**SPEC-008 IMPLEMENTATION:** Phase 2 Application **COMPLETE**  
 **CODE_COMPLETE:** **NO**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -14,7 +15,7 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 **Human CODE_COMPLETE model:** TASK-LEVEL only (T-008-604).  
 **Implementation baseline:** SPEC-007 CODE_COMPLETE @ `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0`  
 **Branch:** `spec/008-learning-loop`  
-**Phase-1 checkpoint:** `33f1826dcf66af23a5970968e58abe9466f0bcef`
+**Phase-1 checkpoint:** `de4d7def9fdc386e1f1c962b8439b4a03658d506`
 
 ### Human SPEC approval (T-008-010) — RECORDED
 
@@ -39,10 +40,10 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 | A5 | `StrategicRecommendation` first-class versioned aggregate | 1 | ✅ PASS | `strategicRecommendationCore.ts` |
 | A6 | RAW RESULT ≠ LEARNING ≠ RECOMMENDATION ≠ APPROVED CHANGE | 0–1 | ✅ PASS | spec + `learningAuthorityCore.ts` |
 | A7 | Learning does not auto-mutate thesis/weights/voice/audience/objective | 1–4 | ⏳ PARTIAL | Domain PASS · runtime P0 open until Phase 4 |
-| A8 | Recommendation ≠ approval — lifecycle enforces human gate | 1–2 | ⏳ PARTIAL | Domain PASS · App pending |
-| A9 | AI advisory only — cannot approve or apply | 1–5 | ⏳ PARTIAL | Domain actor ban PASS · App/Phase 5 pending |
+| A8 | Recommendation ≠ approval — lifecycle enforces human gate | 1–2 | ⏳ PARTIAL | Domain + App PASS · consumer pending |
+| A9 | AI advisory only — cannot approve or apply | 1–5 | ⏳ PARTIAL | Domain + App actor ban PASS · Phase 5 pending |
 | A10 | UI intent/display only — zero authoritative learning writes | 4–5 | ⏳ PENDING | Consumer + Phase 5 |
-| A11 | Trusted actor wins over caller `actorUid`/`createdBy` spoof | 2–5 | ⏳ PENDING | App + Phase 5 |
+| A11 | Trusted actor wins over caller `actorUid`/`createdBy` spoof | 2–5 | ⏳ PARTIAL | App tests PASS · consumer Phase 5 pending |
 | A12 | No hard-coded actor fallbacks (`user_admin_01`, `"client"`) | 4–5 | ⏳ PENDING | Consumer + Phase 5 |
 | A13 | Tenant isolation `(organizationId, clientId, entityId)` | 1–5 | ⏳ PARTIAL | Domain PASS · Infra pending |
 | A14 | No id-only `getSignalOutcome(signalId)` authority | 4 | ⏳ PENDING | Consumer migration |
@@ -52,27 +53,27 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008
 | A18 | History audit-only — not current strategic authority | 1–3 | ✅ PASS | `learningMaterialityCore.ts` |
 | A19 | RecommendationDecision append-only human audit | 1–3 | ⏳ PARTIAL | Domain PASS · persistence Phase 3 |
 | A20 | Schema version + fail-closed malformed parse | 3 | ⏳ PENDING | Infra tests |
-| A21 | Idempotency on register/propose/approve/apply | 2–3 | ⏳ PARTIAL | Domain fingerprint only · durable Phase 3 |
-| A22 | ApplyApprovedRecommendation dispatches to TargetSpecApplyPort only | 2 | ⏳ PENDING | App |
-| A23 | SPEC-008 does not write SPEC-002 storage directly | 1–5 | ⏳ PARTIAL | Domain arch PASS · App pending |
+| A21 | Idempotency on register/propose/approve/apply | 2–3 | ⏳ PARTIAL | App contract PASS · durable Phase 3 |
+| A22 | ApplyApprovedRecommendation dispatches to TargetSpecApplyPort only | 2 | ⏳ PARTIAL | App + tests · adapter Phase 3 |
+| A23 | SPEC-008 does not write SPEC-002 storage directly | 1–5 | ⏳ PARTIAL | Domain + App arch PASS · legacy runtime open |
 | A24 | **P0:** feedbackScoringHints removed from scoring authority path | 4 | ⏳ PENDING | Phase 4 T-008-405 |
 | A25 | **P0:** post-outcome mass rescore removed | 4 | ⏳ PENDING | Phase 4 T-008-406 |
-| A26 | Approved SPEC-002 changes only via future SPEC-002 apply port | 2–4 | ⏳ PENDING | Apply port + tests |
+| A26 | Approved SPEC-002 changes only via future SPEC-002 apply port | 2–4 | ⏳ PARTIAL | TargetSpecApplyPort contract · adapter Phase 3 |
 | A27 | Legacy `dbService` outcome/result mutators demoted | 4 | ⏳ PENDING | Consumer |
 | A28 | SPEC-001 boundary — no routing authority from learning | 4–5 | ⏳ PENDING | Migration + T-008-509 |
-| A29 | SPEC-007 Opportunity outcomes ingested read-only | 4 | ⏳ PENDING | T-008-407 |
+| A29 | SPEC-007 Opportunity outcomes ingested read-only | 2–4 | ⏳ PARTIAL | OpportunityOutcomeReader port · consumer Phase 4 |
 | A30 | Materiality/version — post-approval change requires supersession | 1–2 | ✅ PASS | `learningMaterialityCore.ts` |
 | A31 | LOCAL_AUTHORITATIVE persistence Phase 3 | 3 | ⏳ PENDING | Infra |
 | A32 | Legacy key compat readers during migration | 3–4 | ⏳ PENDING | Infra |
 | A33 | Explainability — source ids, metrics, reason codes; no CoT | 1–2 | ✅ PASS | `learningExplainabilityCore.ts` |
 | A34 | Opportunity accept/decline/complete as learning input | 4 | ⏳ PENDING | Consumer ingest |
-| A35 | `APPROVED_NOT_APPLIED` when target port unavailable | 1–2 | ⏳ PARTIAL | Domain lifecycle PASS · App pending |
+| A35 | `APPROVED_NOT_APPLIED` when target port unavailable | 1–2 | ⏳ PARTIAL | Domain + App lifecycle PASS |
 | A36 | feedbackScoringHints may exist DISPLAY_ONLY at most | 4 | ⏳ PENDING | Migration matrix |
 | A37 | Threat model T-008-01…26 PASS | 5 | ⏳ PENDING | Phase 5 suite |
 | A38 | Full check + rules regression at CODE_COMPLETE | 6 | ⏳ PENDING | T-008-602 |
 
 **Acceptance count:** **38** (A1–A38)  
-**Phase 1 evidence:** **11 PASS** · **10 PARTIAL** · **17 PENDING**
+**Phase 2 evidence:** **11 PASS** · **13 PARTIAL** · **14 PENDING**
 
 ---
 

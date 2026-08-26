@@ -9,7 +9,7 @@
 **Phase-0 package SHA:** `deaf797b2aa38d8ef724a0fadb9886de0e848f70`  
 **Phase-0 final checkpoint:** `df765fddad41ef4b68da9a5c6d23aa7aa2b3ab24`  
 **Phase-1 implementation SHA:** `dd914f200a67becf11282287adf5760ff942e652`  
-**Phase-1 final checkpoint:** `33f1826dcf66af23a5970968e58abe9466f0bcef`
+**Phase-1 final checkpoint:** `de4d7def9fdc386e1f1c962b8439b4a03658d506`
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -38,7 +38,7 @@ Requirement ID prefix (future Domain): `LRN-008-001` …
 
 > «Apruebo formalmente SPEC-008 — Learning Loop y autorizo el cierre de T-008-010 y el inicio de la Phase 1 de implementación.»
 
-**FORMAL SPEC APPROVAL:** APPROVED · **PHASE-1 AUTHORIZATION:** YES · **PHASE-2 AUTHORIZATION:** NO (until Phase 1 DONE)
+**FORMAL SPEC APPROVAL:** APPROVED · **PHASE-1 AUTHORIZATION:** YES · **PHASE-2 AUTHORIZATION:** YES (Phase 2 COMPLETE)
 
 ---
 
@@ -68,23 +68,28 @@ Requirement ID prefix (future Domain): `LRN-008-001` …
 
 ---
 
-## Phase 2 — Application / ports (AUTHORIZED — NOT STARTED)
+## Phase 2 — Application / ports ✅ COMPLETE
 
-- [ ] **T-008-201** `RegisterLearningObservation` / `SupersedeLearningObservation` — **TODO**
-- [ ] **T-008-202** `BuildLearningEvidence` / `BuildLearningAssessment` — **TODO**
-- [ ] **T-008-203** `GenerateStrategicRecommendation` — **TODO**
-- [ ] **T-008-204** `ReviewStrategicRecommendation` — **TODO**
-- [ ] **T-008-205** `ApproveStrategicRecommendation` / `RejectStrategicRecommendation` — **TODO**
-- [ ] **T-008-206** `ApplyApprovedRecommendation` + TargetSpecApplyPort registry — **TODO**
-- [ ] **T-008-207** `GetLearningMetrics` / `ListStrategicRecommendations` (tenant-safe) — **TODO**
-- [ ] **T-008-208** Trusted actor + tenant context; caller snapshot ignore — **TODO**
-- [ ] **T-008-209** Ports: Observation/Evidence/Recommendation/History/Decision/TargetApply — **TODO**
-- [ ] **T-008-210** Application architecture purity tests — **TODO**
-- [ ] **T-008-211** Application use-case tests (spoof/deny matrix) — **TODO**
+- [x] **T-008-201** `RegisterLearningObservation` / `SupersedeLearningObservation` — **DONE**
+- [x] **T-008-202** `BuildLearningEvidence` / `BuildLearningAssessment` — **DONE**
+- [x] **T-008-203** `GenerateStrategicRecommendation` — **DONE**
+- [x] **T-008-204** `ReviewStrategicRecommendation` — **DONE**
+- [x] **T-008-205** `ApproveStrategicRecommendation` / `RejectStrategicRecommendation` — **DONE**
+- [x] **T-008-206** `ApplyApprovedRecommendation` + TargetSpecApplyPort registry — **DONE**
+- [x] **T-008-207** `GetLearningMetrics` / `ListStrategicRecommendations` (tenant-safe) — **DONE**
+- [x] **T-008-208** Trusted actor + tenant context; caller snapshot ignore — **DONE**
+- [x] **T-008-209** Ports: Observation/Evidence/Recommendation/History/Decision/TargetApply — **DONE**
+- [x] **T-008-210** Application architecture purity tests — **DONE**
+- [x] **T-008-211** Application use-case tests (spoof/deny matrix) — **DONE**
 
 **Phase 2 IDs:** T-008-201 … T-008-211  
 **Depends on:** Phase 1 DONE  
 **Maps to:** A8–A16, A22, A28–A29, A33  
+
+**Application:** `src/application/learningLoop/`  
+**Tests:** `tests/learningLoopPhase2.test.ts` · `tests/learningLoopApplicationArchitecture.test.ts`  
+**Infrastructure / Persistence / Consumer migration:** **NONE**  
+**Runtime P0 (AUDIT008-03):** **OPEN** — feedbackScoringHints + mass rescore untouched (Phase 4)
 
 **Exit:** Phase 2 Application COMPLETE · Phase 3 **AUTHORIZED** after Phase 2.
 
@@ -184,7 +189,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 |-------|----------|-------|--------|
 | 0 | T-008-001…010 | 10 | 10 DONE |
 | 1 | T-008-101…110 | 10 | 10 DONE |
-| 2 | T-008-201…211 | 11 | TODO |
+| 2 | T-008-201…211 | 11 | 11 DONE |
 | 3 | T-008-301…308 | 8 | TODO |
 | 4 | T-008-401…407 | 7 | TODO |
 | 5 | T-008-501…510 | 10 | TODO |
