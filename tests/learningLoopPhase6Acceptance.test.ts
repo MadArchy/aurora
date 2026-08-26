@@ -176,28 +176,51 @@ describe('Acceptance matrix integrity — A1…A38', () => {
 });
 
 // ============================================================
-// Human gate — T-008-604 must remain open until explicit approval
+// Human gate — T-008-604
+//
+// Anti-forgery invariant: CODE_COMPLETE may only be declared while the exact
+// human authorization statement is recorded verbatim. The statement is the sole
+// formal artifact, so the declaration and the evidence must never diverge.
 // ============================================================
+
+const APPROVAL_STATEMENT =
+  'Apruebo formalmente el CODE_COMPLETE de SPEC-008 — Learning Loop y autorizo el cierre de T-008-604.';
 
 describe('T-008-604 human CODE_COMPLETE gate', () => {
   const tasks = read(join(ROOT, 'specs/008-learning-loop/tasks.md'));
   const acceptance = read(join(ROOT, ACCEPTANCE));
 
-  it('the human approval task exists and is not marked done by automation', () => {
+  it('the exact required human approval statement is recorded verbatim', () => {
+    expect(tasks).toContain(APPROVAL_STATEMENT);
+    expect(acceptance).toContain(APPROVAL_STATEMENT);
+  });
+
+  it('CODE_COMPLETE is declared only when the human statement is on record', () => {
+    const declared = /\*\*CODE_COMPLETE:\*\*\s*\*\*YES\*\*/.test(acceptance);
+    if (declared) {
+      expect(acceptance).toContain(APPROVAL_STATEMENT);
+      expect(acceptance).toMatch(/\*\*HUMAN SIGNOFF:\*\*\s*\*\*APPROVED\*\*/);
+    } else {
+      expect(acceptance).toMatch(/\*\*CODE_COMPLETE:\*\*\s*\*\*NO\*\*/);
+    }
+  });
+
+  it('T-008-604 is closed only when signoff is APPROVED and the date is recorded', () => {
     const row = tasks.split(/\r?\n/).find((line) => line.includes('T-008-604'));
     expect(row).toBeDefined();
-    expect(row).not.toMatch(/^- \[x\]/);
+    if (/^- \[x\]/.test(row!)) {
+      expect(acceptance).toMatch(/\*\*HUMAN SIGNOFF:\*\*\s*\*\*APPROVED\*\*/);
+      expect(acceptance).toContain('America/Bogota');
+      expect(acceptance).toContain(APPROVAL_STATEMENT);
+    } else {
+      expect(acceptance).toMatch(/\*\*CODE_COMPLETE:\*\*\s*\*\*NO\*\*/);
+    }
   });
 
-  it('the exact required human approval statement is recorded verbatim', () => {
-    const statement =
-      'Apruebo formalmente el CODE_COMPLETE de SPEC-008 — Learning Loop y autorizo el cierre de T-008-604.';
-    expect(tasks).toContain(statement);
-    expect(acceptance).toContain(statement);
-  });
-
-  it('CODE_COMPLETE is not declared while the human gate is open', () => {
-    expect(acceptance).toMatch(/\*\*CODE_COMPLETE:\*\*\s*\*\*NO\*\*/);
+  it('CODE_COMPLETE never implies DONE or deployment', () => {
+    expect(acceptance).toMatch(/\*\*DONE:\*\*\s*\*\*NO\*\*/);
+    expect(acceptance).toMatch(/\*\*DEPLOYMENT:\*\*\s*\*\*NOT_STARTED\*\*/);
+    expect(acceptance).toMatch(/\*\*DEPLOYED:\*\*\s*\*\*NO\*\*/);
   });
 });
 

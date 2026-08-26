@@ -6,16 +6,20 @@
 **Phase 3:** Persistence **COMPLETE** (T-008-301…308)  
 **Phase 4:** Consumer / legacy migration **COMPLETE** (T-008-401…407)  
 **Phase 5:** Security / adversarial hardening **COMPLETE** (T-008-501…510) — **26/26 threats PASS**  
-**Phase 6:** Acceptance closure **EVIDENCE_COMPLETE** (T-008-601…603 **DONE**) · T-008-604 human gate **PENDING**  
+**Phase 6:** Acceptance closure **COMPLETE** (T-008-601…604 **DONE**)  
 **SPEC-008 IMPLEMENTATION:** **IMPLEMENTATION_COMPLETE**  
 **A1-A38:** **38 PASS** · **0 PARTIAL** · **0 FAIL** · **0 PENDING**  
-**CODE_COMPLETE_CANDIDATE:** **YES** · **CODE_COMPLETE:** **NO**  
+**CODE_COMPLETE_CANDIDATE:** **YES** · **HUMAN SIGNOFF:** **APPROVED** · **CODE_COMPLETE:** **YES**  
+**FREEZE:** **ACTIVE**  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
 Spec **APPROVED** requires T-008-010 human SPEC approval — **SATISFIED** (2026-08-26 America/Bogota).  
 Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-008-604).  
-Required (A\*) full PASS = **SATISFIED** (38/38). Human sign-off (T-008-604) = **PENDING** — the only
-remaining gate. No automation may close it.
+Required (A\*) full PASS = **SATISFIED** (38/38). Human sign-off (T-008-604) = **APPROVED**
+(2026-08-26 America/Bogota). Both conditions met — **CODE_COMPLETE = YES**.
+
+**CODE_COMPLETE ≠ DEPLOYMENT ≠ DONE.** Deployment (D1–D3) remains **NOT_STARTED** by
+constitutional separation; `DONE` remains **NO**.
 
 **Human SPEC approval model:** TASK-LEVEL only (T-008-010).  
 **Human CODE_COMPLETE model:** TASK-LEVEL only (T-008-604).  
@@ -76,7 +80,7 @@ remaining gate. No automation may close it.
 | A35 | `APPROVED_NOT_APPLIED` when target port unavailable | 1–2 | ✅ PASS | Phase 5 T-008-504: verified at runtime for unsupported + rejected targets |
 | A36 | feedbackScoringHints may exist DISPLAY_ONLY at most | 4 | ✅ PASS | Phase 5 T-008-507: **DEAD** definition + TEST_ONLY · 0 src call sites |
 | A37 | Threat model T-008-01…26 PASS | 5 | ✅ PASS | Phase 5: **26/26** formal threats PASS with individual evidence |
-| A38 | Full check + rules regression at CODE_COMPLETE | 6 | ✅ PASS | Phase 6 T-008-602: full check **1466/1466 PASS** · rules **91/91 PASS** |
+| A38 | Full check + rules regression at CODE_COMPLETE | 6 | ✅ PASS | T-008-602 candidate: **1466/1466** · rules **91/91** · re-run at final closure: full check **1467/1467 PASS** · rules **91/91 PASS** |
 
 **Acceptance count:** **38** (A1–A38)  
 **Phase 5 evidence:** **36 PASS** · **1 PARTIAL** (A12) · **0 FAIL** · **1 PENDING** (A38)  
@@ -160,26 +164,33 @@ regression, produced by T-008-602. Now **PASS**.
 
 ---
 
-## Human CODE_COMPLETE (T-008-604) — OPEN · AWAITING HUMAN
+## Human CODE_COMPLETE (T-008-604) — RECORDED
 
 | Field | Value |
 |-------|--------|
 | **Task** | T-008-604 |
-| **Status** | **TODO** — **PENDING HUMAN** (not closable by automation) |
+| **Title** | Human CODE_COMPLETE approval |
+| **Status** | **DONE** |
 | **Classification** | HUMAN |
+| **Date** | 2026-08-26 |
+| **Timezone** | America/Bogota |
 | **Precondition** | Required (A\*) full PASS — **SATISFIED** (38/38) |
 | **Authorization text** | «Apruebo formalmente el CODE_COMPLETE de SPEC-008 — Learning Loop y autorizo el cierre de T-008-604.» |
 
-Required (A\*) criteria must be **PASS** before T-008-604 may close — **satisfied**.
-T-008-604 is therefore the **sole** remaining gate between `CODE_COMPLETE_CANDIDATE` and
-`CODE_COMPLETE`. Until the exact authorization text above is provided by the human owner:
+Required (A\*) criteria were **PASS** before T-008-604 closed. The authorization text above was
+provided verbatim by the human owner. No approver identity, email, user ID, organization, role,
+signature or account metadata was recorded, because none was supplied — the statement alone is
+the formal artifact.
+
+Resulting frozen state:
 
 | State | Value |
 |-------|--------|
 | IMPLEMENTATION_COMPLETE | **YES** |
 | CODE_COMPLETE_CANDIDATE | **YES** |
-| HUMAN SIGNOFF | **PENDING** |
-| CODE_COMPLETE | **NO** |
+| HUMAN SIGNOFF | **APPROVED** |
+| CODE_COMPLETE | **YES** |
+| FREEZE | **ACTIVE** |
 | DEPLOYMENT | **NOT_STARTED** |
 | DEPLOYED | **NO** |
 | DONE | **NO** |

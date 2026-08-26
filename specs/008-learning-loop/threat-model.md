@@ -7,6 +7,12 @@ was altered and no threat could regress. Re-confirmed at Phase-6 closure: **26/2
 0 FAIL · 0 PENDING** · P0 **0** · P1 **0** · authority bypasses **0** · full check **1466/1466 PASS** ·
 rules **91/91 PASS**. Threat matrix is **FROZEN** for the CODE_COMPLETE candidate.
 
+**Final closure freeze (T-008-604 · CODE_COMPLETE APPROVED 2026-08-26):** governance-only closure —
+**0 product files** changed, so no threat surface moved. Re-confirmed fresh at closure:
+**26/26 PASS · 0 PARTIAL · 0 FAIL · 0 PENDING** · P0 **0** · P1 **0** · P2 **0** · P3 **0** ·
+authority bypasses **0** · full check **1467/1467 PASS** · rules **91/91 PASS**.
+Threat matrix **FREEZE = ACTIVE**.
+
 Constitution: Observation ≠ authority · Learning ≠ mutation · Recommendation ≠ approval · AI advisory · Tenant · Multi-thesis.
 
 Baseline: SPEC-007 FROZEN @ `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0`

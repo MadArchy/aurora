@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `008-learning-loop` |
 | **Display name** | **SPEC-008 — Learning Loop** |
-| **Status** | **`APPROVED`** · Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2 Application **COMPLETE** · Phase 3 Persistence **COMPLETE** · Phase 4 Consumer **COMPLETE** |
-| **Phase** | Phase 4 Consumer **COMPLETE** · Phase 5+ **NOT STARTED** · deployment **NOT_STARTED** |
+| **Status** | **`CODE_COMPLETE`** · **FREEZE ACTIVE** · Phases 0–6 **COMPLETE** (Domain · Application · Persistence · Consumer · Security · Acceptance) |
+| **Phase** | Phase 6 Acceptance **COMPLETE** · `CODE_COMPLETE` **YES** (T-008-604 approved 2026-08-26 America/Bogota) · `DEPLOYMENT` **NOT_STARTED** · `DEPLOYED` **NO** · `DONE` **NO** |
 | **Branch** | `spec/008-learning-loop` |
 | **Baseline SHA** | SPEC-007 CODE_COMPLETE final freeze `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0` |
 | **Priority** | P1 (constitution §19 + §32 — RESULTS → LEARNING → STRATEGIC RECOMMENDATION) |
@@ -14,6 +14,7 @@
 | **Blocks** | Governed learning, strategic recommendation, and human-approved strategic change traceability |
 | **Test baseline (Phase 0)** | Full check + rules unchanged · focused legacy learning tests 8/8 PASS |
 | **Human SPEC approval** | **APPROVED** (T-008-010) — 2026-08-26 (America/Bogota) |
+| **Human CODE_COMPLETE approval** | **APPROVED** (T-008-604) — 2026-08-26 (America/Bogota) |
 
 ---
 

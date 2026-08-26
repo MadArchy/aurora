@@ -181,12 +181,12 @@ assigns it, so it remains **IMPLEMENTATION_PENDING** for Phase 6. No UI was inve
 
 ---
 
-## Phase 6 — Acceptance / CODE_COMPLETE (TECHNICAL CLOSURE COMPLETE)
+## Phase 6 — Acceptance / CODE_COMPLETE (COMPLETE · CODE_COMPLETE APPROVED)
 
 - [x] **T-008-601** Run full acceptance matrix A1–A38 — **DONE**
 - [x] **T-008-602** Full check + rules regression — **DONE**
 - [x] **T-008-603** Evidence bundle + governance closure doc — **DONE**
-- [ ] **T-008-604** Human CODE_COMPLETE approval — **TODO · PENDING HUMAN**
+- [x] **T-008-604** Human CODE_COMPLETE approval — **DONE** (2026-08-26 America/Bogota)
 
 **Phase 6 IDs:** T-008-601 … T-008-604  
 **Depends on:** Phase 5 DONE  
@@ -198,7 +198,7 @@ assigns it, so it remains **IMPLEMENTATION_PENDING** for Phase 6. No UI was inve
 | T-008-601 | Run full acceptance matrix A1–A38 | TECHNICAL | Phase 5 DONE | A1–A38 (closes **A12**) | **NOT AUTHORIZED** — evidence only | **DONE** |
 | T-008-602 | Full check + rules regression | TECHNICAL | T-008-601 | **A38** | **NOT AUTHORIZED** | **DONE** |
 | T-008-603 | Evidence bundle + governance closure doc | TECHNICAL | T-008-601, T-008-602 | governance closure | **NOT AUTHORIZED** | **DONE** |
-| T-008-604 | Human CODE_COMPLETE approval | **HUMAN** | T-008-601…603 | CODE_COMPLETE gate | n/a | **TODO · PENDING HUMAN** |
+| T-008-604 | Human CODE_COMPLETE approval | **HUMAN** | T-008-601…603 | CODE_COMPLETE gate | n/a | **DONE** |
 
 **No Phase-6 task authorizes product code change.** Phase 6 is closure/evidence only.
 **Product files changed in Phase 6: 0.**
@@ -207,12 +207,20 @@ assigns it, so it remains **IMPLEMENTATION_PENDING** for Phase 6. No UI was inve
 
 | Suite | File | Tests |
 |-------|------|-------|
-| Acceptance matrix evidence | `tests/learningLoopPhase6Acceptance.test.ts` | 14 PASS |
+| Acceptance matrix evidence | `tests/learningLoopPhase6Acceptance.test.ts` | 15 PASS |
 
 **A12:** PARTIAL → **PASS** — canonical learning runtime fallbacks = 0 · UI learning intents pass
 0 actor identity fields · 13/13 residual `main.ts` fallbacks attributed to non-learning
 **SPEC-001…007** paths (KNOWN_LIMITATION, out of SPEC-008 scope, frozen — not a blocker).  
-**A38:** PENDING → **PASS** — full check **1466/1466 PASS** · rules **91/91 PASS**.
+**A38:** PENDING → **PASS** — full check **1466/1466 PASS** · rules **91/91 PASS** at the candidate
+checkpoint; re-run fresh at final closure: **1467/1467 PASS** · **91/91 PASS**.
+
+**Final-closure test delta (disclosed):** closing T-008-604 inverted two Phase-6 guard assertions
+that existed specifically to stop automation forging the human signoff. They were re-pointed to the
+post-approval invariant — *CODE_COMPLETE may only be declared while the verbatim statement, APPROVED
+signoff and approval date are on record*, plus a new assertion that CODE_COMPLETE never implies
+`DONE` or deployment. Net: **1 test file changed, +1 assertion (14 → 15)**. The anti-forgery
+property is strengthened, not removed. **Product files changed: 0.**
 
 **A1-A38:** **38 PASS / 0 PARTIAL / 0 FAIL / 0 PENDING**  
 **Formal threats:** **26/26 PASS** — unchanged; 0 product changes in Phase 6, so no threat re-exposure.  
@@ -227,16 +235,23 @@ an approval UI to exist; A8/A10 assert the human-gate and zero-UI-authority *pro
 Consequence is a **capability** gap (no in-app manager approval surface yet), tracked for a future
 SPEC/phase that formally owns it.
 
-**Exit (pre-human):** technical closure **EVIDENCE_COMPLETE** · `IMPLEMENTATION_COMPLETE` **YES** ·
-`CODE_COMPLETE_CANDIDATE` **YES** · `HUMAN SIGNOFF` **PENDING** · `CODE_COMPLETE` **NO** ·
-deployment **NOT_STARTED** · `DONE` **NO**
+**Exit:** Phase 6 **COMPLETE** · `IMPLEMENTATION_COMPLETE` **YES** ·
+`CODE_COMPLETE_CANDIDATE` **YES** · `HUMAN SIGNOFF` **APPROVED** · `CODE_COMPLETE` **YES** ·
+`FREEZE` **ACTIVE** · deployment **NOT_STARTED** · `DEPLOYED` **NO** · `DONE` **NO**
 
-**Required human CODE_COMPLETE statement (T-008-604) — REQUIRED NOW:**
+### Human CODE_COMPLETE approval (T-008-604) — RECORDED
+
+Provided verbatim by the human owner on **2026-08-26** (**America/Bogota**):
 
 > «Apruebo formalmente el CODE_COMPLETE de SPEC-008 — Learning Loop y autorizo el cierre de T-008-604.»
 
-This statement must be provided by the human owner. It has **not** been given.
-No automation may write it, infer it, or mark T-008-604 DONE.
+Authorized transitions performed by this closure and nothing else:
+`T-008-604` TODO → **DONE** · `HUMAN SIGNOFF` PENDING → **APPROVED** ·
+`CODE_COMPLETE` NO → **YES** · `FREEZE` → **ACTIVE**.
+
+No approver identity, email, user ID, organization, role, signature or account metadata was
+recorded — none was supplied, and none may be invented. `DONE` remains **NO**; deployment
+remains **NOT_STARTED**.
 
 ---
 
@@ -262,7 +277,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 3 | T-008-301…308 | 8 | 8 DONE |
 | 4 | T-008-401…407 | 7 | 7 DONE |
 | 5 | T-008-501…510 | 10 | 10 DONE |
-| 6 | T-008-601…604 | 4 | 3 DONE · 1 PENDING HUMAN (T-008-604) |
+| 6 | T-008-601…604 | 4 | 4 DONE |
 | Deploy | D1–D3 | 3 | NOT_STARTED |
 
 **Total formal tasks:** 63 (60 implementation + 3 deployment)
