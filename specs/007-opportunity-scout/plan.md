@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `007-opportunity-scout` |
-| **Phase** | Phase 0–6 technical **COMPLETE** · T-007-604 **PENDING** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`APPROVED`** · A1–A40 **40 PASS** · threats **18/18 PASS** · await human CODE_COMPLETE |
+| **Phase** | **CODE_COMPLETE = YES** · FREEZE **ACTIVE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED** |
+| **Status** | **`APPROVED`** · A1–A40 **40 PASS** · threats **18/18 PASS** · T-007-604 **DONE** · human CODE_COMPLETE **APPROVED** |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Branch** | `spec/007-opportunity-scout` |
@@ -123,13 +123,15 @@ TARGET:
 - Product fixes — **0**
 - AUDIT007-08 remains OPEN_NONBLOCKING (DISPLAY_ONLY spotlight)
 
-### Phase 6 — Acceptance ✅ EVIDENCE COMPLETE (human PENDING)
+### Phase 6 — Acceptance ✅ COMPLETE (CODE_COMPLETE YES)
 
 - A1–A40 consolidated — **40 PASS**
 - `npm run check` / `test:rules` — **PASS**
-- Human CODE_COMPLETE (T-007-604) — **PENDING**
-- DEPLOYED/DONE — **NO** / **NOT_STARTED**
+- Human CODE_COMPLETE (T-007-604) — **DONE** · **APPROVED** 2026-08-26 America/Bogota
 - CODE_COMPLETE_CANDIDATE — **YES**
+- CODE_COMPLETE — **YES**
+- DEPLOYED/DONE — **NO** / **NOT_STARTED**
+- FREEZE — **ACTIVE**
 
 ---
 

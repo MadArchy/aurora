@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `007-opportunity-scout` |
 | **Display name** | **SPEC-007 — Opportunity Scout** |
-| **Status** | **`APPROVED`** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** (T-007-604 PENDING) |
-| **Phase** | Phase 0–6 technical **COMPLETE** · human CODE_COMPLETE **PENDING** · deployment **NOT_STARTED** |
+| **Status** | **`APPROVED`** · **CODE_COMPLETE = YES** · FREEZE **ACTIVE** |
+| **Phase** | Phase 0–6 **COMPLETE** · deployment **NOT_STARTED** · DONE **NO** |
 | **Branch** | `spec/007-opportunity-scout` |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE final freeze `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Priority** | P1 (constitution §32 Strategic Circuit — Opportunity Intelligence + Opportunity Execution) |
@@ -151,10 +151,15 @@ SPEC-006     = MAY claim-bearing content publish? (orthogonal)
 | Phase 4 Consumer | **COMPLETE** (T-007-401…407) |
 | Phase 5 Security | **COMPLETE** (T-007-501…510) · threats 18/18 PASS |
 | Phase 6 technical evidence | **COMPLETE** (T-007-601…603,605) · A1–A40 **40 PASS** |
-| Human CODE_COMPLETE (T-007-604) | **PENDING** |
+| Human CODE_COMPLETE (T-007-604) | **DONE** · **APPROVED** 2026-08-26 (America/Bogota) |
 | CODE_COMPLETE CANDIDATE | **YES** |
-| CODE_COMPLETE | **NO** |
+| CODE_COMPLETE | **YES** |
+| FREEZE | **ACTIVE** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Await human T-007-604 CODE_COMPLETE approval. Do not deploy. Do not start SPEC-008.
+**Human CODE_COMPLETE approval text (T-007-604), recorded verbatim:**
+
+> «Apruebo formalmente el CODE_COMPLETE de SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-604.»
+
+**Next action:** Accept SPEC-007 final freeze. Do not deploy without separate authorization. Do not start SPEC-008.

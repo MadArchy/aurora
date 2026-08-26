@@ -1,13 +1,15 @@
 # Tasks 007 — Opportunity Scout
 
-**Spec status:** `APPROVED` · Phase 1–6 technical **COMPLETE** · T-007-604 **PENDING** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO**  
-**Implementation:** Phase 1–6 technical **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED` · **CODE_COMPLETE = YES** · T-007-604 **DONE** · DEPLOYED **NO** · DONE **NO**  
+**Implementation:** **IMPLEMENTATION_COMPLETE = YES** · **CODE_COMPLETE = YES** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/007-opportunity-scout`  
 **Base SHA:** SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
 **Upstream SPEC-006:** `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Human SPEC approval:** **APPROVED** (T-007-010) — 2026-08-26 (America/Bogota)  
 **Approval text:** «Apruebo formalmente SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-010 y el inicio de la Phase 1 de implementación.»  
+**Human CODE_COMPLETE approval:** **APPROVED** (T-007-604) — 2026-08-26 (America/Bogota)  
+**CODE_COMPLETE approval text:** «Apruebo formalmente el CODE_COMPLETE de SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-604.»  
 **Phase-1 implementation SHA:** `cdcb5a04cf4e97baaaf7db7d7a62dccc15afcc98`  
 **Phase-1 checkpoint:** `2899386c1a660e79bf90a15a991ffdcf157567f8`  
 **Phase-2 implementation SHA:** `ddd43002c9501b3853744409c343012aae5943ec`  
@@ -19,7 +21,8 @@
 **Phase-5 security/test SHA:** `2e52626cc57f0f34d5e759e2309a6df108134f58`  
 **Phase-5 checkpoint:** `ed6c916f96ac5e46be1d366a69a670b1e2ed92b3`  
 **Phase-6 acceptance evidence SHA:** `9c7536a217e81d32a4c7fa3e14e1f956b292d7b8`  
-**Phase-6 CODE_COMPLETE candidate checkpoint:** `9fb70d791383bfa9f2be3080bae5d6cc3e9998e1`
+**Phase-6 CODE_COMPLETE candidate checkpoint:** `8a21ee0aa0c8b1acdb34805b6e47ead6ec1aec87`  
+**FREEZE:** **ACTIVE** (final frozen checkpoint = this closure commit SHA — reported after push)
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -185,25 +188,35 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 
 ---
 
-## Phase 6 — Acceptance / CODE_COMPLETE ✅ EVIDENCE COMPLETE (human PENDING)
+## Phase 6 — Acceptance / CODE_COMPLETE ✅ COMPLETE
 
 - [x] **T-007-601** Consolidate A1–A40 evidence matrix — **DONE** (40/40 PASS)
 - [x] **T-007-602** `npm run check` PASS — **DONE** (1245/1245)
 - [x] **T-007-603** `npm run test:rules` PASS — **DONE** (91/91)
-- [ ] **T-007-604** Human CODE_COMPLETE sign-off — **PENDING** (separate from T-007-010)
+- [x] **T-007-604** Human CODE_COMPLETE sign-off — **DONE**
 - [x] **T-007-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED — **DONE**
 
 **Phase 6 IDs:** T-007-601 … T-007-605  
 **Technical tasks:** T-007-601, 602, 603, 605 — **COMPLETE**  
-**Human-only task:** T-007-604 — **PENDING**  
+**Human-only task:** T-007-604 — **DONE**  
+**HUMAN CODE_COMPLETE SIGNOFF:** **APPROVED**  
 **CODE_COMPLETE_CANDIDATE:** **YES**  
-**CODE_COMPLETE:** **NO**
+**CODE_COMPLETE:** **YES**  
+**IMPLEMENTATION_COMPLETE:** **YES**  
+**DEPLOYMENT:** **NOT_STARTED** · **DEPLOYED:** **NO** · **DONE:** **NO**
 
-**Required human approval statement (T-007-604) — not yet received:**
+### Human CODE_COMPLETE approval (T-007-604) — recorded verbatim
 
-> «Apruebo formalmente el CODE_COMPLETE de SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-604.»
+| Field | Value |
+|-------|--------|
+| **Task** | T-007-604 |
+| **Status** | **DONE** |
+| **Date** | 2026-08-26 |
+| **Timezone** | America/Bogota |
+| **Authorization text** | «Apruebo formalmente el CODE_COMPLETE de SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-604.» |
+| **APPROVAL CONTRACT MATCH** | **YES** |
 
-**Exit:** Technical Phase 6 COMPLETE · await T-007-604 · deployment **NOT AUTHORIZED**.
+**Exit:** CODE_COMPLETE **YES** · FREEZE **ACTIVE** · deployment **NOT AUTHORIZED** · SPEC-008 **NOT_STARTED**.
 
 ---
 
