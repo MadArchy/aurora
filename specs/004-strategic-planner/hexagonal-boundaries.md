@@ -75,11 +75,11 @@ Ports ← Infrastructure (local stores, Brief reader, clock, actor,
 
 ---
 
-## Infrastructure (Phase 3+)
+## Infrastructure (Phase 3+) ✅ LOCAL_AUTHORITATIVE
 
-- Local-authoritative plan/item/history adapters
-- Brief reader adapter (composition over SPEC-003 stores/ports)
-- No production Firestore Claim/Brief rule ownership
+- Local-authoritative plan/item/history adapters (`src/infrastructure/strategicPlan/`)
+- Brief reader adapter (composition over SPEC-003 stores/ports — read-only)
+- No production Firestore Claim/Brief/Plan rule ownership
 
 ---
 

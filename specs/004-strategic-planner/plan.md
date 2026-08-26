@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `004-strategic-planner` |
-| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · Phase 3 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Phase** | **Phase 0 COMPLETE** · **Phase 1 COMPLETE** · **Phase 2 COMPLETE** · **Phase 3 COMPLETE** · Phase 4 **NOT_AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
 | **Status** | **`APPROVED`** (T-004-010) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54` |
@@ -95,7 +95,7 @@ Content → **downstream** (SPEC-006 publication).
 - No Infrastructure adapters yet
 - RUNTIME AI advisor = DEFERRED / port-only if needed
 
-### Phase 3 — Persistence (NOT AUTHORIZED)
+### Phase 3 — Persistence ✅ COMPLETE
 
 - Local-authoritative plan/item/history stores
 - Idempotency

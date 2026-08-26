@@ -98,27 +98,42 @@ Requirement ID prefix (future Domain): `PLAN-004-001` â€¦
 **Phase-2 implementation SHA:** `6413ee48064d0dfed8b90d1204d1d977c2eee8e7`  
 **Phase-2 governance checkpoint:** 4ce59d8696c6755c91b5ba3d9217747bc03f0f45
 
-Phase 3 **NOT_AUTHORIZED**.
+Phase 3 **COMPLETE**.
 
 ---
 
-## Phase 3 â€” Persistence / history (NOT AUTHORIZED)
+## Phase 3 — Persistence / history ✅ COMPLETE
 
-- [ ] **T-004-301** Local-authoritative StrategicPlan store
-- [ ] **T-004-302** PlanItem store
-- [ ] **T-004-303** Append-only plan history store
-- [ ] **T-004-304** Brief reader adapter (read-only SPEC-003)
-- [ ] **T-004-305** Tenant-safe write units
-- [ ] **T-004-306** Idempotent create/approve/activate
-- [ ] **T-004-307** Actor/audit from trusted context
-- [ ] **T-004-308** Infrastructure architecture tests
+- [x] **T-004-301** Local-authoritative StrategicPlan store — **DONE**
+- [x] **T-004-302** PlanItem store — **DONE** (aggregate-owned + LocalPlanItemStore list adapter)
+- [x] **T-004-303** Append-only plan history store — **DONE**
+- [x] **T-004-304** Brief reader adapter (read-only SPEC-003) — **DONE**
+- [x] **T-004-305** Tenant-safe write units — **DONE**
+- [x] **T-004-306** Idempotent create/approve/activate — **DONE** (durable + reload)
+- [x] **T-004-307** Actor/audit from trusted context — **DONE**
+- [x] **T-004-308** Infrastructure architecture tests — **DONE**
 
-**Phase 3 IDs:** T-004-301 â€¦ T-004-308  
+**Phase 3 IDs:** T-004-301 … T-004-308 — **ALL DONE**  
 Firestore Plan rules = FUTURE / SPEC-009
 
+**Exit:** LOCAL_AUTHORITATIVE persistence; ports backed; no UI/consumer. **MET**
+
+**Evidence:**
+- Infrastructure: `src/infrastructure/strategicPlan/` (LocalStrategicPlanStore/Repository, LocalPlanItemStore, History, BriefReader)
+- Tests: `tests/strategicPlanPhase3.test.ts` (14) · `tests/strategicPlanInfrastructureArchitecture.test.ts` (5) · **19/19 PASS**
+- Phase-2 regression **32/32 PASS** · Phase-1 **23/23 PASS** · Adjacent **28/28 PASS**
+- Full check **1050/1050 PASS** · Rules **91/91 PASS**
+- F-004-03 remains **OPEN** (consumer migration Phase 4)
+- F-004-04 remains **OPEN_NONBLOCKING**
+
+**Phase-3 implementation SHA:** pending commit  
+**Phase-3 governance checkpoint:** pending
+
+Phase 4 **NOT_AUTHORIZED**.
+
 ---
 
-## Phase 4 â€” Consumer / strangler migration (NOT AUTHORIZED)
+## Phase 4 — Consumer / strangler migration (NOT AUTHORIZED)
 
 - [ ] **T-004-401** Migrate content-generation path through StrategicPlan + AuthorizePlannedAction
 - [ ] **T-004-402** Migrate opportunity/task creation paths through plan items
