@@ -9,7 +9,7 @@
 **Phase-0 package SHA:** `deaf797b2aa38d8ef724a0fadb9886de0e848f70`  
 **Phase-0 final checkpoint:** `df765fddad41ef4b68da9a5c6d23aa7aa2b3ab24`  
 **Phase-1 implementation SHA:** `dd914f200a67becf11282287adf5760ff942e652`  
-**Phase-1 final checkpoint:** *(recorded after governance commit)*
+**Phase-1 final checkpoint:** `33f1826dcf66af23a5970968e58abe9466f0bcef`
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
