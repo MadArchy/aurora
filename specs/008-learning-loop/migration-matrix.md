@@ -105,9 +105,9 @@ See `plan.md` § AUDIT008 disposition.
 
 ## Phase 4 exit criteria (migration)
 
-- [ ] Zero authoritative calls to `dbService.recordSignalOutcome` from UI/main
-- [ ] Zero `feedbackScoringHints` in scoring/routing adapter path
-- [ ] Zero post-outcome mass rescore
-- [ ] Outcome registration append-only via Application
-- [ ] Tenant-scoped reads only
-- [ ] P0 runtime closed
+- [x] Zero authoritative calls to `dbService.recordSignalOutcome` from UI/main
+- [x] Zero `feedbackScoringHints` in scoring/routing adapter path
+- [x] Zero post-outcome mass rescore
+- [x] Outcome registration append-only via Application
+- [x] Tenant-scoped reads only
+- [x] P0 runtime closed

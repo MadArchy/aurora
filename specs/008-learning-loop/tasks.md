@@ -118,19 +118,24 @@ Requirement ID prefix (future Domain): `LRN-008-001` …
 
 ---
 
-## Phase 4 — Consumer / legacy migration (NOT AUTHORIZED)
+## Phase 4 — Consumer / legacy migration ✅ COMPLETE
 
-- [ ] **T-008-401** `composeLearningLoop` + `learningLoopConsumer` facade — **TODO**
-- [ ] **T-008-402** Demote `dbService.recordSignalOutcome` / `addResult` authority — **TODO**
-- [ ] **T-008-403** Migrate `main.ts` outcome + result handlers to consumer intents — **TODO**
-- [ ] **T-008-404** Migrate `ClientWorkspace` outcome UI to intent-only — **TODO**
-- [ ] **T-008-405** **Remove P0:** `feedbackScoringHints` from scoring/routing path — **TODO**
-- [ ] **T-008-406** **Remove P0:** post-outcome mass rescore — **TODO**
-- [ ] **T-008-407** Wire Opportunity outcome read-only ingest (SPEC-007) — **TODO**
+- [x] **T-008-401** `composeLearningLoop` + `learningLoopConsumer` facade — **DONE**
+- [x] **T-008-402** Demote `dbService.recordSignalOutcome` / `addResult` authority — **DONE**
+- [x] **T-008-403** Migrate `main.ts` outcome + result handlers to consumer intents — **DONE**
+- [x] **T-008-404** Migrate `ClientWorkspace` outcome UI to intent-only — **DONE**
+- [x] **T-008-405** **Remove P0:** `feedbackScoringHints` from scoring/routing path — **DONE**
+- [x] **T-008-406** **Remove P0:** post-outcome mass rescore — **DONE**
+- [x] **T-008-407** Wire Opportunity outcome read-only ingest (SPEC-007) — **DONE**
 
 **Phase 4 IDs:** T-008-401 … T-008-407  
 **Depends on:** Phase 3 DONE  
 **Maps to:** A23–A27, A34, A36  
+
+**Composition:** `src/composition/learningLoop/composeLearningLoop.ts`  
+**Consumer:** `src/services/learningLoopConsumer.ts`  
+**Tests:** `tests/learningLoopPhase4.test.ts` · `tests/learningLoopConsumerArchitecture.test.ts`  
+**Runtime P0 (AUDIT008-03):** **RESOLVED** — feedbackScoringHints + mass rescore removed from authority path  
 
 **Exit:** P0 runtime remediated · Phase 5 **AUTHORIZED** after Phase 4.
 
@@ -195,7 +200,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 1 | T-008-101…110 | 10 | 10 DONE |
 | 2 | T-008-201…211 | 11 | 11 DONE |
 | 3 | T-008-301…308 | 8 | 8 DONE |
-| 4 | T-008-401…407 | 7 | TODO |
+| 4 | T-008-401…407 | 7 | 7 DONE |
 | 5 | T-008-501…510 | 10 | TODO |
 | 6 | T-008-601…604 | 4 | TODO |
 | Deploy | D1–D3 | 3 | NOT_STARTED |
