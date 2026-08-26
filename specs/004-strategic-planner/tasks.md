@@ -214,7 +214,8 @@ Phase 6 **AUTHORIZED** (2026-08-25) · evidence **COMPLETE** · human gate **PEN
 - Product changes **0** · Test changes **0**
 - CODE_COMPLETE_CANDIDATE = **YES** · CODE_COMPLETE = **NO** (T-004-604 pending)
 
-**Phase-6 acceptance evidence SHA:** _(recorded at commit)_
+**Phase-6 acceptance evidence SHA:** `30716797badcd59b0839d5695b945d39ba0bedb6`  
+**CODE_COMPLETE candidate checkpoint:** `30716797badcd59b0839d5695b945d39ba0bedb6`
 
 Human sign-off task T-004-604 remains **PENDING**. Do not mark DONE without explicit human approval.
 
