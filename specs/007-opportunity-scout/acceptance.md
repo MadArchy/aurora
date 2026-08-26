@@ -15,7 +15,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Upstream SPEC-006:** `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Branch:** `spec/007-opportunity-scout`  
 **Phase-0 checkpoint:** `551679e9fd562771d1e700807c2b373f0cc07b3d`  
-**Phase-1 checkpoint:** _(pinned at governance checkpoint)_
+**Phase-1 implementation SHA:** `cdcb5a04cf4e97baaaf7db7d7a62dccc15afcc98`  
+**Phase-1 checkpoint:** _(this governance pin commit)_
 
 ### Human SPEC approval (T-007-010)
 

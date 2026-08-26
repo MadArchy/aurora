@@ -8,8 +8,8 @@
 **Upstream SPEC-006:** `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Human SPEC approval:** **APPROVED** (T-007-010) — 2026-08-26 (America/Bogota)  
 **Approval text:** «Apruebo formalmente SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-010 y el inicio de la Phase 1 de implementación.»  
-**Phase-1 implementation SHA:** _(pinned at governance checkpoint)_  
-**Phase-1 checkpoint:** _(pinned at governance checkpoint)_
+**Phase-1 implementation SHA:** `cdcb5a04cf4e97baaaf7db7d7a62dccc15afcc98`  
+**Phase-1 checkpoint:** _(this governance pin commit)_
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
