@@ -2,23 +2,27 @@
 
 **Phase 0:** Formal package **COMPLETE** · Human SPEC approval **APPROVED** (T-006-010)  
 **SPEC-006 FORMAL SPEC:** **APPROVED**  
-**SPEC-006 IMPLEMENTATION:** **PHASE_6_ACCEPTANCE_EVIDENCE_COMPLETE** · CODE_COMPLETE **NO**  
-**CODE_COMPLETE CANDIDATE:** **YES**  
-**DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
+**SPEC-006 IMPLEMENTATION:** **CODE_COMPLETE**  
+**CODE_COMPLETE:** **YES**  
+**CODE_COMPLETE CANDIDATE:** **YES** (satisfied; superseded by CODE_COMPLETE)  
+**HUMAN CODE_COMPLETE SIGN-OFF:** **APPROVED** (T-006-604)  
+**DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**  
+**SPEC-006 FREEZE:** **ACTIVE**
 
 Spec **APPROVED** requires T-006-010 human SPEC approval — **SATISFIED**.  
-Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-006-604) — **HUMAN PENDING**.  
+Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-006-604) — **SATISFIED**.  
 Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STARTED**.
 
 **Implementation baseline:** SPEC-003 CODE_COMPLETE @ `e16280607fa078941078d2cb4c233025a1bd66a1`  
 **Phase-0 governance checkpoint:** `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5`  
-**Human approval checkpoint:** `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d`  
+**Human SPEC approval checkpoint:** `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d`  
 **Phase-1 frozen checkpoint:** `fe1fbc9225919a445eff9463492176356ab0a8f7`  
 **Phase-2 frozen checkpoint:** `55bdb03206a9e986898413828c2343bf2afa25af`  
 **Phase-3 frozen checkpoint:** `59880e52b115eea35d858f41a325ee0248922eef`  
 **Phase-4 frozen checkpoint:** `30d4fc51f9693f21371554e3b8d0d1121eec4b35`  
 **Phase-5 frozen checkpoint:** `da7beea02f0533686e31db4a4ed77d878fd489e3`  
-**Phase-5 security work:** `3735678c9c627e964e66d59c18eeaf3a4a9c8cde`
+**Phase-5 security work:** `3735678c9c627e964e66d59c18eeaf3a4a9c8cde`  
+**Phase-6 acceptance evidence checkpoint:** `67cceb0120aea87e9859da705203332290569c19`
 
 ### Human SPEC approval (T-006-010)
 
@@ -29,9 +33,18 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | **Date** | **2026-08-24** (America/Bogota) |
 | **Authorization text** | «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.» |
 
+### Human CODE_COMPLETE approval (T-006-604)
+
+| Field | Value |
+|-------|--------|
+| **Task** | T-006-604 |
+| **Status** | **DONE** |
+| **Date** | **2026-08-25** (America/Bogota) |
+| **Authorization text** | «Apruebo SPEC-006 — Evidence Claim Linking como CODE_COMPLETE y autorizo el cierre de T-006-604.» |
+
 ---
 
-## Required (implementation → CODE_COMPLETE candidate)
+## Required (implementation → CODE_COMPLETE)
 
 | # | Criterion | Phase | Status | Evidence |
 |---|-----------|-------|--------|----------|
@@ -73,24 +86,27 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | A36 | Terminology: SPEC-006 Claim ≠ SPEC-009 auth claims | 1–5 | ✅ **PASS** | Architecture bans vs posturaClaims |
 | A37 | LOCAL_AUTHORITATIVE documented; remote rules not required for CODE_COMPLETE | 3–6 | ✅ **PASS** | Phase-3 stores + plan |
 | A38 | Dedicated SPEC-006 architecture/security suites exist | 5 | ✅ **PASS** | Domain+App+Infra+Consumer+Security suites |
-| A39 | `npm run check` PASS | 6 | ✅ **PASS** | **976/976 PASS** (Phase-6 evidence run) |
-| A40 | `npm run test:rules` PASS | 6 | ✅ **PASS** | **91/91 PASS** (Phase-6 evidence run) |
+| A39 | `npm run check` PASS | 6 | ✅ **PASS** | **976/976 PASS** |
+| A40 | `npm run test:rules` PASS | 6 | ✅ **PASS** | **91/91 PASS** |
 
 **Implementation acceptance A1–A40:** **40 PASS** · **0 FAIL** · **0 PARTIAL**  
-**CODE_COMPLETE CANDIDATE:** **YES**  
+**CODE_COMPLETE:** **YES**  
 **HUMAN SPEC APPROVAL (T-006-010):** **DONE** — **APPROVED** 2026-08-24 (America/Bogota)  
-**HUMAN CODE_COMPLETE (T-006-604):** **PENDING**
+**HUMAN CODE_COMPLETE (T-006-604):** **DONE** — **APPROVED** 2026-08-25 (America/Bogota)
 
-### Phase-6 residual classification (nonblocking)
+### Residual classification (nonblocking — preserved at CODE_COMPLETE)
 
 | ID | Classification | Note |
 |----|----------------|------|
-| **P2-006-01** | **PARTIAL_NONBLOCKING** | Publication authority migrated; CLAIM-006-* legacy module ID/traceability map still open — Phase-6 tasks do not authorize map closure |
+| **P2-006-01** | **PARTIAL_NONBLOCKING** | Publication authority migrated; CLAIM-006-* legacy module ID/traceability map still open |
 | **P2-006-02** | **RESOLVED** | Dedicated architecture/security suites |
 | **P3-006-01** | **OPEN_NONBLOCKING** | Naming alias drift; no rename churn |
 | Local tamper | **KNOWN_LIMITATION_NONBLOCKING** | Threat-model; SPEC-009 remote authority future |
 | Runtime claim extractor | **DEFERRED_NONBLOCKING** | Port-only; A16 PASS; no new AiOperation |
 | UI Register/Link/Verify buttons | **DEFERRED_NONBLOCKING** | Not required by A*; publication gate via composition/main; UI display-only (A21) |
+
+**Authorities (preserved):** Claim verification = **SPEC-006** · Publication = **SPEC-006** · AI authoritative Verification = **DENIED** · Authority bypass = **0**  
+Legacy `claimSafety` / `ContentItem.claimSafety` = **COMPATIBILITY_ONLY** · Evidence Vault verified flag = **not** verification authority.
 
 ---
 
@@ -98,11 +114,11 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| D1 | Remote Claim/Evidence/Verification persistence + rules plan with SPEC-009 | ☐ PENDING |
-| D2 | Production deploy authorized and executed | ☐ PENDING |
-| D3 | Post-deploy verification | ☐ PENDING |
+| D1 | Remote Claim/Evidence/Verification persistence + rules plan with SPEC-009 | ☐ PENDING / **NOT_STARTED** |
+| D2 | Production deploy authorized and executed | ☐ PENDING / **NOT_STARTED** |
+| D3 | Post-deploy verification | ☐ PENDING / **NOT_STARTED** |
 
-**SPEC-009 PRODUCTION = DEFERRED_UNCHANGED**
+**D1–D3 = PENDING_DEPLOYMENT_ONLY** · **SPEC-009 PRODUCTION = DEFERRED_UNCHANGED**
 
 ---
 
@@ -123,8 +139,8 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | SPEC-009 auth claims (local) | **12/12 PASS** (`posturaClaimsCore` 8 + `firebaseClaims` 4) |
 | `npm run check` | **976/976 PASS** |
 | `npm run test:rules` | **91/91 PASS** |
-| Product code changes (Phase 6) | **NONE** |
-| Test code changes (Phase 6) | **NONE** |
+| Product code changes (Phase 6 / closure) | **NONE** |
+| Test code changes (Phase 6 / closure) | **NONE** |
 | New secrets | **0** |
 
 ---
@@ -141,9 +157,9 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | Phase 4 Consumer migration (T-006-401…407) | ✅ **COMPLETE** |
 | Phase 5 Security / adversarial (T-006-501…510) | ✅ **COMPLETE** |
 | Phase 6 T-006-601…603 / T-006-605 evidence | ✅ **COMPLETE** |
-| Phase 6 T-006-604 Human CODE_COMPLETE | ☐ **PENDING** |
+| Phase 6 T-006-604 Human CODE_COMPLETE | ✅ **DONE** — **APPROVED** 2026-08-25 (America/Bogota) |
 | DEPLOYED / DONE | ☐ **NO** |
 
-**Current:** **APPROVED** · **PHASE_6_ACCEPTANCE_EVIDENCE = COMPLETE** · **CODE_COMPLETE_CANDIDATE = YES** · **CODE_COMPLETE = NO** · **DEPLOYED = NO** · **DONE = NO**
+**Current:** **APPROVED** · **IMPLEMENTATION = CODE_COMPLETE** · **CODE_COMPLETE = YES** · **DEPLOYED = NO** · **DONE = NO** · **FREEZE = ACTIVE**
 
-**Next allowed state:** Human CODE_COMPLETE approval (T-006-604). Do **not** declare CODE_COMPLETE without that sign-off.
+**Next allowed action:** Return to constitutional roadmap. Deployment (D1–D3) and SPEC-004 require separate authorization. Do not modify SPEC-006 except via approved requirement change, authorized deployment, reproducible regression, or approved security remediation.

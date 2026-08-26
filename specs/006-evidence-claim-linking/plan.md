@@ -3,16 +3,19 @@
 | Field | Value |
 |-------|--------|
 | **Spec** | `006-evidence-claim-linking` |
-| **Phase** | **Phases 0–5 COMPLETE** · **Phase 6 acceptance evidence COMPLETE** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
-| **Status** | **`APPROVED`** (T-006-010) |
+| **Phase** | **Phases 0–6 COMPLETE** · CODE_COMPLETE **YES** · FREEZE **ACTIVE** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** (T-006-010) · **IMPLEMENTATION `CODE_COMPLETE`** (T-006-604) |
 | **Strategy** | **Strangler / Incremental Migration** — **NO BIG-BANG REWRITE** |
 | **Baseline SHA** | SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1` |
 | **Phase-0 governance checkpoint** | `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5` |
 | **Human approval checkpoint** | `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d` |
 | **Phase-1 frozen checkpoint** | `fe1fbc9225919a445eff9463492176356ab0a8f7` |
+| **Phase-6 acceptance evidence checkpoint** | `67cceb0120aea87e9859da705203332290569c19` |
 | **Branch** | `spec/006-evidence-claim-linking` |
 | **Human SPEC approval** | **APPROVED** (T-006-010) — 2026-08-24 (America/Bogota) |
 | **Approval text** | «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.» |
+| **Human CODE_COMPLETE** | **APPROVED** (T-006-604) — 2026-08-25 (America/Bogota) |
+| **CODE_COMPLETE approval text** | «Apruebo SPEC-006 — Evidence Claim Linking como CODE_COMPLETE y autorizo el cierre de T-006-604.» |
 
 ---
 

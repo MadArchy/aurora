@@ -1,14 +1,18 @@
 # Tasks 006 — Evidence Claim Linking
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_6_ACCEPTANCE_EVIDENCE_COMPLETE** · CODE_COMPLETE **NO** · CODE_COMPLETE_CANDIDATE **YES** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **CODE_COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/006-evidence-claim-linking`  
 **Base SHA:** SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1`  
 **Phase-0 governance checkpoint:** `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5`  
 **Human SPEC approval checkpoint:** `1bc620b01e83410d2f5daea4f9ba35ecf6fd398d`  
 **Phase-1 frozen checkpoint:** `fe1fbc9225919a445eff9463492176356ab0a8f7`  
+**Phase-6 acceptance evidence checkpoint:** `67cceb0120aea87e9859da705203332290569c19`  
 **Human SPEC approval:** **APPROVED** (T-006-010) — 2026-08-24 (America/Bogota)  
-**Approval text:** «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.»
+**Approval text:** «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.»  
+**Human CODE_COMPLETE approval:** **APPROVED** (T-006-604) — 2026-08-25 (America/Bogota)  
+**CODE_COMPLETE approval text:** «Apruebo SPEC-006 — Evidence Claim Linking como CODE_COMPLETE y autorizo el cierre de T-006-604.»  
+**SPEC-006 FREEZE:** **ACTIVE**
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -161,22 +165,29 @@ Phase 5 **COMPLETE**. Phase 6 acceptance evidence **COMPLETE** · Human CODE_COM
 
 ---
 
-## Phase 6 — Acceptance / CODE_COMPLETE ✅ EVIDENCE COMPLETE · HUMAN PENDING
+## Phase 6 — Acceptance / CODE_COMPLETE ✅ COMPLETE
 
 - [x] **T-006-601** Consolidate A1–A40 evidence matrix — **DONE** (40/40 PASS)
 - [x] **T-006-602** `npm run check` PASS — **DONE** (**976/976**)
 - [x] **T-006-603** `npm run test:rules` PASS — **DONE** (**91/91**)
-- [ ] **T-006-604** Human CODE_COMPLETE sign-off — **PENDING** (separate from T-006-010; do not mark DONE here)
-- [x] **T-006-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED — **DONE** (CONFIRMED)
+- [x] **T-006-604** Human CODE_COMPLETE sign-off — **DONE** (2026-08-25 America/Bogota)  
+  Authorization: «Apruebo SPEC-006 — Evidence Claim Linking como CODE_COMPLETE y autorizo el cierre de T-006-604.»
+- [x] **T-006-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED — **DONE** (CONFIRMED; not deployment authorization)
 
-**Phase 6 IDs:** T-006-601 … T-006-605
+**Phase 6 IDs:** T-006-601 … T-006-605 — **ALL DONE**
 
-**CODE_COMPLETE CANDIDATE:** **YES**  
-**CODE_COMPLETE:** **NO** (requires T-006-604)  
-**PRODUCT / TEST CHANGES (Phase 6):** **NONE**  
-**Phase-6 acceptance evidence checkpoint:** `adb04b16c9b59e711aeed28aebd9896660d2710a` on `spec/006-evidence-claim-linking`
+**CODE_COMPLETE CANDIDATE:** **YES** (superseded by CODE_COMPLETE)  
+**CODE_COMPLETE:** **YES**  
+**HUMAN CODE_COMPLETE SIGN-OFF:** **APPROVED**  
+**PRODUCT / TEST CHANGES (Phase 6 / closure):** **NONE**  
+**Phase-6 acceptance evidence checkpoint:** `67cceb0120aea87e9859da705203332290569c19`  
+**SPEC-006 CODE_COMPLETE governance checkpoint:** pending commit on `spec/006-evidence-claim-linking`
 
-**Residual (nonblocking):** P2-006-01 PARTIAL_NONBLOCKING · P3-006-01 OPEN_NONBLOCKING · runtime extractor DEFERRED_NONBLOCKING · UI Register/Link/Verify buttons DEFERRED_NONBLOCKING · local tamper KNOWN_LIMITATION_NONBLOCKING
+**Residual (nonblocking; preserved):** P2-006-01 PARTIAL_NONBLOCKING · P3-006-01 OPEN_NONBLOCKING · runtime extractor DEFERRED_NONBLOCKING · UI Register/Link/Verify buttons DEFERRED_NONBLOCKING · local tamper KNOWN_LIMITATION_NONBLOCKING
+
+**Authorities (preserved):** Claim verification = SPEC-006 · Publication = SPEC-006 · AI authoritative Verification = DENIED · Authority bypass = 0
+
+**SPEC-006 FREEZE = ACTIVE** — future changes only via approved requirement change, authorized deployment, reproducible regression, or approved security remediation.
 
 ---
 

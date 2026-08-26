@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `006-evidence-claim-linking` |
 | **Display name** | **SPEC-006 — Evidence Claim Linking** |
-| **Status** | **`APPROVED`** (human SPEC approval T-006-010 · 2026-08-24 America/Bogota) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **AUTHORIZED** · CODE_COMPLETE **NO** · DEPLOYED **NO** · DONE **NO** |
+| **Status** | **`APPROVED`** (human SPEC approval T-006-010 · 2026-08-24 America/Bogota) · **IMPLEMENTATION `CODE_COMPLETE`** (T-006-604 · 2026-08-25 America/Bogota) |
+| **Phase** | Phases 0–6 **COMPLETE** · CODE_COMPLETE **YES** · FREEZE **ACTIVE** · DEPLOYED **NO** · DONE **NO** |
 | **Branch** | `spec/006-evidence-claim-linking` |
 | **Baseline SHA** | SPEC-003 CODE_COMPLETE `e16280607fa078941078d2cb4c233025a1bd66a1` |
 | **Phase-0 governance checkpoint** | `d8fe981c1fc15f47fc7fdf6ef7ef0fae211a6fe5` |
@@ -15,6 +15,8 @@
 | **Blocks** | Governed publication of claim-bearing content; SPEC-004 adjacent planner/content publish paths that require verified claims |
 | **Test baseline (Phase 0)** | `npm run check` → **844/844**; `npm run test:rules` → **91/91**; legacy claim suites **23/23** |
 | **Human SPEC approval** | **APPROVED** (T-006-010) — «Apruebo formalmente SPEC-006 — Evidence Claim Linking y autorizo el cierre de T-006-010 y el inicio de la Phase 1 de implementación.» — 2026-08-24 (America/Bogota) |
+| **Human CODE_COMPLETE** | **APPROVED** (T-006-604) — «Apruebo SPEC-006 — Evidence Claim Linking como CODE_COMPLETE y autorizo el cierre de T-006-604.» — 2026-08-25 (America/Bogota) |
+| **SPEC-006 FREEZE** | **ACTIVE** |
 
 ---
 
@@ -379,10 +381,11 @@ See `threat-model.md`. Threats include: foreign evidence injection, fake source 
 | Phase 4 Consumer migration | **COMPLETE** (T-006-401…407) |
 | Phase 5 Security | **COMPLETE** (T-006-501…510) |
 | Phase 6 Acceptance evidence | **COMPLETE** (T-006-601…603, T-006-605) · A1–A40 **40/40 PASS** |
-| Human CODE_COMPLETE (T-006-604) | **PENDING** |
-| CODE_COMPLETE CANDIDATE | **YES** |
-| CODE_COMPLETE | **NO** |
+| Human CODE_COMPLETE (T-006-604) | **DONE** — **APPROVED** 2026-08-25 (America/Bogota) · «Apruebo SPEC-006 — Evidence Claim Linking como CODE_COMPLETE y autorizo el cierre de T-006-604.» |
+| CODE_COMPLETE CANDIDATE | **YES** (superseded) |
+| CODE_COMPLETE | **YES** |
+| SPEC-006 FREEZE | **ACTIVE** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Human CODE_COMPLETE approval (T-006-604). Do not declare CODE_COMPLETE without that sign-off.
+**Next action:** Return to constitutional roadmap. Do not begin SPEC-004 or deployment without separate authorization.
