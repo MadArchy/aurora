@@ -1,7 +1,7 @@
 # Tasks 007 — Opportunity Scout
 
-**Spec status:** `APPROVED` · Phase 1–5 **COMPLETE** · Phase 6 **NOT_STARTED**  
-**Implementation:** Phase 1–5 **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
+**Spec status:** `APPROVED` · Phase 1–6 technical **COMPLETE** · T-007-604 **PENDING** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO**  
+**Implementation:** Phase 1–6 technical **COMPLETE** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/007-opportunity-scout`  
 **Base SHA:** SPEC-004 CODE_COMPLETE `8661e4a2c272372e4d851bdb01d10f85b447e27c`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -17,7 +17,9 @@
 **Phase-4 implementation SHA:** `69fb4457644fdf6af530c065e5897c87b74b4384`  
 **Phase-4 checkpoint:** `85dc11255da419cdb6be1588a5e86584b38d6f4f`  
 **Phase-5 security/test SHA:** `2e52626cc57f0f34d5e759e2309a6df108134f58`  
-**Phase-5 checkpoint:** `ed6c916f96ac5e46be1d366a69a670b1e2ed92b3`
+**Phase-5 checkpoint:** `ed6c916f96ac5e46be1d366a69a670b1e2ed92b3`  
+**Phase-6 acceptance evidence SHA:** *(pinned after evidence commit)*  
+**Phase-6 CODE_COMPLETE candidate checkpoint:** *(pinned after checkpoint commit)*
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -179,19 +181,29 @@ Requirement ID prefix (future Domain): `OPP-007-001` …
 **Tests:** `tests/opportunityScoutPhase5Security.test.ts` · `tests/opportunityScoutPhase5Architecture.test.ts`  
 **AUDIT007-08:** remains **OPEN_NONBLOCKING** (spotlight DISPLAY_ONLY proven adversarially)
 
-**Exit:** Phase 5 Security COMPLETE · Phase 6 **NOT AUTHORIZED** until separate authorization.
+**Exit:** Phase 5 Security COMPLETE · Phase 6 **AUTHORIZED** for evidence / candidate.
 
 ---
 
-## Phase 6 — Acceptance / CODE_COMPLETE (NOT AUTHORIZED)
+## Phase 6 — Acceptance / CODE_COMPLETE ✅ EVIDENCE COMPLETE (human PENDING)
 
-- [ ] **T-007-601** Consolidate A1–A40 evidence matrix
-- [ ] **T-007-602** `npm run check` PASS
-- [ ] **T-007-603** `npm run test:rules` PASS
+- [x] **T-007-601** Consolidate A1–A40 evidence matrix — **DONE** (40/40 PASS)
+- [x] **T-007-602** `npm run check` PASS — **DONE** (1245/1245)
+- [x] **T-007-603** `npm run test:rules` PASS — **DONE** (91/91)
 - [ ] **T-007-604** Human CODE_COMPLETE sign-off — **PENDING** (separate from T-007-010)
-- [ ] **T-007-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED
+- [x] **T-007-605** Confirm DEPLOYED/DONE remain NO / NOT_STARTED — **DONE**
 
-**Phase 6 IDs:** T-007-601 … T-007-605
+**Phase 6 IDs:** T-007-601 … T-007-605  
+**Technical tasks:** T-007-601, 602, 603, 605 — **COMPLETE**  
+**Human-only task:** T-007-604 — **PENDING**  
+**CODE_COMPLETE_CANDIDATE:** **YES**  
+**CODE_COMPLETE:** **NO**
+
+**Required human approval statement (T-007-604) — not yet received:**
+
+> «Apruebo formalmente el CODE_COMPLETE de SPEC-007 — Opportunity Scout y autorizo el cierre de T-007-604.»
+
+**Exit:** Technical Phase 6 COMPLETE · await T-007-604 · deployment **NOT AUTHORIZED**.
 
 ---
 

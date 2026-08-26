@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `007-opportunity-scout` |
 | **Display name** | **SPEC-007 — Opportunity Scout** |
-| **Status** | **`APPROVED`** · Phase 3 Persistence **COMPLETE** · **LOCAL_AUTHORITATIVE** |
-| **Phase** | Phase 0–3 **COMPLETE** · Phase 4+ **NOT_AUTHORIZED** |
+| **Status** | **`APPROVED`** · CODE_COMPLETE_CANDIDATE **YES** · CODE_COMPLETE **NO** (T-007-604 PENDING) |
+| **Phase** | Phase 0–6 technical **COMPLETE** · human CODE_COMPLETE **PENDING** · deployment **NOT_STARTED** |
 | **Branch** | `spec/007-opportunity-scout` |
 | **Baseline SHA** | SPEC-004 CODE_COMPLETE final freeze `8661e4a2c272372e4d851bdb01d10f85b447e27c` |
 | **Priority** | P1 (constitution §32 Strategic Circuit — Opportunity Intelligence + Opportunity Execution) |
@@ -148,9 +148,13 @@ SPEC-006     = MAY claim-bearing content publish? (orthogonal)
 | Phase 1 Domain | **COMPLETE** (T-007-101…110) |
 | Phase 2 Application | **COMPLETE** (T-007-201…211) |
 | Phase 3 Persistence | **COMPLETE** (T-007-301…308) · **LOCAL_AUTHORITATIVE** |
-| Phase 4 Consumer | **NOT_AUTHORIZED** |
+| Phase 4 Consumer | **COMPLETE** (T-007-401…407) |
+| Phase 5 Security | **COMPLETE** (T-007-501…510) · threats 18/18 PASS |
+| Phase 6 technical evidence | **COMPLETE** (T-007-601…603,605) · A1–A40 **40 PASS** |
+| Human CODE_COMPLETE (T-007-604) | **PENDING** |
+| CODE_COMPLETE CANDIDATE | **YES** |
 | CODE_COMPLETE | **NO** |
 | Deployment | **NOT_STARTED** |
 | DONE | **NO** |
 
-**Next action:** Phase 4 Consumer migration only after separate authorization. Do not begin T-007-401… yet.
+**Next action:** Await human T-007-604 CODE_COMPLETE approval. Do not deploy. Do not start SPEC-008.
