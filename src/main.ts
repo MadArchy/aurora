@@ -146,7 +146,10 @@ import { discoverExtendedSources } from './services/extendedSourceDiscovery';
 import { enrichYoutubeDiscoverySources } from './services/youtubeDiscovery';
 import { runResearchSignalsAgent } from './services/researchSignalsAgent';
 import { shouldAutoResearchSignal } from './domain/radarTriageCore';
-import { feedbackScoringHints } from './domain/radarFeedbackCore';
+import {
+  registerResultRecordIntent,
+  registerSignalOutcomeIntent,
+} from './services/learningLoopConsumer';
 
 interface ToastItem {
   id: string;
@@ -2353,14 +2356,10 @@ class App {
     if (!client) return {};
     const keywords = buildMergedProfileKeywords(client, dbService.getActiveTheses(clientId));
     const dossier = dbService.getMasterDossier(clientId);
-    const hints = feedbackScoringHints(
-      dbService.getSignalsByClient(clientId),
-      dbService.getSignalOutcomes(clientId)
-    );
     return {
-      bilingualTerms: [...keywords.coreEn, ...keywords.coreEs, ...hints.boostTerms],
+      bilingualTerms: [...keywords.coreEn, ...keywords.coreEs],
       ownedTopics: dossier?.topicsToOwn,
-      avoidedFramings: [...(dossier?.topicsToAvoid || []), ...hints.avoidTerms],
+      avoidedFramings: dossier?.topicsToAvoid || [],
     };
   }
 
@@ -2530,25 +2529,25 @@ class App {
         const signal = dbService.getSignalById(signalId);
         const clientId = this.resolveClientId(signal?.clientId);
         if (!signal || !clientId) return;
-        dbService.recordSignalOutcome({
-          organizationId: signal.organizationId,
-          clientId,
-          signalId,
-          kind,
-          source: 'RADAR',
-          actorUid: authService.getCurrentUser()?.uid || 'user_admin_01',
-        });
+        try {
+          registerSignalOutcomeIntent({
+            clientId,
+            signalId,
+            kind,
+            source: 'RADAR',
+            thesisId: signal.thesisId,
+          });
+        } catch (error) {
+          this.showToast(
+            error instanceof Error ? error.message : 'No se pudo registrar el outcome',
+            'warning'
+          );
+          return;
+        }
         auditService.log(authService.getCurrentUser(), 'SIGNAL_OUTCOME', 'Signal', signalId, { kind });
         metricsService.track('signal_outcome', { kind }, clientId);
-        const open = dbService
-          .getSignalsByClient(clientId)
-          .filter((s) => s.status !== 'DISCARDED' && s.relevanceScore !== undefined)
-          .slice(0, 40);
-        for (const s of open) this.scoreSignal(s.id, clientId);
         this.showToast(
-          kind === 'USEFUL'
-            ? `Marcada como útil — recalibradas ${open.length} señal(es)`
-            : `Marcada como no útil — recalibradas ${open.length} señal(es)`,
+          kind === 'USEFUL' ? 'Marcada como útil' : 'Marcada como no útil',
           'success'
         );
         this.refreshMain();
@@ -4499,17 +4498,22 @@ class App {
         this.showToast('Cliente sin organizationId — no se puede registrar el resultado', 'warning');
         return;
       }
-      dbService.addResult({
-        organizationId,
-        clientId,
-        title: (document.getElementById('result-title') as HTMLInputElement).value,
-        channel: (document.getElementById('result-channel') as HTMLInputElement).value,
-        metricLabel: (document.getElementById('result-metric-label') as HTMLInputElement).value,
-        metricValue: Number((document.getElementById('result-metric-value') as HTMLInputElement).value || 0),
-        kpiType: (document.getElementById('result-kpi-type') as HTMLSelectElement).value as BusinessKpiType,
-        addedToEvidence: false,
-        createdBy: authService.getCurrentUser()?.uid || 'client',
-      });
+      try {
+        registerResultRecordIntent({
+          clientId,
+          title: (document.getElementById('result-title') as HTMLInputElement).value,
+          channel: (document.getElementById('result-channel') as HTMLInputElement).value,
+          metricLabel: (document.getElementById('result-metric-label') as HTMLInputElement).value,
+          metricValue: Number((document.getElementById('result-metric-value') as HTMLInputElement).value || 0),
+          kpiType: (document.getElementById('result-kpi-type') as HTMLSelectElement).value as BusinessKpiType,
+        });
+      } catch (error) {
+        this.showToast(
+          error instanceof Error ? error.message : 'No se pudo registrar el resultado',
+          'warning'
+        );
+        return;
+      }
       this.showToast('Resultado registrado', 'success');
       this.render();
     });
@@ -4524,18 +4528,23 @@ class App {
         return;
       }
       const note = (document.getElementById('quick-kpi-note') as HTMLInputElement).value.trim();
-      dbService.addResult({
-        organizationId,
-        clientId,
-        title: note ? `Consulta: ${note}` : 'Consulta recibida',
-        channel: 'LinkedIn / Web',
-        metricLabel: 'Consultas recibidas',
-        metricValue: 1,
-        kpiType: 'consultation_requests',
-        notes: note || undefined,
-        addedToEvidence: false,
-        createdBy: authService.getCurrentUser()?.uid || 'client',
-      });
+      try {
+        registerResultRecordIntent({
+          clientId,
+          title: note ? `Consulta: ${note}` : 'Consulta recibida',
+          channel: 'LinkedIn / Web',
+          metricLabel: 'Consultas recibidas',
+          metricValue: 1,
+          kpiType: 'consultation_requests',
+          notes: note || undefined,
+        });
+      } catch (error) {
+        this.showToast(
+          error instanceof Error ? error.message : 'No se pudo registrar la consulta',
+          'warning'
+        );
+        return;
+      }
       this.showToast('Consulta registrada — dashboard actualizado', 'success');
       this.render();
     });

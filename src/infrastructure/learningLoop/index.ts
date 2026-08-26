@@ -47,3 +47,4 @@ export {
   type LegacyLearningCompatibilityRecord,
   type LegacyLearningMigrationDisposition,
 } from './LegacyLearningCompatibilityReader';
+export { LocalOpportunityOutcomeReader } from './LocalOpportunityOutcomeReader';

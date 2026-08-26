@@ -1663,8 +1663,12 @@ class DataService {
     return this.signalOutcomes.find((o) => o.signalId === signalId);
   }
 
-  /** Registra si una señal sirvió (reemplaza outcome previo del mismo signalId). */
-  public recordSignalOutcome(
+  /**
+   * SPEC-008 Phase 4 — COMPATIBILITY_WRITE_MIRROR only.
+   * Called AFTER canonical Application success from learningLoopConsumer.
+   * Must never establish strategic authority or trigger rescore.
+   */
+  public mirrorSignalOutcomeCompatibility(
     input: Omit<SignalOutcome, 'id' | 'createdAt'>
   ): SignalOutcome {
     this.signalOutcomes = this.signalOutcomes.filter((o) => o.signalId !== input.signalId);
@@ -1676,6 +1680,17 @@ class DataService {
     this.signalOutcomes.unshift(outcome);
     this.saveAll();
     return outcome;
+  }
+
+  /**
+   * @deprecated SPEC-008 Phase 4 — authority removed. Use learningLoopConsumer.registerSignalOutcomeIntent.
+   */
+  public recordSignalOutcome(
+    _input: Omit<SignalOutcome, 'id' | 'createdAt'>
+  ): SignalOutcome {
+    throw new Error(
+      'LEGACY_AUTHORITY_REMOVED: use learningLoopConsumer.registerSignalOutcomeIntent'
+    );
   }
 
   public saveClientArticleRevision(
@@ -2139,11 +2154,30 @@ class DataService {
     return this.opportunities;
   }
 
-  public addResult(result: Omit<ResultRecord, 'id' | 'createdAt'>): ResultRecord {
-    const item: ResultRecord = { ...result, id: createId('res'), createdAt: new Date().toISOString() };
+  /**
+   * SPEC-008 Phase 4 — COMPATIBILITY_WRITE_MIRROR only.
+   * Called AFTER canonical Application success from learningLoopConsumer.
+   */
+  public mirrorResultRecordCompatibility(
+    result: Omit<ResultRecord, 'id' | 'createdAt'>
+  ): ResultRecord {
+    const item: ResultRecord = {
+      ...result,
+      id: createId('res'),
+      createdAt: new Date().toISOString(),
+    };
     this.results.unshift(item);
     this.saveAll();
     return item;
+  }
+
+  /**
+   * @deprecated SPEC-008 Phase 4 — authority removed. Use learningLoopConsumer.registerResultRecordIntent.
+   */
+  public addResult(_result: Omit<ResultRecord, 'id' | 'createdAt'>): ResultRecord {
+    throw new Error(
+      'LEGACY_AUTHORITY_REMOVED: use learningLoopConsumer.registerResultRecordIntent'
+    );
   }
 
   public getResultsByClient(clientId: string): ResultRecord[] {

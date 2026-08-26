@@ -11,7 +11,6 @@ import type { ThesisScoreFn } from '../../domain/thesisRoutingCore';
 import { clusterForSignal, clusterSimilarSignals, titleSimilarity } from '../../domain/signalClusterCore';
 import { computeThesisStrength } from '../../domain/thesisStrengthCore';
 import { computeWhyNow } from '../../domain/whyNowCore';
-import { feedbackScoringHints } from '../../domain/radarFeedbackCore';
 import { buildProfileKeywords } from '../../services/sourceDiscovery';
 import {
   computeStrategicScoreMaterial,
@@ -75,14 +74,10 @@ export function createDbStrategicSignalRoutingPorts(db: DbFacade = dbService): {
     const coreEn = [...new Set(keywordSets.flatMap((k) => k.coreEn))];
     const coreEs = [...new Set(keywordSets.flatMap((k) => k.coreEs))];
     const dossier = db.getMasterDossier(clientId);
-    const hints = feedbackScoringHints(
-      db.getSignalsByClient(clientId),
-      db.getSignalOutcomes(clientId)
-    );
     return {
-      bilingualTerms: [...coreEn, ...coreEs, ...hints.boostTerms],
+      bilingualTerms: [...coreEn, ...coreEs],
       ownedTopics: dossier?.topicsToOwn,
-      avoidedFramings: [...(dossier?.topicsToAvoid || []), ...hints.avoidTerms],
+      avoidedFramings: dossier?.topicsToAvoid || [],
     };
   }
 

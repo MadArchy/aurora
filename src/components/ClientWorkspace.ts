@@ -19,6 +19,10 @@ import {
   Topic,
 } from '../types';
 import { esc, escAttr } from '../lib/escape';
+import {
+  getSignalOutcomeForDisplay,
+  listSignalOutcomesForDisplay,
+} from '../services/learningLoopConsumer';
 import { computeThesisLearningMetrics, type ThesisLearningMetrics } from '../domain/thesisMetricsCore';
 import { icon } from '../lib/icons';
 import { deriveWorkStage, WORK_STAGE_BADGE, WORK_STAGE_LABELS } from '../domain/workPipeline';
@@ -855,7 +859,7 @@ function renderSignalCard(
 }
 
 function renderSignalOutcomeControls(signal: Signal): string {
-  const outcome = dbService.getSignalOutcome(signal.id);
+  const outcome = getSignalOutcomeForDisplay(signal.clientId ?? '', signal.id);
   const canRate =
     signal.status === 'CONVERTED' ||
     signal.managerDecision === 'CONVERTED' ||
@@ -956,7 +960,7 @@ function renderRadar(client: Client, thesis: PositioningThesis | undefined, filt
   const researchPending = signalsNeedingResearch(clientId).length;
   const triage = groupSignalsForTriage(canonical);
   const decideCount = triage.decideNow.length;
-  const outcomes = dbService.getSignalOutcomes(clientId);
+  const outcomes = listSignalOutcomesForDisplay(clientId);
   const awaitingFeedback = signalsAwaitingOutcome(allSignals, outcomes);
   const conversion = computeConversionStats(allSignals, outcomes);
 
@@ -1771,7 +1775,7 @@ function renderPositioning(
     ? computeThesisLearningMetrics({
         thesis: selected,
         signals: dbService.getSignalsByClient(clientId),
-        outcomes: dbService.getSignalOutcomes(clientId),
+        outcomes: listSignalOutcomesForDisplay(clientId),
         content: dbService.getContentByClient(clientId),
         evidence,
       })

@@ -23,10 +23,12 @@ import { authService } from './auth';
 import { dbService } from './db';
 import { getStrategicBrief } from './strategicBriefConsumer';
 import type { Opportunity } from '../types';
+import { ingestOpportunityOutcomeObservation, registerSharedOpportunityStoreForLearning } from './learningLoopConsumer';
 
 type OpportunityUseCases = ReturnType<typeof composeOpportunityScout>;
 
 let store: LocalOpportunityScoutStore = createLocalOpportunityScoutStore();
+registerSharedOpportunityStoreForLearning(store);
 let useCases: OpportunityUseCases = buildUseCases(store);
 
 function buildUseCases(
@@ -66,6 +68,7 @@ export function resetOpportunityScoutConsumerForTest(
 ): void {
   store = nextStore ?? createLocalOpportunityScoutStore();
   store.resetForTest();
+  registerSharedOpportunityStoreForLearning(store);
   useCases = buildUseCases(store, options?.planAuth);
 }
 
@@ -241,6 +244,15 @@ function mirrorCompatibilityAfterCanonicalSuccess(
   );
 }
 
+/** Read-only SPEC-008 ingest — non-blocking; does not mutate Opportunity lifecycle. */
+function ingestLearningFromOpportunityOutcome(clientId: string, opportunityId: string, now?: string): void {
+  try {
+    ingestOpportunityOutcomeObservation({ clientId, opportunityId, now });
+  } catch {
+    /* learning ingest failure must not affect SPEC-007 authority */
+  }
+}
+
 /**
  * Strategic CREATE_OPPORTUNITY after SPEC-004 gate.
  * Uses SOFTWARE trusted context (composition-injected) for PROPOSED entry.
@@ -389,6 +401,7 @@ export function acceptClientOpportunity(params: {
     clientDecision: 'ACCEPTED',
     clientNotes: params.notes,
   });
+  ingestLearningFromOpportunityOutcome(params.clientId, params.opportunityId, params.now);
   return projectOpportunityForDisplay(opportunity, { clientNotes: params.notes });
 }
 
@@ -419,6 +432,7 @@ export function declineClientOpportunity(params: {
     clientDecision: 'REJECTED',
     clientNotes: params.notes,
   });
+  ingestLearningFromOpportunityOutcome(params.clientId, params.opportunityId, params.now);
   return projectOpportunityForDisplay(declined.opportunity, {
     clientNotes: params.notes,
   });
@@ -496,6 +510,7 @@ export function submitClientOpportunity(params: {
     claimedClientId: params.claimedClientId,
   });
   mirrorCompatibilityAfterCanonicalSuccess(submitted.opportunity);
+  ingestLearningFromOpportunityOutcome(params.clientId, params.opportunityId, params.now);
   return projectOpportunityForDisplay(submitted.opportunity, {
     submittedAt: submitted.opportunity.updatedAt,
   });
@@ -512,6 +527,7 @@ export function completeClientOpportunity(params: {
     opportunityId: params.opportunityId,
   });
   mirrorCompatibilityAfterCanonicalSuccess(completed.opportunity);
+  ingestLearningFromOpportunityOutcome(params.clientId, params.opportunityId, params.now);
   return projectOpportunityForDisplay(completed.opportunity);
 }
 
