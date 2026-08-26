@@ -218,7 +218,8 @@ Phase 6 **COMPLETE** (2026-08-25) · T-004-604 human sign-off **APPROVED**.
 
 **Phase-6 acceptance evidence SHA:** `30716797badcd59b0839d5695b945d39ba0bedb6`  
 **CODE_COMPLETE candidate checkpoint:** `49c998e95f2ac92f5c389545a605a4d86cd98e36`  
-**CODE_COMPLETE declaration SHA:** _(recorded at commit)_
+**CODE_COMPLETE declaration SHA:** `98ef0baad04735ed45afdf20e65064aab4c92d92`  
+**SPEC-004 FINAL CODE_COMPLETE CHECKPOINT:** `98ef0baad04735ed45afdf20e65064aab4c92d92`
 
 **SPEC-004 FREEZE = ACTIVE.** No further implementation without formal change request or authorized deployment work.
 
