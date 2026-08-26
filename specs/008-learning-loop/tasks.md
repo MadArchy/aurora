@@ -1,13 +1,15 @@
 # Tasks 008 — Learning Loop
 
-**Spec status:** `DRAFT` · Phase 0 **COMPLETE** · Phase 1 **NOT AUTHORIZED**  
-**Implementation:** **NOT_STARTED** · **CODE_COMPLETE = NO** · DEPLOYED **NO** · DONE **NO**  
+**Spec status:** `APPROVED` · Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **AUTHORIZED**  
+**Implementation:** Phase 1 Domain **COMPLETE** · **CODE_COMPLETE = NO** · DEPLOYED **NO** · DONE **NO**  
 **Branch:** `spec/008-learning-loop`  
 **Base SHA:** SPEC-007 CODE_COMPLETE `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0`  
 **Upstream SPEC-007:** `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0` · **FROZEN**  
-**Human SPEC approval:** **PENDING** (T-008-010)  
+**Human SPEC approval:** **APPROVED** (T-008-010) — 2026-08-26 (America/Bogota)  
 **Phase-0 package SHA:** `deaf797b2aa38d8ef724a0fadb9886de0e848f70`  
-**Phase-0 final checkpoint:** `deaf797b2aa38d8ef724a0fadb9886de0e848f70`
+**Phase-0 final checkpoint:** `df765fddad41ef4b68da9a5c6d23aa7aa2b3ab24`  
+**Phase-1 implementation SHA:** `dd914f200a67becf11282287adf5760ff942e652`  
+**Phase-1 final checkpoint:** *(recorded after governance commit)*
 
 Status legend: `TODO` · `DOING` · `DONE` · `BLOCKED` · `PENDING`
 
@@ -26,44 +28,47 @@ Requirement ID prefix (future Domain): `LRN-008-001` …
 - [x] **T-008-007** Author `migration-matrix.md` (legacy + feedbackScoringHints fate) — **DONE**
 - [x] **T-008-008** Author `learning-model.md` + `strategic-recommendation.md` — **DONE**
 - [x] **T-008-009** Author `threat-model.md` — **DONE**
-- [ ] **T-008-010** Human SPEC approval → status `APPROVED` — **PENDING**
+- [x] **T-008-010** Human SPEC approval → status `APPROVED` — **DONE** (2026-08-26 America/Bogota)
 
-**Phase 0 gate:** Package authored · Human SPEC approval **PENDING**
+**Phase 0 gate:** Package authored · Human SPEC approval **DONE**
 
-**Exit:** Formal package complete · Phase 1 **NOT AUTHORIZED** until T-008-010 DONE.
+**Exit:** Formal package complete · Phase 1 **AUTHORIZED** after T-008-010.
 
-**Newly authored Phase 0 IDs:** T-008-001 … T-008-010
-
-**Required human approval statement (T-008-010) — exact text required:**
+**Required human approval statement (T-008-010) — recorded verbatim:**
 
 > «Apruebo formalmente SPEC-008 — Learning Loop y autorizo el cierre de T-008-010 y el inicio de la Phase 1 de implementación.»
 
-**FORMAL SPEC APPROVAL:** PENDING · **PHASE-1 AUTHORIZATION:** NO
+**FORMAL SPEC APPROVAL:** APPROVED · **PHASE-1 AUTHORIZATION:** YES · **PHASE-2 AUTHORIZATION:** NO (until Phase 1 DONE)
 
 ---
 
-## Phase 1 — Domain contracts (NOT AUTHORIZED)
+## Phase 1 — Domain contracts ✅ COMPLETE
 
-- [ ] **T-008-101** Define `LearningObservation` aggregate + append/supersession semantics — **TODO**
-- [ ] **T-008-102** Define `LearningEvidence` + `LearningAssessment` projections — **TODO**
-- [ ] **T-008-103** Define `StrategicRecommendation` aggregate + recommendation types — **TODO**
-- [ ] **T-008-104** Canonical recommendation lifecycle state machine — **TODO**
-- [ ] **T-008-105** Tenant isolation pure validators (org|client|id) — **TODO**
-- [ ] **T-008-106** Multi-thesis scope predicates (no primary/[0]) — **TODO**
-- [ ] **T-008-107** Human approval gate predicates (no AI/UI/caller approval) — **TODO**
-- [ ] **T-008-108** Materiality / supersession / version rules — **TODO**
-- [ ] **T-008-109** Explainability projection shapes + reason codes — **TODO**
-- [ ] **T-008-110** Domain unit tests + architecture purity tests — **TODO**
+- [x] **T-008-101** Define `LearningObservation` aggregate + append/supersession semantics — **DONE**
+- [x] **T-008-102** Define `LearningEvidence` + `LearningAssessment` projections — **DONE**
+- [x] **T-008-103** Define `StrategicRecommendation` aggregate + recommendation types — **DONE**
+- [x] **T-008-104** Canonical recommendation lifecycle state machine — **DONE**
+- [x] **T-008-105** Tenant isolation pure validators (org|client|id) — **DONE**
+- [x] **T-008-106** Multi-thesis scope predicates (no primary/[0]) — **DONE**
+- [x] **T-008-107** Human approval gate predicates (no AI/UI/caller approval) — **DONE**
+- [x] **T-008-108** Materiality / supersession / version rules — **DONE**
+- [x] **T-008-109** Explainability projection shapes + reason codes — **DONE**
+- [x] **T-008-110** Domain unit tests + architecture purity tests — **DONE**
 
 **Phase 1 IDs:** T-008-101 … T-008-110  
 **Depends on:** T-008-010 DONE  
-**Maps to:** A1–A12, A21, A30, A35  
+**Maps to:** A1–A12 (partial), A16–A18, A21 (partial), A30, A33 (partial), A35 (partial)
+
+**Domain:** `src/domain/learning{LoopErrors,TenantCore,ThesisScopeCore,ObservationCore,EvidenceCore,strategicRecommendationCore,recommendationLifecycleCore,recommendationDecisionCore,MaterialityCore,ExplainabilityCore,AuthorityCore}.ts`  
+**Tests:** `tests/learningLoopDomain.test.ts` · `tests/learningLoopArchitecture.test.ts`  
+**Application / Persistence / Consumer migration:** **NONE**  
+**Runtime P0 (AUDIT008-03):** **OPEN** — feedbackScoringHints + mass rescore untouched (Phase 4)
 
 **Exit:** Phase 1 Domain COMPLETE · Phase 2 **AUTHORIZED** after Phase 1.
 
 ---
 
-## Phase 2 — Application / ports (NOT AUTHORIZED)
+## Phase 2 — Application / ports (AUTHORIZED — NOT STARTED)
 
 - [ ] **T-008-201** `RegisterLearningObservation` / `SupersedeLearningObservation` — **TODO**
 - [ ] **T-008-202** `BuildLearningEvidence` / `BuildLearningAssessment` — **TODO**
@@ -177,8 +182,8 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 
 | Phase | ID range | Count | Status |
 |-------|----------|-------|--------|
-| 0 | T-008-001…010 | 10 | 9 DONE · 1 PENDING |
-| 1 | T-008-101…110 | 10 | TODO |
+| 0 | T-008-001…010 | 10 | 10 DONE |
+| 1 | T-008-101…110 | 10 | 10 DONE |
 | 2 | T-008-201…211 | 11 | TODO |
 | 3 | T-008-301…308 | 8 | TODO |
 | 4 | T-008-401…407 | 7 | TODO |

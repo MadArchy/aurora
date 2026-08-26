@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `008-learning-loop` |
 | **Display name** | **SPEC-008 — Learning Loop** |
-| **Status** | **`DRAFT`** · Phase 0 **COMPLETE** · Phase 1 **NOT AUTHORIZED** |
-| **Phase** | Phase 0 **COMPLETE** · implementation **NOT_STARTED** · deployment **NOT_STARTED** |
+| **Status** | **`APPROVED`** · Phase 0 **COMPLETE** · Phase 1 Domain **COMPLETE** · Phase 2 **AUTHORIZED** |
+| **Phase** | Phase 1 Domain **COMPLETE** · Phase 2+ **NOT STARTED** · deployment **NOT_STARTED** |
 | **Branch** | `spec/008-learning-loop` |
 | **Baseline SHA** | SPEC-007 CODE_COMPLETE final freeze `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0` |
 | **Priority** | P1 (constitution §19 + §32 — RESULTS → LEARNING → STRATEGIC RECOMMENDATION) |
@@ -13,7 +13,7 @@
 | **Depends on** | SPEC-001/002 (read-only context; no routing/scoring authority); SPEC-003/004 (read-only execution context); SPEC-005 (advisory AI — future); SPEC-006 (verified evidence projection — read-only); SPEC-007 (Opportunity outcomes — read-only); SPEC-009 (CODE_AVAILABLE; production DEFERRED) |
 | **Blocks** | Governed learning, strategic recommendation, and human-approved strategic change traceability |
 | **Test baseline (Phase 0)** | Full check + rules unchanged · focused legacy learning tests 8/8 PASS |
-| **Human SPEC approval** | **PENDING** (T-008-010) |
+| **Human SPEC approval** | **APPROVED** (T-008-010) — 2026-08-26 (America/Bogota) |
 
 ---
 
@@ -239,10 +239,6 @@ Firestore `signalOutcomes` / `results` / `feedbackEvents` = secondary sync / SPE
 
 ## Phase 0 exit
 
-Formal package complete · Human SPEC approval **PENDING** (T-008-010) · Phase 1 **NOT AUTHORIZED**
+Formal package complete · Human SPEC approval **DONE** (T-008-010) · Phase 1 Domain **COMPLETE** · Phase 2 **AUTHORIZED**
 
-**Next action:** Human SPEC-008 approval required before Phase 1.
-
-**Required human approval statement (T-008-010):**
-
-> «Apruebo formalmente SPEC-008 — Learning Loop y autorizo el cierre de T-008-010 y el inicio de la Phase 1 de implementación.»
+**Next action:** Begin Phase 2 Application/Ports (T-008-201…211) when authorized to implement.
