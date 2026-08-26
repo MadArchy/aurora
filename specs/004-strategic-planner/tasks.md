@@ -1,7 +1,7 @@
-﻿# Tasks 004 â€” Strategic Planner
+# Tasks 004 â€” Strategic Planner
 
 **Spec status:** `APPROVED`  
-**Implementation:** **PHASE_2_COMPLETE** Â· Phase 3 **NOT_AUTHORIZED** Â· DEPLOYED **NO** Â· DONE **NO** Â· DEPLOYMENT **NOT_STARTED**  
+**Implementation:** **PHASE_3_COMPLETE** · Phase 4 **NOT_AUTHORIZED** · DEPLOYED **NO** · DONE **NO** · DEPLOYMENT **NOT_STARTED**  
 **Branch:** `spec/004-strategic-planner`  
 **Base SHA:** SPEC-006 CODE_COMPLETE `d98c98ca6ee877fc510d3327bd4b1208d74a7b54`  
 **Upstream SPEC-003:** `e16280607fa078941078d2cb4c233025a1bd66a1`  
@@ -126,8 +126,8 @@ Firestore Plan rules = FUTURE / SPEC-009
 - F-004-03 remains **OPEN** (consumer migration Phase 4)
 - F-004-04 remains **OPEN_NONBLOCKING**
 
-**Phase-3 implementation SHA:** pending commit  
-**Phase-3 governance checkpoint:** pending
+**Phase-3 implementation SHA:** `e569e67aa78feeade33cccab283e63701c879e52`  
+**Phase-3 governance checkpoint:** pending (this commit)
 
 Phase 4 **NOT_AUTHORIZED**.
 
