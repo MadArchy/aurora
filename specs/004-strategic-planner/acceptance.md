@@ -19,7 +19,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-6 acceptance evidence SHA:** `30716797badcd59b0839d5695b945d39ba0bedb6`  
 **CODE_COMPLETE candidate checkpoint:** `49c998e95f2ac92f5c389545a605a4d86cd98e36`  
 **CODE_COMPLETE declaration SHA:** `98ef0baad04735ed45afdf20e65064aab4c92d92`  
-**SPEC-004 FINAL CODE_COMPLETE CHECKPOINT:** `98ef0baad04735ed45afdf20e65064aab4c92d92`  
+**SPEC-004 FINAL CODE_COMPLETE CHECKPOINT:** `d9afb53c483e713b06a3f58eb76f9f4251281361`  
 **Branch:** `spec/004-strategic-planner`
 
 ### Human SPEC approval (T-004-010)
