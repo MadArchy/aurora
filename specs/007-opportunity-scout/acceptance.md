@@ -27,7 +27,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-3 checkpoint:** `248b37e1c32cb8a635dc12d864f769be709ceca7`  
 **Phase-4 implementation SHA:** `69fb4457644fdf6af530c065e5897c87b74b4384`  
 **Phase-4 checkpoint:** `85dc11255da419cdb6be1588a5e86584b38d6f4f`  
-**Phase-5 security/test SHA:** *(pinned after implementation commit)*  
+**Phase-5 security/test SHA:** `2e52626cc57f0f34d5e759e2309a6df108134f58`  
 **Phase-5 checkpoint:** *(pinned after checkpoint commit)*
 
 ### Human SPEC approval (T-007-010)
