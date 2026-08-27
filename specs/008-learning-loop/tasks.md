@@ -222,6 +222,13 @@ signoff and approval date are on record*, plus a new assertion that CODE_COMPLET
 `DONE` or deployment. Net: **1 test file changed, +1 assertion (14 → 15)**. The anti-forgery
 property is strengthened, not removed. **Product files changed: 0.**
 
+**Final classification:** **`AUTHORIZED_POST_APPROVAL_GUARD_UPDATE`** — externally ratified
+2026-08-26 (America/Bogota). Historical truth preserved: at the moment of the closure run this
+delta was **outside** the declared zero-test-change scope and was reported as a disclosed
+deviation; it was **not** silently patched. It was subsequently ratified externally. It is
+therefore **not** classified `UNAUTHORIZED_SCOPE_DELTA`. See *External final-freeze ratification*
+in `acceptance.md`.
+
 **A1-A38:** **38 PASS / 0 PARTIAL / 0 FAIL / 0 PENDING**  
 **Formal threats:** **26/26 PASS** — unchanged; 0 product changes in Phase 6, so no threat re-exposure.  
 **P0:** 0 · **P1:** 0 · **P2:** 0 · **P3:** 0 · **Authority bypasses:** 0  

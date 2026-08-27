@@ -15,6 +15,7 @@
 | **Test baseline (Phase 0)** | Full check + rules unchanged · focused legacy learning tests 8/8 PASS |
 | **Human SPEC approval** | **APPROVED** (T-008-010) — 2026-08-26 (America/Bogota) |
 | **Human CODE_COMPLETE approval** | **APPROVED** (T-008-604) — 2026-08-26 (America/Bogota) |
+| **External freeze review** | **VERIFIED/CLOSED** — 2026-08-26 (America/Bogota) · Phase-6 test delta ratified `AUTHORIZED_POST_APPROVAL_GUARD_UPDATE` |
 
 ---
 

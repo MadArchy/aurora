@@ -10,7 +10,8 @@
 **SPEC-008 IMPLEMENTATION:** **IMPLEMENTATION_COMPLETE**  
 **A1-A38:** **38 PASS** · **0 PARTIAL** · **0 FAIL** · **0 PENDING**  
 **CODE_COMPLETE_CANDIDATE:** **YES** · **HUMAN SIGNOFF:** **APPROVED** · **CODE_COMPLETE:** **YES**  
-**FREEZE:** **ACTIVE**  
+**FREEZE:** **ACTIVE** · **EXTERNAL FREEZE REVIEW:** **VERIFIED/CLOSED** (2026-08-26 America/Bogota)  
+**TEST DELTA:** **AUTHORIZED** — `AUTHORIZED_POST_APPROVAL_GUARD_UPDATE` (externally ratified)  
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
 Spec **APPROVED** requires T-008-010 human SPEC approval — **SATISFIED** (2026-08-26 America/Bogota).  
@@ -194,3 +195,47 @@ Resulting frozen state:
 | DEPLOYMENT | **NOT_STARTED** |
 | DEPLOYED | **NO** |
 | DONE | **NO** |
+
+---
+
+## External final-freeze ratification — RECORDED
+
+External human ratification, provided verbatim on **2026-08-26** (**America/Bogota**):
+
+> «Ratifico la modificación de `tests/learningLoopPhase6Acceptance.test.ts` realizada durante el
+> cierre de SPEC-008, acepto el incremento de 14 a 15 assertions como evidencia del estado
+> post-aprobación y autorizo su incorporación al freeze final de SPEC-008.»
+
+| Field | Value |
+|-------|--------|
+| **Scope** | External freeze ratification — governance evidence only, **no new formal task ID** |
+| **Ratified file** | `tests/learningLoopPhase6Acceptance.test.ts` |
+| **Ratified delta** | **14 → 15 assertions** |
+| **Purpose** | post-human-approval CODE_COMPLETE guard evidence |
+| **Previous classification** | disclosed deviation — outside the declared zero-test-change closure scope |
+| **Final classification** | **`AUTHORIZED_POST_APPROVAL_GUARD_UPDATE`** |
+| **Product files changed by the delta** | **0** |
+| **Strategic authority altered by the delta** | **NONE** |
+| **External freeze review** | **VERIFIED/CLOSED** |
+
+No approver identity, email, account ID, organization, role or signature was recorded — none was
+supplied, and none may be invented. The statement alone is the formal artifact.
+
+### Why the delta is acceptable
+
+The guard encodes a *conditional* invariant whose precondition legitimately changed:
+
+| Phase | Invariant the guard must prove |
+|-------|-------------------------------|
+| Before human approval | `CODE_COMPLETE` **cannot exist** without valid human approval |
+| After human approval | `CODE_COMPLETE` may exist **only when all required human approval evidence is present** (verbatim statement · `HUMAN SIGNOFF` APPROVED · approval date) |
+
+The added assertion preserves the constitutional separations:
+
+**`CODE_COMPLETE` ≠ `DEPLOYED`** · **`CODE_COMPLETE` ≠ `DONE`** — deployment remains separately
+gated at D1–D3 **NOT_STARTED**.
+
+The assertions are **frozen**; they must not be altered again.
+
+**Historical truth is retained, not erased:** the delta was initially outside the zero-test-change
+closure scope, was disclosed rather than concealed, and was then externally ratified.
