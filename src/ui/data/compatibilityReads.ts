@@ -22,7 +22,19 @@
 
 import { dbService } from '../../services/db';
 import { mapOpportunityLifecycle } from '../../domain/opportunityLifecycle';
-import { computeProfileCoverage } from '../../domain/profileCoverage';
+import {
+  computeProfileCoverage,
+  PROFILE_SECTION_LABELS,
+  PROFILE_SECTION_ORDER,
+} from '../../domain/profileCoverage';
+import {
+  aggregateWeeklyKpis,
+  primaryKpiSeries,
+  sumKpi,
+  sumKpiThisWeek,
+} from '../../domain/kpiWeekly';
+import { kpiLabel } from '../../lib/campaignLabels';
+import type { BusinessKpiType, Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
 
 export const COMPATIBILITY_READ_STATUS = 'NONAUTHORITATIVE_COMPATIBILITY_READ' as const;
@@ -144,4 +156,223 @@ export function readShellContext(
       .filter((t) => t.status === 'ACTIVE' || t.status === 'UNDER_REVIEW')
       .map((t) => ({ id: t.id, title: t.title })),
   };
+}
+
+/* ------------------------------------------------------------------------- *
+ * Wave-2 reads (T-010-201…204)
+ *
+ * Every derived number below is computed by a domain function called here, not
+ * in a React component: the facade projects, the domain calculates, and the
+ * component only renders (threat T-010-19). Each read stays read-only — no
+ * mutator exists in this module and none may be added.
+ * ------------------------------------------------------------------------- */
+
+export interface MasterDossierRead {
+  readonly dossier: MasterDossier | null;
+  readonly client: Client | null;
+}
+
+/** T-010-201 · `MasterDossierPanel`. No canonical dossier projection exists. */
+export function readMasterDossier(scope: TrustedTenantScope): MasterDossierRead {
+  const clientId = requireClient(scope);
+  if (!clientId) return { dossier: null, client: null };
+  return {
+    dossier: dbService.getMasterDossier(clientId) ?? null,
+    client: dbService.getClientById(clientId) ?? null,
+  };
+}
+
+/** Same display selection as the legacy chart, so the migrated view is a parity view. */
+const CHART_KPIS: readonly BusinessKpiType[] = [
+  'consultation_requests',
+  'linkedin_profile_views',
+  'website_visits_from_linkedin',
+];
+
+export interface KpiSeriesRead {
+  readonly kpiType: string;
+  readonly label: string;
+  readonly values: readonly number[];
+  readonly max: number;
+}
+
+export interface KpiWeeklyRead {
+  readonly weekLabels: readonly string[];
+  readonly series: readonly KpiSeriesRead[];
+  readonly tiles: readonly { readonly label: string; readonly value: number }[];
+  readonly consultationsThisWeek: number;
+}
+
+/** T-010-203 · `KpiWeeklyChart`. Aggregation is `domain/kpiWeekly`, not this facade and not React. */
+export function readKpiWeekly(scope: TrustedTenantScope): KpiWeeklyRead {
+  const clientId = requireClient(scope);
+  if (!clientId) {
+    return { weekLabels: [], series: [], tiles: [], consultationsThisWeek: 0 };
+  }
+
+  const results = dbService.getResultsByClient(clientId);
+  const buckets = aggregateWeeklyKpis(
+    results.filter((result) => result.kpiType),
+    8
+  );
+
+  return {
+    weekLabels: buckets.map((bucket) => bucket.weekLabel.split(' – ')[0]),
+    series: primaryKpiSeries(buckets, [...CHART_KPIS]).map((s) => ({
+      kpiType: s.kpiType,
+      label: s.label,
+      values: s.values,
+      max: s.max,
+    })),
+    tiles: CHART_KPIS.map((kpiType) => ({
+      label: kpiLabel(kpiType),
+      value: sumKpi(results, kpiType),
+    })),
+    consultationsThisWeek: sumKpiThisWeek(results, 'consultation_requests'),
+  };
+}
+
+export interface ProfileFactRead {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly status: string;
+}
+
+export interface ProfileSectionRead {
+  readonly section: string;
+  readonly label: string;
+  readonly confirmed: number;
+  readonly candidates: number;
+  readonly complete: boolean;
+  readonly facts: readonly ProfileFactRead[];
+}
+
+export interface ProfileOverviewRead {
+  readonly totalConfirmed: number;
+  readonly sectionsWithFacts: number;
+  readonly meetsPilotThreshold: boolean;
+  readonly sections: readonly ProfileSectionRead[];
+  readonly clientDisplayName: string | null;
+  readonly profileCompleteness: number;
+  readonly serviceLines: readonly {
+    readonly name: string;
+    readonly description: string;
+    readonly offerings: readonly string[];
+  }[];
+}
+
+/** T-010-203 · `ClientProfilePanel`, display portion only. Fact mutation stays legacy (AUDIT010-09). */
+export function readProfileOverview(scope: TrustedTenantScope): ProfileOverviewRead {
+  const clientId = requireClient(scope);
+  const empty: ProfileOverviewRead = {
+    totalConfirmed: 0,
+    sectionsWithFacts: 0,
+    meetsPilotThreshold: false,
+    sections: [],
+    clientDisplayName: null,
+    profileCompleteness: 0,
+    serviceLines: [],
+  };
+  if (!clientId) return empty;
+
+  const profile = dbService.getMasterProfile(clientId);
+  const coverage = computeProfileCoverage(profile);
+  const client = dbService.getClientById(clientId);
+  const dossier = dbService.getMasterDossier(clientId);
+  const facts = profile?.facts || [];
+
+  return {
+    totalConfirmed: coverage.totalConfirmed,
+    sectionsWithFacts: coverage.sectionsWithFacts,
+    meetsPilotThreshold: coverage.meetsPilotThreshold,
+    sections: PROFILE_SECTION_ORDER.map((section) => {
+      const coverageSection = coverage.sections.find((s) => s.label === PROFILE_SECTION_LABELS[section]);
+      return {
+        section,
+        label: PROFILE_SECTION_LABELS[section],
+        confirmed: coverageSection?.confirmed ?? 0,
+        candidates: coverageSection?.candidates ?? 0,
+        complete: coverageSection?.complete ?? false,
+        facts: facts
+          .filter((f) => f.section === section && f.status !== 'rejected')
+          .map((f) => ({ id: f.id, label: f.label, value: f.value, status: f.status })),
+      };
+    }),
+    clientDisplayName: client?.displayName ?? null,
+    profileCompleteness: client?.profileCompleteness || 0,
+    serviceLines: (dossier?.serviceLines || []).map((line) => ({
+      name: line.name,
+      description: line.description,
+      offerings: line.offerings,
+    })),
+  };
+}
+
+export interface ProofWallItemRead {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string | null;
+  readonly complete: boolean;
+  readonly evidenceUrl: string | null;
+}
+
+export interface ProofWallRead {
+  readonly items: readonly ProofWallItemRead[];
+  readonly complete: number;
+  readonly total: number;
+  readonly percentComplete: number;
+}
+
+/** T-010-203 · `ProofWallPanel`, read-only. The status toggle stays legacy (AUDIT010-09). */
+export function readProofWall(scope: TrustedTenantScope): ProofWallRead {
+  const clientId = requireClient(scope);
+  if (!clientId) return { items: [], complete: 0, total: 0, percentComplete: 0 };
+
+  const items = dbService.getProofWallByClient(clientId);
+  const complete = items.filter((item) => item.status === 'complete').length;
+
+  return {
+    items: items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description ?? null,
+      complete: item.status === 'complete',
+      evidenceUrl: item.evidenceId
+        ? dbService.getEvidenceById(item.evidenceId)?.sourceUrl ?? null
+        : null,
+    })),
+    complete,
+    total: items.length,
+    percentComplete: items.length ? Math.round((complete / items.length) * 100) : 0,
+  };
+}
+
+export interface SourceRead {
+  readonly id: string;
+  readonly name: string;
+  readonly type: string;
+  readonly url: string | null;
+  readonly fetchIntervalMinutes: number;
+  readonly hasError: boolean;
+}
+
+/**
+ * T-010-204 · `SourceRegistryModal`, read-only inventory.
+ *
+ * The legacy modal also runs the source-discovery agent while rendering. That is
+ * a service call with its own side effects, so it is deliberately NOT reproduced
+ * here: a read facade must not trigger an agent run.
+ */
+export function readSources(scope: TrustedTenantScope): readonly SourceRead[] {
+  const clientId = requireClient(scope);
+  if (!clientId) return [];
+  return dbService.getSourcesByClient(clientId).map((s) => ({
+    id: s.id,
+    name: s.name,
+    type: s.type,
+    url: s.url ?? null,
+    fetchIntervalMinutes: s.fetchIntervalMinutes,
+    hasError: s.status === 'ERROR',
+  }));
 }

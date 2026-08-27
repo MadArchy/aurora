@@ -27,6 +27,20 @@ import {
 } from '../../hooks/useShellData';
 import { sessionCommands } from '../../commands/commandSeam';
 import { applyUiMode } from '../../mount';
+import { Wave2Surface, type Wave2Group } from '../wave2/Wave2Surface';
+
+/**
+ * Which wave-2 component group, if any, belongs to a tab. A tab with no entry
+ * has no migrated component yet; it is not a missing feature, it is a surface
+ * whose migration belongs to a later phase.
+ */
+const WAVE2_BY_TAB: Record<string, Wave2Group> = {
+  'client-opps': 'opportunities',
+  'client-results': 'results',
+  'client-profile': 'profile',
+  'client-thesis': 'dossier',
+  'ws-sources': 'sources',
+};
 
 interface NavItem {
   readonly id: string;
@@ -102,6 +116,7 @@ export function ReactAppShell() {
 
   const campaigns = shellContext.data?.campaigns ?? [];
   const theses = shellContext.data?.theses ?? [];
+  const wave2Group = WAVE2_BY_TAB[activeTab];
 
   const sidebar = isAdmin ? (
     <>
@@ -279,13 +294,20 @@ export function ReactAppShell() {
 
       <main className="main-wrapper">
         <div className="card" data-testid="react-shell-body">
-          <h2>Shell React (SPEC-010 · fase 1)</h2>
+          <h2>Shell React (SPEC-010)</h2>
           <p className="muted">
             Cimiento de presentación. La interfaz anterior sigue siendo la implementación servida por
             defecto hasta que exista evidencia de paridad.
           </p>
           <p className="muted small">Pestaña activa: {activeTab}</p>
         </div>
+
+        {/*
+          Wave-2 components render here when the active tab has a migrated
+          counterpart. Tabs without one show nothing extra, because the legacy
+          page they belong to has not been migrated (Phase 3 owns that).
+        */}
+        {wave2Group ? <Wave2Surface group={wave2Group} /> : null}
       </main>
     </>
   );

@@ -130,6 +130,65 @@ adversarial proof is Phase 5 (T-010-501…510).
 | T-010-25 | ⚠️ PARTIAL | 3 wave-1 paths audited, all `GATE_FIRST`; only those migrated. Remaining `main.ts` paths unaudited — T-010-401 |
 | T-010-26 | ⚠️ PARTIAL | `E2E`: rollback leaves business storage byte-identical; 0 legacy removed. Full proof T-010-508 |
 
+---
+
+## Phase-2 threat status
+
+Phase 2 extracted eight bounded components carrying real reads and, for five
+actions, real canonical commands. That turns several statically-argued controls
+into controls with an exercised code path, and it opens three threats that could
+not previously be assessed at all because no lifecycle, Opportunity or Learning
+surface existed in React.
+
+**No threat is declared PASS.** Adversarial proof is Phase 5 (T-010-501…510),
+and every migrated surface is still coexisting rather than cut over, so the
+Phase-2 evidence is defensive, not exhaustive.
+
+`ARCH2` = `tests/reactMigrationPhase2Architecture.test.ts` (29/29) ·
+`W2` = `tests/reactMigrationPhase2Wave2.test.ts` (13/13) ·
+`E2E2` = `e2e/wave2-components.spec.ts` (5/5).
+
+| ID | Phase-1 | **Phase-2** | Phase-2 evidence |
+|----|---------|-------------|------------------|
+| T-010-01 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 8 components + all hooks import **0** `dbService`; the facade is still the only importer in `src/ui/**` and exports only `read*` |
+| T-010-02 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 0 store/infrastructure imports across wave 2 |
+| T-010-03 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 0 Firestore imports across wave 2 |
+| T-010-04 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 0 provider imports/endpoints across wave 2 |
+| T-010-05 | ⚠️ PARTIAL | ⚠️ PARTIAL | Cache still `staleTime: 0`; every wave-2 read is a projection, none is a decision input |
+| T-010-06 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: wave 2 uses `invalidateQueries` and **never** `setQueryData` — 0 optimistic business mutations |
+| T-010-07 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2` + `W2`: commands accept ids and notes only; no projection type or forged snapshot can cross the seam |
+| T-010-08 | ⚠️ PARTIAL | ⚠️ PARTIAL | `W2`: runtime proof that two organizations, two clients, and canonical-vs-compatibility never share a key; invalidation is tenant- and source-scoped |
+| T-010-09 | ⚠️ PARTIAL | ⚠️ PARTIAL | `W2`: commands carry the trusted scope as claimed identity; a scope with no client fails closed instead of guessing |
+| T-010-10 | ⚠️ PARTIAL | ⚠️ PARTIAL | `W2`: no command sends `actorType`, `role`, `actorUid` or `createdBy` |
+| T-010-11 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: no privilege-role literal in any wave-2 component |
+| T-010-12 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: no component imports a consumer directly; every command goes through the one seam |
+| T-010-13 | ⚠️ PARTIAL | ⚠️ PARTIAL | Each of the 6 wave-2 hooks declares exactly one read source, carried in the key |
+| T-010-14 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: no component assigns a canonical status; `canSubmit` is supplied by the canonical facade |
+| T-010-15 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: no `theses[0]`, `primaryThesisId`, `approvedBriefs[0]` or `sort()[0]`; the spotlight is labelled `DISPLAY_ONLY` and reuses the same card |
+| T-010-16 | ⏳ PENDING | ⏳ PENDING | `Modals.ts` still not migrated (T-010-302) |
+| T-010-17 | ⏳ PENDING | ⚠️ **PARTIAL** | A lifecycle surface now exists in React. `ARCH2`: no transition is recomputed — accept/decline/submit go to the owning consumer, which re-validates |
+| T-010-18 | ⚠️ PARTIAL | ⚠️ PARTIAL | `W2`: the decline-notes check is an input guard; the canonical consumer still rules and can refuse |
+| T-010-19 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: no component calls `computeProfileCoverage`, `aggregateWeeklyKpis`, `isCleOpportunity` or `daysUntilDeadline` — all run inside the facades |
+| T-010-20 | ⏳ PENDING | ⏳ PENDING | no scoring surface migrated |
+| T-010-21 | ⏳ PENDING | ⚠️ **PARTIAL** | Opportunity surface migrated through the canonical consumer only; `W2` proves the four commands reach it with trusted scope and no forged input |
+| T-010-22 | ⏳ PENDING | ⚠️ **PARTIAL** | Learning surface limited to the canonical `registerResultRecordIntent`; **0** auto-approve, **0** auto-apply, **0** `feedbackScoringHints`, **0** rescore |
+| T-010-23 | ⚠️ PARTIAL | ⚠️ PARTIAL | Session still projected from the single `authService`; wave 2 adds no second source |
+| T-010-24 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2` + `E2E2`: 8 new components added **0** DOM roots; no `getElementById`/`createRoot`/`document.body` outside the mount seam; no cross-nesting |
+| T-010-25 | ⚠️ PARTIAL | ⚠️ PARTIAL | 5 further command paths audited, all `GATE_FIRST`; **0** `EFFECT_FIRST` migrated, **0** `UNKNOWN` migrated |
+| T-010-26 | ⚠️ PARTIAL | ⚠️ PARTIAL | `E2E2`: rollback after loading wave 2 leaves business storage byte-identical; 0 legacy removed |
+
+**Threat status at Phase-2 exit:** **0 PASS / 22 PARTIAL / 0 FAIL / 4 PENDING**
+
+| Milestone | PASS | PARTIAL | FAIL | PENDING |
+|-----------|------|---------|------|---------|
+| Phase 0 exit | 0 | 0 | 0 | 26 |
+| Phase 1 exit | 0 | 19 | 0 | 7 |
+| **Phase 2 exit** | **0** | **22** | **0** | **4** |
+
+**Phase-2 severity:** P0 **0** · P1 **0** · P2 **3** · P3 **5** (AUDIT010-09 extended
+from 1 to 10 registered commands — same finding, wider inventory, unchanged
+severity; see `audit010-09-registry.md`).
+
 **Threat status at Phase-1 exit:** **0 PASS / 19 PARTIAL / 0 FAIL / 7 PENDING**
 
 | Milestone | PASS | PARTIAL | FAIL | PENDING |

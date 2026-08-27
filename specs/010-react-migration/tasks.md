@@ -146,16 +146,67 @@ sound and no capability was lost because legacy remains served.
 
 ---
 
-## Phase 2 — Extract leaf components (§24 step 2) — NOT AUTHORIZED
+## Phase 2 — Extract leaf components (§24 step 2) — COMPLETE (T-010-205 BLOCKED)
 
 | ID | Title | Class | Depends on | Acceptance | Status |
 |----|-------|-------|-----------|------------|--------|
-| **T-010-201** | Migrate zero-`dbService` leaves — `ClaimSafetyPanel`, `PageHeader`, `MasterDossierPanel` | TECHNICAL | Phase 1 | A5, A6 | **[ ] TODO** |
-| **T-010-202** | Migrate `OpportunityPanel` as the canonical-read reference module | TECHNICAL | T-010-201 | A9, A28 | **[ ] TODO** |
-| **T-010-203** | Migrate `KpiWeeklyChart`, `ClientProfilePanel`, `ProofWallPanel` | TECHNICAL | T-010-202 | A5, A36 | **[ ] TODO** |
-| **T-010-204** | Migrate `SourceRegistryModal` | TECHNICAL | T-010-203 | A5, A20 | **[ ] TODO** |
-| **T-010-205** | Migrate `OnboardingWizard` (React Hook Form + Zod) | TECHNICAL | T-010-203 | A13, A18 | **[ ] TODO** |
-| **T-010-206** | Wave-2 parity evidence + tenant-safe cache tests | TECHNICAL | T-010-201…205 | A19, A41 | **[ ] TODO** |
+| **T-010-201** | Migrate zero-`dbService` leaves — `ClaimSafetyPanel`, `PageHeader`, `MasterDossierPanel` | TECHNICAL | Phase 1 | A5, A6 | **[x] DONE** |
+| **T-010-202** | Migrate `OpportunityPanel` as the canonical-read reference module | TECHNICAL | T-010-201 | A9, A28 | **[x] DONE** (canonical read **and** canonical commands) |
+| **T-010-203** | Migrate `KpiWeeklyChart`, `ClientProfilePanel`, `ProofWallPanel` | TECHNICAL | T-010-202 | A5, A36 | **[x] DONE** (`KpiWeeklyChart` full; other two display/read-only — AUDIT010-09) |
+| **T-010-204** | Migrate `SourceRegistryModal` | TECHNICAL | T-010-203 | A5, A20 | **[x] DONE** (read-only; both writes blocked — AUDIT010-09) |
+| **T-010-205** | Migrate `OnboardingWizard` (React Hook Form + Zod) | TECHNICAL | T-010-203 | A13, A18 | **[!] BLOCKED — AUDIT010-09** |
+| **T-010-206** | Wave-2 parity evidence + tenant-safe cache tests | TECHNICAL | T-010-201…205 | A19, A41 | **[x] DONE** (42 Vitest + 5 Playwright) |
+
+### Phase-2 command migratability screen
+
+Every action of every candidate was classified before any component was written.
+Classification of the underlying legacy command decided what could migrate.
+
+| Component | Action | Legacy command | Class | Migrated? |
+|---|---|---|---|---|
+| `PageHeader` | — | — | `NO_COMMAND` | ✔ |
+| `ClaimSafetyPanel` | Go to phrase | editor cursor move | `PRESENTATION_ONLY` | ✔ |
+| `MasterDossierPanel` | Copy / download `.md` | `dossierExport` + audit log | `PRESENTATION_ONLY` | ✔ |
+| `OpportunityPanel` | Accept · Decline · Toggle checklist · Mark sent | `acceptClientOpportunity`, `declineClientOpportunity`, `toggleClientOpportunityChecklistItem`, `submitClientOpportunity` | `CANONICAL_CONSUMER` | ✔ |
+| `KpiWeeklyChart` | Register consultation (+1) | `registerResultRecordIntent` | `CANONICAL_CONSUMER` | ✔ |
+| `ClientProfilePanel` | Add / confirm / reject / edit fact · extract CV facts | 5 × raw `dbService` write | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
+| `ProofWallPanel` | Mark ready / pending | `dbService.updateProofWallItem` | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
+| `SourceRegistryModal` | Register source · Ingest now | `dbService.addSource` · ingestion polling | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
+| `OnboardingWizard` | Submit step / finish | `dbService.applyOnboardingStep` | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
+
+Full detail, dispositions and enforcement: **`audit010-09-registry.md`**.
+
+### T-010-205 — why BLOCKED rather than DONE
+
+`OnboardingWizard` exists to submit `dbService.applyOnboardingStep`. That is a
+business write with no canonical Application use case, so the migration rule
+forbids moving it into React, and SPEC-010 may not create the use case itself.
+
+A React wizard whose six steps cannot save would be a worse surface than the one
+it replaced, so the display portion was not migrated either: the honest
+disposition is `KEEP_LEGACY`. The task stays open, attributed to its real
+blocker, rather than being closed with a form that cannot complete its purpose.
+React Hook Form + Zod remain proven by `ReactLogin` (Phase 1), so no toolchain
+capability is unproven by this deferral.
+
+### Phase-2 delivered artifacts
+
+| Area | Files |
+|------|-------|
+| Wave-2 components | `src/ui/modules/PageHeader/ReactPageHeader.tsx`, `ClaimSafety/ReactClaimSafetyPanel.tsx`, `MasterDossier/ReactMasterDossierPanel.tsx`, `Opportunity/ReactOpportunityPanel.tsx`, `Kpi/ReactKpiWeeklyChart.tsx`, `ClientProfile/ReactClientProfilePanel.tsx`, `ProofWall/ReactProofWallPanel.tsx`, `SourceRegistry/ReactSourceRegistryPanel.tsx` |
+| Bounded surface | `src/ui/modules/wave2/Wave2Surface.tsx`, wiring inside `ReactAppShell` |
+| Read seams | `src/ui/data/canonicalReads.ts` (+ `OpportunityCardView`), `src/ui/data/compatibilityReads.ts` (+ 5 reads) |
+| Command seam | `src/ui/commands/commandSeam.ts` (+ `opportunityCommands`, `resultCommands`, `dossierPresentationCommands`) |
+| Hooks | `src/ui/hooks/useWave2Data.ts` |
+| Tests | `tests/reactMigrationPhase2Architecture.test.ts` (29), `tests/reactMigrationPhase2Wave2.test.ts` (13), `e2e/wave2-components.spec.ts` (5) |
+| Governance | `specs/010-react-migration/audit010-09-registry.md` |
+
+**`main.ts` unchanged: 5,138 lines before and after.** Wave-2 components render
+inside the React shell that Phase 1 already mounted, so no new island, no new
+mount contract and no controller wiring was needed.
+
+**Exit:** Phase 2 **COMPLETE** with T-010-205 formally **BLOCKED** ·
+Phase 3 authorization **NO**
 
 ---
 

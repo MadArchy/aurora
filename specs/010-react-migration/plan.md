@@ -3,7 +3,8 @@
 **Baseline:** SPEC-008 CODE_COMPLETE final freeze `642ae9390700a254fa390ba09a959bab3c37d616`
 **Branch:** `spec/010-react-migration`
 **Status:** Phase 0 **COMPLETE** (T-010-010 **APPROVED** 2026-08-26 America/Bogota) ·
-Phase 1 **COMPLETE** · Phase 2+ **NOT AUTHORIZED**
+Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-205 **BLOCKED** by AUDIT010-09) ·
+Phase 3+ **NOT AUTHORIZED**
 
 ---
 
@@ -77,6 +78,31 @@ across 5,132 lines, and **no runtime defect is claimed**.
 
 **RUNTIME P0:** **0** · **RUNTIME P1:** **0** · **P2:** 3 · **P3:** 5
 **PHASE-0 DESIGN BLOCKERS:** **0** · **PHASE-1 BLOCKERS:** **0**
+
+### Phase-2 dispositions
+
+| ID | Phase-1 disposition | **Phase-2 disposition** | Owning phase |
+|----|--------------------|-------------------------|--------------|
+| AUDIT010-01 | RESOLVED | **RESOLVED** (unchanged) | 0 ✔ |
+| AUDIT010-02 | FOUNDATION_IMPLEMENTED | **FOUNDATION_IMPLEMENTED** (unchanged) | 1 ✔ |
+| AUDIT010-03 | DESIGN_RESOLVED_IMPLEMENTATION_PENDING | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** (unchanged) — `main.ts` is 5,138 lines before and after Phase 2; **0** responsibilities extracted | 4 |
+| AUDIT010-04 | QUERY_SEAM_IMPLEMENTED_MIGRATION_PENDING | **SEAM_ADOPTED_MIGRATION_PARTIAL** — the seam is now used by 8 real components (6 hooks, 1 canonical + 5 compatibility reads). The legacy components still read `dbService` directly because they were retained, not replaced | 3 |
+| AUDIT010-05 | SEAM_IMPLEMENTED_MIGRATION_PENDING | **SEAM_ADOPTED_MIGRATION_PARTIAL** — every wave-2 key carries `organizationId`, proven at runtime; the underlying legacy reads remain `clientId`-scoped | 3 |
+| AUDIT010-06 | DESIGN_GOVERNED_IMPLEMENTATION_PENDING | **DESIGN_GOVERNED_IMPLEMENTATION_PENDING** (unchanged) — `Modals.ts` not migrated. The one place a modal was needed (decline notes) was satisfied inline without migrating it | 3 |
+| AUDIT010-07 | AUDIT_REQUIRED_IMPLEMENTATION_PENDING | **AUDIT_REQUIRED_IMPLEMENTATION_PENDING** (unchanged) — 5 further paths audited `GATE_FIRST`, but the remaining `main.ts` paths are still unaudited and were not migrated | 4 |
+| AUDIT010-08 | E2E_FOUNDATION_IMPLEMENTED | **E2E_FOUNDATION_IMPLEMENTED** (unchanged) — Playwright now 10/10; full parity journeys remain Phase 5 | 1 ✔ |
+| **AUDIT010-09** | NEW · registered (1 command) | **MIGRATION_BLOCKER_FOR_AFFECTED_CAPABILITY** — the Phase-2 screen extended the inventory from 1 to **10** commands across 5 components, each with a recorded disposition. **NOT RESOLVED**: leaving them legacy is correct handling, not closure | 3+ / other SPEC |
+
+AUDIT010-09 grew because the screen worked, not because something regressed. The
+finding's severity is unchanged at **P3**: no runtime defect, ordering sound in
+every case, and no capability lost because every blocked action remains available
+on the legacy surface.
+
+**PHASE-2 BLOCKERS:** **0** · **PHASE-2 P0:** **0** · **PHASE-2 P1:** **0**
+
+One formal task, **T-010-205**, is blocked rather than complete. That is recorded
+as a task status, not suppressed and not worked around by inventing a canonical
+use case, which SPEC-010 has no authority to create.
 
 A discovery/runtime finding is distinct from a design blocker. P2/P3 debt remains open while migration is
 incomplete; nothing is suppressed.

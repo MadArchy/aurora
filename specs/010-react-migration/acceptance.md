@@ -86,7 +86,56 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | Milestone | PASS | PARTIAL | FAIL | PENDING |
 |-----------|------|---------|------|---------|
 | Phase 0 exit | 6 | 0 | 0 | 38 |
-| **Phase 1 exit** | **7** | **24** | **0** | **13** |
+| Phase 1 exit | 7 | 24 | 0 | 13 |
+| **Phase 2 exit** | **7** | **26** | **0** | **11** |
+
+### Phase-2 acceptance movement (T-010-201…206)
+
+`ARCH2` = `tests/reactMigrationPhase2Architecture.test.ts` (29/29) ·
+`W2` = `tests/reactMigrationPhase2Wave2.test.ts` (13/13) ·
+`E2E2` = `e2e/wave2-components.spec.ts` (5/5).
+
+Two criteria advanced from PENDING to PARTIAL, because Phase 2 produced the
+first evidence that could bear on them at all:
+
+| # | Was | Now | Why |
+|---|-----|-----|-----|
+| **A28** | ⏳ PENDING | ⚠️ PARTIAL | SPEC-007 surface migrated. `ARCH2` + `W2`: OpportunityScore, lifecycle and Materialize are **not** recreated — the four commands reach `opportunityScoutConsumer`, and derived flags come from the canonical facade |
+| **A41** | ⏳ PENDING | ⚠️ PARTIAL | Parity evidence now exists per migrated component (rendered information, loading, empty, error, tenant context, actions, disabled actions, validation, freshness, rollback). Cutover parity remains Phase 5 |
+
+Criteria that stayed PARTIAL but gained materially stronger evidence:
+
+| # | Phase-2 evidence |
+|---|------------------|
+| A6 | `ARCH2`: 8 components carry reads and 5 canonical commands, with **0** persistence writes and **0** lifecycle assignments |
+| A8 | `ARCH2`: React → `dbService` direct component imports **0**; facade remains the only importer and exposes **0** mutators |
+| A9 | Canonical read path exercised by a real component (`readClientOpportunityCards`); 6 hooks, each with one declared source |
+| A10 | 5 commands now flow React intent → seam → canonical consumer; `W2` proves the forwarded payload |
+| A11 / A15 | `ARCH2`: `invalidateQueries` only, never `setQueryData`; commands carry ids, never aggregates |
+| A14 | Wave 2 introduces **0** optimistic business mutations |
+| A16 / A17 / A18 | `W2`: trusted scope forwarded as claimed identity; **0** actor/role fields sent; portfolio scope fails closed |
+| A19 | `W2`: runtime cross-tenant, cross-client and cross-source key separation |
+| A20 | `ARCH2`: no primary/first-thesis pattern; the spotlight is `DISPLAY_ONLY` |
+| A26 | `ARCH2`: **0** provider imports across wave 2 |
+| A32 / A33 | `ARCH2`: **0** store and **0** Firestore imports across wave 2 |
+| A34 | `ARCH2`: no domain calculation runs in a component or hook |
+| A35 | `ARCH2`: components cannot import a consumer directly — one command entry point |
+| A36 | One read source per module, provenance in the key |
+| A38 | `ARCH2` + `E2E2`: 8 new components, **0** new DOM roots, no cross-nesting |
+| A42 | Playwright now 10/10 (5 foundation + 5 wave-2 focused) |
+| A43 | `E2E2`: rollback after wave 2 leaves business storage byte-identical; **0** legacy files removed |
+
+Criteria deliberately **not** advanced:
+
+| # | Why not |
+|---|---------|
+| A5 | Behaviour parity per module needs cutover evidence (Phase 5) |
+| A13 | `OnboardingWizard`, the RHF+Zod form this criterion pointed at, is **BLOCKED** (AUDIT010-09) |
+| A21 | `Modals.ts` not migrated (T-010-302) |
+| A22, A23, A24, A25, A27, A29, A30 | No routing, scoring, Brief, Plan, Claim or Learning-approval surface was migrated |
+| A31 | No security review performed in Phase 2; rules unchanged at 91/91 |
+| A39 | `main.ts` is **5,138 lines before and after** — 0 responsibilities extracted. Phase 4 owns this |
+| A44 | CODE_COMPLETE regression is T-010-602 |
 
 Phase 1 advanced A2, A3, A4 to full PASS (stack installed, strangler demonstrated, mapping verified) and
 newly passed A38. No criterion depending on page migration, `main.ts` extraction, legacy deletion, full

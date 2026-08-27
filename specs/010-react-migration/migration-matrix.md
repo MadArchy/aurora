@@ -109,7 +109,26 @@ organizations must not collide in cache or in a read result.
 | Wave | Status | Evidence |
 |------|--------|----------|
 | **W1 — Shell** | **FOUNDATION COMPLETE · NO CUTOVER** | Mount seam, toggle, providers, query/command seams, React `AppShell` + `Login` implemented and mountable. Legacy remains the served presentation. 27 architecture + 5 Playwright tests PASS |
-| W2…W6 | **NOT STARTED** | Phase 2+ not authorized |
+| **W2 — Leaf components** | **EXTRACTION COMPLETE · NO CUTOVER · 1 BLOCKED** | 8 of 9 candidates extracted; `OnboardingWizard` blocked by AUDIT010-09. 42 Vitest (29 architecture + 13 behaviour) + 5 Playwright PASS. All 9 legacy counterparts retained |
+| W3…W6 | **NOT STARTED** | Phase 3+ not authorized |
+
+### Wave-2 component dispositions
+
+| Legacy component | React module | Read source | Command source | Disposition |
+|---|---|---|---|---|
+| `PageHeader.ts` | `ReactPageHeader.tsx` | none | none | **MIGRATED** (metadata imported, not copied) |
+| `ClaimSafetyPanel.ts` | `ReactClaimSafetyPanel.tsx` | props | presentation intent | **MIGRATED** |
+| `MasterDossierPanel.ts` | `ReactMasterDossierPanel.tsx` | compatibility | `PRESENTATION_ONLY` via seam | **MIGRATED** |
+| `OpportunityPanel.ts` | `ReactOpportunityPanel.tsx` | **canonical** | **canonical consumer** ×4 | **MIGRATED** (reference module) |
+| `KpiWeeklyChart.ts` | `ReactKpiWeeklyChart.tsx` | compatibility | **canonical consumer** | **MIGRATED** |
+| `ClientProfilePanel.ts` | `ReactClientProfilePanel.tsx` | compatibility | none — 5 writes blocked | **PARTIAL · DISPLAY_ONLY_REACT** |
+| `ProofWallPanel.ts` | `ReactProofWallPanel.tsx` | compatibility | none — toggle blocked | **PARTIAL · READ_ONLY_REACT** |
+| `SourceRegistryModal.ts` | `ReactSourceRegistryPanel.tsx` | compatibility | none — 2 actions blocked | **PARTIAL · READ_ONLY_REACT** |
+| `OnboardingWizard.ts` | — | — | — | **NOT MIGRATED · KEEP_LEGACY** (AUDIT010-09) |
+
+All nine legacy files remain present and unmodified, so their matrix disposition
+stays `MIGRATE` rather than `REMOVE_AFTER_PARITY` until the Phase-6 parity gate.
+No page was migrated: page orchestration is still entirely legacy.
 
 React `AppShell` and `Login` exist alongside their legacy counterparts; neither legacy file was modified
 or removed. `AppShell.ts` and `Login.ts` therefore stay `MIGRATE` (not `REMOVE_AFTER_PARITY`) until the
