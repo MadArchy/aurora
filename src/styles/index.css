@@ -2962,6 +2962,9 @@ code {
 .signal-card.accent-low { border-left-color: var(--border-medium); }
 
 .signal-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+/* Contenido de terceros: una URL sin espacios no debe desbordar la columna. */
+.signal-title,
+.signal-snippet { overflow-wrap: anywhere; }
 .signal-title { font-size: 0.95rem; }
 .signal-snippet { font-size: 0.82rem; color: var(--text-secondary); }
 .signal-suggestion { font-size: 0.78rem; color: #a5b4fc; }

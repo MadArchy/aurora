@@ -10,20 +10,68 @@ export interface FeedItemPayload {
   pubDate: string;
 }
 
+/** Entidades con nombre que aparecen en feeds reales; el resto se resuelve numéricamente. */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+function decodeEntities(value: string): string {
+  return value.replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (match, rawCode: string) => {
+    const code = rawCode.toLowerCase();
+    const named = NAMED_ENTITIES[code];
+    if (named !== undefined) return named;
+    const point = code.startsWith('#x')
+      ? parseInt(code.slice(2), 16)
+      : code.startsWith('#')
+        ? Number(code.slice(1))
+        : NaN;
+    if (!Number.isInteger(point) || point < 1 || point > 0x10ffff) return match;
+    return String.fromCodePoint(point);
+  });
+}
+
+/**
+ * Quita etiquetas exigiendo nombre de etiqueta tras `<`, para no destruir una
+ * comparación en texto legítimo (`5 < 10 y 20 > 3`). El `>|$` final cubre la
+ * etiqueta que queda a medias cuando el feed viene truncado.
+ */
+function stripTags(value: string): string {
+  return value.replace(/<\/?[a-z!][^>]*(?:>|$)/gi, ' ');
+}
+
+/**
+ * Texto plano de un nodo de feed.
+ *
+ * El marcado puede llegar crudo (`<a href=…>`) o escapado (`&lt;a href=…&gt;`,
+ * como hace Google News). Quitar etiquetas sin decodificar primero dejaba el
+ * marcado escapado como texto visible, y el href completo desbordaba la tarjeta
+ * de señal.
+ */
+export function toPlainText(raw: string): string {
+  const decoded = decodeEntities(stripTags(raw));
+  // Al decodificar afloran las etiquetas que venían escapadas.
+  const clean = decoded.includes('<') ? stripTags(decoded) : decoded;
+  return clean.replace(/\s+/g, ' ').trim();
+}
+
 export function parseRssXml(xml: string): FeedItemPayload[] {
   const items: FeedItemPayload[] = [];
   const blocks = xml.split(/<item[\s>]/i).slice(1).concat(xml.split(/<entry[\s>]/i).slice(1));
   for (const block of blocks.slice(0, 40)) {
-    const title = (block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i)?.[1] || '')
-      .replace(/<[^>]+>/g, '')
-      .trim();
+    const title = toPlainText(
+      block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i)?.[1] || ''
+    );
     const link =
-      block.match(/<link[^>]*href=["']([^"']+)["']/i)?.[1] ||
-      (block.match(/<link[^>]*>([\s\S]*?)<\/link>/i)?.[1] || '').replace(/<[^>]+>/g, '').trim();
-    const snippet = (block.match(/<(?:description|summary|content)[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/(?:description|summary|content)>/i)?.[1] || '')
-      .replace(/<[^>]+>/g, '')
-      .trim()
-      .slice(0, 500);
+      decodeEntities(block.match(/<link[^>]*href=["']([^"']+)["']/i)?.[1] || '') ||
+      toPlainText(block.match(/<link[^>]*>([\s\S]*?)<\/link>/i)?.[1] || '');
+    const snippet = toPlainText(
+      block.match(/<(?:description|summary|content)[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/(?:description|summary|content)>/i)?.[1] || ''
+    ).slice(0, 500);
     const pubDate = (block.match(/<(?:pubDate|updated|published)[^>]*>([\s\S]*?)<\/(?:pubDate|updated|published)>/i)?.[1] || '').trim();
     if (title) items.push({ title, link, snippet, pubDate });
   }

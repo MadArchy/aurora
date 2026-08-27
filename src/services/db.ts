@@ -40,6 +40,7 @@ import { computeConversionStats } from '../domain/radarFeedbackCore';
 import { resolveThesis } from '../domain/thesisContextCore';
 import { detectIndustryPreset, getIndustryPresetMeta } from './industryPresets';
 import { createId } from '../lib/id';
+import { hasFeedMarkup, toPlainText } from '../lib/feedText';
 import { renderDiffHtml, diffLines, hasDiffChanges, summarizeDiff } from '../domain/textDiff';
 import { buildFactsFromProfile } from '../domain/profileFacts';
 import { extractCandidateFactsFromCv } from '../domain/cvExtract';
@@ -176,6 +177,7 @@ class DataService {
         this.migrateProfileFacts();
         this.migrateProofWallItems();
         this.migrateOpportunityLifecycle();
+        this.migrateFeedTextMarkup();
         return;
       } catch (e) {
         console.error('Error loading stored data, resetting to seed', e);
@@ -977,6 +979,29 @@ class DataService {
         !opp.submissionChecklist?.length
       ) {
         opp.submissionChecklist = defaultOpportunityChecklist(opp.type, opp);
+        changed = true;
+      }
+    }
+    if (changed) this.saveAll();
+  }
+
+  /**
+   * Limpia el marcado de feed que el parser antiguo dejó en señales ya guardadas.
+   *
+   * El parser sólo quitaba etiquetas crudas, así que el marcado escapado de
+   * Google News (`&lt;a href=…&gt;`) se persistió como texto visible y desbordaba
+   * las tarjetas. Sólo reescribe lo que sigue sucio, para no tocar señales sanas
+   * ni disparar un guardado en cada arranque.
+   */
+  private migrateFeedTextMarkup() {
+    let changed = false;
+    for (const signal of this.signals) {
+      if (signal.title && hasFeedMarkup(signal.title)) {
+        signal.title = toPlainText(signal.title);
+        changed = true;
+      }
+      if (signal.contentSnippet && hasFeedMarkup(signal.contentSnippet)) {
+        signal.contentSnippet = toPlainText(signal.contentSnippet);
         changed = true;
       }
     }
