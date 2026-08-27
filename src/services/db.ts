@@ -177,7 +177,7 @@ class DataService {
         this.migrateProfileFacts();
         this.migrateProofWallItems();
         this.migrateOpportunityLifecycle();
-        this.migrateFeedTextMarkup();
+        if (this.sanitizeFeedTextMarkup()) this.saveAll();
         return;
       } catch (e) {
         console.error('Error loading stored data, resetting to seed', e);
@@ -986,14 +986,16 @@ class DataService {
   }
 
   /**
-   * Limpia el marcado de feed que el parser antiguo dejó en señales ya guardadas.
+   * Limpia el marcado de feed que el parser antiguo dejó en las señales.
    *
    * El parser sólo quitaba etiquetas crudas, así que el marcado escapado de
    * Google News (`&lt;a href=…&gt;`) se persistió como texto visible y desbordaba
-   * las tarjetas. Sólo reescribe lo que sigue sucio, para no tocar señales sanas
-   * ni disparar un guardado en cada arranque.
+   * las tarjetas. Sólo reescribe lo que sigue sucio, para no tocar señales sanas.
+   *
+   * No guarda: el llamador decide, porque con Firestore autoritativo la
+   * hidratación ya persiste con `skipRemote` y no debe disparar un push masivo.
    */
-  private migrateFeedTextMarkup() {
+  private sanitizeFeedTextMarkup(): boolean {
     let changed = false;
     for (const signal of this.signals) {
       if (signal.title && hasFeedMarkup(signal.title)) {
@@ -1005,7 +1007,7 @@ class DataService {
         changed = true;
       }
     }
-    if (changed) this.saveAll();
+    return changed;
   }
 
   private refreshProfileCompleteness(clientId?: string) {
@@ -1180,6 +1182,9 @@ class DataService {
 
     this.ensureJuanCampaignSeed();
     this.migrateOpportunityLifecycle();
+    // Con Firebase activo `loadInitialData()` no corre, así que este es el único
+    // punto por el que pasan las señales de Firestore (pull inicial y realtime).
+    this.sanitizeFeedTextMarkup();
 
     this.saveAll({ skipRemote: options?.skipRemote });
 
