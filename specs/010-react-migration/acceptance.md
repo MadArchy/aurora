@@ -48,7 +48,7 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | A10 | Canonical command boundary — React intent → consumer/Application → Domain → Ports → Infrastructure | 1–6 | ⚠️ PARTIAL | `commandSeam.ts` delegates to trusted auth; `ARCH` proves no direct persistence. Strategic commands pending |
 | A11 | TanStack Query cache is non-authoritative; no strategic decision from cached data | 2–6 | ⚠️ PARTIAL | `ARCH`: `staleTime: 0`, `retry: 0`, cache labelled non-authoritative. Adversarial proof T-010-502 |
 | A12 | React local/presentation state non-authoritative | 2–6 | ⚠️ PARTIAL | Wave-1 state is tab/filter only; no authority derived from it |
-| A13 | Form state non-authoritative; Zod UI validation never bypasses Domain gates | 2–6 | ⚠️ PARTIAL | `ReactLogin`: Zod checks shape, trusted auth still decides. Adversarial proof T-010-501 |
+| A13 | Form state non-authoritative; Zod UI validation never bypasses Domain gates | 2–6 | ⚠️ PARTIAL | `ReactLogin` + `ReactOnboardingWizard`: Zod checks shape, trusted auth / the domain still decide. Adversarial proof T-010-501 |
 | A14 | Optimistic UI state non-authoritative; failure reconciles to canonical state | 2–6 | ⚠️ PARTIAL | `ARCH`: wave 1 introduces **0** optimistic mutations |
 | A15 | Stale cached aggregate never used as mutation authority; caller snapshot authority 0 | 2–6 | ⚠️ PARTIAL | `staleTime: 0`; no wave-1 command consumes a cached aggregate. Adversarial proof T-010-502 |
 | A16 | Trusted tenant — React cannot establish `organizationId`/`clientId`; caller tenant authority 0 | 1–6 | ⚠️ PARTIAL | `ARCH`: branded `TrustedTenantScope`, sole constructor takes the trusted `User`; fail-closed when absent |
@@ -107,9 +107,9 @@ Criteria that stayed PARTIAL but gained materially stronger evidence:
 
 | # | Phase-2 evidence |
 |---|------------------|
-| A6 | `ARCH2`: 8 components carry reads and 5 canonical commands, with **0** persistence writes and **0** lifecycle assignments |
+| A6 | `ARCH2`: 9 components carry reads and 5 canonical commands, with **0** persistence writes and **0** lifecycle assignments |
 | A8 | `ARCH2`: React → `dbService` direct component imports **0**; facade remains the only importer and exposes **0** mutators |
-| A9 | Canonical read path exercised by a real component (`readClientOpportunityCards`); 6 hooks, each with one declared source |
+| A9 | Canonical read path exercised by a real component (`readClientOpportunityCards`); 7 hooks, each with one declared source |
 | A10 | 5 commands now flow React intent → seam → canonical consumer; `W2` proves the forwarded payload |
 | A11 / A15 | `ARCH2`: `invalidateQueries` only, never `setQueryData`; commands carry ids, never aggregates |
 | A14 | Wave 2 introduces **0** optimistic business mutations |
@@ -121,7 +121,8 @@ Criteria that stayed PARTIAL but gained materially stronger evidence:
 | A34 | `ARCH2`: no domain calculation runs in a component or hook |
 | A35 | `ARCH2`: components cannot import a consumer directly — one command entry point |
 | A36 | One read source per module, provenance in the key |
-| A38 | `ARCH2` + `E2E2`: 8 new components, **0** new DOM roots, no cross-nesting |
+| A13 | `ReactOnboardingWizard` (T-010-205): RHF + Zod validate input shape only; the schemas hold **0** identity, role, lifecycle or completion fields, Zod strips injected ones, the suggested step is computed by `domain/profileCoverage`, and the form performs **0** writes — so no Zod pass can bypass a Domain gate |
+| A38 | `ARCH2` + `E2E2`: 9 new components, **0** new DOM roots, no cross-nesting |
 | A42 | Playwright now 10/10 (5 foundation + 5 wave-2 focused) |
 | A43 | `E2E2`: rollback after wave 2 leaves business storage byte-identical; **0** legacy files removed |
 
@@ -130,7 +131,6 @@ Criteria deliberately **not** advanced:
 | # | Why not |
 |---|---------|
 | A5 | Behaviour parity per module needs cutover evidence (Phase 5) |
-| A13 | `OnboardingWizard`, the RHF+Zod form this criterion pointed at, is **BLOCKED** (AUDIT010-09) |
 | A21 | `Modals.ts` not migrated (T-010-302) |
 | A22, A23, A24, A25, A27, A29, A30 | No routing, scoring, Brief, Plan, Claim or Learning-approval surface was migrated |
 | A31 | No security review performed in Phase 2; rules unchanged at 91/91 |

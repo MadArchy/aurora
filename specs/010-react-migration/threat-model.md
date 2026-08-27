@@ -134,7 +134,7 @@ adversarial proof is Phase 5 (T-010-501…510).
 
 ## Phase-2 threat status
 
-Phase 2 extracted eight bounded components carrying real reads and, for five
+Phase 2 extracted nine bounded components carrying real reads and, for five
 actions, real canonical commands. That turns several statically-argued controls
 into controls with an exercised code path, and it opens three threats that could
 not previously be assessed at all because no lifecycle, Opportunity or Learning
@@ -144,13 +144,13 @@ surface existed in React.
 and every migrated surface is still coexisting rather than cut over, so the
 Phase-2 evidence is defensive, not exhaustive.
 
-`ARCH2` = `tests/reactMigrationPhase2Architecture.test.ts` (29/29) ·
-`W2` = `tests/reactMigrationPhase2Wave2.test.ts` (13/13) ·
+`ARCH2` = `tests/reactMigrationPhase2Architecture.test.ts` (34/34) ·
+`W2` = `tests/reactMigrationPhase2Wave2.test.ts` (18/18) ·
 `E2E2` = `e2e/wave2-components.spec.ts` (5/5).
 
 | ID | Phase-1 | **Phase-2** | Phase-2 evidence |
 |----|---------|-------------|------------------|
-| T-010-01 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 8 components + all hooks import **0** `dbService`; the facade is still the only importer in `src/ui/**` and exports only `read*` |
+| T-010-01 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 9 components + all hooks import **0** `dbService`; the facade is still the only importer in `src/ui/**` and exports only `read*` |
 | T-010-02 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 0 store/infrastructure imports across wave 2 |
 | T-010-03 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 0 Firestore imports across wave 2 |
 | T-010-04 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH2`: 0 provider imports/endpoints across wave 2 |

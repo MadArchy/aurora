@@ -146,7 +146,7 @@ sound and no capability was lost because legacy remains served.
 
 ---
 
-## Phase 2 — Extract leaf components (§24 step 2) — COMPLETE (T-010-205 BLOCKED)
+## Phase 2 — Extract leaf components (§24 step 2) — COMPLETE
 
 | ID | Title | Class | Depends on | Acceptance | Status |
 |----|-------|-------|-----------|------------|--------|
@@ -154,8 +154,8 @@ sound and no capability was lost because legacy remains served.
 | **T-010-202** | Migrate `OpportunityPanel` as the canonical-read reference module | TECHNICAL | T-010-201 | A9, A28 | **[x] DONE** (canonical read **and** canonical commands) |
 | **T-010-203** | Migrate `KpiWeeklyChart`, `ClientProfilePanel`, `ProofWallPanel` | TECHNICAL | T-010-202 | A5, A36 | **[x] DONE** (`KpiWeeklyChart` full; other two display/read-only — AUDIT010-09) |
 | **T-010-204** | Migrate `SourceRegistryModal` | TECHNICAL | T-010-203 | A5, A20 | **[x] DONE** (read-only; both writes blocked — AUDIT010-09) |
-| **T-010-205** | Migrate `OnboardingWizard` (React Hook Form + Zod) | TECHNICAL | T-010-203 | A13, A18 | **[!] BLOCKED — AUDIT010-09** |
-| **T-010-206** | Wave-2 parity evidence + tenant-safe cache tests | TECHNICAL | T-010-201…205 | A19, A41 | **[x] DONE** (42 Vitest + 5 Playwright) |
+| **T-010-205** | Migrate `OnboardingWizard` (React Hook Form + Zod) | TECHNICAL | T-010-203 | A13, A18 | **[x] DONE** (presentation + reads; the step write stays legacy — see reconciliation below) |
+| **T-010-206** | Wave-2 parity evidence + tenant-safe cache tests | TECHNICAL | T-010-201…205 | A19, A41 | **[x] DONE** (52 Vitest + 5 Playwright) |
 
 ### Phase-2 command migratability screen
 
@@ -172,41 +172,94 @@ Classification of the underlying legacy command decided what could migrate.
 | `ClientProfilePanel` | Add / confirm / reject / edit fact · extract CV facts | 5 × raw `dbService` write | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
 | `ProofWallPanel` | Mark ready / pending | `dbService.updateProofWallItem` | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
 | `SourceRegistryModal` | Register source · Ingest now | `dbService.addSource` · ingestion polling | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
-| `OnboardingWizard` | Submit step / finish | `dbService.applyOnboardingStep` | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
+| `OnboardingWizard` | Submit step / finish (owned by `main.ts`, not by the component) | `dbService.applyOnboardingStep` | `LEGACY_WRITE_WITHOUT_CANONICAL_USE_CASE` | ✘ blocked |
 
 Full detail, dispositions and enforcement: **`audit010-09-registry.md`**.
 
-### T-010-205 — why BLOCKED rather than DONE
+### T-010-205 — formal reconciliation (supersedes the first Phase-2 verdict)
 
-`OnboardingWizard` exists to submit `dbService.applyOnboardingStep`. That is a
-business write with no canonical Application use case, so the migration rule
-forbids moving it into React, and SPEC-010 may not create the use case itself.
+The first Phase-2 pass recorded T-010-205 as `BLOCKED`, on the grounds that the
+component's purpose was to submit `dbService.applyOnboardingStep`. Re-reading the
+formal package showed that attribution to be wrong, and the error mattered
+because it produced a self-contradicting exit gate.
 
-A React wizard whose six steps cannot save would be a worse surface than the one
-it replaced, so the display portion was not migrated either: the honest
-disposition is `KEEP_LEGACY`. The task stays open, attributed to its real
-blocker, rather than being closed with a form that cannot complete its purpose.
-React Hook Form + Zod remain proven by `ReactLogin` (Phase 1), so no toolchain
-capability is unproven by this deferral.
+**Contract classification: `B — DISPLAY_READ_ONLY_ALLOWED_WITH_LEGACY_COMMAND_RETENTION`.**
+
+Repository evidence, not convenience:
+
+| Source | Statement |
+|--------|-----------|
+| `migration-matrix.md` row 10 | `OnboardingWizard.ts` — `dbService` reads **2**, **Writes: no**, boundary `<OnboardingWizard/>` (RHF), wave **2**, disposition **MIGRATE** |
+| `migration-matrix.md` totals | «**0 components performing writes**» — true of all 16 components |
+| `migration-matrix.md` row 1 | `src/main.ts` — «**yes** (all UI-originated commands)», wave **1→4** |
+| `tasks.md` Phase-2 table | T-010-205 declares **no** output and **no** threat column; its acceptance mapping is **A13, A18** |
+| `tasks.md` Phase 4 | `main.ts` command extraction is **T-010-401…404**, explicitly not Phase 2 |
+
+The onboarding write lives in the legacy controller, which the matrix assigns to
+Phase 4. It was never inside the boundary of T-010-205, so migrating this
+component never required migrating it, and the task's mapped criteria are both
+constraints on a form rather than demands for a save: A13 requires that form
+state be non-authoritative and that Zod never bypass a Domain gate; A18 requires
+zero caller role authority. Neither is satisfied by adding a write; both are
+satisfied by a form that provably holds none.
+
+What was implemented, and its exact limit:
+
+- `ReactOnboardingWizard` renders all six steps with React Hook Form + Zod
+  validating **input shape only**; the schemas contain no identity, role,
+  lifecycle or completion field, and Zod strips injected ones.
+- Its single read is the declared compatibility read `readOnboardingContext`;
+  coverage and the suggested step are computed by `domain/profileCoverage`
+  inside the facade, so no completion rule exists in React.
+- It performs **no** write and imports **no** command seam. Saving is disabled
+  with its real reason (AUDIT010-09 #10) and hands off to the legacy wizard,
+  which remains served and unchanged.
+- The «this view does not save yet» notice is rendered **before** any field, so
+  no long answer is typed in the belief that it will be stored. This is the one
+  accepted UX cost of coexistence, recorded rather than hidden.
+
+`AUDIT010-09` is therefore **not** resolved by this closure. The command remains
+`KEEP_LEGACY`, the registry entry stands, and the architecture suite continues to
+fail if `applyOnboardingStep` ever appears in the React layer.
 
 ### Phase-2 delivered artifacts
 
 | Area | Files |
 |------|-------|
-| Wave-2 components | `src/ui/modules/PageHeader/ReactPageHeader.tsx`, `ClaimSafety/ReactClaimSafetyPanel.tsx`, `MasterDossier/ReactMasterDossierPanel.tsx`, `Opportunity/ReactOpportunityPanel.tsx`, `Kpi/ReactKpiWeeklyChart.tsx`, `ClientProfile/ReactClientProfilePanel.tsx`, `ProofWall/ReactProofWallPanel.tsx`, `SourceRegistry/ReactSourceRegistryPanel.tsx` |
+| Wave-2 components | `src/ui/modules/PageHeader/ReactPageHeader.tsx`, `ClaimSafety/ReactClaimSafetyPanel.tsx`, `MasterDossier/ReactMasterDossierPanel.tsx`, `Opportunity/ReactOpportunityPanel.tsx`, `Kpi/ReactKpiWeeklyChart.tsx`, `ClientProfile/ReactClientProfilePanel.tsx`, `ProofWall/ReactProofWallPanel.tsx`, `SourceRegistry/ReactSourceRegistryPanel.tsx`, `Onboarding/ReactOnboardingWizard.tsx` + `Onboarding/onboardingStepSchemas.ts` |
 | Bounded surface | `src/ui/modules/wave2/Wave2Surface.tsx`, wiring inside `ReactAppShell` |
-| Read seams | `src/ui/data/canonicalReads.ts` (+ `OpportunityCardView`), `src/ui/data/compatibilityReads.ts` (+ 5 reads) |
+| Read seams | `src/ui/data/canonicalReads.ts` (+ `OpportunityCardView`), `src/ui/data/compatibilityReads.ts` (+ 6 reads) |
 | Command seam | `src/ui/commands/commandSeam.ts` (+ `opportunityCommands`, `resultCommands`, `dossierPresentationCommands`) |
 | Hooks | `src/ui/hooks/useWave2Data.ts` |
-| Tests | `tests/reactMigrationPhase2Architecture.test.ts` (29), `tests/reactMigrationPhase2Wave2.test.ts` (13), `e2e/wave2-components.spec.ts` (5) |
+| Tests | `tests/reactMigrationPhase2Architecture.test.ts` (34), `tests/reactMigrationPhase2Wave2.test.ts` (18), `e2e/wave2-components.spec.ts` (5) |
 | Governance | `specs/010-react-migration/audit010-09-registry.md` |
 
-**`main.ts` unchanged: 5,138 lines before and after.** Wave-2 components render
-inside the React shell that Phase 1 already mounted, so no new island, no new
-mount contract and no controller wiring was needed.
+**`main.ts` unchanged: 5,138 lines before and after**, including the T-010-205
+reconciliation. Wave-2 components render inside the React shell that Phase 1
+already mounted, so no new island, no new mount contract and no controller wiring
+was needed.
 
-**Exit:** Phase 2 **COMPLETE** with T-010-205 formally **BLOCKED** ·
-Phase 3 authorization **NO**
+### T-010-206 — status basis
+
+Verified against its own contract rather than assumed from the existence of test
+files. Title: *Wave-2 parity evidence + tenant-safe cache tests*; acceptance
+**A19, A41**.
+
+- **A19 (tenant-safe query keys):** proven, not partial — every wave-2 read key
+  is built by the tenant factory, cross-organization, cross-client and
+  cross-source collisions are each asserted, and invalidation is tenant-scoped.
+- **A41 (parity evidence):** A41 is a **Phase-5** criterion; at Phase 2 the task
+  owes wave-2 evidence, which exists across 12 of the 18 parity dimensions
+  (rendered capability, loading, empty, error, tenant, commands, disabled
+  actions, validation, multi-thesis, freshness, canonical behaviour, rollback).
+  Permissions, navigation, accessibility audit, legacy-quirk sign-off, authority
+  adversarial proof and observation remain owned by Phases 3–5.
+
+Evidence: 34 architecture + 18 focused Vitest + 5 wave-2 Playwright, all PASS.
+The task is **DONE** for its Phase-2 scope; A41 stays **PARTIAL** by design.
+
+**Exit:** Phase 2 **COMPLETE** — T-010-201…206 all **DONE** ·
+Phase 3 authorization **NO** (external review owns it)
 
 ---
 

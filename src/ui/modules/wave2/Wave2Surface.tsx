@@ -1,5 +1,5 @@
 /**
- * SPEC-010 · wave-2 component surface (T-010-201…204).
+ * SPEC-010 · wave-2 component surface (T-010-201…205).
  *
  * This is NOT a page migration. Legacy page orchestration is untouched and
  * remains the served presentation; page-by-page migration is Phase 3
@@ -21,6 +21,7 @@ import { ReactKpiWeeklyChart } from '../Kpi/ReactKpiWeeklyChart';
 import { ReactClientProfilePanel } from '../ClientProfile/ReactClientProfilePanel';
 import { ReactProofWallPanel } from '../ProofWall/ReactProofWallPanel';
 import { ReactSourceRegistryPanel } from '../SourceRegistry/ReactSourceRegistryPanel';
+import { ReactOnboardingWizard } from '../Onboarding/ReactOnboardingWizard';
 import { ReactPageHeader } from '../PageHeader/ReactPageHeader';
 
 export type Wave2Group = 'opportunities' | 'results' | 'profile' | 'dossier' | 'sources';
@@ -36,7 +37,8 @@ const GROUP_META: Record<Wave2Group, { title: string; subtitle: string }> = {
   },
   profile: {
     title: 'Mi perfil',
-    subtitle: 'Cobertura y facts en solo lectura. La edición sigue en la interfaz anterior.',
+    subtitle:
+      'Cobertura, facts y onboarding en presentación. La edición y el guardado siguen en la interfaz anterior.',
   },
   dossier: {
     title: 'Dossier maestro',
@@ -67,6 +69,7 @@ export function Wave2Surface({ group }: { group: Wave2Group }) {
       {group === 'profile' ? (
         <>
           <ReactClientProfilePanel />
+          <ReactOnboardingWizard />
           <ReactProofWallPanel />
         </>
       ) : null}

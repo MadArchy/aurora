@@ -16,6 +16,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildTrustedTenantScope, tenantScopeKey } from '../src/ui/query/tenantScope';
 import { tenantInvalidationKey, tenantQueryKey } from '../src/ui/query/queryKeys';
+import {
+  onboardingStep1Schema,
+  onboardingStep2Schema,
+  onboardingStep5Schema,
+  onboardingStep6Schema,
+} from '../src/ui/modules/Onboarding/onboardingStepSchemas';
+import { nextIncompleteOnboardingStep } from '../src/domain/profileCoverage';
 import type { User } from '../src/types';
 
 const calls: { fn: string; params: Record<string, unknown> }[] = [];
@@ -202,6 +209,7 @@ describe('T-010-08 — wave-2 cache identity cannot mix tenants', () => {
       'profile-overview',
       'proof-wall',
       'sources',
+      'onboarding-context',
     ]) {
       const keyA = tenantQueryKey(orgA, 'compatibility', resource);
       const keyB = tenantQueryKey(orgB, 'compatibility', resource);
@@ -244,5 +252,60 @@ describe('T-010-08 — wave-2 cache identity cannot mix tenants', () => {
       buildTrustedTenantScope({ ...CLIENT_USER, organizationId: '' } as User)
     ).toThrow(/organizationId/);
     expect(tenantScopeKey(buildTrustedTenantScope(CLIENT_USER))).toEqual(['org_a', 'client_a']);
+  });
+});
+
+/*
+  T-010-205 / A13. The architecture suite proves the onboarding form holds no
+  command; these run the schemas to show what they actually decide: field shape,
+  and nothing that the domain decides.
+*/
+describe('T-010-205 / A13 — onboarding Zod schemas are input-shape only', () => {
+  it('rejects a missing required field with a field-level message', () => {
+    const result = onboardingStep1Schema.safeParse({ displayName: '  ', profession: 'Abogada' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['displayName']);
+    }
+  });
+
+  it('accepts a well-shaped step and trims presentation whitespace', () => {
+    const result = onboardingStep1Schema.safeParse({
+      displayName: '  Ana Ruiz ',
+      profession: 'Abogada',
+      currentRole: '',
+      company: '',
+      selfDescription: '',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.displayName).toBe('Ana Ruiz');
+  });
+
+  it('treats optional links as optional but still checks URL shape', () => {
+    expect(onboardingStep5Schema.safeParse({ linkedin: '', website: '' }).success).toBe(true);
+    expect(onboardingStep5Schema.safeParse({ linkedin: 'not-a-url' }).success).toBe(false);
+  });
+
+  it('carries no identity, role or lifecycle field a caller could set', () => {
+    const parsed = onboardingStep2Schema.safeParse({
+      primaryGoal: 'Posicionarme',
+      secondaryGoals: '',
+      organizationId: 'org_evil',
+      role: 'ADMIN',
+      status: 'approved',
+    });
+    expect(parsed.success).toBe(true);
+    // Zod strips what the schema does not declare: the injected fields cannot survive.
+    if (parsed.success) {
+      expect(Object.keys(parsed.data).sort()).toEqual(['primaryGoal', 'secondaryGoals']);
+    }
+  });
+
+  it('a passing schema decides nothing about onboarding completion', () => {
+    // Every step schema can pass on an empty-but-shaped payload for optional steps,
+    // which would be unsafe if the schema were a completion gate. It is not: the
+    // domain computes the next incomplete step from persisted facts.
+    expect(onboardingStep6Schema.safeParse({}).success).toBe(true);
+    expect(nextIncompleteOnboardingStep(null)).toBe(1);
   });
 });

@@ -109,7 +109,7 @@ organizations must not collide in cache or in a read result.
 | Wave | Status | Evidence |
 |------|--------|----------|
 | **W1 — Shell** | **FOUNDATION COMPLETE · NO CUTOVER** | Mount seam, toggle, providers, query/command seams, React `AppShell` + `Login` implemented and mountable. Legacy remains the served presentation. 27 architecture + 5 Playwright tests PASS |
-| **W2 — Leaf components** | **EXTRACTION COMPLETE · NO CUTOVER · 1 BLOCKED** | 8 of 9 candidates extracted; `OnboardingWizard` blocked by AUDIT010-09. 42 Vitest (29 architecture + 13 behaviour) + 5 Playwright PASS. All 9 legacy counterparts retained |
+| **W2 — Leaf components** | **EXTRACTION COMPLETE · NO CUTOVER** | 9 of 9 candidates extracted (4 with their commands, 5 display/read-only with commands retained in legacy per AUDIT010-09). 52 Vitest (34 architecture + 18 behaviour) + 5 Playwright PASS. All 9 legacy counterparts retained |
 | W3…W6 | **NOT STARTED** | Phase 3+ not authorized |
 
 ### Wave-2 component dispositions
@@ -124,7 +124,7 @@ organizations must not collide in cache or in a read result.
 | `ClientProfilePanel.ts` | `ReactClientProfilePanel.tsx` | compatibility | none — 5 writes blocked | **PARTIAL · DISPLAY_ONLY_REACT** |
 | `ProofWallPanel.ts` | `ReactProofWallPanel.tsx` | compatibility | none — toggle blocked | **PARTIAL · READ_ONLY_REACT** |
 | `SourceRegistryModal.ts` | `ReactSourceRegistryPanel.tsx` | compatibility | none — 2 actions blocked | **PARTIAL · READ_ONLY_REACT** |
-| `OnboardingWizard.ts` | — | — | — | **NOT MIGRATED · KEEP_LEGACY** (AUDIT010-09) |
+| `OnboardingWizard.ts` | `ReactOnboardingWizard.tsx` | compatibility | none — step write is `main.ts`-owned and blocked | **PARTIAL · DISPLAY_ONLY_REACT** (RHF + Zod shape validation; saving delegated to legacy) |
 
 All nine legacy files remain present and unmodified, so their matrix disposition
 stays `MIGRATE` rather than `REMOVE_AFTER_PARITY` until the Phase-6 parity gate.

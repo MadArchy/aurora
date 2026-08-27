@@ -3,7 +3,7 @@
 **Baseline:** SPEC-008 CODE_COMPLETE final freeze `642ae9390700a254fa390ba09a959bab3c37d616`
 **Branch:** `spec/010-react-migration`
 **Status:** Phase 0 **COMPLETE** (T-010-010 **APPROVED** 2026-08-26 America/Bogota) ·
-Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-205 **BLOCKED** by AUDIT010-09) ·
+Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**; AUDIT010-09 remains open) ·
 Phase 3+ **NOT AUTHORIZED**
 
 ---
@@ -100,9 +100,14 @@ on the legacy surface.
 
 **PHASE-2 BLOCKERS:** **0** · **PHASE-2 P0:** **0** · **PHASE-2 P1:** **0**
 
-One formal task, **T-010-205**, is blocked rather than complete. That is recorded
-as a task status, not suppressed and not worked around by inventing a canonical
-use case, which SPEC-010 has no authority to create.
+**T-010-205 reconciliation.** The first Phase-2 pass reported this task as
+blocked, having attributed `main.ts`'s `applyOnboardingStep` handler to the
+component. The Phase-0 matrix records `OnboardingWizard.ts` as **0 writes** and
+assigns every UI command to `main.ts` (wave 1→4, Phase 4), so the write was never
+inside the task's boundary. The component's presentation and its two
+compatibility reads were migrated; the write stayed legacy, no canonical use case
+was invented, and AUDIT010-09 remains open. Detail: `tasks.md`
+§ *T-010-205 — formal reconciliation*.
 
 A discovery/runtime finding is distinct from a design blocker. P2/P3 debt remains open while migration is
 incomplete; nothing is suppressed.

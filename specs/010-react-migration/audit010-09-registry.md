@@ -46,13 +46,23 @@ omits the action or points at the legacy surface that still owns it.
 | 7 | `ProofWallPanel` | Mark asset ready / pending | `dbService.updateProofWallItem` | proof-wall item status | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 8 | `SourceRegistryModal` | Register source | `dbService.addSource` | source registry | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 9 | `SourceRegistryModal` | Ingest now (one / all) | source polling → ingestion | signals produced downstream | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
-| 10 | `OnboardingWizard` | Submit onboarding step / finish | `dbService.applyOnboardingStep` | client + master profile | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 3 |
+| 10 | `OnboardingWizard` | Submit onboarding step / finish (handler owned by `main.ts`) | `dbService.applyOnboardingStep` | client + master profile | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
 
 **Owning SPEC is deliberately recorded as `UNDETERMINED`.** No repository
 document assigns profile facts, proof-wall status, source registration or
 onboarding to a specific SPEC's Application layer, and inventing an owner would
 be a governance fabrication. Determining ownership is the prerequisite for
 unblocking, and it is other-SPEC work.
+
+### Item 10 changed disposition without changing the blocker
+
+The T-010-205 reconciliation moved item 10 from `KEEP_LEGACY` to
+`DISPLAY_ONLY_REACT`: the onboarding form's presentation and its two
+compatibility reads are now in React, while the write stays exactly where it was.
+The blocker itself is unchanged — no canonical use case exists, none was invented,
+and `applyOnboardingStep` appears nowhere in `src/ui/**`. The handler was always
+owned by `main.ts`, whose extraction is Phase 4, so it was never inside the
+component boundary that T-010-205 migrates.
 
 ### Item 9 has a second reason to stay legacy
 

@@ -24,6 +24,7 @@ import { dbService } from '../../services/db';
 import { mapOpportunityLifecycle } from '../../domain/opportunityLifecycle';
 import {
   computeProfileCoverage,
+  nextIncompleteOnboardingStep,
   PROFILE_SECTION_LABELS,
   PROFILE_SECTION_ORDER,
 } from '../../domain/profileCoverage';
@@ -345,6 +346,106 @@ export function readProofWall(scope: TrustedTenantScope): ProofWallRead {
     complete,
     total: items.length,
     percentComplete: items.length ? Math.round((complete / items.length) * 100) : 0,
+  };
+}
+
+export interface OnboardingContextRead {
+  readonly displayName: string;
+  readonly profession: string;
+  readonly currentRole: string;
+  readonly company: string;
+  readonly selfDescription: string;
+  readonly primaryGoal: string;
+  readonly secondaryGoals: string;
+  readonly targetAudience: string;
+  readonly industries: string;
+  readonly countries: string;
+  readonly education: string;
+  readonly highlights: string;
+  readonly linkedin: string;
+  readonly website: string;
+  readonly tone: string;
+  readonly topicsToAvoid: string;
+  readonly complianceGuidelines: string;
+  readonly totalConfirmed: number;
+  readonly sectionsWithFacts: number;
+  readonly coverageSections: readonly { readonly label: string; readonly complete: boolean }[];
+  /** Suggested step from `domain/profileCoverage` — a presentation hint, not a gate. */
+  readonly suggestedStep: number;
+}
+
+/**
+ * T-010-205 · `OnboardingWizard`, presentation scope.
+ *
+ * The matrix records this component as 2 compatibility reads and **0 writes**:
+ * the onboarding step is applied by the legacy controller, not by the component.
+ * This read therefore projects the current values the wizard displays, and the
+ * suggested step is computed by the domain, not by React.
+ */
+export function readOnboardingContext(scope: TrustedTenantScope): OnboardingContextRead {
+  const clientId = requireClient(scope);
+  const empty: OnboardingContextRead = {
+    displayName: '',
+    profession: '',
+    currentRole: '',
+    company: '',
+    selfDescription: '',
+    primaryGoal: '',
+    secondaryGoals: '',
+    targetAudience: '',
+    industries: '',
+    countries: '',
+    education: '',
+    highlights: '',
+    linkedin: '',
+    website: '',
+    tone: '',
+    topicsToAvoid: '',
+    complianceGuidelines: '',
+    totalConfirmed: 0,
+    sectionsWithFacts: 0,
+    coverageSections: [],
+    suggestedStep: 1,
+  };
+  if (!clientId) return empty;
+
+  const client = dbService.getClientById(clientId);
+  const profile = dbService.getMasterProfile(clientId);
+  const coverage = computeProfileCoverage(profile);
+
+  const displayName =
+    client?.displayName ||
+    `${client?.firstName || ''} ${client?.lastName || ''}`.trim();
+
+  return {
+    displayName,
+    profession: client?.profession || '',
+    currentRole: profile?.career?.currentRole || '',
+    company: client?.company || '',
+    selfDescription: profile?.identity?.selfDescription || '',
+    primaryGoal: profile?.goals?.primaryGoal || '',
+    secondaryGoals: (profile?.goals?.secondaryGoals || []).join(', '),
+    targetAudience:
+      profile?.audience?.targetAudienceDescription || client?.targetMarket || '',
+    industries: (profile?.audience?.targetIndustries || []).join(', '),
+    countries: (profile?.audience?.targetCountries || []).join(', '),
+    education: (profile?.education || [])
+      .map((e) => `${e.degree} - ${e.institution} (${e.year || ''})`)
+      .join('\n'),
+    highlights: (profile?.careerHistory || [])
+      .map((h) => `${h.role} en ${h.organization}: ${h.highlight}`)
+      .join('\n'),
+    linkedin: profile?.socialLinks?.linkedin || '',
+    website: profile?.socialLinks?.website || '',
+    tone: profile?.voicePreferences?.tone || '',
+    topicsToAvoid: (profile?.voicePreferences?.topicsToAvoid || []).join(', '),
+    complianceGuidelines: profile?.voicePreferences?.complianceGuidelines || '',
+    totalConfirmed: coverage.totalConfirmed,
+    sectionsWithFacts: coverage.sectionsWithFacts,
+    coverageSections: coverage.sections
+      .slice(0, 6)
+      .map((s) => ({ label: s.label, complete: s.complete })),
+    suggestedStep: nextIncompleteOnboardingStep(profile),
   };
 }
 

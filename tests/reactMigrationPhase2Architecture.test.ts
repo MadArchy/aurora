@@ -59,9 +59,10 @@ const WAVE2_COMPONENTS = [
   'src/ui/modules/ClientProfile/ReactClientProfilePanel.tsx',
   'src/ui/modules/ProofWall/ReactProofWallPanel.tsx',
   'src/ui/modules/SourceRegistry/ReactSourceRegistryPanel.tsx',
+  'src/ui/modules/Onboarding/ReactOnboardingWizard.tsx',
 ];
 
-describe('T-010-201…204 — the claimed wave-2 components exist', () => {
+describe('T-010-201…205 — the claimed wave-2 components exist', () => {
   it('every claimed component file is present', () => {
     const present = WAVE2_COMPONENTS.filter((path) => {
       try {
@@ -366,9 +367,59 @@ describe('§13 / §14 — blocked actions are delegated, not silently dropped', 
     }
   });
 
-  it('OnboardingWizard was not migrated — its only command is blocked', () => {
-    const migrated = collectFiles(MODULES_ROOT).map(rel);
-    expect(migrated.filter((path) => /Onboarding/i.test(path))).toEqual([]);
+});
+
+/*
+  T-010-205 migrates a component the Phase-0 matrix records as 2 compatibility
+  reads and 0 writes. The onboarding step is applied by the legacy controller,
+  whose extraction is Phase 4, so the migrated scope is presentation + reads and
+  these tests pin exactly that: the presentation exists, and no command followed
+  it across the seam.
+*/
+describe('T-010-205 / A13 / A18 — onboarding presentation carries no command', () => {
+  const wizard = 'src/ui/modules/Onboarding/ReactOnboardingWizard.tsx';
+  const schemas = 'src/ui/modules/Onboarding/onboardingStepSchemas.ts';
+
+  it('the React onboarding presentation exists and the legacy wizard is retained', () => {
+    expect(statSync(join(ROOT, wizard)).isFile()).toBe(true);
+    expect(statSync(join(ROOT, 'src/components/OnboardingWizard.ts')).isFile()).toBe(true);
+  });
+
+  it('it invokes no onboarding write and no command seam mutation', () => {
+    const source = code(join(ROOT, wizard));
+    expect(source).not.toMatch(/applyOnboardingStep/);
+    expect(source).not.toMatch(/useMutation|mutate\(|Commands\./);
+    expect(source).not.toMatch(/from\s+['"][^'"]*commands\/commandSeam['"]/);
+  });
+
+  it('its only data path is the declared compatibility read', () => {
+    const source = code(join(ROOT, wizard));
+    expect(source).toContain('useOnboardingContext');
+    expect(source).not.toMatch(/from\s+['"][^'"]*services\/db['"]/);
+  });
+
+  it('saving is disabled for its real reason and handed to the retained legacy surface', () => {
+    const source = read(join(ROOT, wizard));
+    expect(source).toContain('AUDIT010-09');
+    expect(source).toContain('interfaz anterior');
+    expect(source).toContain('applyUiMode');
+    expect(source).toContain('data-authority="PRESENTATION_ONLY"');
+  });
+
+  it('the Zod schemas validate input shape only — no business or identity field', () => {
+    const source = code(join(ROOT, schemas));
+    // Word-bounded on purpose: `currentRole` is a profile text field, not a privilege.
+    expect(source).not.toMatch(
+      /\borganizationId\b|\bclientId\b|\bactor\b|\brole\b|\bstatus\b|\bverdict\b|\bapproved\b/i
+    );
+    expect(source).not.toMatch(/computeProfileCoverage|meetsPilotThreshold|>=\s*20/);
+  });
+
+  it('the suggested step comes from the domain, not from React', () => {
+    expect(code(join(ROOT, wizard))).toContain('suggestedStep');
+    expect(code(join(ROOT, 'src/ui/data/compatibilityReads.ts'))).toContain(
+      'nextIncompleteOnboardingStep'
+    );
   });
 });
 

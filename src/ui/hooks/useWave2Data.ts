@@ -26,6 +26,7 @@ import type { TrustedTenantScope } from '../query/tenantScope';
 import {
   readKpiWeekly,
   readMasterDossier,
+  readOnboardingContext,
   readProfileOverview,
   readProofWall,
   readSources,
@@ -67,6 +68,20 @@ export function useProfileOverview(scope: TrustedTenantScope | null) {
   return useQuery({
     queryKey: scope ? tenantQueryKey(scope, 'compatibility', 'profile-overview') : DISABLED,
     queryFn: () => readProfileOverview(scope!),
+    enabled: scope !== null && scope.clientId !== null,
+  });
+}
+
+/**
+ * READ SOURCE: compatibility — T-010-205.
+ *
+ * Read-only: the onboarding step is applied by the legacy controller, so this
+ * hook exposes no mutation (AUDIT010-09 #10).
+ */
+export function useOnboardingContext(scope: TrustedTenantScope | null) {
+  return useQuery({
+    queryKey: scope ? tenantQueryKey(scope, 'compatibility', 'onboarding-context') : DISABLED,
+    queryFn: () => readOnboardingContext(scope!),
     enabled: scope !== null && scope.clientId !== null,
   });
 }
