@@ -436,15 +436,159 @@ over, 5 HYBRID, 0 blocked · Phase 4 authorization **NO**
 
 ---
 
-## Phase 4 — Extract UI logic from services + `main.ts` strangler (§24 step 5) — NOT AUTHORIZED
+## Phase 4 — Extract UI logic from services + `main.ts` strangler (§24 step 5) — PARTIAL
 
 | ID | Title | Class | Depends on | Acceptance | Status |
 |----|-------|-------|-----------|------------|--------|
-| **T-010-401** | Audit and record side-effect ordering (gate→effect) for every `main.ts` command path | TECHNICAL | Phase 3 | A5, A39 | **[ ] TODO** |
-| **T-010-402** | Relocate UI orchestration out of `main.ts` per audited path | TECHNICAL | T-010-401 | A39 | **[ ] TODO** |
-| **T-010-403** | Invert the seam — React shell hosts remaining legacy islands (Stage B) | TECHNICAL | T-010-402 | A38 | **[ ] TODO** |
-| **T-010-404** | Reduce `main.ts` to minimal bootstrap/composition entrypoint | TECHNICAL | T-010-403 | A39 | **[ ] TODO** |
-| **T-010-405** | Extract UI logic from domain-adjacent services without changing authority | TECHNICAL | T-010-402 | A5, A34 | **[ ] TODO** |
+| **T-010-401** | Audit and record side-effect ordering (gate→effect) for every `main.ts` command path | TECHNICAL | Phase 3 | A5, A39 | **[x] DONE** |
+| **T-010-402** | Relocate UI orchestration out of `main.ts` per audited path | TECHNICAL | T-010-401 | A39 | **[x] DONE** |
+| **T-010-403** | Invert the seam — React shell hosts remaining legacy islands (Stage B) | TECHNICAL | T-010-402 | A38 | **[ ] BLOCKED_BY_PRECONDITION** |
+| **T-010-404** | Reduce `main.ts` to minimal bootstrap/composition entrypoint | TECHNICAL | T-010-403 | A39 | **[ ] BLOCKED_BY_PRECONDITION** |
+| **T-010-405** | Extract UI logic from domain-adjacent services without changing authority | TECHNICAL | T-010-402 | A5, A34 | **[x] DONE** |
+
+Full evidence: **`main-controller-audit.md`** (new in this phase).
+
+### T-010-401 — controller audit
+
+The audit is the phase's most consequential output, because it decides what may
+be extracted. Method: mechanical inventory, then hand verification of every
+flagged path (`scripts/auditMainController.mjs`,
+`scripts/auditBindTimeEffects.mjs`, `scripts/auditHandlerOrdering.mjs`).
+
+Subject: 5,138 lines, one `class App`, 82 methods, 157 attached handlers.
+
+Responsibility inventory — 11 classes. The load-bearing figure is **25 methods
+classified `LEGACY_BUSINESS_WRITE`**, holding the 34 writes registered under
+AUDIT010-09. They cannot become canonical use cases here (business authority) and
+cannot move into React (the write ban), so they stay legacy per §17.
+
+**Side-effect ordering across 86 material paths: 80 `GATE_FIRST`, 6
+`EFFECT_FIRST`, 0 `UNKNOWN`.** Ordering was counted per *path* — 56
+effect-bearing handlers plus 30 command-method bodies — because a `bind*` method
+attaches many handlers, each with its own gate.
+
+Two results worth stating plainly:
+
+- **0 effects run at bind time or render time.** All 30 command-body effect sites
+  are in methods whose purpose is to write. The legacy controller attaches
+  listeners without firing them and renders without writing, which is what makes
+  §9 enforceable rather than aspirational.
+- **The first pass was wrong and was corrected.** A tolerant gate pattern
+  reported 0 `EFFECT_FIRST` across all 157 handlers. Requiring a real refusal —
+  early return, throw, authorization call, confirmation — surfaced 7 candidates,
+  6 of which survived inspection. An audit that finds nothing should be
+  distrusted before it is believed.
+
+The 6 are registered as **AUDIT010-10** (P2), retained legacy, **0 migrated**.
+Three take their tenant from a DOM attribute; four are advisory AI/agent
+generators that spend a provider budget from an ungated click.
+
+**AUDIT010-07** moves from `AUDIT_REQUIRED` (open since Phase 0) to
+`AUDIT_COMPLETE · DEFECTS REGISTERED · 0 MIGRATED`.
+
+### T-010-401 — `runSourceDiscoveryAgent` correction
+
+Phase 3 recorded 2 `EFFECT_FIRST` occurrences at `ClientWorkspace.ts:1983` and
+`:2247` and declined to migrate them. **The decision was right; the stated reason
+was wrong.** The synchronous `runSourceDiscoveryAgent` performs no write, no
+network call and no provider call — persistence and network live in
+`runSourceDiscoveryAgentAsync` and `saveLastAgentRun`, neither of which is reached
+from a render. Corrected to `RENDER_TIME_RECOMPUTATION (NO_MATERIAL_EFFECT)`:
+still not migrated, because a React read facade must not read persistence during
+render or re-derive on every pass, but not a side effect. `EFFECT_FIRST` for this
+symbol in the controller is **0** — both call sites use the async variant behind a
+button and behind the hourly tick.
+
+### T-010-402 — UI orchestration relocated
+
+| Responsibility | Was | Now |
+|---|---|---|
+| Presentation state — tab, client scope, campaign, modal, filters, login error | 11 mutable fields on `App` | `src/controllers/appUiState.ts` |
+| Toast queue + rendering | `showToast`, `renderToasts` | `src/controllers/toastController.ts` (injectable sink) |
+| Modal dispatch — 17 modals, 72 lines of `if` chains | `renderActiveModal` | `src/controllers/modalPresenter.ts` |
+| Navigation transition rules | `setTab`, `enterClient`, `backToPortfolio` | `src/controllers/navigationController.ts` |
+
+Follows the existing `controllers/sessionController.ts` precedent: a host contract
+plus injected dependencies, so authority stays outside. None of the four modules
+imports `dbService`, a store, Firestore, an Application module or a domain module —
+asserted, not asserted-by-comment. `appUiState.ts` imports **nothing at all**.
+
+One behaviour deliberately improved rather than copied: the manager-only content
+editor used to set `this.activeModal = null` *during a render*. The presenter
+returns `forceClose` and the caller applies it. Same outcome, no hidden write in a
+render.
+
+The ~5,000 existing `this.activeTab`-style call sites were preserved via
+accessors that delegate to the store, so ownership moved without a 5,000-site
+rewrite.
+
+### T-010-405 — UI logic out of domain-adjacent services
+
+`services/dossierExport.ts` and `services/recordings.ts` each built a document
+*and* drove an anchor click. The document is theirs; the browser download is not.
+Both now delegate to `src/lib/fileDownload.ts`, which is the **only** DOM-driven
+download in `src/` (asserted). `dossierExport` gained `buildDossierExport`,
+returning bytes and a filename, so the export is provable without a DOM.
+
+`services/theme.ts` also touches the DOM but is a pure presentation service
+rather than a domain-adjacent one, so it was left alone rather than churned.
+
+### T-010-403 / T-010-404 — why BLOCKED, not attempted
+
+`ui-architecture.md:121` sets Stage B's own precondition: *"Stage B is entered
+only when `main.ts` has been reduced to bootstrap/composition responsibility."*
+After T-010-402 the controller still owns 157 handlers, 25 business-write methods
+and the polling scheduler. The precondition is unmet.
+
+There is also a substantive reason, not just sequencing. Stage B makes React the
+single navigation authority, while the 34 blocked writes are reached through
+legacy event wiring bound during a legacy render. Hosting those surfaces in a
+React shell while legacy still owns their navigation and binding is exactly the
+dual-navigation-authority condition §18 and `ui-architecture.md:131` forbid.
+
+T-010-404 depends on 403 and is further bounded by §27: a smaller `main.ts` with
+duplicated authority is a failure, and every extracted responsibility needs
+equivalence evidence. The remaining ~4,400 lines are DOM event handlers with no
+unit coverage. Relocating them legacy→legacy would move no authority and is
+permissible in principle, but this phase cannot produce equivalence evidence for
+them — and moving untested handler code to claim a line count is precisely the
+failure §27 describes.
+
+**Neither is a task-contract conflict.** Neither *requires* a forbidden action, so
+§3's STOP condition is not triggered. What both require is the CR-1 change
+request that Phase 4 is explicitly not allowed to grant itself.
+
+### `main.ts` before / after
+
+One measurement method and one encoding for both revisions
+(`scripts/mainStatsGit.mjs`).
+
+| | Phase-3 checkpoint | Phase 4 | Δ |
+|---|---|---|---|
+| Lines | **5,138** | **5,041** | −97 |
+| Methods | 82 | 82 | 0 |
+| Named component imports | 28 | 11 | **−17** |
+| `addEventListener` sites | 158 | 158 | 0 |
+| Responsibility classes present | 12 | 11 | −1 |
+
+−97 lines is the least interesting figure. Two others say more: the controller no
+longer knows that 17 components exist (modal dispatch was the coupling and left
+with the table), and **method and handler counts did not move at all** — the file
+is not yet less of an event bus, nothing was shuffled to look smaller, and the
+four responsibilities that left are gone rather than relocated within it.
+
+### Delivered artifacts
+
+| Artifact | Detail |
+|---|---|
+| Audit | `specs/010-react-migration/main-controller-audit.md` + 4 audit scripts |
+| Extracted modules | 4 controllers + `lib/fileDownload.ts` |
+| Services changed | 2 (`dossierExport`, `recordings`) — formatting kept, DOM removed |
+| Tests | 28 architecture + 26 focused Vitest + 6 Playwright |
+| Governance | AUDIT010-07 closed as audit; AUDIT010-10/-11 opened; CR inventory (2 CRs); SPEC-003 signature analysis |
+
+**Exit:** Phase 4 **PARTIAL** — T-010-401, 402, 405 **DONE** · T-010-403, 404
+**BLOCKED_BY_PRECONDITION (CR-1)** · Phase 5 authorization **NO**
 
 ---
 
@@ -500,7 +644,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 1 | T-010-101…111 | 11 | NOT AUTHORIZED |
 | 2 | T-010-201…206 | 6 | NOT AUTHORIZED |
 | 3 | T-010-301…306 | 6 | NOT AUTHORIZED |
-| 4 | T-010-401…405 | 5 | NOT AUTHORIZED |
+| 4 | T-010-401…405 | 5 | 3 DONE · 2 BLOCKED_BY_PRECONDITION (CR-1) |
 | 5 | T-010-501…510 | 10 | NOT AUTHORIZED |
 | 6 | T-010-601…604 | 4 | NOT AUTHORIZED |
 | Deploy | D1–D3 | 3 | NOT_STARTED |

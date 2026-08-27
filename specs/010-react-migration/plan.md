@@ -5,7 +5,38 @@
 **Status:** Phase 0 **COMPLETE** (T-010-010 **APPROVED** 2026-08-26 America/Bogota) ·
 Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**; AUDIT010-09 remains open) ·
 Phase 3 **COMPLETE** (T-010-301…306 all **DONE**; 5 pages HYBRID, 0 fully cut over; AUDIT010-09
-extended to 34 blocked writes) · Phase 4+ **NOT AUTHORIZED**
+extended to 34 blocked writes) ·
+Phase 4 **PARTIAL** (T-010-401, 402, 405 **DONE**; T-010-403, 404 **BLOCKED_BY_PRECONDITION**) ·
+Phase 5+ **NOT AUTHORIZED**
+
+### Phase-4 outcome, stated plainly
+
+Phase 4 was asked to strangle the legacy UI controller. It audited all of it,
+extracted the four responsibilities that carry no authority, and stopped at the
+wall the audit exposed.
+
+The wall is arithmetic: 25 of `main.ts`'s 82 methods are business writes with no
+canonical Application use case, and they anchor all 157 of its event handlers.
+Those methods cannot become canonical here (that is business authority) and
+cannot move into React (that is the write ban). So the controller shrank by four
+responsibilities and 97 lines while its method and handler counts did not move at
+all. Reporting that honestly matters more than reporting a smaller number: §27 is
+explicit that a smaller `main.ts` with duplicated authority is a failure.
+
+T-010-403 (Stage B seam inversion) and T-010-404 (minimal bootstrap) are
+therefore **BLOCKED_BY_PRECONDITION** rather than attempted. Stage B's own
+documented precondition — a controller reduced to bootstrap — is unmet, and
+inverting the seam while legacy still owns 34 commands and their event binding
+would create the dual navigation authority §18 forbids. Their real prerequisite
+is CR-1, which Phase 4 is explicitly not allowed to grant itself.
+
+The audit also produced two things worth more than the extraction. It closed
+**AUDIT010-07**, open since Phase 0, by classifying all 86 material side-effecting
+paths (80 `GATE_FIRST`, 6 `EFFECT_FIRST`, **0 `UNKNOWN`**) — and it corrected two
+earlier governance claims that were wrong: this registry's "ordering sound in
+every case" and Phase 3's `EFFECT_FIRST` classification of
+`runSourceDiscoveryAgent`. Both corrections leave the code untouched; only the
+claims about it changed.
 
 ### Phase-3 outcome, stated plainly
 
@@ -157,6 +188,53 @@ overload in SPEC-003 rather than by new business authority.
 
 A discovery/runtime finding is distinct from a design blocker. P2/P3 debt remains open while migration is
 incomplete; nothing is suppressed.
+
+### Phase-4 dispositions
+
+| ID | Phase-3 disposition | **Phase-4 disposition** | Owning phase |
+|----|--------------------|-------------------------|--------------|
+| AUDIT010-01 | RESOLVED | **RESOLVED** (unchanged) | 0 ✔ |
+| AUDIT010-02 | FOUNDATION_IMPLEMENTED | **FOUNDATION_IMPLEMENTED** (unchanged) | 1 ✔ |
+| **AUDIT010-03** | DESIGN_RESOLVED_IMPLEMENTATION_PENDING | **EXTRACTION_PARTIAL** — the first responsibilities actually left the controller: presentation state, toasts, modal dispatch, navigation rules. 5,138 → **5,041** lines, named component imports 28 → 11. Method and handler counts unchanged, so it is not yet less of an event bus | 4 (T-010-403/404, blocked) / 6 |
+| AUDIT010-04 | SEAM_ADOPTED_MIGRATION_PARTIAL | **SEAM_ADOPTED_MIGRATION_PARTIAL** (unchanged) — Phase 4 migrated no read; the extracted controllers deliberately read nothing at all | 5–6 |
+| AUDIT010-05 | SEAM_ADOPTED_MIGRATION_PARTIAL | **SEAM_ADOPTED_MIGRATION_PARTIAL** (unchanged) — no new query keys in this phase | 5–6 |
+| AUDIT010-06 | IMPLEMENTED_PARTIAL | **IMPLEMENTED_PARTIAL** — unchanged in React terms, but the legacy modal *dispatch* left `main.ts` for `modalPresenter.ts`, and the manager-only refusal no longer mutates state during a render | 5–6 |
+| **AUDIT010-07** | AUDIT_PARTIAL | **AUDIT_COMPLETE · DEFECTS REGISTERED · 0 MIGRATED** — all **86** material side-effecting controller paths classified: **80 `GATE_FIRST`**, **6 `EFFECT_FIRST`**, **0 `UNKNOWN`**. The audit obligation opened in Phase 0 is discharged | 4 ✔ |
+| AUDIT010-08 | E2E_FOUNDATION_IMPLEMENTED | **E2E_FOUNDATION_IMPLEMENTED** — Playwright now **22/22**; authenticated journeys remain PARTIAL and full parity remains Phase 5 | 1 ✔ |
+| **AUDIT010-09** | MIGRATION_BLOCKER (34 commands) | **MIGRATION_BLOCKER_FOR_AFFECTED_CAPABILITY** — count **unchanged at 34**. Phase 4 extracted no command and canonicalized nothing, so no row moved and nothing was wrapped | 5+ / other SPEC |
+| **AUDIT010-10** | — | **NEW · P2 · `RETAINED_LEGACY_REMEDIATION_REQUIRED`** — 6 legacy paths execute a material effect with no in-path authorization gate; 3 take their tenant from a DOM attribute. 0 migrated | 5–6 / legacy hardening |
+| **AUDIT010-11** | — | **NEW · P3 · `LEGACY_BEHAVIOUR_PRESERVED`** — `resolveClientId()` falls back to the first client record for **tenant** scope. Not thesis positional authority; multi-thesis unaffected | 5–6 |
+
+Two earlier claims were corrected rather than quietly restated:
+
+- The line above ("ordering sound in every migrated case") was true as written, but
+  the registry's broader claim that ordering was sound *in every case* was not.
+  Six controller paths are `EFFECT_FIRST`, including the onboarding write that
+  T-010-205 left legacy. Nothing changed in the code; the claim was wrong.
+- Phase 3 classified 2 render-time `runSourceDiscoveryAgent` calls as
+  `EFFECT_FIRST`. The synchronous variant performs no write, no network call and
+  no provider call, so they are `RENDER_TIME_RECOMPUTATION`. Still not migrated —
+  a React read facade must not read persistence during render — but not an effect.
+
+Severity is counted from the ledger in `threat-model.md`, which is authoritative
+(the Phase-3 line in this file reads "P2: 2 · P3: 4" and had drifted — the
+tally-drift defect already recorded in Phase 3). Derivation from the Phase-3
+ledger of P2 **3** · P3 **7**:
+
+| Change | Effect |
+|---|---|
+| AUDIT010-07 (P3) closes as an audit — obligation discharged | P3 −1 |
+| AUDIT010-10 opens at **P2** — the concrete defects the audit found | P2 +1 |
+| AUDIT010-11 opens at **P3** | P3 +1 |
+
+**PHASE-4 BLOCKERS:** **2** (T-010-403, T-010-404 — both awaiting CR-1) ·
+**PHASE-4 P0:** **0** · **PHASE-4 P1:** **0** · **P2:** **4** · **P3:** **7**
+
+AUDIT010-10 is deliberately opened at a *higher* severity than the finding it
+replaces. "Ordering is unaudited" (P3) was an unknown; "six paths run an effect
+with no authorization gate in-path" (P2) is a known defect. Discharging an audit
+should be allowed to raise severity, or auditing becomes an incentive to find
+nothing.
 
 ---
 

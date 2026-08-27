@@ -3,7 +3,7 @@
 **SPEC:** 010-react-migration
 **Finding:** AUDIT010-09 · severity **P3**
 **Status:** **MIGRATION_BLOCKER_FOR_AFFECTED_CAPABILITY** (registered, non-blocking for the phase as a whole)
-**Opened:** Phase 1 · extended by the Phase-2 command screen · **extended by the Phase-3 page screen**
+**Opened:** Phase 1 · extended by the Phase-2 command screen · extended by the Phase-3 page screen · **Phase-4 controller audit added AUDIT010-10/-11 and the formal CR inventory; registry count unchanged at 34**
 
 ---
 
@@ -175,5 +175,145 @@ Leaving the affected commands on the legacy path is the correct handling of the
 finding, not a resolution of it. The finding closes when each capability either
 gains a canonical Application use case (other-SPEC work) or is formally retired.
 Until then it stays **MIGRATION_BLOCKER_FOR_AFFECTED_CAPABILITY** at **P3**: no
-runtime defect, no capability loss, ordering sound in every case
-(gate before effect).
+capability loss, and no defect introduced by the migration.
+
+> **Corrected in Phase 4.** This section previously read "ordering sound in every
+> case (gate before effect)". The Phase-4 controller audit
+> (`main-controller-audit.md`) disproves that for **6** of the legacy paths,
+> including registry item 10 — `dbService.applyOnboardingStep` takes its tenant
+> from a DOM attribute and runs with no authorization check. The earlier claim
+> rested on a tolerant gate pattern that counted optional chaining as a gate.
+> The paths are unchanged and still legacy; only the claim about them was wrong.
+> Recorded as **AUDIT010-10** below.
+
+---
+
+# Phase-4 additions
+
+**Opened:** Phase 4 · T-010-401 controller audit
+**Registry count:** unchanged at **34** blocked writes. Phase 4 extracted no
+command and canonicalized nothing, so no row moved.
+
+## AUDIT010-10 — material effect with no in-path authorization gate
+
+**Severity P2 · `RETAINED_LEGACY_REMEDIATION_REQUIRED`**
+
+Six legacy paths execute a material effect without an authorization check in the
+path. Authorization is by UI visibility — the control is not rendered for users
+who should not have it — and in three cases the tenant comes from a DOM
+attribute. Full evidence in `main-controller-audit.md` §3.
+
+| Path | Effect | Tenant source |
+|---|---|---|
+| `main.ts:743` | `pushCurrentLocalToFirestore()` | session |
+| `main.ts:883` | `dbService.applyOnboardingStep` (registry #10) | **DOM attribute** |
+| `main.ts:1232` | `aiService.generateThesisProposal` | **DOM attribute** |
+| `main.ts:2315` | `runResearchSignalsAgent` | workspace scope |
+| `main.ts:2688` | `generatePositioningAdvice` | **DOM attribute** |
+| `main.ts:2704` | `runTopicAgent` | workspace scope |
+
+Four of the six are advisory AI/agent generators. They produce proposals a human
+must accept, so they hold no business authority — but they spend a provider
+budget from a click that nothing in-path authorizes.
+
+Not P0/P1: all six are pre-existing legacy paths, untouched by this phase, and
+tenant isolation is enforced by SPEC-009 Firestore rules (91/91 passing) rather
+than by these call sites. Remediation means adding gates to legacy code, which is
+not an extraction task and is not authorized here.
+
+**Migration impact:** these paths must not be migrated until gated. §20 forbids
+migrating an `EFFECT_FIRST` path, and 0 were migrated.
+
+## AUDIT010-11 — positional default for tenant selection
+
+**Severity P3 · `LEGACY_BEHAVIOUR_PRESERVED`**
+
+`main.ts` `resolveClientId()` falls back to `dbService.getClients()[0]?.id` — a
+first-record default for **tenant** scope. It is not thesis positional authority,
+so multi-thesis governance is unaffected and `PRIMARY/FIRST THESIS AUTHORITY`
+stays 0. But a first-record fallback for tenant scope should be an explicit
+refusal, not a silent pick. Behaviour preserved unchanged in Phase 4; recorded so
+that whoever migrates these paths does not carry the fallback across.
+
+## AUDIT010-07 — closed as an audit
+
+**Was:** `AUDIT_REQUIRED_IMPLEMENTATION_PENDING` since Phase 0, on the grounds
+that ordering could not be proven statically across 5,132 lines.
+
+**Now:** `AUDIT_COMPLETE · DEFECTS REGISTERED · 0 MIGRATED`. All **86** material
+side-effecting paths in the controller are classified: **80 `GATE_FIRST`**,
+**6 `EFFECT_FIRST`** (AUDIT010-10), **0 `UNKNOWN`**. Zero `EFFECT_FIRST` and zero
+`UNKNOWN` paths were migrated. The audit obligation is discharged; the six
+defects it surfaced are open remediation items on legacy code.
+
+---
+
+# Formal change-request inventory (§11)
+
+Consolidated here because §8 requires the debt to stay visible and §10 forbids
+Phase 4 from discharging it.
+
+| CR | Capability | Blocked writes | Why blocked | Candidate owner | Cut-over impact |
+|---|---|---|---|---|---|
+| **CR-1** | Onboarding, profile facts, proof wall, source registration, curation, delivery assembly and sending, tasks, evidence, content saves, thesis saves, client creation | **34** (registry items 1–34) | No canonical Application use case exists. Creating one is business authority, which SPEC-010 does not hold. | **UNDETERMINED** — no repository document assigns these to a SPEC's Application layer | Blocks FULL CUTOVER for all 5 pages, blocks Stage B (T-010-403), blocks a minimal `main.ts` (T-010-404), blocks legacy removal (Phase 6) |
+| **CR-2** | Strategic Brief creation from a curation entry | 1 (not counted in the 34 — the consumer exists) | Consumer requires the caller to pass the whole `CurationEntry` aggregate | **SPEC-003** (frozen) | Blocks migrating brief creation; approval already migrated |
+
+**FORMAL CHANGE REQUESTS REQUIRED = 2.** Neither is granted, drafted into code, or
+worked around in Phase 4.
+
+## CR-2 — SPEC-003 consumer signature (§12)
+
+Investigated in Phase 4; **not modified**. SPEC-003 modifications remain **0**.
+
+| Field | Repository truth |
+|---|---|
+| Consumer | `createBriefFromCurationEntry` |
+| File | `src/services/strategicBriefConsumer.ts:117` |
+| Current signature | `{ entry: CurationEntry; destination: CurationDestination; briefId?: string; now?: string }` |
+| Caller-supplied aggregate | `entry: CurationEntry` — the whole record |
+| Frozen SPEC owner | **SPEC-003** (Strategic Brief) |
+| Classification | **`FORMAL_CHANGE_REQUEST_REQUIRED`** |
+
+### Why the current signature is a caller-snapshot risk
+
+The consumer derives business-material values from the caller's object without
+re-reading it from persistence:
+
+| Derived value | Taken from |
+|---|---|
+| tenant `clientId` (feeds `buildTrustedBriefContext`) | `entry.clientId` |
+| `signalIds` | `entry.signalId` |
+| `territory` | `entry.title.slice(0, 120)` |
+| `strategicAngle` | `entry.aiAngle \|\| entry.title` |
+| `decisionRationale` | `entry.managerRationale` |
+| `briefId` | `brief_${entry.id}` |
+
+Two parts of the context **are** trusted and should be credited as such:
+`actorId`/`actorRole` come from `authService`, and `organizationId` is resolved
+server-side via `dbService.getClientById(clientId)?.organizationId`. So the
+organization cannot be forged.
+
+What can be supplied by the caller is the **`clientId`** and the Brief's entire
+substantive content. Nothing verifies that the passed entry matches the stored
+one, or that the session is entitled to that client. Today's only caller
+(`main.ts:2651`) passes an entry it just read, so no live defect is claimed — the
+risk is what the contract *permits*, which matters the moment a React caller
+exists. That is why the seam refused it in Phase 3 rather than adopting it.
+
+### Proposed safe contract — recorded, not implemented
+
+```text
+createBriefFromCurationEntry({
+  curationEntryId: string,      // an id, not an aggregate
+  destination: CurationDestination,
+  briefId?: string,
+  now?: string,
+})
+```
+
+The consumer re-reads the entry itself (`dbService.getCurationById` already
+exists, `src/services/db.ts:2449`) and derives `clientId`, `signalId`, territory,
+angle and rationale from the stored record. Caller snapshot authority becomes 0
+for this path, and the change needs no new infrastructure.
+
+**Authorization required from the SPEC-003 owner. Not implemented in Phase 4.**

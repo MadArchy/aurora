@@ -400,11 +400,13 @@ describe('§23 — frozen SPEC implementations are untouched by the React layer'
 });
 
 describe('§19 — main.ts is not rewritten in Phase 3', () => {
-  it('main.ts keeps its Phase-2 line count', () => {
-    // Newline count, which is how the Phase-1/2 reports measured this file.
-    const lines = read(join(ROOT, 'src/main.ts')).split('\n').length - 1;
-    expect(lines).toBe(5138);
-  });
+  // The Phase-3 guarantee was that page migration did not touch the controller,
+  // and the Phase-3 commit proves it: main.ts was byte-identical at 5,138 lines.
+  // Phase 4 (T-010-401…405) is the phase that owns this file, so a fixed line
+  // count is no longer the right assertion here — it would just forbid the next
+  // phase from doing its job. What still belongs to Phase 3 is that no wave-3
+  // page is wired into the legacy controller, which is asserted below and in
+  // the Phase-4 suite for the extraction itself.
 
   it('main.ts does not import a wave-3 page — the seam is unchanged', () => {
     const source = code(join(ROOT, 'src/main.ts'));

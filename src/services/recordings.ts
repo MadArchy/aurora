@@ -1,3 +1,5 @@
+import { downloadFile } from '../lib/fileDownload';
+
 const DB_NAME = 'postura_recordings_v1';
 const STORE = 'blobs';
 
@@ -94,12 +96,9 @@ export async function downloadRecordingFromEvidence(
   }
   if (!blob) return false;
 
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename || 'postura-video.webm';
-  anchor.click();
-  URL.revokeObjectURL(url);
+  // SPEC-010 T-010-405: resolving the recording is this service's job; driving a
+  // browser download is not.
+  downloadFile({ filename: filename || 'postura-video.webm', blob });
   return true;
 }
 

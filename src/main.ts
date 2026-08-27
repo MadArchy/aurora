@@ -35,26 +35,8 @@ import { renderManagerCockpit } from './components/ManagerCockpit';
 import { renderClientWorkspace } from './components/ClientWorkspace';
 import { renderClientPortal } from './components/ClientPortal';
 import { renderLogin } from './components/Login';
-import {
-  renderTeleprompterModal,
-  renderArticleReviewModal,
-  renderContentDiffModal,
-  renderCreateClientModal,
-  renderComparativeModal,
-  renderChallengeModal,
-  renderAddEvidenceModal,
-  renderContentEditorModal,
-  renderContentPreviewModal,
-  renderFeedbackModal,
-  renderAddTaskModal,
-  renderDeliveryPreviewModal,
-  renderGenerateContentModal,
-} from './components/Modals';
-import { renderOnboardingWizard } from './components/OnboardingWizard';
-import { renderThesisEditorModal } from './components/ThesisEditorModal';
 import { renderClaimSafetyPanel } from './components/ClaimSafetyPanel';
-import { renderSourceRegistryModal } from './components/SourceRegistryModal';
-import { PORTFOLIO_TAB_IDS, WORKSPACE_TAB_IDS, CLIENT_TAB_IDS, isWorkspaceTab, normalizeTab } from './components/PageHeader';
+import { PORTFOLIO_TAB_IDS, WORKSPACE_TAB_IDS, CLIENT_TAB_IDS, isWorkspaceTab } from './components/PageHeader';
 import { CurationDestination, DeliveryItemKind, Source, TaskType, ContentStatus, BusinessKpiType, ContentPipelineStatus, DeliveryItem } from './types';
 import { createId } from './lib/id';
 import { CAMP_ADOPTION } from './data/juanCampaignSeed';
@@ -151,12 +133,17 @@ import {
   registerResultRecordIntent,
   registerSignalOutcomeIntent,
 } from './services/learningLoopConsumer';
-
-interface ToastItem {
-  id: string;
-  message: string;
-  type: 'success' | 'info' | 'warning';
-}
+// SPEC-010 T-010-402: presentation state, toasts, modal dispatch and navigation
+// rules now live outside this controller. See specs/010-react-migration.
+import { AppUiState } from './controllers/appUiState';
+import { ToastController, type ToastType } from './controllers/toastController';
+import { presentActiveModal } from './controllers/modalPresenter';
+import {
+  findNotificationTarget,
+  resolveTabTransition,
+  NOTIFICATION_HIGHLIGHT_MS,
+  NOTIFICATION_SCROLL_DELAY_MS,
+} from './controllers/navigationController';
 
 const DESTINATION_TO_KIND: Record<Exclude<CurationDestination, 'DISCARD'>, DeliveryItemKind> = {
   TASK_VIDEO: 'TASK',
@@ -167,12 +154,28 @@ const DESTINATION_TO_KIND: Record<Exclude<CurationDestination, 'DISCARD'>, Deliv
 };
 
 class App {
-  private activeTab: string = 'dashboard';
-  /** 'all' = nivel cartera. Cualquier otro valor = dentro del espacio de trabajo de ese cliente. */
-  private activeClientId: string = 'all';
-  private activeCampaignId: string | null = null;
-  private activeModal: string | null = null;
-  private modalData: any = null;
+  /**
+   * SPEC-010 T-010-402: presentation state is owned by `AppUiState`, not by this
+   * controller. The accessors below keep the existing call sites working while
+   * the ownership — and the ability to test navigation without a DOM — moves out.
+   */
+  private readonly ui = new AppUiState();
+  private readonly toastController = new ToastController();
+
+  private get activeTab(): string { return this.ui.activeTab; }
+  private set activeTab(value: string) { this.ui.activeTab = value; }
+  private get activeClientId(): string { return this.ui.activeClientId; }
+  private set activeClientId(value: string) { this.ui.activeClientId = value; }
+  private get activeCampaignId(): string | null { return this.ui.activeCampaignId; }
+  private set activeCampaignId(value: string | null) { this.ui.activeCampaignId = value; }
+  private get activeModal(): string | null { return this.ui.activeModal; }
+  private set activeModal(value: string | null) { this.ui.activeModal = value; }
+  private get modalData(): any { return this.ui.modalData; }
+  private set modalData(value: any) { this.ui.modalData = value; }
+  private get filterState() { return this.ui.filterState; }
+  private get loginError(): string { return this.ui.loginError; }
+  private set loginError(value: string) { this.ui.loginError = value; }
+
   private isTeleprompterPlaying: boolean = false;
   private teleprompterInterval: number | null = null;
   private mediaRecorder: MediaRecorder | null = null;
@@ -181,21 +184,7 @@ class App {
   private cameraStream: MediaStream | null = null;
   private previewBlob: Blob | null = null;
   private previewBlobUrl: string | null = null;
-  private toasts: ToastItem[] = [];
   private readonly strategicRouting = createStrategicSignalRoutingUseCases(dbService);
-  private filterState = {
-    searchQuery: '',
-    contentSearch: '',
-    portfolioSearch: '',
-    sourceType: 'ALL',
-    priorityBand: 'ALL',
-    contentStatus: 'ALL',
-    topicKey: '' as string,
-    radarView: 'triage' as 'list' | 'triage',
-    thesisId: '' as string,
-    highlightTaskId: '' as string,
-  };
-  private loginError = '';
   private sourceAgentTimer: number | null = null;
   private sourceIngestTimer: number | null = null;
   private claimLiveTimer: number | null = null;
@@ -251,31 +240,12 @@ class App {
     });
   }
 
-  public showToast(message: string, type: 'success' | 'info' | 'warning' = 'info') {
-    const id = 'toast_' + Math.random().toString(36).substring(2, 9);
-    this.toasts.push({ id, message, type });
-    this.renderToasts();
-
-    setTimeout(() => {
-      this.toasts = this.toasts.filter(t => t.id !== id);
-      this.renderToasts();
-    }, 3500);
+  public showToast(message: string, type: ToastType = 'info') {
+    this.toastController.show(message, type);
   }
 
   private renderToasts() {
-    let container = document.getElementById('toast-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'toast-container';
-      container.className = 'toast-container';
-      document.body.appendChild(container);
-    }
-
-    container.innerHTML = this.toasts.map(t => `
-      <div class="toast toast-${t.type}">
-        <div>${esc(t.message)}</div>
-      </div>
-    `).join('');
+    this.toastController.render();
   }
 
   private resolveCampaignId(clientId?: string): string | null {
@@ -299,7 +269,7 @@ class App {
 
   /** Cliente sobre el que se está trabajando, o null si estamos en la cartera. */
   private currentClientId(): string | null {
-    return this.activeClientId !== 'all' ? this.activeClientId : null;
+    return this.ui.currentClientId();
   }
 
   /** Tenant organization for writes: client record, else session — never a hardcoded id. */
@@ -325,12 +295,7 @@ class App {
   }
 
   private enterClient(clientId: string, tab?: string) {
-    this.activeClientId = clientId;
-    this.activeTab = tab && tab.startsWith('ws-') ? tab : 'ws-briefing';
-    this.filterState.topicKey = '';
-    this.filterState.searchQuery = '';
-    this.filterState.priorityBand = 'ALL';
-    this.filterState.sourceType = 'ALL';
+    this.ui.enterClient(clientId, tab);
     const client = dbService.getClientById(clientId);
     auditService.log(authService.getCurrentUser(), 'OPEN_CLIENT_WORKSPACE', 'Client', clientId);
     this.showToast(`Trabajando con ${client?.displayName || clientId}`, 'info');
@@ -338,8 +303,7 @@ class App {
   }
 
   private backToPortfolio() {
-    this.activeClientId = 'all';
-    this.activeTab = 'dashboard';
+    this.ui.backToPortfolio();
     this.render();
   }
 
@@ -478,17 +442,17 @@ class App {
   }
 
   openModal(id: string) {
-    this.activeModal = id;
+    this.ui.openModal(id);
     this.render();
   }
 
   setTab(tab: string) {
-    const target = normalizeTab(tab);
-    if (isWorkspaceTab(target) && !this.currentClientId()) {
-      this.showToast('Entra primero a un cliente desde la cartera.', 'warning');
+    const transition = resolveTabTransition(tab, this.currentClientId());
+    if (!transition.ok) {
+      this.showToast(transition.message, 'warning');
       return;
     }
-    this.activeTab = target;
+    this.activeTab = transition.tab;
     this.render();
   }
 
@@ -497,85 +461,25 @@ class App {
     this.setTab(tab);
     if (targetId) {
       window.setTimeout(() => {
-        const el = document.getElementById(`client-task-${targetId}`) || document.querySelector(`[data-task-id="${targetId}"]`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        findNotificationTarget(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         window.setTimeout(() => {
           this.filterState.highlightTaskId = '';
-        }, 4000);
-      }, 150);
+        }, NOTIFICATION_HIGHLIGHT_MS);
+      }, NOTIFICATION_SCROLL_DELAY_MS);
     }
   }
 
   private renderActiveModal(): string {
-    const fallbackClient = this.resolveClientId();
-
-    if (this.activeModal === 'teleprompter' && this.modalData?.taskId) {
-      return renderTeleprompterModal(this.modalData.taskId);
-    }
-    if (this.activeModal === 'create-client') {
-      return renderCreateClientModal();
-    }
-    if (this.activeModal === 'onboarding') {
-      return renderOnboardingWizard(this.modalData?.clientId || fallbackClient, this.modalData?.step || 1);
-    }
-    if (this.activeModal === 'thesis-editor') {
-      return renderThesisEditorModal(
-        this.modalData?.clientId || fallbackClient,
-        this.modalData?.thesisId,
-        this.modalData?.focusBlock
-      );
-    }
-    if (this.activeModal === 'generate-content') {
-      return renderGenerateContentModal(this.modalData?.clientId || fallbackClient, {
-        thesisId: this.modalData?.thesisId,
-        topic: this.modalData?.topic,
-      });
-    }
-    if (this.activeModal === 'source-registry') {
-      return renderSourceRegistryModal(this.modalData?.clientId || this.currentClientId() || undefined);
-    }
-    if (this.activeModal === 'add-task' && this.modalData?.clientId) {
-      return renderAddTaskModal(this.modalData.clientId);
-    }
-    if (this.activeModal === 'comparative' && this.modalData?.result) {
-      return renderComparativeModal(this.modalData.result);
-    }
-    if (this.activeModal === 'challenge' && this.modalData) {
-      return renderChallengeModal(this.modalData.title, this.modalData.challenge, {
-        clientId: this.modalData.clientId,
-        thesisId: this.modalData.thesisId,
-        thesisStatus: this.modalData.thesisStatus,
-      });
-    }
-    if (this.activeModal === 'add-evidence' && this.modalData?.clientId) {
-      return renderAddEvidenceModal(this.modalData.clientId);
-    }
-    if (this.activeModal === 'content-editor' && this.modalData?.contentId) {
-      if (authService.getCurrentUser()?.role !== 'ADMIN') {
-        this.activeModal = null;
-        return '';
-      }
-      return renderContentEditorModal(this.modalData.contentId);
-    }
-    if (this.activeModal === 'content-preview' && this.modalData?.contentId) {
-      return renderContentPreviewModal(this.modalData.contentId);
-    }
-    if (this.activeModal === 'article-review' && this.modalData?.contentId) {
-      return renderArticleReviewModal(this.modalData.contentId, this.modalData.taskId);
-    }
-    if (this.activeModal === 'content-diff' && this.modalData?.contentId) {
-      return renderContentDiffModal(this.modalData.contentId);
-    }
-    if (this.activeModal === 'notifications') {
-      return this.renderNotificationsPanel();
-    }
-    if (this.activeModal === 'feedback' && this.modalData) {
-      return renderFeedbackModal(this.modalData.targetId, this.modalData.type, this.modalData.taskId);
-    }
-    if (this.activeModal === 'delivery-preview' && this.modalData?.packageId) {
-      return renderDeliveryPreviewModal(this.modalData.packageId);
-    }
-    return '';
+    const presentation = presentActiveModal({
+      activeModal: this.activeModal,
+      modalData: this.modalData,
+      fallbackClientId: this.resolveClientId(),
+      currentClientId: this.currentClientId(),
+      isAdmin: authService.getCurrentUser()?.role === 'ADMIN',
+      renderNotificationsPanel: () => this.renderNotificationsPanel(),
+    });
+    if (presentation.forceClose) this.activeModal = null;
+    return presentation.html;
   }
 
   closeModal(): void {
@@ -583,8 +487,7 @@ class App {
       this.stopRecordingSession();
       this.stopTeleprompter();
     }
-    this.activeModal = null;
-    this.modalData = null;
+    this.ui.closeModal();
     this.render();
   }
 

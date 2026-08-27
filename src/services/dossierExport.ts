@@ -1,4 +1,5 @@
 import { Client, MasterDossier } from '../types';
+import { downloadFile, textFile, type DownloadableFile } from '../lib/fileDownload';
 
 const CHANNEL_LABELS: Record<MasterDossier['channelGuides'][0]['channel'], string> = {
   LINKEDIN: 'LinkedIn',
@@ -108,14 +109,16 @@ export function formatDossierMarkdown(dossier: MasterDossier, client: Client): s
   return lines.join('\n');
 }
 
-export function downloadDossierMarkdown(dossier: MasterDossier, client: Client): void {
+/**
+ * SPEC-010 T-010-405: builds the export without touching the DOM. The browser
+ * download effect belongs to `lib/fileDownload`, not to this service.
+ */
+export function buildDossierExport(dossier: MasterDossier, client: Client): DownloadableFile {
   const markdown = formatDossierMarkdown(dossier, client);
   const slug = client.displayName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `dossier-${slug}-${dossier.version}.md`;
-  a.click();
-  URL.revokeObjectURL(url);
+  return textFile(`dossier-${slug}-${dossier.version}.md`, markdown, 'text/markdown;charset=utf-8');
+}
+
+export function downloadDossierMarkdown(dossier: MasterDossier, client: Client): void {
+  downloadFile(buildDossierExport(dossier, client));
 }

@@ -262,6 +262,74 @@ unchanged severity; plus the tally-drift defect above and the
 
 ---
 
+## Phase-4 threat status
+
+Phase 4 extracted UI orchestration from the legacy controller and audited its
+side-effect ordering. It migrated **no command** and **no read**, so most threats
+gain no new surface. Threats are re-evaluated per row; nothing is bulk-promoted,
+and **PASS stays 0** — adversarial evidence is Phase-5 work (T-010-501…510) and
+this phase produced none.
+
+`ARCH4` = `tests/reactMigrationPhase4Architecture.test.ts` ·
+`P4` = `tests/reactMigrationPhase4Controllers.test.ts` ·
+`E2E4` = `e2e/phase4-controller-strangler.spec.ts` ·
+`AUDIT` = `main-controller-audit.md`
+
+| ID | Phase-3 | **Phase 4** | Phase-4 evidence |
+|----|---------|-------------|------------------|
+| T-010-01 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: the React `dbService` importer list is still exactly `compatibilityReads.ts`, re-asserted after the extraction; no extracted controller writes through `dbService` |
+| T-010-02 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: no `Local*Store` in any extracted controller or React module |
+| T-010-03 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: no Firestore import in either surface |
+| T-010-04 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: no provider import in either surface |
+| T-010-05 | ⚠️ PARTIAL | ⚠️ PARTIAL | No new cache surface. `AUDIT`: query invalidation stayed in UI orchestration and the cache gained no authority |
+| T-010-06 | ⚠️ PARTIAL | ⚠️ PARTIAL | No optimistic mutation added |
+| T-010-07 | ⚠️ PARTIAL | ⚠️ **PARTIAL (strengthened)** | The SPEC-003 signature was investigated in full and recorded as `FORMAL_CHANGE_REQUEST_REQUIRED` with an exact safe contract. The threat was again allowed to block a migration rather than be worked around, and `ARCH4` re-asserts `createBriefFromCurationEntry` is absent from the seam |
+| T-010-08 | ⚠️ PARTIAL | ⚠️ PARTIAL | No new query keys |
+| T-010-09 | ⚠️ PARTIAL | ⚠️ PARTIAL | `P4`: the extracted state store exposes no `organizationId`, no claim field and no authorization answer — a client selection cannot become a tenant grant |
+| T-010-10 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: no extracted controller writes `actorRole`, `actorType` or an identity literal |
+| T-010-11 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: the modal presenter receives `isAdmin` and does not consult `authService` itself, so a presenter cannot decide privilege |
+| T-010-12 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: no extracted controller imports an Application module; the command seam is unchanged |
+| T-010-13 | ⚠️ PARTIAL | ⚠️ PARTIAL | No read source added or changed |
+| T-010-14 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: no extracted controller assigns a canonical status, and none imports a domain module |
+| T-010-15 | ⚠️ PARTIAL | ⚠️ PARTIAL | No thesis selection added. **AUDIT010-11** records a first-record fallback for *tenant* scope in legacy `resolveClientId()`; it is not thesis positional authority, so this row is unchanged |
+| T-010-16 | ⚠️ PARTIAL | ⚠️ PARTIAL | Modal *dispatch* moved out of `main.ts` without changing which modal renders; no default selection introduced |
+| T-010-17 | ⚠️ PARTIAL | ⚠️ PARTIAL | No lifecycle path changed |
+| T-010-18 | ⚠️ PARTIAL | ⚠️ PARTIAL | No schema changed |
+| T-010-19 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH4`: no extracted controller defines a score function, weight arithmetic or a routing assignment |
+| T-010-20 | ⚠️ PARTIAL | ⚠️ PARTIAL | No scoring surface added |
+| T-010-21 | ⚠️ PARTIAL | ⚠️ PARTIAL | No opportunity path changed |
+| T-010-22 | ⚠️ PARTIAL | ⚠️ PARTIAL | No learning path changed |
+| T-010-23 | ⚠️ PARTIAL | ⚠️ PARTIAL | `E2E4`: the shell still boots to the login view from the single trusted `authService`; `loginError` round-trips through the extracted state without a second auth surface |
+| T-010-24 | ⚠️ PARTIAL | ⚠️ **PARTIAL (strengthened)** | `E2E4`: exactly one presentation root visible; the toast sink is a body-level sibling nested in neither root; rollback leaves business storage byte-identical. `ARCH4`: the toast controller references no app or React root |
+| T-010-25 | ⚠️ PARTIAL | ⚠️ **PARTIAL (materially strengthened)** | `AUDIT`: **all 86** material side-effecting controller paths classified — **80 `GATE_FIRST`**, **6 `EFFECT_FIRST`**, **0 `UNKNOWN`**. **0 `EFFECT_FIRST` and 0 `UNKNOWN` migrated.** Also **0** effects at bind time and **0** at render time across 30 effect sites. The Phase-3 `runSourceDiscoveryAgent` classification is corrected to `RENDER_TIME_RECOMPUTATION`; the paths stay legacy either way |
+| T-010-26 | ⚠️ PARTIAL | ⚠️ PARTIAL | `E2E4`: toggle and rollback still work after the extraction, business storage byte-identical, 0 legacy removed |
+
+**Threat status at Phase-4 exit:** **0 PASS / 26 PARTIAL / 0 FAIL / 0 PENDING**
+
+| Milestone | PASS | PARTIAL | FAIL | PENDING |
+|-----------|------|---------|------|---------|
+| Phase 3 exit | 0 | 26 | 0 | 0 |
+| **Phase 4 exit** | **0** | **26** | **0** | **0** |
+
+No row moved category. Three rows gained materially stronger evidence
+(T-010-07, -24, -25), and T-010-25 is the one this phase existed to serve: the
+ordering question that had been open since Phase 0 is now answered for every
+path rather than for a sample.
+
+**Phase-4 severity:** P0 **0** · P1 **0** · P2 **4** · P3 **7**.
+
+Derivation from the Phase-3 ledger (P2 3 · P3 7): AUDIT010-07 closes as an audit
+(P3 −1); **AUDIT010-10** opens at P2 (+1) for the 6 ungated paths;
+**AUDIT010-11** opens at P3 (+1).
+
+AUDIT010-10 is deliberately a *higher* severity than the finding it replaces.
+"Ordering is unaudited" was an unknown at P3; "six paths run a material effect
+with no authorization gate in-path, three taking their tenant from a DOM
+attribute" is a known defect at P2. If discharging an audit could only lower
+severity, auditing would reward finding nothing.
+
+---
+
 **Phase-2 severity:** P0 **0** · P1 **0** · P2 **3** · P3 **5** (AUDIT010-09 extended
 from 1 to 10 registered commands — same finding, wider inventory, unchanged
 severity; see `audit010-09-registry.md`).

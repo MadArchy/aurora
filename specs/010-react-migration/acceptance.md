@@ -5,7 +5,7 @@
 **Phase 2:** **COMPLETE** — 9 bounded components, read seams, canonical commands
 **Phase 3:** **COMPLETE** — 5 pages migrated (all HYBRID), 34 blocked writes registered
 **Phase 4+:** **NOT AUTHORIZED**
-**A1-A44:** **7 PASS** · **33 PARTIAL** · **0 FAIL** · **4 PENDING** (Phase-3 exit)
+**A1-A44:** **7 PASS** · **34 PARTIAL** · **0 FAIL** · **3 PENDING** (Phase-4 exit)
 **CODE_COMPLETE:** **NO**
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -58,16 +58,16 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | A18 | Caller role authority 0 — no admin/manager escalation from UI | 1–6 | ⚠️ PARTIAL | `ARCH`: no `role: 'ADMIN'` / `isAdmin = true` assignment in `src/ui/**` |
 | A19 | Tenant-safe query keys — every key carries trusted tenant scope; no cross-tenant cache bleed | 2–6 | ⚠️ PARTIAL | `ARCH`: factory requires a trusted scope; no bare entity-only key exists. Runtime bleed test T-010-502 |
 | A20 | Multi-thesis native — no authoritative `theses[0]`/`primaryThesisId`/`getPrimaryThesis`/score winner | 2–6 | ⚠️ PARTIAL | `ARCH`: none present in `src/ui/**`; thesis selector defaults to explicit "all" |
-| A21 | Presentation defaults explicitly non-authoritative; command carries a confirmed, revalidated id | 2–6 | ⏳ PENDING | `Modals.ts` not migrated (T-010-302) |
-| A22 | SPEC-001 preserved — React displays routing, owns no routing decision | 2–6 | ⏳ PENDING | boundary tests |
-| A23 | SPEC-002 preserved — no scoring formula recreated in components/hooks | 2–6 | ⏳ PENDING | boundary tests (T-010-20) |
-| A24 | SPEC-003 preserved — Brief consumed via canonical consumer; no lifecycle duplication | 2–6 | ⏳ PENDING | boundary tests |
-| A25 | SPEC-004 preserved — Plan/PlanItem via canonical Application boundary | 2–6 | ⏳ PENDING | boundary tests |
+| A21 | Presentation defaults explicitly non-authoritative; command carries a confirmed, revalidated id | 2–6 | ⚠️ PARTIAL | `ARCH3`: `Modals.ts` decomposed (7 of 13); the legacy `approvedBriefs[0]` pre-selection is not reproduced and selectors start empty. Full command set Phase 5–6 |
+| A22 | SPEC-001 preserved — React displays routing, owns no routing decision | 2–6 | ⚠️ PARTIAL | `ARCH3`: radar displays `routingDecision.routingState`; routing computation and first-thesis selection banned in any page |
+| A23 | SPEC-002 preserved — no scoring formula recreated in components/hooks | 2–6 | ⚠️ PARTIAL | `ARCH3` + `ARCH4`: **0** score functions and **0** weight arithmetic in `src/ui/**` or `src/controllers/**` |
+| A24 | SPEC-003 preserved — Brief consumed via canonical consumer; no lifecycle duplication | 2–6 | ⚠️ PARTIAL | Briefs read via `strategicBriefConsumer`; approval forwards ids only. Creation deliberately unmigrated — CR-2 |
+| A25 | SPEC-004 preserved — Plan/PlanItem via canonical Application boundary | 2–6 | ⏳ PENDING | no migrated React surface exposes a plan command |
 | A26 | SPEC-005 preserved — direct AI provider access from React: **0** | 1–6 | ⚠️ PARTIAL | `ARCH`: **0** provider imports or endpoints in `src/ui/**` |
-| A27 | SPEC-006 preserved — React never verifies claims or authorizes publication | 2–6 | ⏳ PENDING | boundary tests |
-| A28 | SPEC-007 preserved — no recreation of OpportunityScore / lifecycle / Materialize | 2–6 | ⏳ PENDING | boundary tests (T-010-21) |
-| A29 | SPEC-008 preserved — no auto-approve, no auto-apply, no `feedbackScoringHints`, no auto-rescore | 2–6 | ⏳ PENDING | boundary + adversarial tests (T-010-22) |
-| A30 | SPEC010→SPEC008 mutation authority = **0** | 2–6 | ⏳ PENDING | architecture test |
+| A27 | SPEC-006 preserved — React never verifies claims or authorizes publication | 2–6 | ⚠️ PARTIAL | `ARCH3`: the claim verdict is displayed as data; pipeline actions and the publication gate stayed legacy; `PUBLISHED` assignment banned |
+| A28 | SPEC-007 preserved — no recreation of OpportunityScore / lifecycle / Materialize | 2–6 | ⚠️ PARTIAL | Opportunity surface reachable in React via the canonical consumer only; no score, lifecycle or materialize logic recreated |
+| A29 | SPEC-008 preserved — no auto-approve, no auto-apply, no `feedbackScoringHints`, no auto-rescore | 2–6 | ⚠️ PARTIAL | `ARCH3`: only the signal-outcome *intent* migrated; **0** auto-approve, **0** auto-apply, **0** hints, **0** rescore |
+| A30 | SPEC010→SPEC008 mutation authority = **0** | 2–6 | ⚠️ PARTIAL | The intent reaches `registerSignalOutcomeIntent`, which resolves its own trusted context; no page imports an Application module or consumer |
 | A31 | SPEC-009 security boundary preserved — auth, tenant isolation, rules contracts unchanged | 1–6 | ⏳ PENDING | rules 91/91 unchanged, but no security review performed in Phase 1 |
 | A32 | React → canonical store (`Local*Store`) direct write: **0** | 2–6 | ⚠️ PARTIAL | `ARCH`: **0** store/infrastructure imports in `src/ui/**` |
 | A33 | React → Firestore direct write: **0** | 2–6 | ⚠️ PARTIAL | `ARCH`: **0** Firebase/Firestore imports in `src/ui/**` |
@@ -76,9 +76,9 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | A36 | No dual read authority — one declared read source per module | 2–6 | ⚠️ PARTIAL | Each hook declares one source, and the source is part of the cache key |
 | A37 | Single auth/session authority; React Context projects only | 1–6 | ⚠️ PARTIAL | `ARCH`: projection is derived and setter-free. Adversarial proof T-010-506 |
 | A38 | No competing DOM/CSS ownership of a subtree | 1–6 | ✅ PASS | `ARCH` + `E2E`: sibling containers, exclusive owners, never both visible, no cross-nesting, CSS scoped to the two ids, clean unmount |
-| A39 | `main.ts` strangler — ceases to be a controller/event bus; shrinks per wave | 1–4 | ⏳ PENDING | 5,132 → 5,138 lines; **0** responsibilities removed. Extraction is Phase 4 (T-010-401…404) |
+| A39 | `main.ts` strangler — ceases to be a controller/event bus; shrinks per wave | 1–4 | ⚠️ PARTIAL | 5,138 → **5,041** lines; **4** responsibilities extracted (presentation state, toasts, modal dispatch, navigation rules); named component imports 28 → 11. Still a controller: 25 business-write methods and 158 handler sites remain. T-010-403/404 blocked on CR-1 |
 | A40 | Component migration matrix complete — a row per UI file, dispositioned | 0 | ✅ PASS | `migration-matrix.md` (17 files) |
-| A41 | Behavioral parity proven per migrated module across all applicable dimensions | 5 | ⏳ PENDING | no module cut over; parity is Phase 5 |
+| A41 | Behavioral parity proven per migrated module across all applicable dimensions | 5 | ⚠️ PARTIAL | Page-level evidence for 12 of 18 dimensions per migrated page; dimensions whose legacy command stays outside React are classified, not claimed. **0** modules cut over — cutover parity is Phase 5 |
 | A42 | E2E/parity harness (Playwright) implemented; legacy-vs-React journeys pass | 5 | ⚠️ PARTIAL | harness implemented, 5/5 foundation tests PASS. Full journey/parity suites T-010-508 |
 | A43 | Legacy removed only after parity gate; rollback exercised without data migration | 6 | ⚠️ PARTIAL | `E2E`: rollback leaves business storage byte-identical. **0** legacy removed |
 | A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ⏳ PENDING | T-010-602. Phase-1 regression: check 1494/1494, rules 91/91 |
@@ -90,7 +90,67 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | Phase 0 exit | 6 | 0 | 0 | 38 |
 | Phase 1 exit | 7 | 24 | 0 | 13 |
 | Phase 2 exit | 7 | 26 | 0 | 11 |
-| **Phase 3 exit** | **7** | **33** | **0** | **4** |
+| Phase 3 exit | 7 | 33 | 0 | 4 |
+| **Phase 4 exit** | **7** | **34** | **0** | **3** |
+
+### Row/summary reconciliation (governance finding, documentation-only)
+
+Recorded rather than silently fixed, because Phase 3 already logged a tally-drift
+defect and this is the same class.
+
+At the Phase-3 checkpoint the summary line read **7 PASS / 33 PARTIAL / 0 FAIL /
+4 PENDING**, but the criteria table itself still showed **7 / 25 / 0 / 12**. Nine
+rows — A21, A22, A23, A24, A27, A28, A29, A30, A41 — were evidenced as PARTIAL in
+the Phase-3 movement section while their table rows still read `⏳ PENDING` with
+placeholder evidence ("boundary tests"). The evidence was real; the table was not
+updated to match it.
+
+Phase 4 updated those nine rows to the verdicts their recorded evidence already
+supported, and advanced A39 on its own Phase-4 evidence. Table and summary now
+agree at **7 / 34 / 0 / 3**, verified mechanically by
+`scripts/acceptanceTally.mjs` and asserted by the Phase-4 architecture suite, so
+the two cannot drift apart again.
+
+Severity **P3**, documentation defect, no code impact. The distinction worth
+keeping: in Phase 3 the *rows* were authoritative and the summary had drifted; here
+the rows were stale and the movement sections held the evidence. Neither is
+automatically the source of truth — the evidence is.
+
+### Phase-4 acceptance movement (T-010-401, 402, 405)
+
+`ARCH4` = `tests/reactMigrationPhase4Architecture.test.ts` (28/28) ·
+`P4` = `tests/reactMigrationPhase4Controllers.test.ts` (26/26) ·
+`E2E4` = `e2e/phase4-controller-strangler.spec.ts` (6/6) ·
+`AUDIT` = `main-controller-audit.md`.
+
+**One criterion advanced: A39, from PENDING to PARTIAL.** It is the criterion this
+phase owns, and it advances to PARTIAL rather than PASS because the controller has
+not yet ceased to be an event bus — its method and handler counts are unchanged.
+
+| # | Was | Now | Why |
+|---|-----|-----|-----|
+| **A39** | ⏳ PENDING | ⚠️ PARTIAL | The first responsibilities actually left `main.ts`: presentation state, toasts, modal dispatch and navigation rules, into four modules that import no service, no `dbService`, no Application and no domain module (`ARCH4`). 5,138 → **5,041** lines; named component imports **28 → 11**. `P4` proves behavioural equivalence per responsibility and `E2E4` proves the shell still boots through the extracted orchestration. Not PASS: 25 business-write methods and all 158 handler sites remain, so it is still a controller. T-010-403/404 are blocked on CR-1 |
+
+Criteria that stayed PARTIAL but gained materially stronger evidence:
+
+| # | Phase-4 evidence |
+|---|------------------|
+| A5 | `AUDIT` classifies all 86 material side-effecting controller paths (80 `GATE_FIRST`, 6 `EFFECT_FIRST`, **0 `UNKNOWN`**) and proves **0** effects run at bind time or render time. Behaviour was preserved in the awkward places too: `P4` asserts the four filters that reset on client entry *and* the four that deliberately do not |
+| A8 | `ARCH4` re-asserts after the extraction that the React `dbService` importer list is exactly `compatibilityReads.ts`, that the facade exposes 0 mutators, and that no extracted controller writes through `dbService` |
+| A34 | `ARCH4` extends the ban to the new surface: no extracted controller defines a score function, weight arithmetic, a routing assignment, a canonical-status assignment, or imports a domain module. `A34`'s scope is now `src/ui/**` *and* `src/controllers/**` |
+| A35 | `ARCH4` + `E2E4`: exactly one presentation root visible, and the toast sink is a body-level sibling nested inside neither root |
+| A38 | `E2E4` proves toggle and rollback still work after the extraction with business storage byte-identical |
+
+Criteria deliberately **not** advanced:
+
+| # | Why not |
+|---|---------|
+| A21–A30 | Phase 4 migrated no command and no read, so no cross-SPEC surface changed. A24 gained analysis (the SPEC-003 signature CR) but no new evidence of *consumption* |
+| A25 | SPEC-004 still has no migrated React surface |
+| A31 | No security review was performed; that is Phase 5 |
+| A41 | No new parity dimension was closed — no page cut over |
+| A43 | No legacy was removed, by design (§19) |
+| A44 | CODE_COMPLETE regression is Phase 6 |
 
 ### Phase-3 acceptance movement (T-010-301…306)
 
