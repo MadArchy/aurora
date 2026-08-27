@@ -23,39 +23,126 @@ structure. Each phase maps to one §24 step (see `ui-architecture.md` § *Phase 
 | **T-010-007** | Complete component migration matrix for every UI file + `main.ts` strangler plan | TECHNICAL | T-010-005 | `migration-matrix.md` | A39, A40 | T-010-25 | **[x] DONE** |
 | **T-010-008** | Formalize behavioral parity model, legacy deletion gate, E2E and rollback | TECHNICAL | T-010-007 | `parity-model.md` | A5, A41, A42, A43 | T-010-26 | **[x] DONE** |
 | **T-010-009** | Formalize acceptance (A1–A44), threats (T-010-01…26), deployment separation and AUDIT010 dispositions | TECHNICAL | T-010-002…008 | `acceptance.md`, `threat-model.md`, `deployment.md`, `plan.md` | all | all | **[x] DONE** |
-| **T-010-010** | **Human SPEC-010 approval** | **HUMAN** | T-010-001…009 | approval record | Phase-1 gate | — | **[ ] TODO · PENDING HUMAN** |
+| **T-010-010** | **Human SPEC-010 approval** | **HUMAN** | T-010-001…009 | approval record | Phase-1 gate | — | **[x] DONE** (2026-08-26 America/Bogota) |
 
 **Phase 0 IDs:** T-010-001 … T-010-010
 **Product files changed:** **0** · **Test files changed:** **0** · **Dependency files changed:** **0**
 
-**Required human SPEC-010 statement (T-010-010) — REQUIRED NOW:**
+### Human SPEC-010 approval (T-010-010) — RECORDED
+
+Provided verbatim by the human owner on **2026-08-26** (**America/Bogota**):
 
 > «Apruebo formalmente SPEC-010 — React migration y autorizo el cierre de T-010-010 y el inicio de la Phase 1 de implementación.»
 
-This statement must be provided by the human owner. It has **not** been given.
-No automation may write it, infer it, or mark T-010-010 DONE.
+Authorized transitions performed by this approval and nothing else:
+`T-010-010` TODO → **DONE** · `HUMAN SPEC-010 APPROVAL` PENDING → **APPROVED** ·
+`PHASE-1 IMPLEMENTATION AUTHORIZATION` NO → **YES**.
 
-**Exit:** Phase 0 **COMPLETE** pending human approval · Phase 1 authorization **NO**
+`PHASE-2 IMPLEMENTATION AUTHORIZATION` remains **NO**. No approver identity, email, user ID,
+organization, role or signature was recorded — none was supplied, and none may be invented.
+
+**Exit:** Phase 0 **COMPLETE** · Phase 1 authorization **YES** · Phase 2 authorization **NO**
 
 ---
 
-## Phase 1 — React shell + data-access seam (§24 steps 1, 3) — NOT AUTHORIZED
+## Phase 1 — React shell + data-access seam (§24 steps 1, 3) — COMPLETE
 
 | ID | Title | Class | Depends on | Outputs | Acceptance | Threats | Status |
 |----|-------|-------|-----------|---------|------------|---------|--------|
-| **T-010-101** | Add target-stack dependencies (React, React DOM, TanStack Query, React Hook Form, Vite React plugin) | TECHNICAL | T-010-010 | `package.json`, lockfile, Vite config | A2 | — | **[ ] TODO** |
-| **T-010-102** | Decide and record routing/navigation approach (constitution names none) | TECHNICAL | T-010-101 | decision record | A2 | — | **[ ] TODO** |
-| **T-010-103** | Decide and record React component-testing approach | TECHNICAL | T-010-101 | decision record | A41 | — | **[ ] TODO** |
-| **T-010-104** | Add Playwright E2E/parity harness | TECHNICAL | T-010-101 | Playwright config + first journey | A42 | T-010-26 | **[ ] TODO** |
-| **T-010-105** | Create React shell compatible with current services (§24 step 1) | TECHNICAL | T-010-101, T-010-102 | React shell + mount boundary | A3, A38 | T-010-24 | **[ ] TODO** |
-| **T-010-106** | Implement UI query boundary (query hooks + canonical consumer/query facade) | TECHNICAL | T-010-105 | query layer | A9, A11, A19 | T-010-05, 08 | **[ ] TODO** |
-| **T-010-107** | Implement explicit legacy compatibility read facade (labelled non-canonical) | TECHNICAL | T-010-106 | compatibility facade | A36 | T-010-13 | **[ ] TODO** |
-| **T-010-108** | Implement UI command boundary (command hooks → canonical use cases) | TECHNICAL | T-010-106 | command layer | A10, A35 | T-010-01…03, 12 | **[ ] TODO** |
-| **T-010-109** | Implement trusted session projection (single auth authority) | TECHNICAL | T-010-105 | session context | A16, A17, A18, A37 | T-010-09…11, 23 | **[ ] TODO** |
-| **T-010-110** | Wave-1 architecture tests (boundary purity, scoped to migrated modules) | TECHNICAL | T-010-106…109 | architecture suite | A8, A26, A32, A33 | T-010-01…04 | **[ ] TODO** |
-| **T-010-111** | Migrate `AppShell` and `Login` to React (wave 1) | TECHNICAL | T-010-105…110 | React shell modules | A5, A6 | T-010-24 | **[ ] TODO** |
+| **T-010-101** | Add target-stack dependencies (React, React DOM, TanStack Query, React Hook Form, Vite React plugin) | TECHNICAL | T-010-010 | `package.json`, lockfile, Vite config | A2 | — | **[x] DONE** |
+| **T-010-102** | Decide and record routing/navigation approach (constitution names none) | TECHNICAL | T-010-101 | decision record | A2 | — | **[x] DONE** |
+| **T-010-103** | Decide and record React component-testing approach | TECHNICAL | T-010-101 | decision record | A41 | — | **[x] DONE** |
+| **T-010-104** | Add Playwright E2E/parity harness | TECHNICAL | T-010-101 | Playwright config + first journey | A42 | T-010-26 | **[x] DONE** |
+| **T-010-105** | Create React shell compatible with current services (§24 step 1) | TECHNICAL | T-010-101, T-010-102 | React shell + mount boundary | A3, A38 | T-010-24 | **[x] DONE** |
+| **T-010-106** | Implement UI query boundary (query hooks + canonical consumer/query facade) | TECHNICAL | T-010-105 | query layer | A9, A11, A19 | T-010-05, 08 | **[x] DONE** |
+| **T-010-107** | Implement explicit legacy compatibility read facade (labelled non-canonical) | TECHNICAL | T-010-106 | compatibility facade | A36 | T-010-13 | **[x] DONE** |
+| **T-010-108** | Implement UI command boundary (command hooks → canonical use cases) | TECHNICAL | T-010-106 | command layer | A10, A35 | T-010-01…03, 12 | **[x] DONE** (session commands; see AUDIT010-09) |
+| **T-010-109** | Implement trusted session projection (single auth authority) | TECHNICAL | T-010-105 | session context | A16, A17, A18, A37 | T-010-09…11, 23 | **[x] DONE** |
+| **T-010-110** | Wave-1 architecture tests (boundary purity, scoped to migrated modules) | TECHNICAL | T-010-106…109 | architecture suite | A8, A26, A32, A33 | T-010-01…04 | **[x] DONE** (27/27 PASS) |
+| **T-010-111** | Migrate `AppShell` and `Login` to React (wave 1) | TECHNICAL | T-010-105…110 | React shell modules | A5, A6 | T-010-24 | **[x] DONE** (coexisting behind toggle; see scope note) |
 
-**Depends on:** T-010-010 human approval.
+**Depends on:** T-010-010 human approval — **RECORDED**.
+
+### Phase-1 delivered artifacts
+
+| Area | Files |
+|------|-------|
+| Mount seam | `src/ui/mount.ts`, `src/ui/strangler/toggle.ts`, `src/ui/strangler/strangler.css`, `index.html` (`#react-root` sibling) |
+| Shell | `src/ui/shell/AppRoot.tsx` |
+| Providers | `src/ui/providers/QueryProvider.tsx`, `SessionProvider.tsx`, `ErrorBoundary.tsx` |
+| Query boundary | `src/ui/query/tenantScope.ts`, `src/ui/query/queryKeys.ts`, `src/ui/hooks/useShellData.ts` |
+| Read seams | `src/ui/data/canonicalReads.ts` (canonical), `src/ui/data/compatibilityReads.ts` (compatibility) |
+| Command seam | `src/ui/commands/commandSeam.ts` |
+| Wave-1 modules | `src/ui/modules/AppShell/ReactAppShell.tsx`, `src/ui/modules/Login/ReactLogin.tsx` |
+| Tests | `tests/reactMigrationPhase1Architecture.test.ts` (27), `e2e/strangler-foundation.spec.ts` (5) |
+| Toolchain | `package.json`, `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `eslint.config.js`, `playwright.config.ts`, `.gitignore` |
+
+### T-010-111 scope note — NO CUTOVER
+
+The React `AppShell` and `Login` are **implemented and mountable**, not cut over. The legacy
+presentation remains the default and is untouched. This is required by §24 step 7 and the parity gate:
+cutover and legacy removal need parity evidence that belongs to Phases 5–6. Both implementations
+coexist behind the presentation toggle, exactly as the strangler model specifies.
+
+`ReactLogin` deliberately omits invitation acceptance — see **AUDIT010-09**.
+
+### Decision records
+
+**T-010-102 · ROUTING LIBRARY = NONE.** §23 names no routing library, so none was assumed. The legacy
+application performs no URL routing: navigation is in-memory tab state (`activeTab`) re-rendered by the
+controller, and the only URL parameter read is the `invite` token. Introducing a router in Phase 1 would
+therefore add a dependency, change browser history behaviour that legacy does not implement, and create a
+second navigation authority during coexistence — all without a requirement. Wave-1 React navigation uses
+local presentation state, matching legacy behaviour exactly. Revisit in Phase 3, when page-level migration
+may justify real URL routing; a router must then be introduced as its own formally justified decision.
+
+**T-010-103 · REACT COMPONENT-TESTING LIBRARY = DEFERRED (none installed).** §23 names Vitest and
+Playwright only. Wave-1 foundation properties are boundary and ownership properties, proven statically by
+27 architecture assertions and behaviourally by 5 Playwright tests; a DOM-rendering unit library would add
+`jsdom` plus a testing library without proving anything those two do not already cover. Revisit in Phase 2,
+when leaf components with real interaction logic migrate. Existing Vitest suites remain unchanged
+(`environment: 'node'`).
+
+**Version policy.** Repository convention (caret ranges) followed; no exact pinning introduced and no
+unrelated dependency upgraded. Vite deliberately stays at `^6.2.0`: `@vitejs/plugin-react@6` requires
+Vite `^8`, so plugin `^5.2.0` was selected to fit the existing Vite rather than upgrading the build
+toolchain, which no task authorizes.
+
+### Side-effect ordering audit (wave-1 scope, AUDIT010-07)
+
+| Path | Gate | Effect | Verdict | Migrated |
+|------|------|--------|---------|----------|
+| Login | `authService.login` credential verification | trusted session established | **GATE_FIRST** | yes |
+| Logout / return to manager | trusted runtime state transition | session cleared | **GATE_FIRST** (no business effect) | yes |
+| Invitation acceptance | `authService.registerFromInvite` | `dbService.markInvitationAccepted`, `dbService.updateClient` | **GATE_FIRST** | **no** — AUDIT010-09 |
+
+Audited: **3** · `GATE_FIRST`: **3** · `EFFECT_FIRST`: **0** · `UNKNOWN`: **0**.
+Only `GATE_FIRST` paths were migrated. All other `main.ts` command paths remain unaudited and were
+therefore **not** migrated; they stay owned by Phase 4 (T-010-401).
+
+### `main.ts` measurement
+
+| Metric | Value |
+|--------|-------|
+| Lines before Phase 1 | **5,132** |
+| Lines after Phase 1 | **5,138** (+6) |
+| Responsibilities removed | **0** |
+| Responsibilities retained | all |
+| Change made | one import plus a four-line bootstrap call to the mount seam |
+
+Phase 1 adds the seam; it does not extract the controller. Extraction is Phase 4 (T-010-401…404) and no
+Phase-1 task assigns it. The `+6` lines are the honest cost of installing the strangler seam, and the
+purpose is strangling rather than cosmetic line reduction.
+
+**New finding — AUDIT010-09 · P3 · `LEGACY_COMMAND_WITHOUT_CANONICAL_USE_CASE`.** Invitation acceptance
+gates correctly on trusted auth, then completes with two legacy `dbService` business writes
+(`markInvitationAccepted`, `updateClient`) for which no canonical Application use case exists. Routing it
+through the React command seam would make the UI layer perform a legacy business mutation, violating the
+command-boundary target, so the flow stays on the legacy path and `ReactLogin` omits it. This is the first
+concrete instance of a general constraint: **a legacy command with no canonical use case cannot be
+migrated until one exists**, and creating it is other-SPEC work outside SPEC-010's authority. Every
+migration wave must screen for this class before promising a module. Not a runtime defect; ordering is
+sound and no capability was lost because legacy remains served.
 
 ---
 

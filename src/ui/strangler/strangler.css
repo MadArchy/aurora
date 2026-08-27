@@ -1,0 +1,22 @@
+/*
+ * SPEC-010 · strangler visibility rules.
+ *
+ * DOM ownership is exclusive and static:
+ *   #app        → owned by the legacy controller (src/main.ts)
+ *   #react-root → owned by React (src/ui/mount.ts)
+ *
+ * The two containers are siblings, so the legacy `innerHTML` writes to #app can
+ * never reach inside #react-root, and React never renders into #app. These rules
+ * only decide which of the two is visible; neither container is ever moved,
+ * reparented or emptied by the other owner.
+ *
+ * Scoped exclusively to these two ids so no legacy selector is affected.
+ */
+
+html[data-postura-ui='react'] #app {
+  display: none !important;
+}
+
+html:not([data-postura-ui='react']) #react-root {
+  display: none !important;
+}

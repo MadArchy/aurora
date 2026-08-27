@@ -4,8 +4,8 @@
 |-------|--------|
 | **Spec ID** | `010-react-migration` |
 | **Display name** | **SPEC-010 — React migration** |
-| **Status** | **`DRAFT`** · Phase 0 formal package **COMPLETE** · human approval **PENDING** (T-010-010) |
-| **Phase** | Phase 0 governance · Phase 1+ **NOT AUTHORIZED** · deployment **NOT_STARTED** |
+| **Status** | **`APPROVED`** · Phase 0 **COMPLETE** · human approval **APPROVED** (T-010-010, 2026-08-26 America/Bogota) |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2+ **NOT AUTHORIZED** · deployment **NOT_STARTED** |
 | **Branch** | `spec/010-react-migration` |
 | **Baseline SHA** | SPEC-008 CODE_COMPLETE final freeze `642ae9390700a254fa390ba09a959bab3c37d616` |
 | **Priority** | P2 — terminal SPEC in the constitutional dependency graph |
@@ -14,7 +14,8 @@
 | **Depends on** | SPEC-001…008 stable domain contracts (**all CODE_COMPLETE or frozen**); SPEC-009 (security owner; production DEFERRED) |
 | **Blocks** | Nothing — terminal SPEC |
 | **Test baseline (Phase 0)** | `npm run check` **1467/1467 PASS** · `npm run test:rules` **91/91 PASS** — unchanged by Phase 0 |
-| **Human SPEC approval** | **PENDING** (T-010-010) |
+| **Test baseline (Phase 1)** | `npm run check` **1494/1494 PASS** · `npm run test:rules` **91/91 PASS** · `npm run build` **PASS** · Playwright **5/5 PASS** |
+| **Human SPEC approval** | **APPROVED** — T-010-010, 2026-08-26 (America/Bogota) |
 
 **Title provenance (HIGH confidence):** `POSTURA_CONSTITUTION.md:847` and `specify/memory/constitution.md:847`
 (byte-identical files) declare `010-react-migration/`. `docs/audits/BASELINE_CONSTITUTION_AUDIT.md:331/348/413`
@@ -43,9 +44,11 @@ Two structural facts make this a migration problem rather than a cosmetic one:
    UI-facing query boundary, so no component can be moved without either dragging `dbService` with it or
    inventing an ad-hoc data path.
 
-Meanwhile the constitutional target stack (§23) is **entirely absent**: `package.json` declares no
-`react`, `react-dom`, `@tanstack/react-query`, `react-hook-form`, `@vitejs/plugin-react` or Playwright.
-Runtime dependencies are only `firebase` and `zod`.
+At Phase-0 time the constitutional target stack (§23) was **entirely absent**: `package.json` declared no
+`react`, `react-dom`, `@tanstack/react-query`, `react-hook-form`, `@vitejs/plugin-react` or Playwright,
+and runtime dependencies were only `firebase` and `zod`. **Phase 1 installed the exact stack**
+(AUDIT010-02 → `FOUNDATION_IMPLEMENTED`); the two structural facts above remain unchanged, because Phase 1
+built the seam rather than migrating the surfaces.
 
 The domain, however, is ready — which is precisely the precondition the constitution sets
 ("React (`010`) no antes de contratos de dominio estables"):

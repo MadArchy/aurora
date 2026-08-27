@@ -104,6 +104,17 @@ organizations must not collide in cache or in a read result.
 
 ---
 
+## Wave status
+
+| Wave | Status | Evidence |
+|------|--------|----------|
+| **W1 — Shell** | **FOUNDATION COMPLETE · NO CUTOVER** | Mount seam, toggle, providers, query/command seams, React `AppShell` + `Login` implemented and mountable. Legacy remains the served presentation. 27 architecture + 5 Playwright tests PASS |
+| W2…W6 | **NOT STARTED** | Phase 2+ not authorized |
+
+React `AppShell` and `Login` exist alongside their legacy counterparts; neither legacy file was modified
+or removed. `AppShell.ts` and `Login.ts` therefore stay `MIGRATE` (not `REMOVE_AFTER_PARITY`) until the
+parity gate passes in Phase 6.
+
 ## Migration waves
 
 Each wave requires: bounded module scope · declared read source · declared command source · behavior

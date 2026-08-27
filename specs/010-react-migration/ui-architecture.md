@@ -80,15 +80,29 @@ This reconciliation is recorded rather than silently resolved.
 
 ## Phase ↔ §24 step mapping
 
-| Phase | §24 step | Scope |
-|-------|----------|-------|
-| 0 | — | Governance / architecture (this package) |
-| 1 | **step 1** + step 3 | React shell compatible with current services; data-access seam; dependencies |
-| 2 | **step 2** | Extract leaf/low-authority components to React |
-| 3 | **step 4** | Page-by-page migration of major surfaces |
-| 4 | **step 5** | Extract UI logic from services; `main.ts` strangler |
-| 5 | **step 6** | Regression, parity, security/adversarial, E2E |
-| 6 | **step 7** | Legacy removal after proven equivalence; CODE_COMPLETE |
+**Wording correction (Phase 1).** The Phase-0 report described this mapping as "1:1". That is inexact:
+Phase 1 implements **two** constitutional steps (1 and 3), so the relation is one step to one phase in six
+of seven cases and two steps in Phase 1. Constitutional order is unchanged, all seven steps are
+represented, no phase was added or renumbered, and no task ID changed. The correction is to the
+description only.
+
+| Phase | §24 step | Verbatim constitutional step | Owning tasks | Scope |
+|-------|----------|------------------------------|--------------|-------|
+| 0 | — | (governance, not a §24 step) | T-010-001…010 | Formal package / architecture |
+| 1 | **step 1** | *Crear shell React compatible con servicios actuales.* | T-010-101, T-010-102, T-010-105 | React shell + mount seam |
+| 1 | **step 3** | *Mantener temporalmente servicios de dominio existentes.* | T-010-106…109 | Seams reuse existing services; none replaced |
+| 2 | **step 2** | *Extraer componentes nuevos a React.* | T-010-201…206 | Leaf/low-authority components |
+| 3 | **step 4** | *Migrar página por página.* | T-010-301…306 | Major surfaces, one page at a time |
+| 4 | **step 5** | *Extraer lógica de UI de servicios de dominio.* | T-010-401…405 | UI-logic extraction + `main.ts` strangler |
+| 5 | **step 6** | *Mantener tests de regresión.* | T-010-501…510 | Regression, parity, adversarial, E2E |
+| 6 | **step 7** | *Eliminar legacy únicamente después de comprobar equivalencia.* | T-010-601…604 | Legacy removal after parity; CODE_COMPLETE |
+
+Steps 1 and 3 are companions by construction: a shell "compatible with current services" only exists if
+those services are temporarily kept. Implementing them in one phase preserves the constitutional order
+rather than reordering it. Step 6 is applied continuously (regression suites are maintained in every
+phase) and consolidated in Phase 5.
+
+**SEVEN-STEP MAPPING = GOVERNANCE_WORDING_CORRECTED** — no constitutional conflict.
 
 ---
 

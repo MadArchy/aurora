@@ -1,12 +1,13 @@
 # Acceptance 010 — React migration
 
-**Phase 0:** Formal package **COMPLETE** · Human SPEC approval **PENDING** (T-010-010)
-**Phase 1+:** **NOT AUTHORIZED**
-**A1-A44:** **6 PASS** · **0 PARTIAL** · **0 FAIL** · **38 PENDING**
+**Phase 0:** **COMPLETE** · Human SPEC approval **APPROVED** (T-010-010, 2026-08-26 America/Bogota)
+**Phase 1:** **COMPLETE** — React foundation, shell, strangler seams, query/command boundaries, E2E foundation
+**Phase 2+:** **NOT AUTHORIZED**
+**A1-A44:** **7 PASS** · **24 PARTIAL** · **0 FAIL** · **13 PENDING**
 **CODE_COMPLETE:** **NO**
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
-Spec **APPROVED** requires T-010-010 human SPEC approval — **PENDING**.
+Spec **APPROVED** — T-010-010 human SPEC approval **RECORDED**.
 Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-010-604) — **NOT STARTED**.
 
 **Human SPEC approval model:** TASK-LEVEL only (T-010-010).
@@ -27,56 +28,69 @@ implementation is **PENDING** — no implementation is authorized.
 
 | # | Criterion | Phase | Status | Evidence target |
 |---|-----------|-------|--------|-----------------|
-| A1 | Constitutional purpose documented as incremental React strangler UI migration | 0 | ✅ PASS (Phase 0) | `spec.md` + §23/§24/§25/§26 refs |
-| A2 | Target stack exact — React · TypeScript · Vite · TanStack Query · React Hook Form · Zod (+ Playwright E2E); no substitution | 0–1 | ✅ PASS (design) | `ui-architecture.md` § target stack |
-| A3 | Big-bang rewrite prohibited; strangler is the only sanctioned strategy | 0 | ✅ PASS (design) | §25 + `ui-architecture.md` |
-| A4 | Constitutional §24 seven-step order preserved verbatim and mapped to phases | 0 | ✅ PASS (design) | `ui-architecture.md` § migration order |
-| A5 | Behavior preserved before architecture improved; business logic not rewritten to suit UI | 1–6 | ⏳ PENDING | `parity-model.md` evidence per wave |
-| A6 | UI authority = presentation/intent only; UI write authority remains 0 | 1–6 | ⏳ PENDING | architecture tests per wave |
-| A7 | SPEC-010 owns no business-domain aggregate and adds no business lifecycle | 0 | ✅ PASS (design) | `spec.md` § Data Model / State Transitions |
-| A8 | React modules import `dbService` directly: **0** | 2–6 | ⏳ PENDING | architecture test, scoped to migrated modules |
-| A9 | Canonical read boundary — every React read goes through a query hook → facade/consumer → Application | 1–6 | ⏳ PENDING | `data-flow.md` + architecture tests |
-| A10 | Canonical command boundary — React intent → consumer/Application → Domain → Ports → Infrastructure | 1–6 | ⏳ PENDING | architecture + command-equivalence tests |
-| A11 | TanStack Query cache is non-authoritative; no strategic decision from cached data | 2–6 | ⏳ PENDING | adversarial tests (T-010-05) |
-| A12 | React local/presentation state non-authoritative | 2–6 | ⏳ PENDING | adversarial tests |
-| A13 | Form state non-authoritative; Zod UI validation never bypasses Domain gates | 2–6 | ⏳ PENDING | adversarial tests (T-010-18) |
-| A14 | Optimistic UI state non-authoritative; failure reconciles to canonical state | 2–6 | ⏳ PENDING | adversarial tests (T-010-06) |
-| A15 | Stale cached aggregate never used as mutation authority; caller snapshot authority 0 | 2–6 | ⏳ PENDING | adversarial tests (T-010-07) |
-| A16 | Trusted tenant — React cannot establish `organizationId`/`clientId`; caller tenant authority 0 | 1–6 | ⏳ PENDING | adversarial tests (T-010-09) |
-| A17 | Trusted actor — React cannot establish `actorUid`/`actorType`/role/HUMAN; caller actor authority 0 | 1–6 | ⏳ PENDING | adversarial tests (T-010-10) |
-| A18 | Caller role authority 0 — no admin/manager escalation from UI | 1–6 | ⏳ PENDING | adversarial tests (T-010-11) |
-| A19 | Tenant-safe query keys — every key carries trusted tenant scope; no cross-tenant cache bleed | 2–6 | ⏳ PENDING | adversarial tests (T-010-08) |
-| A20 | Multi-thesis native — no authoritative `theses[0]`/`primaryThesisId`/`getPrimaryThesis`/score winner | 2–6 | ⏳ PENDING | architecture + adversarial tests (T-010-15) |
-| A21 | Presentation defaults explicitly non-authoritative; command carries a confirmed, revalidated id | 2–6 | ⏳ PENDING | AUDIT010-06 closure (T-010-16) |
+Status legend — ✅ **PASS** fully evidenced · ⚠️ **PARTIAL** evidenced for the foundation/wave-1 scope,
+open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence yet.
+
+`ARCH` = `tests/reactMigrationPhase1Architecture.test.ts` (27/27 PASS) ·
+`E2E` = `e2e/strangler-foundation.spec.ts` (5/5 PASS).
+
+| # | Criterion | Phase | Status | Evidence |
+|---|-----------|-------|--------|----------|
+| A1 | Constitutional purpose documented as incremental React strangler UI migration | 0 | ✅ PASS | `spec.md` + §23/§24/§25/§26 |
+| A2 | Target stack exact — React · TypeScript · Vite · TanStack Query · React Hook Form · Zod (+ Playwright E2E); no substitution | 0–1 | ✅ PASS | T-010-101: exact stack installed, versions recorded, no substitution, Vite not upgraded; build PASS |
+| A3 | Big-bang rewrite prohibited; strangler is the only sanctioned strategy | 0–1 | ✅ PASS | §25 + coexisting implementations behind the toggle; legacy untouched and still served |
+| A4 | Constitutional §24 seven-step order preserved verbatim and mapped to phases | 0–1 | ✅ PASS | `ui-architecture.md` § phase mapping — all 7 steps mapped, order preserved |
+| A5 | Behavior preserved before architecture improved; business logic not rewritten to suit UI | 1–6 | ⚠️ PARTIAL | `E2E`: legacy fully operational after a React round trip; 0 business-logic files changed. Per-module parity is Phase 5 |
+| A6 | UI authority = presentation/intent only; UI write authority remains 0 | 1–6 | ⚠️ PARTIAL | `ARCH`: no lifecycle-status assignment, no persistence write in `src/ui/**`. Later waves open |
+| A7 | SPEC-010 owns no business-domain aggregate and adds no business lifecycle | 0–1 | ✅ PASS | No `domain-model.md`; no lifecycle added by Phase 1 |
+| A8 | React modules import `dbService` directly: **0** | 2–6 | ⚠️ PARTIAL | `ARCH`: **0** in `src/ui/**` except the one declared compatibility facade. Scope widens per wave |
+| A9 | Canonical read boundary — every React read goes through a query hook → facade/consumer → Application | 1–6 | ⚠️ PARTIAL | `canonicalReads.ts` via `opportunityScoutConsumer`; all wave-1 reads go through hooks |
+| A10 | Canonical command boundary — React intent → consumer/Application → Domain → Ports → Infrastructure | 1–6 | ⚠️ PARTIAL | `commandSeam.ts` delegates to trusted auth; `ARCH` proves no direct persistence. Strategic commands pending |
+| A11 | TanStack Query cache is non-authoritative; no strategic decision from cached data | 2–6 | ⚠️ PARTIAL | `ARCH`: `staleTime: 0`, `retry: 0`, cache labelled non-authoritative. Adversarial proof T-010-502 |
+| A12 | React local/presentation state non-authoritative | 2–6 | ⚠️ PARTIAL | Wave-1 state is tab/filter only; no authority derived from it |
+| A13 | Form state non-authoritative; Zod UI validation never bypasses Domain gates | 2–6 | ⚠️ PARTIAL | `ReactLogin`: Zod checks shape, trusted auth still decides. Adversarial proof T-010-501 |
+| A14 | Optimistic UI state non-authoritative; failure reconciles to canonical state | 2–6 | ⚠️ PARTIAL | `ARCH`: wave 1 introduces **0** optimistic mutations |
+| A15 | Stale cached aggregate never used as mutation authority; caller snapshot authority 0 | 2–6 | ⚠️ PARTIAL | `staleTime: 0`; no wave-1 command consumes a cached aggregate. Adversarial proof T-010-502 |
+| A16 | Trusted tenant — React cannot establish `organizationId`/`clientId`; caller tenant authority 0 | 1–6 | ⚠️ PARTIAL | `ARCH`: branded `TrustedTenantScope`, sole constructor takes the trusted `User`; fail-closed when absent |
+| A17 | Trusted actor — React cannot establish `actorUid`/`actorType`/role/HUMAN; caller actor authority 0 | 1–6 | ⚠️ PARTIAL | `ARCH`: session projection has no setter; no actor literal in `src/ui/**` |
+| A18 | Caller role authority 0 — no admin/manager escalation from UI | 1–6 | ⚠️ PARTIAL | `ARCH`: no `role: 'ADMIN'` / `isAdmin = true` assignment in `src/ui/**` |
+| A19 | Tenant-safe query keys — every key carries trusted tenant scope; no cross-tenant cache bleed | 2–6 | ⚠️ PARTIAL | `ARCH`: factory requires a trusted scope; no bare entity-only key exists. Runtime bleed test T-010-502 |
+| A20 | Multi-thesis native — no authoritative `theses[0]`/`primaryThesisId`/`getPrimaryThesis`/score winner | 2–6 | ⚠️ PARTIAL | `ARCH`: none present in `src/ui/**`; thesis selector defaults to explicit "all" |
+| A21 | Presentation defaults explicitly non-authoritative; command carries a confirmed, revalidated id | 2–6 | ⏳ PENDING | `Modals.ts` not migrated (T-010-302) |
 | A22 | SPEC-001 preserved — React displays routing, owns no routing decision | 2–6 | ⏳ PENDING | boundary tests |
 | A23 | SPEC-002 preserved — no scoring formula recreated in components/hooks | 2–6 | ⏳ PENDING | boundary tests (T-010-20) |
 | A24 | SPEC-003 preserved — Brief consumed via canonical consumer; no lifecycle duplication | 2–6 | ⏳ PENDING | boundary tests |
 | A25 | SPEC-004 preserved — Plan/PlanItem via canonical Application boundary | 2–6 | ⏳ PENDING | boundary tests |
-| A26 | SPEC-005 preserved — direct AI provider access from React: **0** | 1–6 | ⏳ PENDING | architecture test (T-010-04) |
+| A26 | SPEC-005 preserved — direct AI provider access from React: **0** | 1–6 | ⚠️ PARTIAL | `ARCH`: **0** provider imports or endpoints in `src/ui/**` |
 | A27 | SPEC-006 preserved — React never verifies claims or authorizes publication | 2–6 | ⏳ PENDING | boundary tests |
 | A28 | SPEC-007 preserved — no recreation of OpportunityScore / lifecycle / Materialize | 2–6 | ⏳ PENDING | boundary tests (T-010-21) |
 | A29 | SPEC-008 preserved — no auto-approve, no auto-apply, no `feedbackScoringHints`, no auto-rescore | 2–6 | ⏳ PENDING | boundary + adversarial tests (T-010-22) |
 | A30 | SPEC010→SPEC008 mutation authority = **0** | 2–6 | ⏳ PENDING | architecture test |
-| A31 | SPEC-009 security boundary preserved — auth, tenant isolation, rules contracts unchanged | 1–6 | ⏳ PENDING | rules tests + boundary review |
-| A32 | React → canonical store (`Local*Store`) direct write: **0** | 2–6 | ⏳ PENDING | architecture test (T-010-02) |
-| A33 | React → Firestore direct write: **0** | 2–6 | ⏳ PENDING | architecture test (T-010-03) |
-| A34 | No business logic in hooks — no duplicated scoring/routing/lifecycle/approval logic | 2–6 | ⏳ PENDING | architecture test (T-010-19) |
-| A35 | No dual command authority — legacy and React invoke the same canonical command | 2–6 | ⏳ PENDING | command-equivalence tests (T-010-12) |
-| A36 | No dual read authority — one declared read source per module | 2–6 | ⏳ PENDING | migration matrix + architecture tests (T-010-13) |
-| A37 | Single auth/session authority; React Context projects only | 1–6 | ⏳ PENDING | adversarial tests (T-010-23) |
-| A38 | No competing DOM/CSS ownership of a subtree | 1–6 | ⏳ PENDING | mount-boundary tests (T-010-24) |
-| A39 | `main.ts` strangler — ceases to be a controller/event bus; shrinks per wave | 1–4 | ⏳ PENDING | line/responsibility evidence per wave (T-010-401) |
-| A40 | Component migration matrix complete — a row per UI file, dispositioned | 0 | ✅ PASS (Phase 0) | `migration-matrix.md` (17 files) |
-| A41 | Behavioral parity proven per migrated module across all applicable dimensions | 5 | ⏳ PENDING | `parity-model.md` evidence |
-| A42 | E2E/parity harness (Playwright) implemented; legacy-vs-React journeys pass | 5 | ⏳ PENDING | Playwright suites |
-| A43 | Legacy removed only after parity gate; rollback exercised without data migration | 6 | ⏳ PENDING | parity gate + rollback evidence |
-| A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ⏳ PENDING | T-010-602 |
+| A31 | SPEC-009 security boundary preserved — auth, tenant isolation, rules contracts unchanged | 1–6 | ⏳ PENDING | rules 91/91 unchanged, but no security review performed in Phase 1 |
+| A32 | React → canonical store (`Local*Store`) direct write: **0** | 2–6 | ⚠️ PARTIAL | `ARCH`: **0** store/infrastructure imports in `src/ui/**` |
+| A33 | React → Firestore direct write: **0** | 2–6 | ⚠️ PARTIAL | `ARCH`: **0** Firebase/Firestore imports in `src/ui/**` |
+| A34 | No business logic in hooks — no duplicated scoring/routing/lifecycle/approval logic | 2–6 | ⚠️ PARTIAL | `ARCH`: no scoring/routing/approval symbol in `src/ui/**` |
+| A35 | No dual command authority — legacy and React invoke the same canonical command | 2–6 | ⚠️ PARTIAL | Both logins call the same `authService.login`; no duplicate logic. Full proof T-010-506 |
+| A36 | No dual read authority — one declared read source per module | 2–6 | ⚠️ PARTIAL | Each hook declares one source, and the source is part of the cache key |
+| A37 | Single auth/session authority; React Context projects only | 1–6 | ⚠️ PARTIAL | `ARCH`: projection is derived and setter-free. Adversarial proof T-010-506 |
+| A38 | No competing DOM/CSS ownership of a subtree | 1–6 | ✅ PASS | `ARCH` + `E2E`: sibling containers, exclusive owners, never both visible, no cross-nesting, CSS scoped to the two ids, clean unmount |
+| A39 | `main.ts` strangler — ceases to be a controller/event bus; shrinks per wave | 1–4 | ⏳ PENDING | 5,132 → 5,138 lines; **0** responsibilities removed. Extraction is Phase 4 (T-010-401…404) |
+| A40 | Component migration matrix complete — a row per UI file, dispositioned | 0 | ✅ PASS | `migration-matrix.md` (17 files) |
+| A41 | Behavioral parity proven per migrated module across all applicable dimensions | 5 | ⏳ PENDING | no module cut over; parity is Phase 5 |
+| A42 | E2E/parity harness (Playwright) implemented; legacy-vs-React journeys pass | 5 | ⚠️ PARTIAL | harness implemented, 5/5 foundation tests PASS. Full journey/parity suites T-010-508 |
+| A43 | Legacy removed only after parity gate; rollback exercised without data migration | 6 | ⚠️ PARTIAL | `E2E`: rollback leaves business storage byte-identical. **0** legacy removed |
+| A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ⏳ PENDING | T-010-602. Phase-1 regression: check 1494/1494, rules 91/91 |
 
-**Acceptance count:** **44** (A1–A44)
-**Phase 0 evidence:** **6 PASS** (A1, A2, A3, A4, A7, A40) · **0 PARTIAL** · **0 FAIL** · **38 PENDING**
+**Acceptance count:** **44** (A1–A44) — unchanged.
 
-Phase 0 is governance only, so only design/documentation criteria can pass. No implementation criterion is
-claimed.
+| Milestone | PASS | PARTIAL | FAIL | PENDING |
+|-----------|------|---------|------|---------|
+| Phase 0 exit | 6 | 0 | 0 | 38 |
+| **Phase 1 exit** | **7** | **24** | **0** | **13** |
+
+Phase 1 advanced A2, A3, A4 to full PASS (stack installed, strangler demonstrated, mapping verified) and
+newly passed A38. No criterion depending on page migration, `main.ts` extraction, legacy deletion, full
+E2E parity, Phase-5 security or Phase-6 closure is claimed.
 
 ---
 

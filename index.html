@@ -28,7 +28,13 @@
     <link rel="stylesheet" href="/src/styles/index.css" />
   </head>
   <body>
+    <!--
+      SPEC-010 strangler: two sibling containers with exclusive owners.
+      #app is owned by the legacy controller, #react-root by React.
+      Neither owner writes into the other's subtree.
+    -->
     <div id="app"></div>
+    <div id="react-root"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

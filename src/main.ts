@@ -1,4 +1,5 @@
 import './styles/index.css';
+import { exposeStranglerControls, initReactStrangler } from './ui/mount';
 import { authService } from './services/auth';
 import { dbService } from './services/db';
 import { aiService } from './services/ai';
@@ -5130,3 +5131,8 @@ if (import.meta.env.DEV) {
 }
 
 new App();
+
+// SPEC-010 strangler mount seam. Owns #react-root only; never touches #app.
+// Defaults to the legacy presentation, so React is not loaded unless requested.
+exposeStranglerControls();
+void initReactStrangler();

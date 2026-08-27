@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
 import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { posturaApiPlugin } from './server/postura-api';
@@ -17,6 +18,7 @@ export default defineConfig(({ mode }) => {
   return {
     base: pagesBase,
     plugins: [
+      react(),
       posturaApiPlugin(),
       {
         name: 'github-pages-spa-fallback',

@@ -87,10 +87,57 @@ asserted by A3/A4.
 **Phase-0 status:** P0 **0** · P1 **0** · P2 **4** (AUDIT010-01…04, with -01 resolved by this package) ·
 P3 **4** (AUDIT010-05…08).
 
-No threat is claimed PASS in Phase 0 — none can be, because no implementation exists. All 26 are
-**PENDING** until Phase 5 adversarial proof.
+**Phase-1 status:** P0 **0** · P1 **0** · P2 **3** · P3 **5** (AUDIT010-02 closed as foundation
+implemented; AUDIT010-09 opened at P3).
 
-**Threat status:** **0 PASS / 0 PARTIAL / 0 FAIL / 26 PENDING**
+---
+
+## Phase-1 threat status
+
+Phase 1 built the foundation, so foundation-scoped threats have real defensive evidence while every threat
+whose surface arrives with later page migrations, dual authority, full parity or legacy removal stays
+PARTIAL or PENDING. **No threat is declared PASS on the strength of a Phase-1 foundation alone**, because
+adversarial proof is Phase 5 (T-010-501…510).
+
+`ARCH` = `tests/reactMigrationPhase1Architecture.test.ts` (27/27) · `E2E` = `e2e/strangler-foundation.spec.ts` (5/5).
+
+| ID | Phase-1 status | Evidence / why not higher |
+|----|----------------|---------------------------|
+| T-010-01 | ⚠️ PARTIAL | `ARCH`: 0 `dbService` imports in `src/ui/**` beyond the declared facade, which exposes no mutator. Adversarial proof T-010-503 |
+| T-010-02 | ⚠️ PARTIAL | `ARCH`: 0 store/infrastructure imports. T-010-503 |
+| T-010-03 | ⚠️ PARTIAL | `ARCH`: 0 Firestore imports. T-010-503 |
+| T-010-04 | ⚠️ PARTIAL | `ARCH`: 0 provider imports/endpoints. T-010-503 |
+| T-010-05 | ⚠️ PARTIAL | `staleTime: 0`, cache labelled non-authoritative. T-010-502 |
+| T-010-06 | ⚠️ PARTIAL | `ARCH`: 0 optimistic mutations exist. T-010-502 |
+| T-010-07 | ⚠️ PARTIAL | No wave-1 command consumes a cached aggregate. T-010-502 |
+| T-010-08 | ⚠️ PARTIAL | `ARCH`: every key carries trusted tenant scope; no bare key. Runtime bleed test T-010-502 |
+| T-010-09 | ⚠️ PARTIAL | Branded scope, sole constructor takes trusted `User`, fail-closed. T-010-501 |
+| T-010-10 | ⚠️ PARTIAL | Setter-free projection; no actor literal. T-010-501 |
+| T-010-11 | ⚠️ PARTIAL | `ARCH`: no role/admin literal assignment. T-010-501 |
+| T-010-12 | ⚠️ PARTIAL | Both logins invoke the same `authService.login`. T-010-506 |
+| T-010-13 | ⚠️ PARTIAL | One read source per hook, provenance embedded in the cache key. T-010-506 |
+| T-010-14 | ⚠️ PARTIAL | `ARCH`: no lifecycle-status assignment in `src/ui/**`. T-010-504 |
+| T-010-15 | ⚠️ PARTIAL | `ARCH`: no first/primary-thesis pattern; selector defaults to explicit "all". T-010-507 |
+| T-010-16 | ⏳ PENDING | `Modals.ts` not migrated (T-010-302) |
+| T-010-17 | ⏳ PENDING | no lifecycle surface migrated |
+| T-010-18 | ⚠️ PARTIAL | `ReactLogin`: Zod checks shape only; trusted auth decides. T-010-501 |
+| T-010-19 | ⚠️ PARTIAL | `ARCH`: no business symbol in hooks. T-010-505 |
+| T-010-20 | ⏳ PENDING | no scoring surface migrated |
+| T-010-21 | ⏳ PENDING | no Opportunity surface migrated beyond a canonical read |
+| T-010-22 | ⏳ PENDING | no Learning surface migrated |
+| T-010-23 | ⚠️ PARTIAL | Single `authService` source; Context projects only. T-010-506 |
+| T-010-24 | ⚠️ PARTIAL | `ARCH` + `E2E`: exclusive sibling ownership, never both visible, no cross-nesting, clean unmount. Re-proved per wave |
+| T-010-25 | ⚠️ PARTIAL | 3 wave-1 paths audited, all `GATE_FIRST`; only those migrated. Remaining `main.ts` paths unaudited — T-010-401 |
+| T-010-26 | ⚠️ PARTIAL | `E2E`: rollback leaves business storage byte-identical; 0 legacy removed. Full proof T-010-508 |
+
+**Threat status at Phase-1 exit:** **0 PASS / 19 PARTIAL / 0 FAIL / 7 PENDING**
+
+| Milestone | PASS | PARTIAL | FAIL | PENDING |
+|-----------|------|---------|------|---------|
+| Phase 0 exit | 0 | 0 | 0 | 26 |
+| **Phase 1 exit** | **0** | **19** | **0** | **7** |
+
+No new constitutional or security blocker was found: **P0 = 0**, **P1 = 0**.
 
 ---
 
