@@ -143,6 +143,7 @@ import {
 import { AppUiState } from './controllers/appUiState';
 import { ToastController, type ToastType } from './controllers/toastController';
 import { presentActiveModal } from './controllers/modalPresenter';
+import { createRenderScheduler } from './controllers/renderScheduler';
 import {
   findNotificationTarget,
   resolveTabTransition,
@@ -194,6 +195,7 @@ class App {
   private sourceIngestTimer: number | null = null;
   private claimLiveTimer: number | null = null;
   private lastDiscoveryScanAt = 0;
+  private readonly renderScheduler = createRenderScheduler(() => this.render());
 
   /** Intervalo entre escaneos del agente de fuentes (1 h). */
   private static readonly DISCOVERY_SCAN_MS = 60 * 60 * 1000;
@@ -241,7 +243,7 @@ class App {
     });
 
     dbService.onChange(() => {
-      if (authService.getCurrentUser()) this.render();
+      if (authService.getCurrentUser()) this.renderScheduler.schedule();
     });
   }
 
@@ -335,6 +337,7 @@ class App {
   }
 
   public render() {
+    this.renderScheduler.cancel();
     const appEl = document.getElementById('app');
     if (!appEl) return;
 
