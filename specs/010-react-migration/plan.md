@@ -38,6 +38,42 @@ every case" and Phase 3's `EFFECT_FIRST` classification of
 `runSourceDiscoveryAgent`. Both corrections leave the code untouched; only the
 claims about it changed.
 
+### Phase-4C outcome, stated plainly
+
+Phase 4B mapped the blockers and found that they split cleanly in two: the 34
+blocked writes need an owner nobody has assigned, while the two security
+findings need nothing from outside SPEC-010. Phase 4C did the second half.
+
+The six ungated paths now resolve their tenant through
+`requireTenantScope`, which treats a `data-client-id` attribute as a *proposal*
+and refuses it when the trusted session is not entitled to it. That framing is
+the whole fix: the DOM attribute can stay in the markup, because it no longer
+decides anything. `EFFECT_FIRST` across all 157 handlers went from 6 to **0**,
+measured by the same script that found the 6.
+
+The more useful outcome was a defect the Phase-4B analysis had missed and the
+test found. `renderMainView` fell back to `getClients()[0]` when a `CLIENT`
+session carried no `clientId` — rendering *another tenant's portal*. The ingest
+scheduler likewise chose a tenant by array position when no workspace was
+active. Neither was in the recorded finding, which described a tidiness problem;
+one of them was a tenant-isolation defect. That is why AUDIT010-11's P3 was too
+low, and it is a good argument for writing the adversarial test before believing
+the analysis.
+
+What Phase 4C deliberately did **not** do: it created no canonical use case,
+reduced CR-1 by nothing, left CR-2 and SPEC-003 untouched, and left T-010-403
+and T-010-404 blocked. Gating a legacy write does not canonicalize it — all 34
+still write through `dbService` with no Application owner, and all 34 are still
+barred from React. A new P3 (**AUDIT010-12**) is opened rather than closed
+quietly: six internal helpers are gated by their callers rather than in-path,
+and proving that safe means verifying 12 call sites, which is not this phase's
+scope.
+
+Severity moves P2 **5 → 3** and P3 **6 → 7** against the evidence-supported
+Phase-4 ledger. The recorded ledger said P2 4 · P3 7; Phase 4B showed the
+evidence supported P2 5 · P3 6, and Phase 4C reconciles it row by row rather
+than adjusting a total.
+
 ### Phase-3 outcome, stated plainly
 
 Every one of the five migrated pages is **HYBRID**, and none qualifies for full

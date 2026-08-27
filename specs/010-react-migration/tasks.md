@@ -592,6 +592,42 @@ four responsibilities that left are gone rather than relocated within it.
 
 ---
 
+## Phase 4C — local security remediation (AUDIT010-10 / AUDIT010-11)
+
+Not a new task range. Phase 4C discharges two Phase-4 findings that Phase 4B
+classified as `PHASE4_LOCAL_UI_REMEDIATION`: they live in `main.ts`, they need no
+new business authority, and they need no owner assignment. T-010-403 and
+T-010-404 remain **BLOCKED_BY_PRECONDITION** — CR-1 is untouched.
+
+| Finding | Before | After |
+|---|---|---|
+| **AUDIT010-10** (P2) | 6 paths run a material effect with no in-path gate; 5 take tenant from `data-client-id`; 6 rely on button visibility | **RESOLVED** — all gated on a trusted grant; `EFFECT_FIRST` 6 → **0** |
+| **AUDIT010-11** (P3→P2) | positional tenant fallback `getClients()[0]` | **RESOLVED** — removed from all three authority sites; one display-only default retained per §10 |
+| **AUDIT010-12** (P3) | — | **OPENED** — 6 internal helpers gated by their callers rather than in-path |
+
+New module: `src/controllers/trustedTenant.ts` — `requireTenantScope`,
+`requireAdminActor`. A gate, not an authority: no state, no store import,
+identity injected, organization always taken from the session.
+
+Two sites the Phase-4B analysis had missed were found **by writing the test**,
+and one mattered more than the recorded finding: `renderMainView` fell through
+to `getClients()[0]` for a `CLIENT` session with no `clientId`, rendering
+another tenant's portal. The ingest scheduler also picked a tenant by position.
+Both now fail closed. This is why AUDIT010-11 was not display-only and why its
+P3 was too low.
+
+Evidence: `tests/reactMigrationPhase4cSecurity.test.ts` (33 tests, adversarial —
+every case models a caller proposing a tenant it should not get) · re-audit by
+the original scripts · `npm run check` **1679/1679** · rules **91/91** · build
+**PASS** · Playwright **22/22**.
+
+**Exit:** Phase 4 remains **PARTIAL** · AUDIT010-10 **RESOLVED** · AUDIT010-11
+**RESOLVED** · AUDIT010-12 **OPEN (P3)** · CR-1 **34, ownership PARTIAL** · CR-2
+**CHANGE_REQUIRED** · SPEC-001…008 modifications **0** · Phase 5 authorization
+**NO**
+
+---
+
 ## Phase 5 — Regression / parity / security / E2E (§24 step 6) — NOT AUTHORIZED
 
 | ID | Title | Class | Depends on | Acceptance | Threats | Status |

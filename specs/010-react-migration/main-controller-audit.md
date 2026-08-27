@@ -308,3 +308,48 @@ for it. Two others say more:
 What remains is dominated by the 25 business-write methods and their 158
 handlers, which cannot move until the blocked writes have a canonical owner.
 That is why §7 below records T-010-403/404 as blocked rather than attempted.
+
+---
+
+## Phase-4C re-audit (after local security remediation)
+
+Same scripts, same units, so the numbers are comparable.
+
+| Measure | Phase 4 | Phase 4C | Δ |
+|---|---|---|---|
+| Lines | 5,041 | **5,130** | +89 |
+| Methods | 82 | **85** | +3 |
+| `addEventListener` sites | 158 | 158 | 0 |
+| Handlers: `EFFECT_FIRST` | **6** | **0** | **−6** |
+| Handlers: `GATE_FIRST` | 50 | **56** | +6 |
+| Handlers: `NO_EFFECT` | 101 | 101 | 0 |
+| Effects at bind time / render time | 0 | 0 | 0 |
+
+`main.ts` **grew**, which is the correct outcome and worth stating plainly: a
+fail-closed gate is several lines, and this phase added nine of them. §6 and §17
+both warn against line count as acceptance; here it would point the wrong way
+entirely. The load-bearing figure is `EFFECT_FIRST` 6 → 0, produced by
+`scripts/auditHandlerOrdering.mjs` — the same script, with the same strict gate
+pattern, that surfaced the 6 in the first place.
+
+The +3 methods are `displayClientId`, `requireTenant` and `requireAdmin`. The
+first is the display-only default that §10 permits; the other two are one-line
+delegations to `controllers/trustedTenant.ts`, which exists so the gate can be
+tested without a DOM or a store.
+
+### A discrepancy in the Phase-4 accounting, recorded
+
+The Phase-4 audit reported 86 paths as 56 effect-bearing handlers plus 30
+command-method bodies, with 6 `EFFECT_FIRST` — all 6 attributed to handlers,
+implying all 30 command bodies were `GATE_FIRST`. The method-level scan does not
+support that: it reports 6 effect-bearing *method bodies* with no in-path gate
+(`boot`, `completeLinkedArticleTask`, `markVideoCaptureStarted`,
+`markArticleReviewStarted`, `pollSources`, `pollOneSource`).
+
+These are a different population from AUDIT010-10 — internal helpers invoked
+from handlers that are themselves gated, plus one bootstrap path — so the
+remediation claim above is unaffected. But the two populations were never
+reconciled, and the coincidence of both being 6 is exactly the kind of thing
+that invites a false equivalence. Registered as **AUDIT010-12** (P3) rather than
+asserted safe: proving it requires verifying the 12 call sites those helpers
+have, which is outside this phase's authorization.

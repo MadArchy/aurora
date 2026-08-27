@@ -152,6 +152,28 @@ Criteria deliberately **not** advanced:
 | A43 | No legacy was removed, by design (§19) |
 | A44 | CODE_COMPLETE regression is Phase 6 |
 
+### Phase-4C acceptance movement (local security remediation)
+
+`P4C` = `tests/reactMigrationPhase4cSecurity.test.ts` (33/33).
+
+**No criterion advanced category, and none advanced to PASS.** Phase 4C migrated
+nothing and canonicalized nothing, so no acceptance criterion about migration
+coverage could move. Four criteria gained materially stronger evidence, all
+about trusted identity:
+
+| # | Phase-4C evidence |
+|---|------------------|
+| A5 | `EFFECT_FIRST` across all 157 handlers is **0**, down from 6, re-measured by the script that produced the finding. Six user-triggered effect paths gate before the effect; three adjacent sites were gated in the same pass so that no twin was left ungated. Behaviour preserved: the legitimate flows still reach the same effects with the same arguments |
+| A16 | Trusted tenant hardened where it was weakest — the legacy controller. `P4C` proves a `CLIENT` actor cannot propose another tenant, an `ADMIN` actor cannot reach outside its own organization, an unknown client is refused, and the grant's `organizationId` always comes from the session and never from the client record. Caller tenant authority is now 0 on these paths adversarially rather than by inspection: a DOM-injected client id cannot redirect an effect |
+| A17 | Trusted actor — the tenant-less admin sync utility gates on the session role instead of on whether its button was rendered. `P4C` proves a `CLIENT` actor and a sessionless caller are both refused |
+| A18 | Caller role authority 0 — role is read from the trusted session in the gate; button visibility, `disabled` and `hidden` are proven not to serve as authorization |
+| A21 | The display-default / business-authority split made explicit. `P4C` proves `resolveClientId` no longer resolves a tenant by array position, that a client session without a trusted `clientId` renders no portal at all, that the ingest scheduler skips a tick rather than picking the first client, and that the single remaining `getClients()[0]` is confined to the display-only `displayClientId()` |
+
+Criteria deliberately **not** advanced: everything about migration coverage
+(A21–A30, A39, A41, A43), because gating a legacy write does not migrate it.
+A39 in particular stays PARTIAL — `main.ts` grew by 89 lines, since fail-closed
+gates cost lines, and §17 forbids treating line count as acceptance either way.
+
 ### Phase-3 acceptance movement (T-010-301…306)
 
 `ARCH3` = `tests/reactMigrationPhase3Architecture.test.ts` (28/28) ·

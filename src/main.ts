@@ -41,6 +41,11 @@ import { CurationDestination, DeliveryItemKind, Source, TaskType, ContentStatus,
 import { createId } from './lib/id';
 import { CAMP_ADOPTION } from './data/juanCampaignSeed';
 import { bindSessionUi } from './controllers/sessionController';
+import {
+  requireAdminActor,
+  requireTenantScope,
+  type TenantDecision,
+} from './controllers/trustedTenant';
 import { themeService } from './services/theme';
 import { mapLegacyContentStatus, resolvePipelineStepsToTarget, syncLegacyStatusFromPipeline } from './domain/contentPipeline';
 import {
@@ -282,16 +287,38 @@ class App {
     return fromSession || null;
   }
 
-  /** Cliente objetivo de una acción: el del workspace, el de la sesión, o el del elemento pulsado. */
+  /**
+   * Cliente *candidato* de una acción. NO es autoridad de tenant.
+   *
+   * AUDIT010-11: antes terminaba en `dbService.getClients()[0]?.id`, es decir
+   * elegía un tenant por posición cuando no había ninguno resuelto. Ese tramo
+   * se eliminó: ahora devuelve '' y quien ejecute un efecto debe pasar el
+   * candidato por `requireTenantScope`, que falla cerrado.
+   */
   private resolveClientId(fallback?: string | null): string {
     const user = authService.getCurrentUser();
-    return (
-      fallback ||
-      this.currentClientId() ||
-      user?.clientId ||
-      dbService.getClients()[0]?.id ||
-      ''
-    );
+    return fallback || this.currentClientId() || user?.clientId || '';
+  }
+
+  /**
+   * Default puramente visual para pintar una pantalla sin cliente activo.
+   * DISPLAY DEFAULT ≠ AUTORIDAD DE CLIENTE: no debe alimentar ningún efecto.
+   */
+  private displayClientId(): string {
+    return this.resolveClientId() || dbService.getClients()[0]?.id || '';
+  }
+
+  /** Gate de tenant de confianza para efectos. Falla cerrado. */
+  private requireTenant(requested?: string | null): TenantDecision {
+    return requireTenantScope(requested, {
+      getCurrentUser: () => authService.getCurrentUser(),
+      getClientById: (id) => dbService.getClientById(id),
+    });
+  }
+
+  /** Gate de actor de confianza para utilidades sin tenant propio. */
+  private requireAdmin(): TenantDecision {
+    return requireAdminActor({ getCurrentUser: () => authService.getCurrentUser() });
   }
 
   private enterClient(clientId: string, tab?: string) {
@@ -350,9 +377,16 @@ class App {
     if (!user) return '';
 
     if (user.role !== 'ADMIN') {
+      // AUDIT010-11: este tramo caía en `getClients()[0]` cuando la sesión de
+      // cliente no traía clientId, es decir pintaba el portal de OTRO tenant.
+      // Falla cerrado: sin clientId de confianza no se pinta portal alguno.
+      const trustedClientId = user.clientId?.trim();
+      if (!trustedClientId) {
+        return `<div class="empty-state"><h3>Sesión sin cliente asignado</h3><p>Contacta a tu manager para completar el alta.</p></div>`;
+      }
       return renderClientPortal(
         this.activeTab,
-        user.clientId || dbService.getClients()[0]?.id || '',
+        trustedClientId,
         this.activeCampaignId,
         this.filterState.thesisId || undefined,
         this.filterState.highlightTaskId || undefined
@@ -473,7 +507,7 @@ class App {
     const presentation = presentActiveModal({
       activeModal: this.activeModal,
       modalData: this.modalData,
-      fallbackClientId: this.resolveClientId(),
+      fallbackClientId: this.displayClientId(),
       currentClientId: this.currentClientId(),
       isAdmin: authService.getCurrentUser()?.role === 'ADMIN',
       renderNotificationsPanel: () => this.renderNotificationsPanel(),
@@ -740,6 +774,11 @@ class App {
 
   private bindClientAdmin() {
     document.getElementById('btn-firebase-push-local')?.addEventListener('click', async () => {
+      const grant = this.requireAdmin();
+      if (!grant.ok) {
+        this.showToast(grant.message, 'warning');
+        return;
+      }
       const result = await pushCurrentLocalToFirestore();
       this.showToast(result.message, result.ok ? 'success' : 'warning');
     });
@@ -830,9 +869,11 @@ class App {
     ['btn-close-onboarding', 'btn-onboarding-skip'].forEach((id) => {
       document.getElementById(id)?.addEventListener('click', () => {
         if (id === 'btn-onboarding-skip') {
-          const clientId = this.modalData?.clientId || authService.getCurrentUser()?.clientId;
-          if (clientId) {
-            dbService.updateClient(clientId, { onboardingStatus: 'IN_PROGRESS' });
+          // `if (clientId)` era una comprobación de presencia, no de
+          // titularidad. El gate valida tenant de confianza antes del write.
+          const grant = this.requireTenant(this.modalData?.clientId);
+          if (grant.ok) {
+            dbService.updateClient(grant.clientId, { onboardingStatus: 'IN_PROGRESS' });
           }
           authService.clearOnboardingFlag();
         }
@@ -844,7 +885,14 @@ class App {
     formOnboardingStep?.addEventListener('submit', (e) => {
       e.preventDefault();
       const step = parseInt(formOnboardingStep.getAttribute('data-step') || '1', 10);
-      const clientId = formOnboardingStep.getAttribute('data-client-id') || this.resolveClientId();
+      const grant = this.requireTenant(
+        formOnboardingStep.getAttribute('data-client-id') || this.resolveClientId(),
+      );
+      if (!grant.ok) {
+        this.showToast(grant.message, 'warning');
+        return;
+      }
+      const clientId = grant.clientId;
 
       const val = (id: string) =>
         (document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null)?.value || '';
@@ -1225,7 +1273,12 @@ class App {
 
     document.getElementById('btn-generate-thesis-proposal')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget as HTMLButtonElement;
-      const clientId = btn.getAttribute('data-client-id') || this.resolveClientId();
+      const grant = this.requireTenant(btn.getAttribute('data-client-id') || this.resolveClientId());
+      if (!grant.ok) {
+        this.showToast(grant.message, 'warning');
+        return;
+      }
+      const clientId = grant.clientId;
       btn.disabled = true;
       btn.textContent = 'Generando…';
       try {
@@ -1248,7 +1301,14 @@ class App {
 
     if (this.modalData?.generateProposal && thesisForm) {
       void (async () => {
-        const clientId = thesisForm.getAttribute('data-client-id') || this.resolveClientId();
+        const grant = this.requireTenant(
+          thesisForm.getAttribute('data-client-id') || this.resolveClientId(),
+        );
+        if (!grant.ok) {
+          this.showToast(grant.message, 'warning');
+          return;
+        }
+        const clientId = grant.clientId;
         try {
           const proposal = await aiService.generateThesisProposal(clientId);
           this.applyThesisProposalToForm(proposal);
@@ -2308,7 +2368,12 @@ class App {
 
     document.getElementById('btn-research-all-signals')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget as HTMLButtonElement;
-      const clientId = btn.getAttribute('data-client-id') || this.resolveClientId();
+      const grant = this.requireTenant(btn.getAttribute('data-client-id') || this.resolveClientId());
+      if (!grant.ok) {
+        this.showToast(grant.message, 'warning');
+        return;
+      }
+      const clientId = grant.clientId;
       btn.disabled = true;
       btn.textContent = 'Investigando…';
       try {
@@ -2340,7 +2405,12 @@ class App {
         const signalId = target.getAttribute('data-signal-id');
         if (!signalId) return;
         const signal = dbService.getSignalById(signalId);
-        const clientId = this.resolveClientId(signal?.clientId);
+        const grant = this.requireTenant(this.resolveClientId(signal?.clientId));
+        if (!grant.ok) {
+          this.showToast(grant.message, 'warning');
+          return;
+        }
+        const clientId = grant.clientId;
         target.disabled = true;
         target.textContent = '…';
         try {
@@ -2681,7 +2751,14 @@ class App {
     const adviceBtn = document.getElementById('btn-generate-advice');
     adviceBtn?.addEventListener('click', async (e) => {
       const target = e.currentTarget as HTMLButtonElement;
-      const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
+      const grant = this.requireTenant(
+        target.getAttribute('data-client-id') || this.resolveClientId(),
+      );
+      if (!grant.ok) {
+        this.showToast(grant.message, 'warning');
+        return;
+      }
+      const clientId = grant.clientId;
       target.disabled = true;
       target.textContent = 'Analizando…';
       try {
@@ -2698,7 +2775,14 @@ class App {
 
     document.getElementById('btn-run-topic-agent')?.addEventListener('click', (e) => {
       const target = e.currentTarget as HTMLButtonElement;
-      const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
+      const grant = this.requireTenant(
+        target.getAttribute('data-client-id') || this.resolveClientId(),
+      );
+      if (!grant.ok) {
+        this.showToast(grant.message, 'warning');
+        return;
+      }
+      const clientId = grant.clientId;
       target.disabled = true;
       try {
         const result = runTopicAgent(clientId);
@@ -4873,11 +4957,16 @@ class App {
 
   /** Ingesta automática según fetchIntervalMinutes del cliente activo. */
   private async tickScheduledIngest() {
-    const clientId =
+    // AUDIT010-11: el scheduler caía en `getClients()[0]` cuando no había
+    // workspace activo, ingiriendo para un tenant elegido por posición. Sin
+    // scope explícito no se ingiere: el tick espera al siguiente ciclo.
+    const scoped =
       isWorkspaceTab(this.activeTab) && this.activeClientId !== 'all'
         ? this.activeClientId
-        : dbService.getClients()[0]?.id;
-    if (!clientId) return;
+        : '';
+    const grant = this.requireTenant(scoped);
+    if (!grant.ok) return;
+    const clientId = grant.clientId;
 
     const due = sourcesDueForIngest(clientId).slice(0, 4);
     if (!due.length) return;

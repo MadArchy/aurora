@@ -196,7 +196,8 @@ command and canonicalized nothing, so no row moved.
 
 ## AUDIT010-10 — material effect with no in-path authorization gate
 
-**Severity P2 · `RETAINED_LEGACY_REMEDIATION_REQUIRED`**
+**Severity P2 · opened Phase 4 · `RETAINED_LEGACY_REMEDIATION_REQUIRED`
+→ Phase 4C: `RESOLVED`** (remediation below)
 
 Six legacy paths execute a material effect without an authorization check in the
 path. Authorization is by UI visibility — the control is not rendered for users
@@ -226,7 +227,8 @@ migrating an `EFFECT_FIRST` path, and 0 were migrated.
 
 ## AUDIT010-11 — positional default for tenant selection
 
-**Severity P3 · `LEGACY_BEHAVIOUR_PRESERVED`**
+**Severity P3 (recorded Phase 4) → P2 (reclassified Phase 4B evidence) · `LEGACY_BEHAVIOUR_PRESERVED`
+→ Phase 4C: `RESOLVED`** (remediation below)
 
 `main.ts` `resolveClientId()` falls back to `dbService.getClients()[0]?.id` — a
 first-record default for **tenant** scope. It is not thesis positional authority,
@@ -317,3 +319,136 @@ angle and rationale from the stored record. Caller snapshot authority becomes 0
 for this path, and the change needs no new infrastructure.
 
 **Authorization required from the SPEC-003 owner. Not implemented in Phase 4.**
+
+---
+
+# Phase 4C — local security remediation
+
+**Scope:** AUDIT010-10 and AUDIT010-11 only. No cross-SPEC implementation, no
+canonical use case created, no registry row removed. **CR-1 stays at 34 blocked
+writes and CR-2 stays `CHANGE_REQUIRED`** — this phase fixed how the legacy
+paths establish *who is acting on which tenant*, not who owns the commands.
+
+## The gate
+
+`src/controllers/trustedTenant.ts` — `requireTenantScope` and
+`requireAdminActor`. It is a **gate, not a tenant authority**: it holds no state,
+imports no store or service, and receives identity through injected
+dependencies. §6 forbids a second tenant authority, so nothing here can mint
+identity; the organization is always the actor's own.
+
+| Rule | Behaviour |
+|---|---|
+| No session | refuse `NO_SESSION` |
+| Session without `organizationId` | refuse `NO_TRUSTED_ORG` |
+| `CLIENT` actor proposing another client | refuse `CLIENT_SCOPE_VIOLATION` |
+| `CLIENT` actor | pinned to trusted `user.clientId`; a proposal is only ever accepted when it matches |
+| `ADMIN` actor, nothing chosen | refuse `NO_CLIENT_SCOPE` — no positional default |
+| `ADMIN` actor, unknown client | refuse `UNKNOWN_CLIENT` |
+| `ADMIN` actor, client in another org | refuse `CROSS_ORG` |
+| Grant | `organizationId` from the **session**, never from the client record |
+
+That last row is the substantive fix. `main.ts` `resolveOrganizationId()` reads
+the organization from the client record first, so it answers *"does this client
+have an org?"* — a presence check that **any existing client passes**. It never
+answered *"may this actor act on this client?"*. The gate answers the second
+question, which is the one that matters when the proposed client id arrives from
+a DOM attribute.
+
+## AUDIT010-10 — the six paths, remediated
+
+| Path | Effect | Tenant before | Tenant after | Gate added |
+|---|---|---|---|---|
+| `btn-firebase-push-local` | `pushCurrentLocalToFirestore()` | session | n/a (org-wide) | `requireAdminActor` — role from trusted session |
+| `form-onboarding-step` | `dbService.applyOnboardingStep` (registry #10) | **DOM attribute** | trusted grant | `requireTenantScope` |
+| `btn-generate-thesis-proposal` | `aiService.generateThesisProposal` | **DOM attribute** | trusted grant | `requireTenantScope` |
+| `btn-research-all-signals` | `runResearchSignalsAgent` | **DOM attribute** | trusted grant | `requireTenantScope` |
+| `btn-generate-advice` | `generatePositioningAdvice` | **DOM attribute** | trusted grant | `requireTenantScope` |
+| `btn-run-topic-agent` | `runTopicAgent` | **DOM attribute** | trusted grant | `requireTenantScope` |
+
+Three adjacent sites were gated in the same pass, because leaving a twin
+ungated would have gated only what was counted: the deferred
+`generateThesisProposal` auto-run, the per-signal `.btn-research-signal`
+handler, and the `btn-onboarding-skip` write (whose `if (clientId)` was a
+presence check before `dbService.updateClient`).
+
+**Mechanical evidence.** `scripts/auditHandlerOrdering.mjs` — the same script
+that produced the finding — now reports **`EFFECT_FIRST: 0`** across all 157
+handlers, down from 6. `scripts/auditMainController.mjs` no longer flags
+`bindOnboarding`.
+
+**DOM-derived tenant authority: 5 → 0. Button-visibility authorization: 6 → 0.**
+`data-client-id` still exists in markup and is still passed in, but it is now
+`DISPLAY_ONLY` input to a gate that can refuse it.
+
+## AUDIT010-11 — positional tenant authority removed
+
+The Phase-4B analysis found `resolveClientId`'s `getClients()[0]` fallback.
+Writing the test found **two more sites the analysis had missed**, and one was
+worse than the recorded finding:
+
+| Site | Behaviour before | Behaviour after |
+|---|---|---|
+| `resolveClientId()` | ended in `dbService.getClients()[0]?.id`, feeding business writes | returns `''`; callers must pass it through the gate |
+| `renderMainView()` | a `CLIENT` session with no `clientId` fell through to `getClients()[0]`, **rendering another tenant's portal** | fails closed with an explanatory empty state |
+| `tickScheduledIngest()` | with no active workspace, ingested for `getClients()[0]` — a background effect choosing tenant by position | requires a grant; skips the tick otherwise |
+
+The `renderMainView` case is the reason the severity reclassification was right.
+A first-record *default* is untidy; rendering a different tenant's portal to a
+client whose session lacks a `clientId` is a tenant-isolation defect. It was
+reachable only for a malformed client session, and SPEC-009 rules would still
+have refused the reads server-side, so no P0/P1 is claimed — but it is not P3.
+
+One positional pick remains, deliberately and per §10: `displayClientId()`,
+used **only** for the modal presenter's fallback. `DISPLAY DEFAULT ≠ BUSINESS
+CLIENT AUTHORITY`, and a test asserts it is the only `getClients()[0]` left in
+the controller's code and that it is confined to that method.
+
+## AUDIT010-12 — internal helpers with no gate of their own (new, P3)
+
+**Severity P3 · `DEFENCE_IN_DEPTH_GAP`**
+
+The method-level scan reports 6 command-method bodies that execute an effect
+with no in-path gate: `boot`, `completeLinkedArticleTask`,
+`markVideoCaptureStarted`, `markArticleReviewStarted`, `pollSources`,
+`pollOneSource`. These are **not** the AUDIT010-10 population — they are
+internal helpers reached from handlers that are themselves gated, and `boot` is
+bootstrap rather than a user action.
+
+Registered rather than closed or ignored, for two honest reasons. Static
+ordering analysis cannot prove a helper is safe from its callers' gates, and
+each of these has 1–4 call sites that would each need verifying. And the
+Phase-4 audit's accounting attributed all 6 `EFFECT_FIRST` paths to handlers,
+which the method-level view does not support; the populations were never
+reconciled. Verifying the 12 call sites is the remediation, and it is not this
+phase's authorized scope.
+
+## Severity after Phase 4C
+
+Row-level derivation, not an edited total. Entering: P2 **4** recorded / **5**
+evidence-supported (AUDIT010-11 reclassified P3→P2), P3 **7** / **6**.
+
+| Change | P2 | P3 |
+|---|---|---|
+| Evidence-supported entry | 5 | 6 |
+| AUDIT010-10 resolved | −1 | — |
+| AUDIT010-11 resolved (at P2) | −1 | — |
+| AUDIT010-12 opened | — | +1 |
+| **Exit** | **3** | **7** |
+
+**P0 0 · P1 0 · P2 3 · P3 7.**
+
+## What Phase 4C did not touch
+
+| Item | State |
+|---|---|
+| CR-1 blocked writes | **34** — unchanged |
+| CR-1 ownership | **PARTIAL** (SPEC-006 1, unassigned 33) — unchanged |
+| CR-1 provisional groups | **10** — unchanged |
+| CR-2 / SPEC-003 | **CHANGE_REQUIRED**, `CALLER_SNAPSHOT_AUTHORITY_PRESENT` — unchanged |
+| SPEC-003 modifications | **0** |
+| T-010-403 / T-010-404 | **BLOCKED_BY_PRECONDITION** — CR-1 unresolved |
+
+Gating a legacy write does not canonicalize it. Every one of the 34 still writes
+through `dbService` with no Application use case, and every one is still barred
+from React. The gates make the legacy path safer while it stays legacy.

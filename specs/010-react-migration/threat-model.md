@@ -330,6 +330,45 @@ severity, auditing would reward finding nothing.
 
 ---
 
+## Phase-4C threat status (local security remediation)
+
+| Threat window | PASS | PARTIAL | FAIL | PENDING |
+|-----------|------|---------|------|---------|
+| Phase 4 exit | 0 | 26 | 0 | 0 |
+| **Phase 4C exit** | **0** | **26** | **0** | **0** |
+
+No row moved category, and none was promoted to PASS. Four rows gained
+materially stronger evidence, all of them about trusted identity rather than
+about migration coverage:
+
+| Threat | Phase 4C evidence |
+|---|---|
+| T-010-09 (tenant scope) | The controller can no longer resolve a tenant by array position. `resolveClientId` fails to `''`, `renderMainView` refuses to render a portal without a trusted `clientId`, and the ingest scheduler skips a tick rather than picking the first client. `P4C` proves all three. |
+| T-010-10 (caller identity) | Six user-triggered effect paths now derive tenant from a validated grant instead of a `data-client-id` attribute. A `CLIENT` actor proposing another tenant is refused; an `ADMIN` actor is confined to its own organization. |
+| T-010-13 (authorization) | Button visibility is no longer the only thing standing between a click and a material effect. The tenant-less admin sync utility gates on the trusted session role. |
+| T-010-25 (side-effect ordering) | `EFFECT_FIRST` across all 157 handlers is **0**, down from 6, measured by the same script that produced the original finding. |
+
+These stay PARTIAL rather than becoming PASS because the threats are scoped to
+the *whole* migration surface, and the 34 blocked writes they also cover remain
+legacy under CR-1. A gate on six paths is not proof for a threat that spans the
+controller.
+
+**Phase-4C severity:** P0 **0** · P1 **0** · P2 **3** · P3 **7**.
+
+Row-level derivation from the evidence-supported Phase-4 ledger (P2 **5** ·
+P3 **6**, i.e. after AUDIT010-11's P3→P2 reclassification): AUDIT010-10 resolved
+(P2 −1); AUDIT010-11 resolved (P2 −1); **AUDIT010-12** opened at P3 (+1) for six
+internal helpers whose gate lives in their callers rather than in-path.
+
+Note that the recorded Phase-4 total was P2 **4** · P3 **7** while the
+evidence supported P2 **5** · P3 **6**. Phase 4B identified the discrepancy —
+`resolveClientId` fed tenant into business writes and `getClients()` is not
+organization-scoped, so the finding was never display-only — and Phase 4C is
+where it is reconciled rather than carried forward. Full derivation in
+`audit010-09-registry.md`.
+
+---
+
 **Phase-2 severity:** P0 **0** · P1 **0** · P2 **3** · P3 **5** (AUDIT010-09 extended
 from 1 to 10 registered commands — same finding, wider inventory, unchanged
 severity; see `audit010-09-registry.md`).
