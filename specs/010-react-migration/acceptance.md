@@ -2,8 +2,10 @@
 
 **Phase 0:** **COMPLETE** · Human SPEC approval **APPROVED** (T-010-010, 2026-08-26 America/Bogota)
 **Phase 1:** **COMPLETE** — React foundation, shell, strangler seams, query/command boundaries, E2E foundation
-**Phase 2+:** **NOT AUTHORIZED**
-**A1-A44:** **7 PASS** · **24 PARTIAL** · **0 FAIL** · **13 PENDING**
+**Phase 2:** **COMPLETE** — 9 bounded components, read seams, canonical commands
+**Phase 3:** **COMPLETE** — 5 pages migrated (all HYBRID), 34 blocked writes registered
+**Phase 4+:** **NOT AUTHORIZED**
+**A1-A44:** **7 PASS** · **33 PARTIAL** · **0 FAIL** · **4 PENDING** (Phase-3 exit)
 **CODE_COMPLETE:** **NO**
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -87,7 +89,52 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 |-----------|------|---------|------|---------|
 | Phase 0 exit | 6 | 0 | 0 | 38 |
 | Phase 1 exit | 7 | 24 | 0 | 13 |
-| **Phase 2 exit** | **7** | **26** | **0** | **11** |
+| Phase 2 exit | 7 | 26 | 0 | 11 |
+| **Phase 3 exit** | **7** | **33** | **0** | **4** |
+
+### Phase-3 acceptance movement (T-010-301…306)
+
+`ARCH3` = `tests/reactMigrationPhase3Architecture.test.ts` (28/28) ·
+`P3` = `tests/reactMigrationPhase3Pages.test.ts` (19/19) ·
+`E2E3` = `e2e/wave3-pages.spec.ts` (6/6).
+
+Seven criteria advanced from PENDING to PARTIAL. Each is a cross-SPEC
+preservation criterion that could not be evidenced before Phase 3, because
+before Phase 3 no React surface touched the SPEC in question. None advances to
+PASS: full PASS requires the Phase-5 adversarial suites (T-010-501…510).
+
+| # | Was | Now | Why |
+|---|-----|-----|-----|
+| **A21** | ⏳ PENDING | ⚠️ PARTIAL | `Modals.ts` decomposed (7 of 13). `ARCH3` proves no presentation default is authoritative: the `approvedBriefs[0]` pre-selection is not reproduced, the brief and thesis selectors start empty, and `P3` proves the returned brief list carries no `selected`/`isDefault` marker. Command revalidation by SPEC-003 is proven for approval; the full set of strategic commands remains Phase 4–6 |
+| **A22** | ⏳ PENDING | ⚠️ PARTIAL | SPEC-001 surface migrated (radar). The React panel *displays* `routingDecision.routingState` and shows attribution only when routing declared it CLEAR; CONTESTED defers to the legacy decision surface. `ARCH3` bans routing computation and first-thesis selection in any page |
+| **A23** | ⏳ PENDING | ⚠️ PARTIAL | SPEC-002 surface migrated. `ARCH3` asserts no score function and no weight arithmetic exists in any page; every displayed score comes from the projection, and scoring itself was not migrated |
+| **A24** | ⏳ PENDING | ⚠️ PARTIAL | SPEC-003 consumed canonically: briefs are read through `strategicBriefConsumer`, approval forwards ids only, and `P3` proves the governed `authorizedAction` is carried through rather than recomputed. Brief *creation* deliberately not wrapped (registry) |
+| **A27** | ⏳ PENDING | ⚠️ PARTIAL | SPEC-006 preserved: the claim verdict is displayed as data, and no React surface verifies a claim or authorizes publication — pipeline actions and the publication gate stayed legacy. `ARCH3` bans `PUBLISHED` assignment in any page |
+| **A29** | ⏳ PENDING | ⚠️ PARTIAL | SPEC-008 preserved: the only migrated learning command is the signal-outcome *intent*. `P3` proves it forwards ids and a kind with no actor, no role and no aggregate, and `ARCH3` bans `APPROVED`/`APPLIED` assignment. No auto-approve, no auto-apply, no `feedbackScoringHints`, no rescore |
+| **A30** | ⏳ PENDING | ⚠️ PARTIAL | SPEC-010 → SPEC-008 mutation authority **0**: the intent reaches `registerSignalOutcomeIntent`, which resolves its own trusted context and rules on the transition. `ARCH3` proves no page imports an Application module or a consumer directly |
+
+Criteria that stayed PARTIAL but gained materially stronger evidence:
+
+| # | Phase-3 evidence |
+|---|------------------|
+| A5 | Five pages migrated with authority `PRESENTATION`/`INTENT` only; `ARCH3` proves no business authority, no manufactured identity, no DOM escape |
+| A8 | React → `dbService` direct page imports **0**; the facade remains the only importer in `src/ui` and still exposes **0** mutators, both asserted |
+| A9 | 14 wave-3 queries, each with exactly one declared read source carried inside the cache key; 3 of them canonical |
+| A10 | 2 further canonical commands flow React intent → seam → consumer; `P3` proves the forwarded payloads are ids only |
+| A19 | `P3` proves all 14 wave-3 keys are tenant-scoped and collision-free across organizations, clients, read sources and thesis ids |
+| A20 | `ARCH3` proves no page selects a thesis, campaign or brief by position; the facade returns an unresolved marker instead of a fallback |
+| A35 | `ARCH3` proves a tab owned by a wave-3 page does not additionally render its wave-2 group — no surface has two owners |
+| A38 | `E2E3` proves React mounts without a second DOM owner across all 9 wave-3 surfaces, and that rollback leaves business state byte-identical |
+| A41 | Page-level parity evidence now exists for 12 of 18 dimensions per migrated page; dimensions where the legacy command intentionally stays outside React are classified rather than claimed. Cutover parity remains Phase 5 |
+
+Criteria deliberately **not** advanced:
+
+| # | Why not |
+|---|---------|
+| A25 | SPEC-004 (Plan/PlanItem) has no migrated React surface — no wave-3 page exposes a plan command, so there is nothing to evidence |
+| A31 | Rules remain 91/91 and SPEC-009 production is untouched, but no security review was performed in Phase 3; that is Phase 5 |
+| A39 | `main.ts` is 5,138 lines before and after, asserted by test. Extraction is Phase 4 |
+| A44 | CODE_COMPLETE regression is Phase 6 |
 
 ### Phase-2 acceptance movement (T-010-201…206)
 

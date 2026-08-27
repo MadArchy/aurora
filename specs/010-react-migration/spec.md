@@ -5,7 +5,7 @@
 | **Spec ID** | `010-react-migration` |
 | **Display name** | **SPEC-010 — React migration** |
 | **Status** | **`APPROVED`** · Phase 0 **COMPLETE** · human approval **APPROVED** (T-010-010, 2026-08-26 America/Bogota) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**) · Phase 3+ **NOT AUTHORIZED** · deployment **NOT_STARTED** |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**) · Phase 3 **COMPLETE** (T-010-301…306 all **DONE**; 5 pages HYBRID, 0 fully cut over) · Phase 4+ **NOT AUTHORIZED** · deployment **NOT_STARTED** |
 | **Branch** | `spec/010-react-migration` |
 | **Baseline SHA** | SPEC-008 CODE_COMPLETE final freeze `642ae9390700a254fa390ba09a959bab3c37d616` |
 | **Priority** | P2 — terminal SPEC in the constitutional dependency graph |
@@ -16,6 +16,7 @@
 | **Test baseline (Phase 0)** | `npm run check` **1467/1467 PASS** · `npm run test:rules` **91/91 PASS** — unchanged by Phase 0 |
 | **Test baseline (Phase 1)** | `npm run check` **1494/1494 PASS** · `npm run test:rules` **91/91 PASS** · `npm run build` **PASS** · Playwright **5/5 PASS** |
 | **Test baseline (Phase 2)** | `npm run check` **1546/1546 PASS** · `npm run test:rules` **91/91 PASS** · `npm run build` **PASS** · Playwright **10/10 PASS** |
+| **Test baseline (Phase 3)** | `npm run check` **1592/1592 PASS** · `npm run test:rules` **91/91 PASS** · `npm run build` **PASS** · Playwright **16/16 PASS** |
 | **Human SPEC approval** | **APPROVED** — T-010-010, 2026-08-26 (America/Bogota) |
 
 **Title provenance (HIGH confidence):** `POSTURA_CONSTITUTION.md:847` and `specify/memory/constitution.md:847`

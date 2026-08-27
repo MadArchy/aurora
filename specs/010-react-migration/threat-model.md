@@ -1,6 +1,7 @@
 # Threat model 010 — React migration
 
-**Phase 0 formal threats.** Implementation and adversarial proof: **NOT STARTED** (Phase 5).
+**Phase 0 formal threats.** Defensive evidence through Phase 3 (all 26 PARTIAL).
+Adversarial proof: **NOT STARTED** (Phase 5) — **0 PASS**.
 
 Constitution: UI = intent/display only · AI advisory · human-in-the-loop · tenant isolation ·
 multi-thesis native · strangler only.
@@ -177,13 +178,89 @@ Phase-2 evidence is defensive, not exhaustive.
 | T-010-25 | ⚠️ PARTIAL | ⚠️ PARTIAL | 5 further command paths audited, all `GATE_FIRST`; **0** `EFFECT_FIRST` migrated, **0** `UNKNOWN` migrated |
 | T-010-26 | ⚠️ PARTIAL | ⚠️ PARTIAL | `E2E2`: rollback after loading wave 2 leaves business storage byte-identical; 0 legacy removed |
 
-**Threat status at Phase-2 exit:** **0 PASS / 22 PARTIAL / 0 FAIL / 4 PENDING**
+**Threat status at Phase-2 exit:** **0 PASS / 24 PARTIAL / 0 FAIL / 2 PENDING**
+(row-counted; see the tally reconciliation in the Phase-3 section below)
 
 | Milestone | PASS | PARTIAL | FAIL | PENDING |
 |-----------|------|---------|------|---------|
 | Phase 0 exit | 0 | 0 | 0 | 26 |
-| Phase 1 exit | 0 | 19 | 0 | 7 |
-| **Phase 2 exit** | **0** | **22** | **0** | **4** |
+| Phase 1 exit | 0 | 21 | 0 | 5 |
+| **Phase 2 exit** | **0** | **24** | **0** | **2** |
+
+---
+
+## Phase-3 threat status
+
+Phase 3 migrated five pages. Every one is HYBRID: presentation and reads in
+React, most business commands retained in legacy because AUDIT010-09 blocks
+them. That shape matters for the threat model in a specific way — the threats
+about *React performing a business write* are argued not only by architecture
+assertion but by the absence of the write path altogether, while the threats
+about *React displaying a business decision it did not make* now have real
+surfaces to be tested against.
+
+**No threat is declared PASS.** Adversarial proof is Phase 5 (T-010-501…510).
+
+`ARCH3` = `tests/reactMigrationPhase3Architecture.test.ts` (28/28) ·
+`P3` = `tests/reactMigrationPhase3Pages.test.ts` (19/19) ·
+`E2E3` = `e2e/wave3-pages.spec.ts` (6/6).
+
+### Tally reconciliation (governance finding, documentation-only)
+
+The Phase-1 and Phase-2 threat summary lines disagreed with their own tables:
+each table's rows counted two more PARTIAL and two fewer PENDING than the
+summary beneath it. The rows are the evidence, so the rows win; the summaries
+above have been corrected to match, and no threat's actual status changed. The
+drift is recorded as a **P3 documentation defect** rather than silently absorbed,
+because a governance tally that nobody reconciles is exactly how an unproven
+control gets counted as proven. Phase-3 numbers below are row-counted.
+
+| ID | Phase-2 | **Phase-3** | Phase-3 evidence |
+|----|---------|-------------|------------------|
+| T-010-01 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: 5 pages, 7 modals, `LegacyHandoff` and `useWave3Data` import **0** `dbService`; the facade is still the only importer in `src/ui/**` and exports only `read*` |
+| T-010-02 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: 0 `Local*Store` / infrastructure imports across wave 3 |
+| T-010-03 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: 0 Firestore imports across wave 3 |
+| T-010-04 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: 0 provider imports across wave 3, asserted against `import` statements so that a field named `openaiOutput` cannot pass as a provider call and a real import cannot hide behind one |
+| T-010-05 | ⚠️ PARTIAL | ⚠️ PARTIAL | Cache still `staleTime: 0`; all 14 wave-3 reads are projections. The two migrated commands take ids, so no cached object can be the authority |
+| T-010-06 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: wave 3 uses `invalidateQueries` only, **never** `setQueryData` — 0 optimistic business mutations |
+| T-010-07 | ⚠️ PARTIAL | ⚠️ PARTIAL | `P3`: both commands forward ids only. Brief *creation* was left unmigrated **because** its canonical signature demands the whole `CurationEntry` aggregate — the threat was allowed to block a migration rather than be worked around |
+| T-010-08 | ⚠️ PARTIAL | ⚠️ PARTIAL | `P3`: all 14 wave-3 keys proven tenant-scoped and collision-free across organizations, clients, read sources and thesis ids |
+| T-010-09 | ⚠️ PARTIAL | ⚠️ PARTIAL | `P3`: a scope with no client fails closed on both commands instead of defaulting |
+| T-010-10 | ⚠️ PARTIAL | ⚠️ PARTIAL | `P3`: no wave-3 command sends `actorType`, `role`, `actorUid` or `createdBy`; `ARCH3` bans identity literals in pages |
+| T-010-11 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: no privilege-role literal in any wave-3 page. Manager-only surfaces are gated by the shell's trusted session, not by a page-side role string |
+| T-010-12 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: no page imports a consumer or an Application module; both commands go through the one seam |
+| T-010-13 | ⚠️ PARTIAL | ⚠️ PARTIAL | Each of the 14 wave-3 hooks declares exactly one read source, carried in the key |
+| T-010-14 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: no page assigns `APPROVED`/`PUBLISHED`/`COMPLETED`/`APPLIED`. The assertion distinguishes an assignment from a comparison, so displaying a status stays legal and setting one does not |
+| T-010-15 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: no `theses[0]`, `primaryThesisId` or `sort()[0]` in wave 3. The cockpit row that legacy rendered from `getActiveTheses(id)[0]` now shows the count and every title |
+| T-010-16 | ⏳ PENDING | ⚠️ **PARTIAL** | `Modals.ts` migrated. The legacy generate-content modal pre-selects `approvedBriefs[0]`, biasing the manager whenever several briefs are approved; the React selector starts empty and `P3` proves the brief list carries no default marker |
+| T-010-17 | ⚠️ PARTIAL | ⚠️ PARTIAL | Brief approval added: the page forwards ids and SPEC-003 rules on the transition; `P3` proves a canonical refusal surfaces rather than being swallowed |
+| T-010-18 | ⚠️ PARTIAL | ⚠️ PARTIAL | `P3`: the thesis-review schema validates shape only — it accepts an empty rationale and rejects nothing a domain rule would own |
+| T-010-19 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3`: no page computes a score, a verdict or a transition; derivations run inside the facades using the existing domain functions |
+| T-010-20 | ⏳ PENDING | ⚠️ **PARTIAL** | A scoring surface now exists in React (radar relevance, thesis strength, opportunity score). `ARCH3` asserts **0** score functions and **0** weight arithmetic in any page — every number is a projected value |
+| T-010-21 | ⚠️ PARTIAL | ⚠️ PARTIAL | Opportunity surface reachable from the portal page, still via the canonical consumer only |
+| T-010-22 | ⚠️ PARTIAL | ⚠️ PARTIAL | Learning surface extended by the canonical signal-outcome *intent*; **0** auto-approve, **0** auto-apply, **0** `feedbackScoringHints`, **0** rescore |
+| T-010-23 | ⚠️ PARTIAL | ⚠️ PARTIAL | Session still projected from the single `authService`; `E2E3` proves no wave-3 page renders without a trusted session |
+| T-010-24 | ⚠️ PARTIAL | ⚠️ PARTIAL | `ARCH3` + `E2E3`: 9 wave-3 surfaces added **0** DOM roots, and a tab owned by a wave-3 page does not additionally render its wave-2 group |
+| T-010-25 | ⚠️ PARTIAL | ⚠️ PARTIAL | All wave-3 command paths audited. Two `EFFECT_FIRST` paths found — `renderRecommendedSources` and `renderDiscoveryPanel` both run `runSourceDiscoveryAgent` while rendering — and both deliberately left legacy. **0** `EFFECT_FIRST` migrated, **0** `UNKNOWN` migrated |
+| T-010-26 | ⚠️ PARTIAL | ⚠️ PARTIAL | `E2E3`: rollback after loading wave 3 leaves business storage byte-identical; 0 legacy removed |
+
+**Threat status at Phase-3 exit:** **0 PASS / 26 PARTIAL / 0 FAIL / 0 PENDING**
+
+| Milestone | PASS | PARTIAL | FAIL | PENDING |
+|-----------|------|---------|------|---------|
+| Phase 2 exit | 0 | 24 | 0 | 2 |
+| **Phase 3 exit** | **0** | **26** | **0** | **0** |
+
+Every threat now has at least defensive evidence, and none has adversarial
+evidence. PENDING reaching 0 is therefore not a milestone worth much: it says the
+surfaces exist, not that they withstand attack. PASS remains 0 until Phase 5.
+
+**Phase-3 severity:** P0 **0** · P1 **0** · P2 **3** · P3 **7** (AUDIT010-09
+extended from 10 to 34 registered commands — same finding, wider inventory,
+unchanged severity; plus the tally-drift defect above and the
+`CANONICAL_CONSUMER_REQUIRES_CALLER_AGGREGATE` blocker on brief creation).
+
+---
 
 **Phase-2 severity:** P0 **0** · P1 **0** · P2 **3** · P3 **5** (AUDIT010-09 extended
 from 1 to 10 registered commands — same finding, wider inventory, unchanged

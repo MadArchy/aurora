@@ -38,6 +38,49 @@ Every migrated module must be evidenced across all applicable dimensions before 
 
 ---
 
+## Phase-3 page parity status (T-010-301…306)
+
+All five wave-3 pages are **HYBRID**, so parity is claimed per dimension and per
+page rather than as a single verdict. The distinction that governs the table:
+where a legacy command intentionally stays outside React, the action-bearing
+dimensions cannot be called PARITY, because the React surface does not perform
+the action at all. Those dimensions are classified
+**`DEFERRED_LEGACY_COMMAND`** — evidenced as *legacy retains the capability and
+the React surface truthfully says so*, which is a different and weaker claim than
+behavioral equivalence.
+
+| # | Dimension | Status across the 5 pages | Evidence |
+|---|-----------|---------------------------|----------|
+| 1 | Rendered capability | ⚠️ **PARTIAL** — reads at parity; blocked actions reachable only in legacy | `E2E3`: the legacy pages owning the 34 blocked writes still work; `LegacyHandoff` names the action and links back |
+| 2 | Navigation | ✔ **PARITY** | Tab state stays local presentation state; no page reads or writes the URL, asserted. Legacy had no deep links to preserve |
+| 3 | Loading | ✔ **PARITY** (improved) | Every panel declares a loading state via `PanelState`; several legacy panels rendered blank while awaiting data |
+| 4 | Empty state | ✔ **PARITY** | `PanelState` empty branch per panel |
+| 5 | Error state | ✔ **PARITY** (improved) | Each read failure renders a controlled state; the legacy thesis editor silently fell through to *create new thesis* on an unknown id, which the React page reports as an error instead |
+| 6 | Tenant context | ✔ **PARITY** | `P3`: all 14 keys tenant-scoped, collision-free; a scope without a client fails closed |
+| 7 | Permissions | ⚠️ **PARTIAL** | No page renders without a trusted session (`E2E3`); role-gated visibility is inherited from the shell, and adversarial proof is Phase 5 |
+| 8 | Commands / actions | ⚠️ **PARTIAL** — 7 canonical commands at parity, 34 `DEFERRED_LEGACY_COMMAND` | `P3`: the 7 reach the same consumer as legacy with ids only |
+| 9 | Disabled actions | ✔ **PARITY** | Blocked actions render disabled or as a handoff with a truthful reason, never silently absent |
+| 10 | Validation | ⚠️ **PARTIAL** | RHF + Zod check shape; the Domain still rejects. Full rejection-outcome comparison needs the migrated command, so it is `DEFERRED_LEGACY_COMMAND` for the blocked writes |
+| 11 | Lifecycle presentation | ✔ **PARITY** | Statuses displayed from projections; `ARCH3` proves none is assigned |
+| 12 | Multi-thesis | ✔ **PARITY** (improved) | Explicit selection replaces `theses[0]`, `awaiting[0] || ACTIVE || theses[0]`, `getActiveTheses(id)[0]` and `approvedBriefs[0]`. `ARCH3` proves no positional selection |
+| 13 | Freshness | ✔ **PARITY** | `staleTime: 0`; commands carry ids, so cached data is never command authority |
+| 14 | Legacy behavior | ⚠️ **PARTIAL** — 5 quirks formally accepted as changed | Unescaped `diffHtml` injection, the silent thesis-editor fallback, `approvedBriefs[0]`, `getActiveTheses(id)[0]`, and the two render-time agent runs. Each is recorded as a deliberate non-reproduction, not an oversight |
+| 15 | Canonical behavior | ✔ **PARITY** | Same consumer, same use case; brief creation left unmigrated rather than reshaped |
+| 16 | Rollback | ✔ **PARITY** | `E2E3`: rollback leaves business storage byte-identical; 0 legacy removed |
+| 17 | Accessibility | ⚠️ **PARTIAL** | Semantic controls, labels, disabled state and error association present; no audit tooling run — Phase 5 |
+| 18 | Authority parity | ✔ **PARITY** | Caller tenant/actor/role/snapshot authority **0**; UI write authority **0**, asserted by `ARCH3` + `P3` |
+
+**Parity verdict:** 12 of 18 dimensions at PARITY, 6 PARTIAL, 0 FAIL. **No page is
+declared FULL CUTOVER**, and the parity gate for legacy deletion is therefore not
+met for any wave-3 page — as intended, since deletion is Phase 6.
+
+Authenticated page-level E2E is **PARTIAL**: no seeded credentials are formally
+available in this environment, so authenticated behavior is evidenced by the
+Vitest suites exercising the same seams. Stated rather than papered over; full
+parity remains Phase-5 work (A41).
+
+---
+
 ## Evidence types
 
 | Evidence | Tool | Scope |

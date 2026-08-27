@@ -3,7 +3,7 @@
 **SPEC:** 010-react-migration
 **Finding:** AUDIT010-09 · severity **P3**
 **Status:** **MIGRATION_BLOCKER_FOR_AFFECTED_CAPABILITY** (registered, non-blocking for the phase as a whole)
-**Opened:** Phase 1 · **extended by the Phase-2 command screen**
+**Opened:** Phase 1 · extended by the Phase-2 command screen · **extended by the Phase-3 page screen**
 
 ---
 
@@ -47,6 +47,62 @@ omits the action or points at the legacy surface that still owns it.
 | 8 | `SourceRegistryModal` | Register source | `dbService.addSource` | source registry | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 9 | `SourceRegistryModal` | Ingest now (one / all) | source polling → ingestion | signals produced downstream | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 10 | `OnboardingWizard` | Submit onboarding step / finish (handler owned by `main.ts`) | `dbService.applyOnboardingStep` | client + master profile | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
+
+### Phase-3 page screen — 24 further blocked writes
+
+The Phase-3 screen inventoried all five wave-3 pages. It found that the large
+majority of their actions write business state directly through `dbService` with
+no canonical Application use case, which is why every wave-3 page is HYBRID or
+READ_ONLY rather than a full cutover. Grouped by capability:
+
+| # | Page | User action | Legacy symbol(s) | Business write | CU? | Disposition | Owning SPEC | Blocking phase |
+|---|---|---|---|---|---|---|---|---|
+| 11 | `ThesisEditorModal` | Save draft / send to client | `dbService.saveThesis` | thesis record + revision | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 12 | `ClientWorkspace` positioning | Activate thesis | `activateThesisByManager` → `dbService.saveThesis` | thesis status | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 13 | `ClientPortal` thesis | Approve / request changes | `approveThesisByClient` / `rejectThesisByClient` → `dbService.saveThesis` | client approval state | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 14 | `ClientWorkspace` deliver | Confirm destination | `dbService.decideCuration`, `decideSignal` | curation decision | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 15 | `ClientWorkspace` deliver | Propose angle | `dbService.setCurationAngle` | curation angle | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 16 | `ClientWorkspace` deliver | Remove / reopen curation | `dbService.removeCuration`, `reopenCuration` | curation lifecycle | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 17 | `ClientWorkspace` deliver | Assemble briefing | `dbService.ensureDraftDelivery`, `addDeliveryItem`, `attachCurationToDelivery`, `removeDeliveryItem`, `updateDelivery`, `discardDraftDelivery` | delivery package | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 18 | `ClientWorkspace` deliver | Send to client | canonical gate, then delivery writes + notifications | delivery + notification | **PARTIAL** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 19 | `ClientPortal` home | Mark briefing read | `dbService.acknowledgeDelivery` | delivery acknowledgement | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 20 | `ClientWorkspace` radar | Discard signal | `dbService.decideSignal` | signal decision | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 21 | `ClientWorkspace` radar | Add to delivery | `dbService.addToCuration`, `decideSignal` | curation entry | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 22 | `ClientWorkspace` radar | Score signal | canonical routing use case, then `dbService.addRecommendation` | recommendation | **PARTIAL** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 23 | `ClientWorkspace` radar | Pin / unpin topic | `dbService.toggleTopicPin` | topic pin | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 24 | `ClientWorkspace` sources | Register / activate source | `dbService.addSource` | source registry | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 25 | `ClientWorkspace` sources | Pause / reactivate / archive / test feed | `dbService.updateSourceStatus`, `recordSourceRun` | source state | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 26 | `ClientWorkspace` sources | Manual signal | `dbService.addSignal` | signal record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 27 | `ClientWorkspace` tasks | Assign / cancel task | `dbService.addTask`, `updateTaskStatus` | task record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 28 | `ClientPortal` feed | Open / complete / request changes on a task | `dbService.updateTaskStatus`, `updateTaskEvidence` | task state + evidence | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 29 | `ClientWorkspace` positioning | Assign evidence to thesis | `dbService.toggleEvidenceThesis` | evidence assignment | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 30 | `Modals` add-evidence | Add evidence item | `dbService.addEvidenceItem` | evidence vault | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
+| 31 | `Modals` content-editor | Save content | `dbService.saveContent` | content record | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
+| 32 | `Modals` article-review | Save / approve / reject article | `dbService.saveClientArticleRevision`, `transitionContentPipeline`, `addFeedbackEvent`, `saveContent` | content + pipeline | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
+| 33 | `Modals` generate-content | Generate draft | provider call, then `dbService.saveContent` | content record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 34 | `ManagerCockpit` / `Modals` create-client | Create client + invite | `dbService.createClient`, `createInvitation`, `authService.createPendingAccount` | tenancy + identity | **NO** | `KEEP_LEGACY` | SPEC-009 adjacent, **UNDETERMINED** | 4 |
+
+Items 18 and 22 are recorded as `CU? PARTIAL` deliberately: their *authorization*
+is canonical but their *persistence* is not. A partially canonical command is not
+a migratable command — routing it through React would move the non-canonical half
+into the presentation layer — so both stay legacy in full.
+
+Item 34 also mutates the session (`impersonateClient`) on the neighbouring "ver
+como cliente" control, which is SPEC-009 authority and out of scope regardless.
+
+### A separate, non-AUDIT010-09 blocker: brief creation
+
+`createBriefFromCurationEntry` (SPEC-003) **is** a canonical consumer, so
+AUDIT010-09 does not apply. It is nevertheless not migrated, for a different
+reason: its signature requires the caller to pass the whole `CurationEntry`
+aggregate (`strategicBriefConsumer.ts:117-122`). Passing a cached aggregate as
+command input is precisely the caller-snapshot authority the seam keeps at zero
+(threat T-010-07), and the seam cannot re-read the entry from a trusted source
+without importing `dbService`.
+
+Class: `CANONICAL_CONSUMER_REQUIRES_CALLER_AGGREGATE`. Unlike the rows above,
+this one is resolvable by an id-based overload in SPEC-003 rather than by new
+business authority. Brief *approval* has no such problem and was migrated.
 
 **Owning SPEC is deliberately recorded as `UNDETERMINED`.** No repository
 document assigns profile facts, proof-wall status, source registration or
@@ -94,13 +150,24 @@ on the identical use case:
 | `ClaimSafetyPanel` | Go to phrase | editor cursor move | `PRESENTATION_ONLY` |
 | `PageHeader` | — | — | `NO_COMMAND` |
 
+Phase 3 added two more, on the same basis:
+
+| Page | Action | Canonical target | Class |
+|---|---|---|---|
+| `ClientWorkspace` radar | Signal outcome "¿sirvió?" Sí/No | `registerSignalOutcomeIntent` (SPEC-008) | `CANONICAL_CONSUMER` |
+| `ClientWorkspace` briefs | Approve Strategic Brief | `approveStrategicBrief` (SPEC-003) | `CANONICAL_CONSUMER` |
+
 ## Enforcement
 
 The rule is enforced mechanically, not by review. `tests/reactMigrationPhase2Architecture.test.ts`
-asserts that none of the blocked symbols above appears anywhere under `src/ui/**`,
-that the compatibility facade exports only `read*` functions, and that no
-component imports a consumer or service command directly instead of going
-through the command seam.
+and `tests/reactMigrationPhase3Architecture.test.ts` assert that none of the
+blocked symbols above appears anywhere under `src/ui/**`, that the compatibility
+facade exports only `read*` functions, and that no component or page imports a
+consumer or service command directly instead of going through the command seam.
+The Phase-3 suite additionally asserts that every page holding a blocked action
+renders the `LegacyHandoff` element, so a blocked action cannot be quietly
+dropped instead of delegated, and that `createBriefFromCurationEntry` is absent
+from the seam.
 
 ## Why this is not RESOLVED
 

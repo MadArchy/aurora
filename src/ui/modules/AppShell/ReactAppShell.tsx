@@ -28,6 +28,9 @@ import {
 import { sessionCommands } from '../../commands/commandSeam';
 import { applyUiMode } from '../../mount';
 import { Wave2Surface, type Wave2Group } from '../wave2/Wave2Surface';
+import { ReactManagerCockpitPage } from '../pages/ReactManagerCockpitPage';
+import { ReactClientPortalPage, type ClientPortalTab } from '../pages/ReactClientPortalPage';
+import { ReactClientWorkspacePage, type WorkspaceTab } from '../pages/ReactClientWorkspacePage';
 
 /**
  * Which wave-2 component group, if any, belongs to a tab. A tab with no entry
@@ -41,6 +44,34 @@ const WAVE2_BY_TAB: Record<string, Wave2Group> = {
   'client-thesis': 'dossier',
   'ws-sources': 'sources',
 };
+
+/**
+ * Wave-3 page ownership (T-010-301…305).
+ *
+ * A tab listed here is rendered by a migrated React page. Every one of these
+ * pages is HYBRID or READ_ONLY, never a full cutover, so the legacy surface
+ * remains the served default and the pages state which actions still live there.
+ *
+ * A tab owned by a wave-3 page does not additionally render its wave-2 group:
+ * two components must not claim the same surface (threat T-010-24).
+ */
+const WORKSPACE_TAB_BY_ID: Record<string, WorkspaceTab> = {
+  'ws-radar': 'radar',
+  'ws-deliver': 'deliver',
+  'ws-briefs': 'briefs',
+  'ws-sources-react': 'sources',
+  'ws-tasks': 'tasks',
+  'ws-results': 'results',
+  'ws-positioning': 'positioning',
+};
+
+const PORTAL_TAB_BY_ID: Record<string, ClientPortalTab> = {
+  'client-home': 'home',
+  'client-feed': 'tasks',
+  'client-content': 'content',
+};
+
+const COCKPIT_TABS = new Set(['dashboard', 'clients', 'ai-center']);
 
 interface NavItem {
   readonly id: string;
@@ -116,7 +147,12 @@ export function ReactAppShell() {
 
   const campaigns = shellContext.data?.campaigns ?? [];
   const theses = shellContext.data?.theses ?? [];
-  const wave2Group = WAVE2_BY_TAB[activeTab];
+
+  const workspaceTab = WORKSPACE_TAB_BY_ID[activeTab];
+  const portalTab = PORTAL_TAB_BY_ID[activeTab];
+  const cockpitTab = COCKPIT_TABS.has(activeTab);
+  const wave3Owns = Boolean(workspaceTab || portalTab || cockpitTab);
+  const wave2Group = wave3Owns ? undefined : WAVE2_BY_TAB[activeTab];
 
   const sidebar = isAdmin ? (
     <>
@@ -125,6 +161,20 @@ export function ReactAppShell() {
         items={[
           { id: 'dashboard', label: 'Hoy', badge: portfolio.data?.clientsNeedingAttention },
           { id: 'clients', label: 'Clientes' },
+        ]}
+        activeTab={activeTab}
+        onSelect={setActiveTab}
+      />
+      <NavGroup
+        label="Workspace"
+        items={[
+          { id: 'ws-radar', label: 'Radar' },
+          { id: 'ws-deliver', label: 'Entregas' },
+          { id: 'ws-briefs', label: 'Strategic Briefs' },
+          { id: 'ws-positioning', label: 'Posicionamiento' },
+          { id: 'ws-sources-react', label: 'Fuentes' },
+          { id: 'ws-tasks', label: 'Tareas' },
+          { id: 'ws-results', label: 'Resultados' },
         ]}
         activeTab={activeTab}
         onSelect={setActiveTab}
@@ -303,10 +353,13 @@ export function ReactAppShell() {
         </div>
 
         {/*
-          Wave-2 components render here when the active tab has a migrated
-          counterpart. Tabs without one show nothing extra, because the legacy
-          page they belong to has not been migrated (Phase 3 owns that).
+          Wave-3 pages own their tab exclusively; wave-2 components render only
+          on tabs no wave-3 page has claimed. A tab with neither shows nothing
+          extra, because the legacy page it belongs to is not yet migrated.
         */}
+        {cockpitTab ? <ReactManagerCockpitPage /> : null}
+        {workspaceTab ? <ReactClientWorkspacePage tab={workspaceTab} /> : null}
+        {portalTab ? <ReactClientPortalPage tab={portalTab} /> : null}
         {wave2Group ? <Wave2Surface group={wave2Group} /> : null}
       </main>
     </>

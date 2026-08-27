@@ -263,16 +263,176 @@ Phase 3 authorization **NO** (external review owns it)
 
 ---
 
-## Phase 3 — Page-by-page migration (§24 step 4) — NOT AUTHORIZED
+## Phase 3 — Page-by-page migration (§24 step 4) — COMPLETE
 
 | ID | Title | Class | Depends on | Acceptance | Status |
 |----|-------|-------|-----------|------------|--------|
-| **T-010-301** | Migrate `ThesisEditorModal` (multi-thesis explicit scope) | TECHNICAL | Phase 2 | A20, A21 | **[ ] TODO** |
-| **T-010-302** | Decompose and migrate `Modals.ts` into per-modal components | TECHNICAL | T-010-301 | A21, A35 | **[ ] TODO** |
-| **T-010-303** | Migrate `ManagerCockpit` | TECHNICAL | T-010-302 | A5, A18 | **[ ] TODO** |
-| **T-010-304** | Migrate `ClientPortal` | TECHNICAL | T-010-302 | A5, A20 | **[ ] TODO** |
-| **T-010-305** | Migrate `ClientWorkspace` (decomposed route + panel tree) | TECHNICAL | T-010-303, T-010-304 | A5, A29 | **[ ] TODO** |
-| **T-010-306** | Wave-3 parity evidence + boundary tests for SPEC-001…008 | TECHNICAL | T-010-301…305 | A22…A30, A41 | **[ ] TODO** |
+| **T-010-301** | Migrate `ThesisEditorModal` (multi-thesis explicit scope) | TECHNICAL | Phase 2 | A20, A21 | **[x] DONE** |
+| **T-010-302** | Decompose and migrate `Modals.ts` into per-modal components | TECHNICAL | T-010-301 | A21, A35 | **[x] DONE** |
+| **T-010-303** | Migrate `ManagerCockpit` | TECHNICAL | T-010-302 | A5, A18 | **[x] DONE** |
+| **T-010-304** | Migrate `ClientPortal` | TECHNICAL | T-010-302 | A5, A20 | **[x] DONE** |
+| **T-010-305** | Migrate `ClientWorkspace` (decomposed route + panel tree) | TECHNICAL | T-010-303, T-010-304 | A5, A29 | **[x] DONE** |
+| **T-010-306** | Wave-3 parity evidence + boundary tests for SPEC-001…008 | TECHNICAL | T-010-301…305 | A22…A30, A41 | **[x] DONE** |
+
+### Page migratability screen (§5)
+
+Performed before any implementation, across all five legacy pages
+(5,235 lines). The finding that shapes the whole phase: canonical Application
+paths exist for signal routing, signal outcomes, strategic briefs, opportunities
+and result intents — and for **nothing else**. Sources, curation, deliveries,
+tasks, evidence, content saves, thesis saves and client creation all write
+directly through `dbService` with no canonical use case, so AUDIT010-09 blocks
+them. Consequently **no page qualifies for FULL CUTOVER** under §31, which
+requires that all necessary commands be canonical.
+
+| Page | Lines | Reads | Commands | Blocked (AUDIT010-09) | Canonical | Classification | Cutover |
+|---|---|---|---|---|---|---|---|
+| `ThesisEditorModal.ts` | 307 | 2 compat | 1 (save, two intents) | 1 | 0 | `READ_ONLY_REACT_WITH_LEGACY_COMMAND` | HYBRID |
+| `Modals.ts` | 834 | 8 compat, 1 canonical | 9 across 13 modals | 8 | 1 (decline opportunity) | `HYBRID_MIGRATABLE` (7 of 13 modals) | HYBRID |
+| `ManagerCockpit.ts` | 595 | 10 compat | 5 | 5 | 0 | `READ_ONLY_REACT_WITH_LEGACY_COMMAND` | HYBRID |
+| `ClientPortal.ts` | 937 | 13 compat, 1 canonical | 12 | 7 | 5 | `HYBRID_MIGRATABLE` | HYBRID |
+| `ClientWorkspace.ts` | 2,562 | ~55 compat, 3 canonical | 45+ | 22 | 2 | `HYBRID_MIGRATABLE` | HYBRID |
+
+Side-effect ordering was classified for every command-bearing path touched.
+All migrated paths are `GATE_FIRST`. Two `EFFECT_FIRST` paths were found and
+deliberately left legacy: `renderRecommendedSources` (`ClientWorkspace:1983`) and
+`renderDiscoveryPanel` (`:2247`) both call `runSourceDiscoveryAgent` *while
+rendering*, so merely opening the radar or sources tab runs an agent. A React
+read facade must not launch an agent as a side effect of rendering, so the
+recommendation and discovery surfaces are not migrated. No `UNKNOWN` path was
+migrated.
+
+### T-010-301 — `ReactThesisEditorPage`
+
+Target: `src/components/ThesisEditorModal.ts`. Output:
+`src/ui/modules/pages/ReactThesisEditorPage.tsx`.
+
+Reads: `readThesisOptions`, `readThesisDetail` (compatibility). Command: none —
+both submit intents end in `dbService.saveThesis` (registry #11).
+
+The multi-thesis requirement is the substance of this task and is met by
+construction: the selector starts unselected, lists every thesis with its status,
+and the detail read takes an explicit id. There is no `[0]`, no "primary", no
+highest-priority election, and `priority` is rendered as data only.
+
+Two deliberate deviations from legacy, both improvements:
+- an unknown thesis id renders an explicit error, where the legacy editor
+  silently switches to *create a new thesis* (`ThesisEditorModal.ts:126-128`);
+- validation is RHF + Zod on shape only, whereas the legacy form is `novalidate`
+  with imperative checks. Completeness, weight validation, review readiness and
+  activation blockers all come from `domain/thesisModelCore` and
+  `domain/thesisRevisionCore` via the facade, so no rule is duplicated.
+
+### T-010-302 — `Modals.ts` decomposition
+
+Target: `src/components/Modals.ts` (13 modals in one module). Output:
+`src/ui/modules/pages/modals/ReactModals.tsx`, one component per modal.
+
+Migrated (7): comparative, challenge, content preview, content diff, delivery
+preview, feedback (Opportunity branch only), brief selection.
+Not migrated (6): create-client, add-evidence, add-task, article-review,
+content-editor, teleprompter — each has a blocked legacy write
+(registry #30…#34), and teleprompter is media capture besides.
+
+The feedback modal shows the boundary precisely: of its three branches only
+`OPPORTUNITY` reaches a canonical consumer, so only that branch renders a submit.
+The `TASK` and `CONTENT` branches render a handoff instead of a form, rather than
+presenting a form that would have to write illegally.
+
+Two legacy behaviours deliberately not reproduced:
+- the diff modal injects `latestEdit.diffHtml` unescaped; the React projection
+  returns no HTML and renders text nodes;
+- the generate-content modal pre-selects `approvedBriefs[0]` (`Modals.ts:772`),
+  which biases the manager when several briefs are approved. The React selector
+  starts empty (threat T-010-16).
+
+### T-010-303 — `ReactManagerCockpitPage`
+
+Target: `src/components/ManagerCockpit.ts`. Output:
+`src/ui/modules/pages/ReactManagerCockpitPage.tsx`.
+
+Reads: `readPortfolioOverview`, `readAiCenter` (compatibility). Commands: none —
+create-client, Firestore push, impersonation and content generation are all
+blocked (registry #33, #34). Classified `READ_ONLY_REACT_WITH_LEGACY_COMMAND`.
+
+Not reproduced: the directory row's `getActiveTheses(id)[0]`, which hides a
+client's other active theses — the React row shows the count and every title; and
+the render-time `aiService.isServerGatewayAvailable()` probe.
+
+### T-010-304 — `ReactClientPortalPage`
+
+Target: `src/components/ClientPortal.ts`. Output:
+`src/ui/modules/pages/ReactClientPortalPage.tsx`, decomposed into task, content
+and thesis-review panels plus the reused wave-2 panels.
+
+Canonical commands migrated (5): the four Opportunity transitions and the
+consultation result intent — all already live from wave 2, now reachable from the
+page. Blocked and left legacy: thesis approve/request-changes, task open/complete/
+request-changes, content approve/reject, briefing acknowledgement, add evidence
+(registry #13, #19, #28, #30, #32).
+
+Not reproduced: `awaiting[0] || ACTIVE || theses[0]`, whose implicit pick feeds
+the legacy approve button's thesis id. The client selects explicitly.
+
+Classified `HYBRID_MIGRATABLE`, cutover **HYBRID**.
+
+### T-010-305 — `ReactClientWorkspacePage`
+
+Target: `src/components/ClientWorkspace.ts` (2,562 lines, seven tabs in one
+function). Output: `src/ui/modules/pages/ReactClientWorkspacePage.tsx`, a
+decomposed panel tree — one component per tab, each with its own declared read
+source and command disposition.
+
+Canonical commands migrated (2): the radar signal-outcome intent
+(`registerSignalOutcomeIntent`, SPEC-008) and Strategic Brief approval
+(`approveStrategicBrief`, SPEC-003). Both are canonical in the legacy controller
+too, so the migration changes the caller and nothing else.
+
+Blocked and left legacy: 22 writes across radar decisions, curation, delivery
+assembly and sending, sources and ingestion, tasks, and evidence assignment
+(registry #12, #14…#29). Brief *creation* is blocked for a separate reason
+recorded in the registry: its canonical consumer requires the caller to pass the
+whole `CurationEntry` aggregate, which would give the UI snapshot authority.
+
+Classified `HYBRID_MIGRATABLE`, cutover **HYBRID**.
+
+### T-010-306 — wave-3 evidence
+
+- `tests/reactMigrationPhase3Architecture.test.ts` — 28 tests. Enforces
+  React→`dbService` = 0, facade mutators = 0, LocalStore/Firestore/provider
+  imports = 0, the 34 blocked mutators absent from all of `src/ui/**`, no
+  business authority, no manufactured identity, no first/primary selection, no
+  EFFECT_FIRST agent run, exclusive DOM ownership, no routing library, no
+  Application import from a page, and `main.ts` unchanged at 5,138 lines.
+- `tests/reactMigrationPhase3Pages.test.ts` — 19 tests. Exercises the canonical
+  reads and both wave-3 commands against mocked consumers: payloads carry ids
+  only, no actor/role/aggregate crosses the seam, refusals surface rather than
+  being swallowed, a scope without a client fails closed, and every wave-3 query
+  key is tenant-scoped and collision-free across organizations, clients and read
+  sources.
+- `e2e/wave3-pages.spec.ts` — 6 Playwright tests: legacy still served by default,
+  React mounts without a second DOM owner, no page renders without a trusted
+  session, no blocked-write control is reachable, rollback leaves business state
+  byte-identical, and the legacy pages that own the blocked actions still work.
+
+Authenticated page-level E2E remains **PARTIAL**: no seeded credentials are
+formally available in this environment, so authenticated behaviour is proved by
+the Vitest suites that exercise the same seams. This is stated rather than
+papered over, and full parity remains Phase-5 work (A41).
+
+### Delivered artifacts
+
+| Artifact | Detail |
+|---|---|
+| Pages | 5 files, one per Phase-3 task, plus `LegacyHandoff.tsx` |
+| Modal components | 7 of 13 legacy modals |
+| Read seams | 11 new compatibility reads, 3 new canonical reads |
+| Commands | 2 new canonical commands (`signalOutcomeCommands`, `briefCommands`) |
+| Hooks | `useWave3Data.ts` — 14 queries, 2 mutations |
+| Tests | 28 architecture + 19 focused Vitest + 6 wave-3 Playwright |
+
+**Exit:** Phase 3 **COMPLETE** — T-010-301…306 all **DONE** · 0 pages fully cut
+over, 5 HYBRID, 0 blocked · Phase 4 authorization **NO**
 
 ---
 

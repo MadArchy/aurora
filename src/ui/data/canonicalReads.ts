@@ -16,6 +16,8 @@ import {
   opportunityStatusDisplayLabel,
 } from '../../services/opportunityScoutConsumer';
 import type { OpportunityDisplayProjection } from '../../services/opportunityScoutConsumer';
+import { listStrategicBriefs } from '../../services/strategicBriefConsumer';
+import { listSignalOutcomesForDisplay } from '../../services/learningLoopConsumer';
 import { daysUntilDeadline, isCleOpportunity } from '../../domain/clientOpportunityCore';
 import type { TrustedTenantScope } from '../query/tenantScope';
 
@@ -112,6 +114,93 @@ export function readClientOpportunityCards(
   return [...readClientOpportunities(scope)]
     .sort((a, b) => (a.deadline ?? '').localeCompare(b.deadline ?? ''))
     .map(toCardView);
+}
+
+/* ======================================================================
+ * WAVE 3 — canonical page reads (T-010-302, T-010-305)
+ *
+ * Canonical is preferred over compatibility wherever a consumer projection
+ * exists, so these two resources move off `dbService` entirely for the React
+ * pages that use them.
+ * ====================================================================== */
+
+export interface StrategicBriefView {
+  readonly id: string;
+  readonly strategicAngle: string;
+  readonly territory: string;
+  readonly primaryAudience: string;
+  readonly recommendedChannel: string;
+  readonly recommendedFormat: string;
+  readonly status: string;
+  readonly version: number;
+  readonly thesisId: string;
+  readonly authorizedAction: string | null;
+  readonly superseded: boolean;
+  readonly createdAt: string;
+}
+
+/**
+ * SPEC-003 Strategic Briefs for one client (canonical).
+ *
+ * `authorizedAction` is carried through from the brief's own governed decision;
+ * it is never inferred here. React may use it to decide what to *offer*, and the
+ * canonical gate still re-validates on submit.
+ */
+export function readStrategicBriefs(scope: TrustedTenantScope): readonly StrategicBriefView[] {
+  if (!scope.clientId) return [];
+  return listStrategicBriefs(scope.clientId).map((brief) => ({
+    id: brief.id,
+    strategicAngle: brief.strategicAngle,
+    territory: brief.territory,
+    primaryAudience: brief.primaryAudience,
+    recommendedChannel: brief.recommendedChannel,
+    recommendedFormat: brief.recommendedFormat,
+    status: brief.status,
+    version: brief.version,
+    thesisId: brief.thesisId,
+    authorizedAction: brief.decision?.authorizedAction ?? null,
+    superseded: Boolean(brief.supersededByBriefId),
+    createdAt: brief.createdAt,
+  }));
+}
+
+/**
+ * Briefs that currently authorize content creation.
+ *
+ * Returned as a list with NO pre-selection. The legacy modal defaults to
+ * `approvedBriefs[0]` (`Modals.ts:772`), which silently biases the manager when
+ * several briefs are approved; that default is deliberately not reproduced, so
+ * the React caller must select a brief explicitly (threats T-010-15, T-010-16).
+ */
+export function readContentAuthorizingBriefs(
+  scope: TrustedTenantScope
+): readonly StrategicBriefView[] {
+  return readStrategicBriefs(scope).filter(
+    (brief) =>
+      brief.status === 'APPROVED' &&
+      !brief.superseded &&
+      brief.authorizedAction === 'CREATE_CONTENT'
+  );
+}
+
+export interface SignalOutcomeView {
+  readonly signalId: string;
+  readonly kind: string;
+  readonly note: string | null;
+  readonly source: string;
+  readonly createdAt: string;
+}
+
+/** SPEC-008 signal outcomes for one client (canonical learning-loop projection). */
+export function readSignalOutcomes(scope: TrustedTenantScope): readonly SignalOutcomeView[] {
+  if (!scope.clientId) return [];
+  return listSignalOutcomesForDisplay(scope.clientId).map((outcome) => ({
+    signalId: outcome.signalId,
+    kind: outcome.kind,
+    note: outcome.note ?? null,
+    source: outcome.source,
+    createdAt: outcome.createdAt,
+  }));
 }
 
 export type { OpportunityDisplayProjection };

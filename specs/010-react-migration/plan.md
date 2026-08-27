@@ -4,7 +4,24 @@
 **Branch:** `spec/010-react-migration`
 **Status:** Phase 0 **COMPLETE** (T-010-010 **APPROVED** 2026-08-26 America/Bogota) ·
 Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**; AUDIT010-09 remains open) ·
-Phase 3+ **NOT AUTHORIZED**
+Phase 3 **COMPLETE** (T-010-301…306 all **DONE**; 5 pages HYBRID, 0 fully cut over; AUDIT010-09
+extended to 34 blocked writes) · Phase 4+ **NOT AUTHORIZED**
+
+### Phase-3 outcome, stated plainly
+
+Every one of the five migrated pages is **HYBRID**, and none qualifies for full
+cutover. That is a finding about the codebase, not a shortfall in the migration:
+§31 requires that all of a page's necessary commands be canonical before cutover,
+and the Phase-3 screen established that canonical Application paths exist only
+for signal routing, signal outcomes, strategic briefs, opportunities and result
+intents. The remaining ~24 page-level writes go straight to `dbService`.
+
+So Phase 3 migrated what could be migrated safely — all the read surfaces, and
+the two page-level commands that were already canonical — and delegated the rest
+visibly. Making any page a full cutover would require either inventing business
+authority (forbidden) or hiding capability (forbidden). The formal change request
+for ownership of those writes therefore remains **REQUIRED**, and it is the real
+prerequisite for cutover, not more React work.
 
 ---
 
@@ -109,6 +126,35 @@ compatibility reads were migrated; the write stayed legacy, no canonical use cas
 was invented, and AUDIT010-09 remains open. Detail: `tasks.md`
 § *T-010-205 — formal reconciliation*.
 
+### Phase-3 dispositions
+
+| ID | Phase-2 disposition | **Phase-3 disposition** | Owning phase |
+|----|--------------------|-------------------------|--------------|
+| AUDIT010-01 | RESOLVED | **RESOLVED** (unchanged) | 0 ✔ |
+| AUDIT010-02 | FOUNDATION_IMPLEMENTED | **FOUNDATION_IMPLEMENTED** (unchanged) | 1 ✔ |
+| AUDIT010-03 | DESIGN_RESOLVED_IMPLEMENTATION_PENDING | **DESIGN_RESOLVED_IMPLEMENTATION_PENDING** (unchanged) — `main.ts` is 5,138 lines before and after Phase 3; **0** responsibilities extracted, asserted by test | 4 |
+| AUDIT010-04 | SEAM_ADOPTED_MIGRATION_PARTIAL | **SEAM_ADOPTED_MIGRATION_PARTIAL** — the seam now serves 5 pages as well as 9 components (14 wave-3 queries; 11 new compatibility + 3 new canonical reads). The legacy pages still read `dbService` directly because they were retained, not replaced (§32) | 4–6 |
+| AUDIT010-05 | SEAM_ADOPTED_MIGRATION_PARTIAL | **SEAM_ADOPTED_MIGRATION_PARTIAL** — every wave-3 key carries `organizationId`, proven at runtime across 14 resources; the underlying legacy reads remain `clientId`-scoped | 4–6 |
+| **AUDIT010-06** | DESIGN_GOVERNED_IMPLEMENTATION_PENDING | **IMPLEMENTED_PARTIAL** — `Modals.ts` is decomposed: 7 of its 13 modals now exist as individual React components. The other 6 each hold a blocked legacy write and were not migrated | 4–6 |
+| AUDIT010-07 | AUDIT_REQUIRED_IMPLEMENTATION_PENDING | **AUDIT_PARTIAL** — every command-bearing path on the five wave-3 pages was classified; all migrated paths are `GATE_FIRST` and **2 `EFFECT_FIRST`** paths were found and left legacy (render-time `runSourceDiscoveryAgent`). The remaining `main.ts` paths are still unaudited | 4 (T-010-401) |
+| AUDIT010-08 | E2E_FOUNDATION_IMPLEMENTED | **E2E_FOUNDATION_IMPLEMENTED** (unchanged) — Playwright now 16/16; authenticated page journeys remain PARTIAL and full parity remains Phase 5 | 1 ✔ |
+| **AUDIT010-09** | MIGRATION_BLOCKER_FOR_AFFECTED_CAPABILITY (10 commands) | **MIGRATION_BLOCKER_FOR_AFFECTED_CAPABILITY** — the Phase-3 page screen extended the inventory from 10 to **34** commands across 10 surfaces. **NOT RESOLVED** | 4+ / other SPEC |
+
+AUDIT010-09 more than tripled because the screen covered 5,235 lines of legacy
+pages holding the bulk of the application's writes. Its severity is unchanged at
+**P3**: no runtime defect, ordering sound in every migrated case, and no
+capability lost — every blocked action remains reachable on the legacy surface,
+and each migrated page names the actions that still live there.
+
+One new item was registered that is **not** an AUDIT010-09 case: brief creation
+is blocked because its canonical consumer requires the caller to pass a
+`CurationEntry` aggregate. Class
+`CANONICAL_CONSUMER_REQUIRES_CALLER_AGGREGATE`, resolvable by an id-based
+overload in SPEC-003 rather than by new business authority.
+
+**PHASE-3 BLOCKERS:** **0** · **PHASE-3 P0:** **0** · **PHASE-3 P1:** **0** ·
+**P2:** 2 · **P3:** 4
+
 A discovery/runtime finding is distinct from a design blocker. P2/P3 debt remains open while migration is
 incomplete; nothing is suppressed.
 
@@ -118,7 +164,7 @@ incomplete; nothing is suppressed.
 
 | Decision | Resolution | Task |
 |----------|-----------|------|
-| Routing/navigation library | **RESOLVED — NONE.** Legacy performs no URL routing (in-memory tab state); adding a router would create a second navigation authority during coexistence with no requirement. Revisit in Phase 3. | T-010-102 ✔ |
+| Routing/navigation library | **RESOLVED — NONE.** Legacy performs no URL routing (in-memory tab state); adding a router would create a second navigation authority during coexistence with no requirement. **Revisited in Phase 3 and reaffirmed:** migrating five pages produced no requirement for URL routing — no page reads or writes the URL, no deep link is expected, and tab state remained local presentation state. Asserted by test (no routing dependency, no `location`/`history` use in any page). | T-010-102 ✔ |
 | React component-testing library | **RESOLVED — DEFERRED, none installed.** Foundation properties are proven by 27 architecture assertions and 5 Playwright tests; a DOM unit library would add tooling without new coverage. Revisit in Phase 2. | T-010-103 ✔ |
 | Visual-regression testing | not constitutionally required; default **NO** | — (recorded, not adopted) |
 | Observation-window length per wave | depends on wave surface | Phase 5 |

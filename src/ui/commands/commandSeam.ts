@@ -44,7 +44,11 @@ import {
   submitClientOpportunity,
   toggleClientOpportunityChecklistItem,
 } from '../../services/opportunityScoutConsumer';
-import { registerResultRecordIntent } from '../../services/learningLoopConsumer';
+import {
+  registerResultRecordIntent,
+  registerSignalOutcomeIntent,
+} from '../../services/learningLoopConsumer';
+import { approveStrategicBrief } from '../../services/strategicBriefConsumer';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
@@ -210,6 +214,79 @@ export const resultCommands = {
           claimedClientId: scope.clientId!,
         }),
       'No se pudo registrar la consulta'
+    );
+  },
+} as const;
+
+/**
+ * SPEC-008 signal-outcome intent (wave 3, T-010-305).
+ *
+ * The radar's "¿sirvió?" Sí/No control is one of the few workspace actions whose
+ * legacy handler already reaches a canonical consumer
+ * (`registerSignalOutcomeIntent`, `ClientWorkspace` radar → `main.ts:2534`), so
+ * migrating it changes the caller and nothing else.
+ *
+ * `thesisId` is forwarded only when the caller was given one by a canonical
+ * projection. React never picks a thesis to attribute an outcome to: an
+ * unattributed outcome stays unattributed (threat T-010-15).
+ */
+export const signalOutcomeCommands = {
+  register(
+    scope: TrustedTenantScope,
+    params: {
+      signalId: string;
+      kind: 'USEFUL' | 'NOT_USEFUL';
+      thesisId?: string | null;
+      note?: string;
+    }
+  ): CommandResult {
+    if (!scope.clientId) return { ok: false, message: 'Cliente no resuelto' };
+    return attempt(
+      () =>
+        registerSignalOutcomeIntent({
+          clientId: scope.clientId!,
+          signalId: params.signalId,
+          kind: params.kind,
+          source: 'RADAR',
+          thesisId: params.thesisId ?? undefined,
+          note: params.note?.trim() || undefined,
+          claimedOrganizationId: scope.organizationId,
+          claimedClientId: scope.clientId!,
+        }),
+      'No se pudo registrar el resultado de la señal'
+    );
+  },
+} as const;
+
+/**
+ * SPEC-003 Strategic Brief approval (wave 3, T-010-305).
+ *
+ * `approveStrategicBrief` is canonical in the legacy controller too
+ * (`main.ts:2757`) and takes ids only, resolving the trusted actor context
+ * itself. Approval authority stays entirely inside SPEC-003: the seam forwards
+ * the id and returns the consumer's verdict. It never marks a brief approved in
+ * the UI, and a refused approval leaves no optimistic state behind (T-010-14).
+ *
+ * NOT EXPOSED — brief creation. `createBriefFromCurationEntry` requires the
+ * caller to pass the whole `CurationEntry` aggregate
+ * (`strategicBriefConsumer.ts:117-122`). Passing a cached aggregate as command
+ * input is exactly the caller-snapshot authority this seam must keep at zero
+ * (threat T-010-07), and the seam cannot re-read the entry from a trusted source
+ * without importing `dbService`. So brief creation stays on the legacy path,
+ * recorded in the wave-3 registry as
+ * `CANONICAL_CONSUMER_REQUIRES_CALLER_AGGREGATE` — a different reason from
+ * AUDIT010-09, and one that a signature change in SPEC-003 would resolve.
+ */
+export const briefCommands = {
+  approve(scope: TrustedTenantScope, briefId: string): CommandResult {
+    if (!scope.clientId) return { ok: false, message: 'Cliente no resuelto' };
+    return attempt(
+      () =>
+        approveStrategicBrief({
+          clientId: scope.clientId!,
+          briefId,
+        }),
+      'No se pudo aprobar el Strategic Brief'
     );
   },
 } as const;

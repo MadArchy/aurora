@@ -35,6 +35,21 @@ import {
   sumKpiThisWeek,
 } from '../../domain/kpiWeekly';
 import { kpiLabel } from '../../lib/campaignLabels';
+import {
+  assertThesisReadyForReview,
+  normalizeThesis,
+  OBJECTIVE_KIND_LABELS,
+  thesisCompleteness,
+  validateWeights,
+  VOICE_DIMENSION_LABELS,
+} from '../../domain/thesisModelCore';
+import { canActivateThesis, thesesAwaitingClientAction } from '../../domain/thesisRevisionCore';
+import { computeThesisStrength } from '../../domain/thesisStrengthCore';
+import { deriveWorkStage } from '../../domain/workPipeline';
+import { countUnhealthySources } from '../../domain/sourceHealthActionsCore';
+import { summarizeSourceHealth } from '../../services/sourceHealth';
+import { hasArticleSectionMarkers } from '../../domain/articleReviewCore';
+import { mapLegacyContentStatus } from '../../domain/contentPipeline';
 import type { BusinessKpiType, Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
 
@@ -475,5 +490,598 @@ export function readSources(scope: TrustedTenantScope): readonly SourceRead[] {
     url: s.url ?? null,
     fetchIntervalMinutes: s.fetchIntervalMinutes,
     hasError: s.status === 'ERROR',
+  }));
+}
+
+/* ======================================================================
+ * WAVE 3 — page-level compatibility reads (T-010-301…305)
+ *
+ * Same rule as above, applied to pages: reads only, one declared source per
+ * projection, every derived number produced by the domain function the legacy
+ * page already calls. Three legacy behaviours are deliberately NOT reproduced,
+ * because a read facade must not carry them:
+ *
+ *   - `runSourceDiscoveryAgent` during render (`ClientWorkspace:1983`, `:2247`)
+ *     — an agent run triggered by rendering. Excluded; the recommendation
+ *     surface stays legacy-only (EFFECT_FIRST, see `tasks.md`).
+ *   - `aiService.isServerGatewayAvailable()` during render
+ *     (`ManagerCockpit:130`, `:496`) — a service probe on the render path.
+ *     Excluded; the React AI-centre panel reports quota only.
+ *   - first-thesis and first-campaign fallbacks (`ClientPortal:536`, `:121`,
+ *     `ManagerCockpit:205`) — every wave-3 read takes an explicit id and
+ *     returns an unresolved marker instead of guessing (threat T-010-15).
+ * ====================================================================== */
+
+export interface PortfolioRowRead {
+  readonly clientId: string;
+  readonly displayName: string;
+  readonly profession: string;
+  readonly company: string;
+  readonly attentionScore: number;
+  readonly attentionReasons: readonly string[];
+  readonly activeThesisCount: number;
+  readonly activeThesisTitles: readonly string[];
+  readonly pendingCuration: number;
+  readonly unreviewedSignals: number;
+}
+
+export interface PortfolioOverviewRead {
+  readonly rows: readonly PortfolioRowRead[];
+  readonly totalClients: number;
+  readonly needingAttention: number;
+  readonly totalActiveTheses: number;
+}
+
+/**
+ * T-010-303 · `ManagerCockpit` portfolio and directory projection.
+ *
+ * Portfolio scope: this read is NOT client-scoped, so it deliberately does not
+ * call `requireClient`. It still requires a trusted scope, because the cache key
+ * must carry the organization even though the legacy read cannot enforce it
+ * (AUDIT010-05).
+ *
+ * Unlike the legacy directory row, which shows `getActiveTheses(id)[0]` and
+ * silently hides the rest, every active thesis title is returned so the manager
+ * can see that a client has more than one (threat T-010-15).
+ */
+export function readPortfolioOverview(_scope: TrustedTenantScope): PortfolioOverviewRead {
+  const summaries = dbService.getPortfolioSummary();
+
+  const rows = summaries.map((summary) => {
+    const client = summary.client;
+    const activeTheses = dbService.getActiveTheses(client.id);
+    return {
+      clientId: client.id,
+      displayName: client.displayName || `${client.firstName} ${client.lastName}`.trim(),
+      profession: client.profession || '',
+      company: client.company || '',
+      attentionScore: summary.attentionScore,
+      attentionReasons: [...(summary.attentionReasons ?? [])],
+      activeThesisCount: activeTheses.length,
+      activeThesisTitles: activeTheses.map((t) => t.title),
+      pendingCuration: dbService.getPendingCurationByClient(client.id).length,
+      unreviewedSignals: dbService
+        .getSignalsByClient(client.id)
+        .filter((s) => s.status === 'NEW').length,
+    };
+  });
+
+  return {
+    rows,
+    totalClients: rows.length,
+    needingAttention: rows.filter((r) => r.attentionScore > 0).length,
+    totalActiveTheses: rows.reduce((acc, r) => acc + r.activeThesisCount, 0),
+  };
+}
+
+export interface AiCenterRead {
+  readonly tier: string;
+  readonly status: string;
+  readonly aiRunsUsed: number;
+  readonly tokensUsed: number;
+  readonly runs: readonly {
+    readonly id: string;
+    readonly agent: string;
+    readonly provider: string;
+    readonly modelName: string;
+    readonly createdAt: string;
+    readonly status: string;
+    readonly ok: boolean;
+  }[];
+}
+
+/**
+ * T-010-303 · AI-centre quota and run log.
+ *
+ * Gateway availability is not probed here: the legacy panel calls
+ * `aiService.isServerGatewayAvailable()` while rendering, and a read facade must
+ * not make service calls with side-effect potential. The React panel therefore
+ * reports quota and history only, and the gateway strip stays legacy-only.
+ */
+export function readAiCenter(_scope: TrustedTenantScope): AiCenterRead {
+  const subscription = dbService.getSubscription();
+  return {
+    tier: subscription.tier,
+    status: subscription.status,
+    aiRunsUsed: subscription.monthlyUsage.aiRuns,
+    tokensUsed: subscription.monthlyUsage.tokensUsed,
+    runs: dbService.getAiRuns(10).map((run) => ({
+      id: run.id,
+      agent: run.agent,
+      provider: run.provider,
+      modelName: run.modelName,
+      createdAt: run.createdAt,
+      status: run.status,
+      ok: run.status === 'SUCCESS',
+    })),
+  };
+}
+
+export interface ThesisOptionRead {
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+  readonly clientApprovalStatus: string;
+  readonly awaitingClientAction: boolean;
+  readonly priority: number;
+}
+
+/**
+ * Every thesis of the client, with no selection applied.
+ *
+ * The caller must choose explicitly. There is no `[0]`, no "primary", no
+ * highest-priority pick: `priority` is returned as data for display, never used
+ * here to elect a thesis (threats T-010-15, T-010-16).
+ */
+export function readThesisOptions(scope: TrustedTenantScope): readonly ThesisOptionRead[] {
+  const clientId = requireClient(scope);
+  if (!clientId) return [];
+  const theses = dbService.getThesesByClient(clientId);
+  const awaitingIds = new Set(thesesAwaitingClientAction(theses).map((t) => t.id));
+  return theses.map((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    clientApprovalStatus: t.clientApprovalStatus,
+    awaitingClientAction: awaitingIds.has(t.id),
+    priority: t.priority ?? 0,
+  }));
+}
+
+export interface ThesisDetailRead {
+  readonly resolved: boolean;
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+  readonly clientApprovalStatus: string;
+  readonly identityCurrent: string;
+  readonly expertIdentity: string;
+  readonly perceptionTarget: string;
+  readonly differentiator: string;
+  readonly domain: string;
+  readonly audiences: readonly { readonly label: string; readonly tier: string }[];
+  readonly territories: readonly string[];
+  readonly objectives: readonly { readonly label: string; readonly weight: number }[];
+  readonly voice: readonly { readonly label: string; readonly value: number }[];
+  readonly hardBlocks: readonly string[];
+  readonly softAvoid: readonly string[];
+  readonly completenessScore: number;
+  readonly missingBlocks: readonly string[];
+  readonly weightsOk: boolean;
+  readonly weightsTotal: number;
+  readonly readyForReview: boolean;
+  readonly readinessBlockers: readonly string[];
+  readonly activationBlockers: readonly string[];
+  readonly strengthScore: number | null;
+  readonly assignedEvidence: number;
+}
+
+const UNRESOLVED_THESIS: ThesisDetailRead = {
+  resolved: false,
+  id: '',
+  title: '',
+  status: '',
+  clientApprovalStatus: '',
+  identityCurrent: '',
+  expertIdentity: '',
+  perceptionTarget: '',
+  differentiator: '',
+  domain: '',
+  audiences: [],
+  territories: [],
+  objectives: [],
+  voice: [],
+  hardBlocks: [],
+  softAvoid: [],
+  completenessScore: 0,
+  missingBlocks: [],
+  weightsOk: true,
+  weightsTotal: 0,
+  readyForReview: false,
+  readinessBlockers: [],
+  activationBlockers: [],
+  strengthScore: null,
+  assignedEvidence: 0,
+};
+
+/**
+ * T-010-301 · one explicitly identified thesis, fully projected.
+ *
+ * `thesisId` is required and is matched exactly. An unknown id returns
+ * `resolved: false` rather than falling back to another thesis — and rather than
+ * the legacy editor's behaviour, where an unknown id silently becomes a *new*
+ * thesis (`ThesisEditorModal:126-128`). That legacy quirk is deliberately not
+ * reproduced; the deviation is recorded in `tasks.md`.
+ *
+ * Completeness, weight validation, review readiness, activation blockers and
+ * strength are all computed by the owning domain functions.
+ */
+export function readThesisDetail(
+  scope: TrustedTenantScope,
+  thesisId: string | null
+): ThesisDetailRead {
+  const clientId = requireClient(scope);
+  if (!clientId || !thesisId) return UNRESOLVED_THESIS;
+
+  const thesis = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
+  if (!thesis) return UNRESOLVED_THESIS;
+
+  const normalized = normalizeThesis(thesis);
+  const completeness = thesisCompleteness(thesis);
+  const readiness = assertThesisReadyForReview(thesis);
+  const activation = canActivateThesis(thesis);
+  const weights = validateWeights(thesis.objectives ?? []);
+  const evidence = dbService.getEvidenceVaultByClient(clientId);
+  const strength = computeThesisStrength(thesis, evidence);
+
+  return {
+    resolved: true,
+    id: thesis.id,
+    title: thesis.title,
+    status: thesis.status,
+    clientApprovalStatus: thesis.clientApprovalStatus,
+    identityCurrent: thesis.identityCurrent ?? '',
+    expertIdentity: thesis.expertIdentity ?? '',
+    perceptionTarget: normalized.perceptionTarget ?? '',
+    differentiator: thesis.differentiator ?? '',
+    domain: thesis.domain ?? '',
+    audiences: (thesis.audiences ?? []).map((a) => ({ label: a.name, tier: a.tier })),
+    territories: (thesis.territories ?? []).map((t) => t.name),
+    objectives: (thesis.objectives ?? []).map((o) => ({
+      label: OBJECTIVE_KIND_LABELS[o.kind] ?? o.kind,
+      weight: o.weight,
+    })),
+    voice: Object.entries(thesis.voiceProfile ?? {})
+      .filter(([, value]) => typeof value === 'number')
+      .map(([key, value]) => ({
+        label: VOICE_DIMENSION_LABELS[key as keyof typeof VOICE_DIMENSION_LABELS] ?? key,
+        value: Number(value) || 0,
+      })),
+    hardBlocks: [...(thesis.limits?.hardBlocks ?? [])],
+    softAvoid: [...(thesis.limits?.softAvoid ?? [])],
+    completenessScore: completeness.score,
+    missingBlocks: completeness.missing.map((block) => block.label),
+    weightsOk: weights.ok,
+    weightsTotal: weights.total,
+    readyForReview: readiness.ready,
+    readinessBlockers: [...readiness.blockers],
+    activationBlockers: activation.ok ? [] : [...activation.blockers],
+    strengthScore: strength.authorityScore,
+    assignedEvidence: evidence.filter((item) => item.associatedThesesIds?.includes(thesis.id))
+      .length,
+  };
+}
+
+export interface ClientTaskRead {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly type: string;
+  readonly status: string;
+  readonly deadline: string | null;
+  readonly estimatedMinutes: number | null;
+  readonly thesisId: string | null;
+}
+
+/** T-010-304 · client task queue. Opening a task is a legacy write, so this is read-only. */
+export function readClientTasks(scope: TrustedTenantScope): readonly ClientTaskRead[] {
+  const clientId = requireClient(scope);
+  if (!clientId) return [];
+  return dbService.getTasksForClient(clientId).map((task) => ({
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    type: task.type,
+    status: task.status,
+    deadline: task.deadline ?? null,
+    estimatedMinutes: task.estimatedMinutes,
+    thesisId: task.thesisId ?? null,
+  }));
+}
+
+export interface ContentRowRead {
+  readonly id: string;
+  readonly title: string;
+  readonly platform: string;
+  readonly type: string;
+  readonly status: string;
+  readonly createdAt: string;
+  readonly wordCount: number;
+}
+
+/** T-010-304 · content pending client review, plus the already-decided history. */
+export function readClientContent(scope: TrustedTenantScope): {
+  readonly pending: readonly ContentRowRead[];
+  readonly decided: readonly ContentRowRead[];
+} {
+  const clientId = requireClient(scope);
+  if (!clientId) return { pending: [], decided: [] };
+
+  const rows = dbService.getContentForClient(clientId).map((item) => ({
+    id: item.id,
+    title: item.title,
+    platform: item.targetPlatform,
+    type: item.type,
+    status: item.status,
+    createdAt: item.createdAt,
+    wordCount: (item.body ?? '').trim().split(/\s+/).filter(Boolean).length,
+  }));
+
+  return {
+    pending: rows.filter((r) => r.status === 'CLIENT_REVIEW'),
+    decided: rows.filter((r) => r.status === 'READY' || r.status === 'PUBLISHED'),
+  };
+}
+
+export interface ContentDetailRead {
+  readonly resolved: boolean;
+  readonly id: string;
+  readonly title: string;
+  readonly body: string;
+  readonly platform: string;
+  readonly type: string;
+  readonly status: string;
+  readonly wordCount: number;
+  readonly hasSectionMarkers: boolean;
+  readonly claimVerdict: string | null;
+  readonly claimFlags: readonly string[];
+  readonly feedbackEvents: readonly {
+    readonly id: string;
+    readonly role: string;
+    readonly notes: string;
+    readonly createdAt: string;
+  }[];
+}
+
+/**
+ * T-010-302 · one content item, for the preview and diff modals.
+ *
+ * The legacy diff modal injects `latestEdit.diffHtml` unescaped. This projection
+ * returns no HTML at all — React renders text nodes — so the legacy trust
+ * boundary is not carried across the seam.
+ */
+export function readContentDetail(
+  scope: TrustedTenantScope,
+  contentId: string | null
+): ContentDetailRead {
+  const empty: ContentDetailRead = {
+    resolved: false,
+    id: '',
+    title: '',
+    body: '',
+    platform: '',
+    type: '',
+    status: '',
+    wordCount: 0,
+    hasSectionMarkers: false,
+    claimVerdict: null,
+    claimFlags: [],
+    feedbackEvents: [],
+  };
+  if (!requireClient(scope) || !contentId) return empty;
+
+  const content = dbService.getContentById(contentId);
+  if (!content) return empty;
+
+  return {
+    resolved: true,
+    id: content.id,
+    title: content.title,
+    body: content.body ?? '',
+    platform: content.targetPlatform,
+    type: content.type,
+    status: mapLegacyContentStatus(content.status),
+    wordCount: (content.body ?? '').trim().split(/\s+/).filter(Boolean).length,
+    hasSectionMarkers: hasArticleSectionMarkers(content.body ?? ''),
+    claimVerdict: content.claimSafety?.verdict ?? null,
+    claimFlags: (content.claimSafety?.findings ?? []).map((finding) => finding.detail),
+    feedbackEvents: dbService.getFeedbackEventsForContent(contentId).map((event) => ({
+      id: event.id,
+      role: event.actorRole,
+      notes: event.reason ?? '',
+      createdAt: event.createdAt,
+    })),
+  };
+}
+
+export interface WorkspaceRadarRead {
+  readonly signals: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly source: string;
+    readonly status: string;
+    readonly priorityBand: string | null;
+    readonly score: number | null;
+    readonly thesisId: string | null;
+    readonly routingState: string | null;
+    readonly publishedAt: string | null;
+    readonly inCuration: boolean;
+  }[];
+  readonly activeThesisCount: number;
+  readonly canScore: boolean;
+  readonly totalSignals: number;
+  readonly newSignals: number;
+}
+
+/**
+ * T-010-305 · radar signal list.
+ *
+ * `canScore` mirrors the legacy rule that scoring needs *any* ACTIVE thesis —
+ * not a primary one — and is computed from `getActiveTheses`, exactly as
+ * `ClientWorkspace:931-933` does.
+ */
+export function readWorkspaceRadar(scope: TrustedTenantScope): WorkspaceRadarRead {
+  const clientId = requireClient(scope);
+  if (!clientId) {
+    return { signals: [], activeThesisCount: 0, canScore: false, totalSignals: 0, newSignals: 0 };
+  }
+
+  const activeTheses = dbService.getActiveTheses(clientId);
+  const signals = dbService.getSignalsByClient(clientId).map((signal) => ({
+    id: signal.id,
+    title: signal.title,
+    source: signal.sourceName,
+    status: signal.status,
+    priorityBand: signal.priorityBand ?? null,
+    score: typeof signal.relevanceScore === 'number' ? signal.relevanceScore : null,
+    thesisId: signal.thesisId ?? null,
+    routingState: signal.routingDecision?.routingState ?? null,
+    publishedAt: signal.detectedAt,
+    inCuration: dbService.isSignalInCuration(clientId, signal.id),
+  }));
+
+  return {
+    signals,
+    activeThesisCount: activeTheses.length,
+    canScore: activeTheses.length > 0,
+    totalSignals: signals.length,
+    newSignals: signals.filter((s) => s.status === 'NEW').length,
+  };
+}
+
+export interface WorkspaceDeliverRead {
+  readonly pending: readonly {
+    readonly id: string;
+    readonly signalTitle: string;
+    readonly destination: string | null;
+    readonly rationale: string;
+    readonly strategicBriefId: string | null;
+    readonly stage: string;
+  }[];
+  readonly ready: number;
+  readonly draftItems: number;
+  readonly sentDeliveries: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly status: string;
+    readonly sentAt: string | null;
+    readonly itemCount: number;
+  }[];
+}
+
+/** T-010-305 · curation inbox and delivery history. Every write here stays legacy. */
+export function readWorkspaceDeliver(scope: TrustedTenantScope): WorkspaceDeliverRead {
+  const clientId = requireClient(scope);
+  if (!clientId) return { pending: [], ready: 0, draftItems: 0, sentDeliveries: [] };
+
+  const draft = dbService.getDraftDelivery(clientId);
+  const pending = dbService.getPendingCurationByClient(clientId).map((entry) => {
+    const pkg = entry.deliveryPackageId
+      ? dbService.getDeliveryById(entry.deliveryPackageId)
+      : undefined;
+    return {
+      id: entry.id,
+      signalTitle: entry.title,
+      destination: entry.destination ?? null,
+      rationale: entry.managerRationale,
+      strategicBriefId: entry.strategicBriefId ?? null,
+      stage: deriveWorkStage({ entry, pkg, task: undefined }),
+    };
+  });
+
+  return {
+    pending,
+    ready: dbService.getReadyCurationByClient(clientId).length,
+    draftItems: draft?.items.length ?? 0,
+    sentDeliveries: dbService.getSentDeliveriesByClient(clientId).map((pkg) => ({
+      id: pkg.id,
+      title: pkg.title ?? '',
+      status: pkg.status,
+      sentAt: pkg.sentAt ?? null,
+      itemCount: pkg.items.length,
+    })),
+  };
+}
+
+export interface WorkspaceSourcesRead {
+  readonly sources: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly type: string;
+    readonly url: string | null;
+    readonly healthStatus: string;
+    readonly healthLabel: string;
+    readonly acceptRate: number | null;
+  }[];
+  readonly errors: number;
+  readonly degraded: number;
+  readonly paused: number;
+}
+
+/**
+ * T-010-305 · registered-source inventory with health.
+ *
+ * Health status and counts come from `summarizeSourceHealth` and
+ * `countUnhealthySources`. The legacy discovery/recommendation panels are absent
+ * on purpose: both run an agent during render.
+ */
+export function readWorkspaceSources(scope: TrustedTenantScope): WorkspaceSourcesRead {
+  const clientId = requireClient(scope);
+  if (!clientId) return { sources: [], errors: 0, degraded: 0, paused: 0 };
+
+  const sources = dbService.getSourcesByClient(clientId);
+  const counts = countUnhealthySources(sources, summarizeSourceHealth);
+
+  return {
+    sources: sources.map((source) => {
+      const health = summarizeSourceHealth(source);
+      return {
+        id: source.id,
+        name: source.name,
+        type: source.type,
+        url: source.url ?? null,
+        healthStatus: health.status,
+        healthLabel: health.label,
+        acceptRate: health.acceptRate,
+      };
+    }),
+    errors: counts.errors,
+    degraded: counts.degraded,
+    paused: counts.paused,
+  };
+}
+
+export interface WorkspaceTaskRead {
+  readonly id: string;
+  readonly title: string;
+  readonly type: string;
+  readonly status: string;
+  readonly deadline: string | null;
+  readonly thesisId: string | null;
+  readonly archived: boolean;
+}
+
+/** T-010-305 · assigned-task list. Assigning and cancelling stay legacy. */
+export function readWorkspaceTasks(scope: TrustedTenantScope): readonly WorkspaceTaskRead[] {
+  const clientId = requireClient(scope);
+  if (!clientId) return [];
+  return dbService.getTasksByClient(clientId).map((task) => ({
+    id: task.id,
+    title: task.title,
+    type: task.type,
+    status: task.status,
+    deadline: task.deadline ?? null,
+    thesisId: task.thesisId ?? null,
+    archived: task.status === 'COMPLETED' || task.status === 'CANCELLED',
   }));
 }
