@@ -6,7 +6,8 @@
  * READ SOURCE: compatibility (`readPortfolioOverview`, `readAiCenter`).
  *
  * COMMAND: none. Every mutating action of the legacy cockpit is blocked:
- *   - "+ Nuevo cliente"            → `dbService.createClient` + `createInvitation`
+ *   - "+ Nuevo cliente"            → legacy modal → `clientLifecycleCommands` /
+ *                                     `createClientWithInvite` (CR-1 Client Lifecycle)
  *   - "Subir local → Firestore"    → bulk Firestore write (`pushCurrentLocalToFirestore`)
  *   - "Ver como cliente"           → `authService.impersonateClient`, a session
  *                                     mutation owned by SPEC-009

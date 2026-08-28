@@ -17,14 +17,10 @@
  * migrated command is a change of caller, never a change of authority: React and
  * legacy converge on the identical use case.
  *
- * NOT EXPOSED — commands whose legacy implementation writes business state with
- * no canonical Application use case (AUDIT010-09). Routing one through this seam
- * would make the UI layer perform a legacy business mutation, so each stays on
- * the legacy path until a canonical use case exists, which is other-SPEC work
- * outside SPEC-010's authority. The complete registry lives in
- * `specs/010-react-migration/audit010-09-registry.md`; in summary:
+ * CR-1 Client Lifecycle (#34, #1) is exposed below as `clientLifecycleCommands`.
+ * Other AUDIT010-09 writes remain unexposed until their Application owners exist
+ * (full registry: `specs/010-react-migration/audit010-09-registry.md`):
  *
- *   - invitation acceptance      (`markInvitationAccepted`, `updateClient`)
  *   - profile fact lifecycle     (`addProfileFact`, `confirmProfileFact`,
  *                                 `rejectProfileFact`, `updateProfileFact`,
  *                                 `importCandidateFactsFromCv`)
@@ -32,8 +28,8 @@
  *   - source registration        (`addSource`) and ingestion polling
  *   - onboarding step apply      (`applyOnboardingStep`)
  *
- * In every case the legacy ordering is sound (gate before effect) and the legacy
- * surface remains served, so no capability is lost by not migrating it.
+ * In every remaining case the legacy surface remains served, so no capability is
+ * lost by not migrating it yet.
  */
 
 import { authService } from '../../services/auth';
@@ -49,6 +45,11 @@ import {
   registerSignalOutcomeIntent,
 } from '../../services/learningLoopConsumer';
 import { approveStrategicBrief } from '../../services/strategicBriefConsumer';
+import {
+  acceptClientInvitation,
+  createClientWithInvite,
+} from '../../services/clientLifecycleConsumer';
+import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
@@ -288,6 +289,51 @@ export const briefCommands = {
         }),
       'No se pudo aprobar el Strategic Brief'
     );
+  },
+} as const;
+
+/**
+ * CR-1 Client Lifecycle (#34 CreateClientWithInvite, #1 AcceptClientInvitation).
+ *
+ * Seam authority = 0. Both commands delegate to `clientLifecycleConsumer`, which
+ * gates create via `requireAdminActor` and loads invitation state for accept.
+ * React and legacy (`main.ts`) must converge on these identical use cases.
+ */
+export const clientLifecycleCommands = {
+  createClientWithInvite(intent: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    profession?: string;
+    company?: string;
+    targetMarket?: string;
+    claimedOrganizationId?: string;
+  }): CommandResult {
+    return attempt(
+      () => {
+        createClientWithInvite(intent);
+      },
+      'No se pudo crear el cliente'
+    );
+  },
+
+  async acceptInvitation(intent: {
+    token: string;
+    password: string;
+    displayName: string;
+  }): Promise<CommandResult> {
+    try {
+      await acceptClientInvitation(intent);
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof ClientLifecycleError) {
+        return { ok: false, message: err.message };
+      }
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : 'No se pudo aceptar la invitación',
+      };
+    }
   },
 } as const;
 

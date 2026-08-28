@@ -5,6 +5,11 @@ import { dbService } from './services/db';
 import { aiService } from './services/ai';
 import { auditService } from './services/audit';
 import { notificationService, notifyClient, notifyManager } from './services/notifications';
+import {
+  acceptClientInvitation,
+  createClientWithInvite,
+} from './services/clientLifecycleConsumer';
+import { ClientLifecycleError } from './application/clientLifecycle';
 import { processDeadlineReminders } from './services/reminders';
 import {
   downloadRecording,
@@ -457,24 +462,18 @@ class App {
       const token = (document.getElementById('invite-token') as HTMLInputElement).value.trim();
       const name = (document.getElementById('invite-name') as HTMLInputElement).value.trim();
       const password = (document.getElementById('invite-password') as HTMLInputElement).value;
-      const invite = dbService.getInvitationByToken(token);
-      if (!invite) {
-        this.loginError = 'Token de invitación inválido.';
+      try {
+        // CR-1 #1 — business authority is AcceptClientInvitation (Application).
+        await acceptClientInvitation({ token, password, displayName: name });
+      } catch (err) {
+        this.loginError =
+          err instanceof ClientLifecycleError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'No se pudo aceptar la invitación.';
         this.render();
-        return;
       }
-      const result = await authService.registerFromInvite(invite, password, name);
-      if (!result.ok) {
-        this.loginError = result.message;
-        this.render();
-        return;
-      }
-      dbService.markInvitationAccepted(invite.id);
-      dbService.updateClient(invite.clientId, {
-        userId: authService.getCurrentUser()?.uid,
-        status: 'ACTIVE',
-        onboardingStatus: 'IN_PROGRESS',
-      });
     });
   }
 
@@ -803,38 +802,17 @@ class App {
       const email = val('new-client-email');
 
       try {
-        const organizationId = this.resolveOrganizationId();
-        if (!organizationId) {
-          this.showToast('No hay organizationId de sesión para crear el cliente', 'warning');
-          return;
-        }
-        const newClient = dbService.createClient({
-          organizationId,
-          primaryManagerId: authService.getCurrentUser()?.uid || 'user_admin_01',
+        // CR-1 #34 — business authority is CreateClientWithInvite (Application).
+        // Organization/actor come from requireAdminActor inside the consumer.
+        const { invitation } = createClientWithInvite({
           firstName,
           lastName,
-          displayName: `${firstName} ${lastName}`,
-          primaryEmail: email,
+          email,
           profession: val('new-client-profession'),
           company: val('new-client-company'),
           targetMarket: val('new-client-target'),
-          onboardingStatus: 'NOT_STARTED',
-          profileCompleteness: 15,
-          status: 'INVITED',
-          avatarUrl: ''
         });
-        const invite = dbService.createInvitation(newClient.id, email);
-        authService.createPendingAccount(email, newClient.id, organizationId);
-        notificationService.push({
-          userId: authService.getCurrentUser()?.uid || 'user_admin_01',
-          organizationId,
-          clientId: newClient.id,
-          type: 'ONBOARDING',
-          title: 'Cliente invitado',
-          body: `${newClient.displayName} · token ${invite.token}`,
-        });
-        auditService.log(authService.getCurrentUser(), 'CREATE_CLIENT', 'Client', newClient.id, { email });
-        this.showToast(`Cliente creado. Token de invitación: ${invite.token}`, 'success');
+        this.showToast(`Cliente creado. Token de invitación: ${invitation.token}`, 'success');
         this.activeModal = null;
         this.render();
       } catch (error) {

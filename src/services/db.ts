@@ -1231,17 +1231,24 @@ class DataService {
     return this.clients.find(c => c.id === id);
   }
 
-  public createClient(clientData: Omit<Client, 'id' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy' | 'activeThesesCount' | 'completedTasksCount'>): Client {
+  public createClient(
+    clientData: Omit<
+      Client,
+      'id' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy' | 'activeThesesCount' | 'completedTasksCount'
+    > & { createdBy?: string; updatedBy?: string }
+  ): Client {
     const quota = assertClientQuota(this.getSubscription(), this.getClients().length);
     if (!quota.ok) throw new Error(quota.message);
     const now = new Date().toISOString();
+    const actor = clientData.createdBy?.trim() || 'user_admin_01';
+    const { createdBy: _c, updatedBy: _u, ...rest } = clientData;
     const newClient: Client = {
-      ...clientData,
+      ...rest,
       id: createId('client'),
       createdAt: now,
-      createdBy: 'user_admin_01',
+      createdBy: actor,
       updatedAt: now,
-      updatedBy: 'user_admin_01',
+      updatedBy: clientData.updatedBy?.trim() || actor,
       activeThesesCount: 0,
       completedTasksCount: 0,
     };
@@ -2150,10 +2157,23 @@ class DataService {
     return this.invitations.find((i) => i.token === token);
   }
 
+  public getInvitationById(id: string): Invitation | undefined {
+    return this.invitations.find((i) => i.id === id);
+  }
+
   public markInvitationAccepted(id: string): void {
     const inv = this.invitations.find((i) => i.id === id);
     if (inv) {
       inv.status = 'ACCEPTED';
+      this.saveAll();
+    }
+  }
+
+  /** CR-1 Client Lifecycle compensation — existing Invitation status enum. */
+  public markInvitationRevoked(id: string): void {
+    const inv = this.invitations.find((i) => i.id === id);
+    if (inv) {
+      inv.status = 'REVOKED';
       this.saveAll();
     }
   }

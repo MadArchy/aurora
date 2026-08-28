@@ -17,7 +17,7 @@
  *
  * NOT MIGRATED (6 of 13) — every one has a legacy write with no canonical
  * Application use case, so AUDIT010-09 forbids moving it, and the legacy modal
- * stays served: `create-client` (`createClient`, `createInvitation`),
+ * stays served: `create-client` (`createClientWithInvite` / CR-1 Client Lifecycle),
  * `add-evidence` (`addEvidenceItem`), `add-task` (`addTask`), `article-review`
  * (`saveClientArticleRevision`, `transitionContentPipeline`), `content-editor`
  * (`saveContent`), `teleprompter` (media capture + `confirmSendRecording`).
