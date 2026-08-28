@@ -362,7 +362,7 @@ function renderBriefing(client: Client, thesis: PositioningThesis | undefined, _
   const opportunities = dbService.getOpportunitiesByClient(clientId);
   const topicRun = getLatestTopicAgentRun(clientId);
 
-  const hotTopics = topics.filter((t) => t.momentum === 'RISING' || t.momentum === 'EMERGING').slice(0, 2);
+  const hotTopics = topics.filter((t) => t.momentum === 'RISING' || t.momentum === 'EMERGING').slice(0, 4);
   const nextActions = buildBriefingActions({
     thesis,
     portfolio,
@@ -374,90 +374,77 @@ function renderBriefing(client: Client, thesis: PositioningThesis | undefined, _
     openTasks: tasks.length,
   });
   const focus = nextActions[0];
-  const queue = nextActions.slice(1, 4);
+  const queue = nextActions.slice(1);
 
-  const statusChips: Array<{ label: string; value: number; hot?: boolean }> = [
-    { label: 'Señales', value: unreviewed.length, hot: unreviewed.length > 0 },
-    { label: 'En entrega', value: pendingCuration.length, hot: pendingCuration.length > 0 },
-    { label: 'Listas', value: readyToDeliver.length, hot: readyToDeliver.length > 0 },
-    { label: 'Tareas', value: tasks.length, hot: overdueTasks.length > 0 },
-    { label: 'Fuentes', value: portfolio?.activeSources ?? 0 },
+  const statusChips: Array<{ label: string; value: number; hot?: boolean; tab: string }> = [
+    { label: 'Señales', value: unreviewed.length, hot: unreviewed.length > 0, tab: 'ws-radar' },
+    { label: 'En entrega', value: pendingCuration.length, hot: pendingCuration.length > 0, tab: 'ws-deliver' },
+    { label: 'Listas', value: readyToDeliver.length, hot: readyToDeliver.length > 0, tab: 'ws-deliver' },
+    { label: 'Tareas', value: tasks.length, hot: overdueTasks.length > 0, tab: 'ws-production' },
+    { label: 'Fuentes', value: portfolio?.activeSources ?? 0, tab: 'ws-sources' },
   ];
   if (portfolio?.sourcesInError) {
-    statusChips.push({ label: 'Errores', value: portfolio.sourcesInError, hot: true });
+    statusChips.push({
+      label: 'Errores',
+      value: portfolio.sourcesInError,
+      hot: true,
+      tab: 'ws-sources',
+    });
   }
 
   return `
     <div class="briefing-cockpit">
-      <div class="briefing-status-rail" aria-label="Estado operativo">
+      <section class="briefing-hero" aria-label="Siguiente paso">
+        ${focus
+          ? `<p class="briefing-focus-kicker">Siguiente paso</p>
+             <h2 class="briefing-focus-title">${esc(focus.title)}</h2>
+             <p class="briefing-focus-detail">${esc(focus.detail)}</p>
+             <button type="button" class="btn btn-primary briefing-focus-cta" data-tab="${esc(focus.tab)}">${esc(focus.label)}</button>`
+          : `<p class="briefing-focus-kicker">Estado</p>
+             <h2 class="briefing-focus-title">Cartera al día</h2>
+             <p class="briefing-focus-detail">No hay bloqueos urgentes. Puedes revisar temas emergentes o preparar la próxima entrega cuando quieras.</p>
+             <button type="button" class="btn btn-secondary briefing-focus-cta" data-tab="ws-radar">Explorar radar</button>`}
+      </section>
+
+      ${queue.length
+        ? `<ol class="briefing-queue" aria-label="Cola de acciones">
+             ${queue.map((action, index) => `
+               <li class="briefing-queue-item">
+                 <span class="briefing-queue-num">${index + 2}</span>
+                 <div class="briefing-queue-copy">
+                   <strong>${esc(action.title)}</strong>
+                   <span>${esc(action.detail)}</span>
+                 </div>
+                 <button type="button" class="btn btn-ghost btn-sm" data-tab="${esc(action.tab)}">${esc(action.label)}</button>
+               </li>
+             `).join('')}
+           </ol>`
+        : ''}
+
+      <div class="briefing-metrics" aria-label="Estado operativo">
         ${statusChips.map((chip) => `
-          <div class="status-chip${chip.hot ? ' status-chip-hot' : ''}">
-            <span class="status-chip-value">${chip.value}</span>
-            <span class="status-chip-label">${esc(chip.label)}</span>
-          </div>
+          <button type="button" class="briefing-metric${chip.hot ? ' briefing-metric-hot' : ''}" data-tab="${esc(chip.tab)}">
+            <span class="briefing-metric-value">${chip.value}</span>
+            <span class="briefing-metric-label">${esc(chip.label)}</span>
+          </button>
         `).join('')}
       </div>
 
-      <div class="briefing-main-grid">
-        <section class="briefing-focus-panel">
-          ${focus
-            ? `<p class="briefing-focus-kicker">Siguiente paso</p>
-               <h2 class="briefing-focus-title">${esc(focus.title)}</h2>
-               <p class="briefing-focus-detail">${esc(focus.detail)}</p>
-               <button type="button" class="btn btn-primary briefing-focus-cta" data-tab="${esc(focus.tab)}">${esc(focus.label)}</button>`
-            : `<p class="briefing-focus-kicker">Estado</p>
-               <h2 class="briefing-focus-title">Cartera al día</h2>
-               <p class="briefing-focus-detail">No hay bloqueos urgentes. Puedes revisar temas emergentes o preparar la próxima entrega cuando quieras.</p>
-               <button type="button" class="btn btn-secondary briefing-focus-cta" data-tab="ws-radar">Explorar radar</button>`}
+      <section class="briefing-mid-grid" aria-label="Última entrega">
+        <div class="briefing-panel briefing-panel-delivery">
+          <h3 class="briefing-panel-title">Última entrega</h3>
+          ${lastDelivery
+            ? `<p class="briefing-aside-lead">${esc(lastDelivery.title)}</p>
+               <p class="muted small">${lastDelivery.items.length} ítem(s) · ${new Date(lastDelivery.sentAt || lastDelivery.createdAt).toLocaleDateString('es')}</p>
+               <span class="badge ${lastDelivery.status === 'ACKNOWLEDGED' ? 'badge-ready' : 'badge-progress'}">
+                 ${lastDelivery.status === 'ACKNOWLEDGED' ? 'Visto' : 'Enviado'}
+               </span>`
+            : `<p class="muted small">Aún no hay entregas enviadas.</p>`}
+        </div>
+      </section>
 
-          ${queue.length
-            ? `<ol class="briefing-queue">
-                 ${queue.map((action, index) => `
-                   <li class="briefing-queue-item">
-                     <span class="briefing-queue-num">${index + 2}</span>
-                     <div class="briefing-queue-copy">
-                       <strong>${esc(action.title)}</strong>
-                       <span>${esc(action.detail)}</span>
-                     </div>
-                     <button type="button" class="btn btn-ghost btn-sm" data-tab="${esc(action.tab)}">${esc(action.label)}</button>
-                   </li>
-                 `).join('')}
-               </ol>`
-            : ''}
-        </section>
-
-        <aside class="briefing-aside">
-          <div class="briefing-aside-block">
-            <h3 class="briefing-aside-title">Última entrega</h3>
-            ${lastDelivery
-              ? `<p class="briefing-aside-lead">${esc(lastDelivery.title)}</p>
-                 <p class="muted small">${lastDelivery.items.length} ítem(s) · ${new Date(lastDelivery.sentAt || lastDelivery.createdAt).toLocaleDateString('es')}</p>
-                 <span class="badge ${lastDelivery.status === 'ACKNOWLEDGED' ? 'badge-ready' : 'badge-progress'}">
-                   ${lastDelivery.status === 'ACKNOWLEDGED' ? 'Visto' : 'Enviado'}
-                 </span>`
-              : `<p class="muted small">Aún no hay entregas enviadas.</p>`}
-          </div>
-
-          <div class="briefing-aside-block">
-            <div class="briefing-aside-head">
-              <h3 class="briefing-aside-title">Posicionamiento</h3>
-              <button type="button" id="btn-generate-advice" class="btn btn-ghost btn-sm" data-client-id="${esc(clientId)}">
-                ${advice ? 'Recalcular' : 'Generar'}
-              </button>
-            </div>
-            ${advice
-              ? `${renderAdviceCompact(advice)}
-                 <details class="briefing-inline-expand">
-                   <summary>Ver diagnóstico completo</summary>
-                   <div class="briefing-inline-body">${renderAdviceSummary(advice)}${renderAdviceActions(advice, true)}</div>
-                 </details>`
-              : `<p class="muted small">Genera el diagnóstico para ver autoridad, brechas y plan de mejora.</p>`}
-          </div>
-        </aside>
-      </div>
-
-      <section class="briefing-context-grid" aria-label="Contexto del dominio">
-        <article class="context-tile">
+      <section class="briefing-context-strip" aria-label="Contexto del dominio">
+        <div class="briefing-context-block">
           <header class="context-tile-head">
             <h3>Temas en movimiento</h3>
             <button type="button" class="link-btn" data-tab="ws-radar">Radar</button>
@@ -472,40 +459,62 @@ function renderBriefing(client: Client, thesis: PositioningThesis | undefined, _
                  `).join('')}
                </ul>`
             : '<p class="muted small">Sin temas emergentes todavía.</p>'}
-        </article>
+        </div>
 
-        <article class="context-tile">
+        <div class="briefing-context-block">
           <header class="context-tile-head">
             <h3>Oportunidades</h3>
             <span class="muted small">${opportunities.length} activa${opportunities.length === 1 ? '' : 's'}</span>
           </header>
           ${opportunities.length
             ? `<ul class="context-tile-list">
-                 ${opportunities.slice(0, 2).map((opp) => `<li><strong>${esc(opp.title)}</strong></li>`).join('')}
-               </ul>`
-            : '<p class="muted small">Sin convocatorias registradas.</p>'}
-        </article>
-
-        <article class="context-tile context-tile-wide">
-          <header class="context-tile-head">
-            <h3>Topic Agent</h3>
-            <button type="button" id="btn-run-topic-agent" class="btn btn-ghost btn-sm" data-client-id="${esc(clientId)}">Actualizar ranking</button>
-          </header>
-          ${topicRun
-            ? `<ol class="topic-agent-ranking">
-                 ${topicRun.items.map((item) => `
-                   <li class="topic-agent-row">
-                     <div class="topic-agent-row-head">
-                       <strong>#${item.rank} ${esc(item.label)}</strong>
-                       <span class="badge badge-progress">${item.signalCount} señal${item.signalCount === 1 ? '' : 'es'}</span>
-                     </div>
-                     <p class="muted small">${esc(item.rationale)}</p>
+                 ${opportunities.slice(0, 3).map((opp) => `
+                   <li>
+                     <strong>${esc(opp.title)}</strong>
+                     <span class="muted small">${esc(opp.status)}${opp.lifecycleStage ? ` · ${esc(opp.lifecycleStage)}` : ''}</span>
                    </li>
                  `).join('')}
-               </ol>
-               <p class="muted small">Actualizado ${new Date(topicRun.run.createdAt).toLocaleString('es')}</p>`
-            : '<p class="muted small">Sin ranking. Pulsa «Actualizar ranking» para generar la lista diaria con rationale.</p>'}
-        </article>
+               </ul>`
+            : '<p class="muted small">Sin convocatorias registradas.</p>'}
+        </div>
+      </section>
+
+      <section class="briefing-agent" aria-label="Topic Agent">
+        <header class="briefing-agent-head">
+          <h3 class="briefing-panel-title">Topic Agent</h3>
+          <button type="button" id="btn-run-topic-agent" class="btn btn-ghost btn-sm" data-client-id="${esc(clientId)}">Actualizar ranking</button>
+        </header>
+        ${topicRun
+          ? `<ol class="topic-agent-ranking">
+               ${topicRun.items.map((item) => `
+                 <li class="topic-agent-row">
+                   <div class="topic-agent-row-head">
+                     <span class="topic-agent-rank">#${item.rank}</span>
+                     <strong>${esc(item.label)}</strong>
+                     <span class="badge badge-progress">${item.signalCount} señal${item.signalCount === 1 ? '' : 'es'}</span>
+                   </div>
+                   <p class="topic-agent-rationale">${esc(item.rationale)}</p>
+                 </li>
+               `).join('')}
+             </ol>
+             <p class="muted small">Actualizado ${new Date(topicRun.run.createdAt).toLocaleString('es')}</p>`
+          : '<p class="muted small">Sin ranking. Pulsa «Actualizar ranking» para generar la lista diaria con rationale.</p>'}
+      </section>
+
+      <section class="briefing-positioning" aria-label="Posicionamiento">
+        <div class="briefing-aside-head">
+          <h3 class="briefing-panel-title">Posicionamiento</h3>
+          <button type="button" id="btn-generate-advice" class="btn btn-ghost btn-sm" data-client-id="${esc(clientId)}">
+            ${advice ? 'Recalcular' : 'Generar'}
+          </button>
+        </div>
+        ${advice
+          ? `${renderAdviceCompact(advice)}
+             <details class="briefing-inline-expand">
+               <summary>Ver diagnóstico completo</summary>
+               <div class="briefing-inline-body">${renderAdviceSummary(advice)}${renderAdviceActions(advice, true)}</div>
+             </details>`
+          : `<p class="muted small">Genera el diagnóstico para ver autoridad, brechas y plan de mejora.</p>`}
       </section>
     </div>
   `;

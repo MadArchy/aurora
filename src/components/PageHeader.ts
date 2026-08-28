@@ -44,7 +44,7 @@ export const PORTFOLIO_TABS: Record<string, TabMeta> = {
 export const WORKSPACE_TABS: Record<string, TabMeta> = {
   'ws-briefing': {
     title: 'Resumen',
-    subtitle: 'Una acción principal, contexto al lado y señales del dominio abajo.',
+    subtitle: 'Qué hacer ahora y el estado del cliente en un vistazo.',
   },
   'ws-sources': {
     title: 'Fuentes',
