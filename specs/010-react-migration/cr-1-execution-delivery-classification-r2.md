@@ -54,6 +54,6 @@ No schema field · no data migration · no retroactive Brief · no UI reclassifi
 
 ## Remaining debt (P3)
 
-22 noncutover writes · Stage B / event-bus · Planner/Learning/Opportunity reachability · localStorage persistence alias · soft source dedup
+22 noncutover writes · ownership ratified Phase B · Stage B / event-bus · Planner/Learning/Opportunity reachability · localStorage persistence alias · soft source dedup
 
-**NEXT ACTION after freeze:** `CR1_FINAL_CLOSURE_REVIEW_R3` (read-only)
+**NEXT ACTION after freeze:** `IMPLEMENT_CR2` (see `cr-1-noncutover-ownership.md`)

@@ -38,14 +38,14 @@ omits the action or points at the legacy surface that still owns it.
 | # | Component | User action | Legacy symbol(s) | Business write | CU? | Disposition | Owning SPEC | Blocking phase |
 |---|---|---|---|---|---|---|---|---|
 | 1 | `Login` / invite flow | Accept invitation | `acceptClientInvitation` → Application `AcceptClientInvitation` (legacy symbols: `markInvitationAccepted`, `updateClient`) | invitation state + client record | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Client Lifecycle Application** | 3 |
-| 2 | `ClientProfilePanel` | Add fact | `dbService.addProfileFact` | master profile facts | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
-| 3 | `ClientProfilePanel` | Confirm fact | `dbService.confirmProfileFact` | fact verification state | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
-| 4 | `ClientProfilePanel` | Reject fact | `dbService.rejectProfileFact` | fact verification state | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
-| 5 | `ClientProfilePanel` | Edit fact value | `dbService.updateProfileFact` | master profile facts | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
-| 6 | `ClientProfilePanel` | Extract facts from CV (paste or upload) | `dbService.importCandidateFactsFromCv` | bulk candidate facts | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
-| 7 | `ProofWallPanel` | Mark asset ready / pending | `dbService.updateProofWallItem` | proof-wall item status | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
+| 2 | `ClientProfilePanel` | Add fact | `dbService.addProfileFact` | master profile facts | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_EXISTING | 3 |
+| 3 | `ClientProfilePanel` | Confirm fact | `dbService.confirmProfileFact` | fact verification state | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_EXISTING | 3 |
+| 4 | `ClientProfilePanel` | Reject fact | `dbService.rejectProfileFact` | fact verification state | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_EXISTING | 3 |
+| 5 | `ClientProfilePanel` | Edit fact value | `dbService.updateProfileFact` | master profile facts | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_EXISTING | 3 |
+| 6 | `ClientProfilePanel` | Extract facts from CV (paste or upload) | `dbService.importCandidateFactsFromCv` | bulk candidate facts | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_EXISTING | 3 |
+| 7 | `ProofWallPanel` | Mark asset ready / pending | `dbService.updateProofWallItem` | proof-wall item status | **NO** | `READ_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 3 |
 | 8 | `SourceRegistryModal` | Register source | `registerSource` → Application `RegisterSource` (persistence: `dbService.addSource` via adapter) | source registry | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 3 |
-| 9 | `SourceRegistryModal` | Ingest now (one / all) | source polling → ingestion | signals produced downstream | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
+| 9 | `SourceRegistryModal` | Ingest now (one / all) | source polling → ingestion | signals produced downstream | **NO** | `READ_ONLY_REACT` | **CR-1 Signal Intake Application** · OWNER_RESOLVED_EXISTING · Stage B: **CANONICALIZE_BEFORE_STAGE_B** | 3 |
 | 10 | `OnboardingWizard` | Submit onboarding step / finish (handler owned by `main.ts`) | `applyOnboardingStep` → Application `ApplyOnboardingStep` (legacy symbol: `dbService.applyOnboardingStep` DEPRECATED) | client + master profile | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Master Profile Application** | 3 |
 
 ### Phase-3 page screen — 24 further blocked writes
@@ -60,32 +60,36 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 11 | `ThesisEditorModal` | Save draft / send to client | `saveThesis` → Application `SaveThesis` (persistence: `dbService.saveThesis` via adapter) | thesis record + revision | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Thesis Lifecycle Application** | 4 |
 | 12 | `ClientWorkspace` positioning | Activate thesis | `activateThesis` → Application `ActivateThesis` (Domain `activateThesisByManager`; persistence via adapter) | thesis status | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Thesis Lifecycle Application** | 4 |
 | 13 | `ClientPortal` thesis | Approve / request changes | `decideThesisClientReview` → Application `DecideThesisClientReview` (Domain `approveThesisByClient` / `rejectThesisByClient`) | client approval state | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Thesis Lifecycle Application** | 4 |
-| 14 | `ClientWorkspace` deliver | Confirm destination | `dbService.decideCuration`, `decideSignal` | curation decision | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 15 | `ClientWorkspace` deliver | Propose angle | `dbService.setCurationAngle` | curation angle | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 16 | `ClientWorkspace` deliver | Remove / reopen curation | `dbService.removeCuration`, `reopenCuration` | curation lifecycle | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 17 | `ClientWorkspace` deliver | Assemble briefing | `dbService.ensureDraftDelivery`, `addDeliveryItem`, `attachCurationToDelivery`, `removeDeliveryItem`, `updateDelivery`, `discardDraftDelivery` | delivery package | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 18 | `ClientWorkspace` deliver | Send to client | canonical gate, then delivery writes + notifications | delivery + notification | **PARTIAL** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 19 | `ClientPortal` home | Mark briefing read | `dbService.acknowledgeDelivery` | delivery acknowledgement | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 20 | `ClientWorkspace` radar | Discard signal | `dbService.decideSignal` | signal decision | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 21 | `ClientWorkspace` radar | Add to delivery | `dbService.addToCuration`, `decideSignal` | curation entry | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 22 | `ClientWorkspace` radar | Score signal | canonical routing use case, then `dbService.addRecommendation` | recommendation | **PARTIAL** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 23 | `ClientWorkspace` radar | Pin / unpin topic | `dbService.toggleTopicPin` | topic pin | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 14 | `ClientWorkspace` deliver | Confirm destination | `dbService.decideCuration`, `decideSignal` | curation decision | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE · SPEC-003 gate | 4 |
+| 15 | `ClientWorkspace` deliver | Propose angle | `dbService.setCurationAngle` | curation angle | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE · SPEC-005 AI | 4 |
+| 16 | `ClientWorkspace` deliver | Remove / reopen curation | `dbService.removeCuration`, `reopenCuration` | curation lifecycle | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
+| 17 | `ClientWorkspace` deliver | Assemble briefing | `dbService.ensureDraftDelivery`, `addDeliveryItem`, `attachCurationToDelivery`, `removeDeliveryItem`, `updateDelivery`, `discardDraftDelivery` | delivery package | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
+| 18 | `ClientWorkspace` deliver | Send to client | canonical gate, then delivery writes + notifications | delivery + notification | **PARTIAL** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE · Stage B: **CANONICALIZE_BEFORE_STAGE_B** | 4 |
+| 19 | `ClientPortal` home | Mark briefing read | `dbService.acknowledgeDelivery` | delivery acknowledgement | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
+| 20 | `ClientWorkspace` radar | Discard signal | `dbService.decideSignal` | signal decision | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Signal Intake Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
+| 21 | `ClientWorkspace` radar | Add to delivery | `dbService.addToCuration`, `decideSignal` | curation entry | **NO** | `DISPLAY_ONLY_REACT` | **COMPOSITE — Execution Delivery + Signal Intake (split)** · see § noncutover | 4 |
+| 22 | `ClientWorkspace` radar | Score signal | canonical routing use case, then `dbService.addRecommendation` | recommendation | **PARTIAL** | `DISPLAY_ONLY_REACT` | **CR-1 Signal Intake Application** (recommendation persist only) · SPEC-001 routing · `PHASE6_REMOVE_LATER_CANDIDATE` | 4 |
+| 23 | `ClientWorkspace` radar | Pin / unpin topic | `dbService.toggleTopicPin` | topic pin | **NO** | `DISPLAY_ONLY_REACT` | **POST_MVP_PRESENTATION_STATE** · no Application owner | 4 |
 | 24 | `ClientWorkspace` sources | Register source (activate/pause remain legacy) | `registerSource` → Application `RegisterSource` (same command as #8) | source registry | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 4 |
-| 25 | `ClientWorkspace` sources | Pause / reactivate / archive / test feed | `dbService.updateSourceStatus`, `recordSourceRun` | source state | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 25 | `ClientWorkspace` sources | Pause / reactivate / archive / test feed | `dbService.updateSourceStatus`, `recordSourceRun` | source state | **NO** | `READ_ONLY_REACT` | **CR-1 Signal Intake Application** · OWNER_RESOLVED_EXISTING | 4 |
 | 26 | `ClientWorkspace` sources | Manual signal | `registerManualSignal` → Application `RegisterManualSignal` (persistence: `dbService.addSignal` via adapter) | signal record | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 4 |
-| 27 | `ClientWorkspace` tasks | Assign / cancel task | `dbService.addTask`, `updateTaskStatus` | task record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 27 | `ClientWorkspace` tasks | Assign / cancel task | `dbService.addTask`, `updateTaskStatus` | task record | **NO** | `READ_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_EXISTING | 4 |
 | 28 | `ClientPortal` feed | Open / complete / request changes on a task | `transitionClientTask` → Application `TransitionClientTask` (Domain `TASK_TRANSITIONS`; persistence via adapter) | task state + evidence | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
-| 29 | `ClientWorkspace` positioning | Assign evidence to thesis | `dbService.toggleEvidenceThesis` | evidence assignment | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 30 | `Modals` add-evidence | Add evidence item | `dbService.addEvidenceItem` | evidence vault | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
+| 29 | `ClientWorkspace` positioning | Assign evidence to thesis | `dbService.toggleEvidenceThesis` | evidence assignment | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
+| 30 | `Modals` add-evidence | Add evidence item | `dbService.addEvidenceItem` | evidence vault | **NO** | `KEEP_LEGACY` | **CR-1 Master Profile Application** · SPEC-006 publication gate only | 4 |
 | 31 | `Modals` content-editor | Save content | `saveContentDraft` → Application `SaveContentDraft` (SPEC-003 Brief gate for strategic content + Domain `contentPipeline` + SPEC-006 gate consumption) | content record | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
 | 32 | `Modals` article-review | Save / approve / reject article | `reviewClientArticle` → Application `ReviewClientArticle` (Domain `articleReviewCore` + `contentPipeline`) | content + pipeline | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
-| 33 | `Modals` generate-content | Generate draft | provider call, then `dbService.saveContent` | content record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 33 | `Modals` generate-content | Generate draft | provider call, then `dbService.saveContent` | content record | **NO** | `READ_ONLY_REACT` | **CR-1 Execution Delivery Application** · SPEC-003 auth · SPEC-005 AI · create ≠ `SaveContentDraft` | 4 |
 | 34 | `ManagerCockpit` / `Modals` create-client | Create client + invite | `createClientWithInvite` → Application `CreateClientWithInvite` (legacy symbols: `createClient`, `createInvitation`, `createPendingAccount`) | tenancy + identity | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Client Lifecycle Application** (SPEC-009 remains authz/RBAC only) | 4 |
 
 Items 18 and 22 are recorded as `CU? PARTIAL` deliberately: their *authorization*
 is canonical but their *persistence* is not. A partially canonical command is not
 a migratable command — routing it through React would move the non-canonical half
 into the presentation layer — so both stay legacy in full.
+
+**#18:** Execution Delivery owns the write group; Stage B blocker (orchestration in
+`main.ts`). **#22:** SPEC-001 owns routing (`scoreAndRouteSignal`); Signal Intake
+owns legacy `addRecommendation` persistence only (`NONAUTHORITATIVE_COMPATIBILITY_ADVISORY`).
 
 Item 34 also mutates the session (`impersonateClient`) on the neighbouring "ver
 como cliente" control, which is SPEC-009 authority and out of scope regardless.
@@ -104,11 +108,12 @@ Class: `CANONICAL_CONSUMER_REQUIRES_CALLER_AGGREGATE`. Unlike the rows above,
 this one is resolvable by an id-based overload in SPEC-003 rather than by new
 business authority. Brief *approval* has no such problem and was migrated.
 
-**Owning SPEC is deliberately recorded as `UNDETERMINED`.** No repository
-document assigns profile facts, proof-wall status, source registration or
-onboarding to a specific SPEC's Application layer, and inventing an owner would
-be a governance fabrication. Determining ownership is the prerequisite for
-unblocking, and it is other-SPEC work.
+**Noncutover ownership ratified (CR-1 Phase B).** The 22 rows with `CU? = NO`
+(or `PARTIAL` for #18/#22) now have final **business Application owners** recorded
+in the `Owning SPEC` column and in `cr-1-noncutover-ownership.md`. Owner
+resolution does **not** change `CU?` or implement canonical use cases. Cutover
+spine rows (#1, #8, #10, #11, #12, #13, #24, #26, #28, #31, #32, #34) are
+unchanged.
 
 ### Item 10 changed disposition without changing the blocker
 
@@ -257,11 +262,11 @@ Phase 4 from discharging it.
 
 | CR | Capability | Blocked writes | Why blocked | Candidate owner | Cut-over impact |
 |---|---|---|---|---|---|
-| **CR-1** | Onboarding, profile facts, proof wall, source registration, curation, delivery, tasks, evidence, content, thesis, **client lifecycle + master profile (partial)** | **34** registry rows · **3 canonicalized** (#34, #1, #10) · **31** still without CU | Remaining writes lack Application owners. Client Lifecycle (#34/#1) + Master Profile (#10) owned by CR-1 workstreams. | **PARTIAL** — Client Lifecycle + Master Profile Application; others UNDETERMINED / approved CR-1 workstreams pending | Blocks FULL CUTOVER / T-010-403 / T-010-404 / Phase 6 until cutover spine completes |
+| **CR-1** | Onboarding, profile facts, proof wall, source registration, curation, delivery, tasks, evidence, content, thesis, **client lifecycle + master profile (partial)** | **34** registry rows · **12** canonicalized (cutover spine) · **22** noncutover owned but not implemented | Cutover spine complete; noncutover owners ratified Phase B; implementations deferred | **COMPLETE (ownership)** — five Application boundaries; see `cr-1-noncutover-ownership.md` | Cutover spine done; T-010-403/404 blocked on Stage B + #9/#18; Phase 6 awaits canonicalization debt |
 | **CR-2** | Strategic Brief creation from a curation entry | 1 (not counted in the 34 — the consumer exists) | Consumer requires the caller to pass the whole `CurationEntry` aggregate | **SPEC-003** (frozen) | Blocks migrating brief creation; approval already migrated |
 | **CR-3** | Trusted tenant entitlement in four consumer `buildTrusted*Context` builders | 4 builders (003/004/007/008) | Trusted `organizationId` was derived from the requested client record | **SPEC-003 · 004 · 007 · 008** | **RESOLVED** — see `cr-3-trusted-tenant-entitlement.md`; implementation `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
 
-**FORMAL CHANGE REQUESTS:** CR-1 **OPEN** · CR-2 **CHANGE_REQUIRED** · CR-3 **RESOLVED** (security amendment; not a product CR).
+**FORMAL CHANGE REQUESTS:** CR-1 **CODE_COMPLETE_WITH_DEBT** (ownership complete · noncutover implementation deferred) · CR-2 **CHANGE_REQUIRED** · CR-3 **RESOLVED** (security amendment; not a product CR).
 
 ## CR-2 — SPEC-003 consumer signature (§12)
 
@@ -443,9 +448,10 @@ evidence-supported (AUDIT010-11 reclassified P3→P2), P3 **7** / **6**.
 
 | Item | State |
 |---|---|
-| CR-1 blocked writes | **34** registry rows · **12** canonicalized (cutover spine complete: #1/#8/#10/#11/#12/#13/#24/#26/#28/#31/#32/#34) · **22** still CU?=NO (non-cutover) |
-| CR-1 ownership | **CUTOVER_SPINE_COMPLETE** — five operational Application boundaries; remaining UNDETERMINED writes are non-cutover |
-| CR-1 provisional groups | Cutover spine Application-owned; IDs 2–6 remain OWNER_RESOLVED / NOT_IMPLEMENTED |
+| CR-1 blocked writes | **34** registry rows · **12** canonicalized (cutover spine complete: #1/#8/#10/#11/#12/#13/#24/#26/#28/#31/#32/#34) · **22** noncutover owned · **22** still CU?=NO (or PARTIAL #18/#22) |
+| CR-1 ownership | **CUTOVER_SPINE_COMPLETE** · **NONCUTOVER_OWNER_DISPOSITION_COMPLETE** — five operational Application boundaries ratified |
+| CR-1 noncutover map | **22 IDs** — `cr-1-noncutover-ownership.md` (Phase B ratified @ base `6579f9a9c247eb9c2ac2f57cd8251d52470786a6`) |
+| CR-1 provisional groups | Superseded by Phase B ratification — IDs 2–6, 7, 9, 14–23, 25, 27, 29–30, 33 final owners recorded |
 | CR-2 / SPEC-003 | **CHANGE_REQUIRED**, `CALLER_SNAPSHOT_AUTHORITY_PRESENT` — unchanged |
 | SPEC-003 modifications | **0** |
 | T-010-403 / T-010-404 | **BLOCKED_BY_OTHER_PRECONDITION** — cutover spine canonical; remaining 22 CU?=NO writes + Stage B precondition (`main.ts` still event bus) |
@@ -482,7 +488,8 @@ from React until separately owned.
 | Previous legacy authority | `main.ts` → `dbService.applyOnboardingStep` (now DEPRECATED fail-closed) |
 | Domain reuse | `buildFactsFromProfile`, `computeProfileCoverage` / `nextIncompleteOnboardingStep` (resume) |
 | Completeness | Domain-derived on `saveMasterProfile` refresh — not caller/legacy constant authority |
-| IDs 2–6 | OWNER_RESOLVED → Master Profile · **NOT_IMPLEMENTED** this workstream |
+| IDs 2–6 | OWNER_RESOLVED → Master Profile · **NOT_IMPLEMENTED** · ratified Phase B |
+| IDs 7, 29, 30 | Master Profile noncutover · ratified Phase B |
 | Compatibility path | Legacy onboarding form → `masterProfileConsumer`; React remains `DISPLAY_ONLY_REACT` |
 | Removal eligibility | Not eligible — 9 other cutover-spine writes remain |
 | Evidence | `specs/010-react-migration/cr-1-master-profile.md`; `tests/cr1MasterProfile.test.ts` |
@@ -516,6 +523,7 @@ from React until separately owned.
 | Previous legacy authority | `main.ts` → `dbService.addSource` / `dbService.addSignal` with caller-built org ownership |
 | Dedup disposition | Signal fingerprint content identity unchanged; **lookup client-scoped** per F6 §186 (was global leakage) |
 | SPEC-001 | Intake ends at persistence; routing/scoring remain SPEC-001 after return |
+| Noncutover | IDs **9, 20, 22, 25** · see `cr-1-noncutover-ownership.md` |
 | Compatibility path | Legacy SourceRegistry / ClientWorkspace → `signalIntakeConsumer`; React remains `READ_ONLY_REACT`; seam exposes `signalIntakeCommands` |
 | Removal eligibility | Not eligible — 3 other cutover-spine writes remain (#28/#31/#32) |
 | Evidence | `specs/010-react-migration/cr-1-signal-intake.md`; `tests/cr1SignalIntake.test.ts` |
@@ -535,5 +543,60 @@ from React until separately owned.
 | SPEC-004 / SPEC-008 | Not owned — expansion **0** / learning authority **0** |
 | Compatibility path | Legacy ClientPortal / content-editor / article-review / teleprompter complete → `executionDeliveryConsumer`; seam exposes `executionDeliveryCommands` |
 | Remediation | P1 Brief gate + P2 teleprompter closed; **classification R2** fail-closes thesis-only / ambiguous legacy (`LEGACY_AMBIGUOUS`) — see `cr-1-execution-delivery-classification-r2.md` |
-| Removal eligibility | Cutover spine complete — non-cutover 22 writes remain; T-010-403/404 `BLOCKED_BY_OTHER_PRECONDITION` |
-| Evidence | `specs/010-react-migration/cr-1-execution-delivery.md`; `cr-1-execution-delivery-remediation.md`; `cr-1-execution-delivery-classification-r2.md`; `tests/cr1ExecutionDelivery.test.ts` |
+| Noncutover | IDs **14–19, 27, 33** Execution Delivery · **21** composite · see `cr-1-noncutover-ownership.md` |
+| Removal eligibility | Cutover spine complete — noncutover 22 owned but not canonicalized; T-010-403/404 `BLOCKED_BY_OTHER_PRECONDITION` |
+| Evidence | `specs/010-react-migration/cr-1-execution-delivery.md`; `cr-1-execution-delivery-remediation.md`; `cr-1-execution-delivery-classification-r2.md`; `cr-1-noncutover-ownership.md`; `tests/cr1ExecutionDelivery.test.ts` |
+
+---
+
+## CR-1 noncutover ownership — Phase B ratified
+
+**Governance artifact:** `cr-1-noncutover-ownership.md`  
+**Base checkpoint:** `6579f9a9c247eb9c2ac2f57cd8251d52470786a6`  
+**Status:** NONCUTOVER OWNER DISPOSITION **COMPLETE** · implementation **DEFERRED**
+
+Per-row debt metadata (owner resolution does not change `CU?`):
+
+| # | Final owner | Owner state | Integration SPEC | CU? | Stage B | MVP E2E | Canonicalization target |
+|---|---|---|---|---|---|---|---|
+| 2 | Master Profile | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Profile fact CRUD use case |
+| 3 | Master Profile | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Confirm fact |
+| 4 | Master Profile | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Reject fact |
+| 5 | Master Profile | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Update fact |
+| 6 | Master Profile | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | CV import |
+| 7 | Master Profile | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | NOT_REQUIRED | Proof wall toggle |
+| 9 | Signal Intake | OWNER_RESOLVED_EXISTING | SPEC-001 post-ingest | NO | **REQUIRED BEFORE** | REQUIRED | Ingest / poll / scheduler |
+| 14 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-003 gate | NO | LEGACY_ISLAND | REQUIRED | Decide curation |
+| 15 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-005 AI | NO | LEGACY_ISLAND | PARTIAL | Set curation angle |
+| 16 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | PARTIAL | Remove / reopen curation |
+| 17 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Delivery package assembly |
+| 18 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-003/004/006/007 | PARTIAL | **REQUIRED BEFORE** | REQUIRED | Send delivery orchestration |
+| 19 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Acknowledge delivery |
+| 20 | Signal Intake | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Discard signal |
+| 21 | **COMPOSITE** Execution Delivery + Signal Intake | SPLIT_AUTHORITY | — | NO | LEGACY_ISLAND | REQUIRED | Composed canonical intent |
+| 22 | Signal Intake (recommendation only) | OWNER_RESOLVED | SPEC-001 routing | PARTIAL | LEGACY_ISLAND · PHASE6_REMOVE_LATER | PARTIAL | Retire or replace recommendation store |
+| 23 | POST_MVP_PRESENTATION_STATE | POST_MVP | — | NO | POST_MVP | NOT_REQUIRED | None required |
+| 25 | Signal Intake | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Source status / run record |
+| 27 | Execution Delivery | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | REQUIRED | Assign / cancel task |
+| 29 | Master Profile | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | PARTIAL | Toggle evidence ↔ thesis |
+| 30 | Master Profile | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-006 publication only | NO | LEGACY_ISLAND | PARTIAL | Add evidence vault item |
+| 33 | Execution Delivery | OWNER_RESOLVED (ratified) | SPEC-003 · SPEC-005 · create ≠ SaveContentDraft | NO | LEGACY_ISLAND | REQUIRED | New ContentItem create use case |
+
+### Special representations
+
+**#21 — split authority (do not collapse):**
+
+| Mutation | Owner |
+|---|---|
+| `addToCuration(...)` | Execution Delivery Application |
+| `decideSignal(..., SAVED)` | Signal Intake Application |
+
+**#30 — verified flag:** legacy UI `verified: true` = **NONAUTHORITATIVE_LEGACY_METADATA**.
+Formal SPEC-006 Verification / `AuthorizePublication` authority **0**. Compatibility
+advisory readers (`claimSafetyCore`, `thesisStrengthCore`) may use the flag
+heuristically only.
+
+**#33 — create path:** `SaveContentDraft` contract **not expanded** to cover new
+ContentItem creation. Future Execution Delivery create use case required.
+
+**NEXT ACTION (post-ratification):** `IMPLEMENT_CR2`
