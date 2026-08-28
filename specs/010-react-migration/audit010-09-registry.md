@@ -37,7 +37,7 @@ omits the action or points at the legacy surface that still owns it.
 
 | # | Component | User action | Legacy symbol(s) | Business write | CU? | Disposition | Owning SPEC | Blocking phase |
 |---|---|---|---|---|---|---|---|---|
-| 1 | `Login` / invite flow | Accept invitation | `dbService.markInvitationAccepted`, `dbService.updateClient` | invitation state + client record | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 3 |
+| 1 | `Login` / invite flow | Accept invitation | `acceptClientInvitation` → Application `AcceptClientInvitation` (legacy symbols: `markInvitationAccepted`, `updateClient`) | invitation state + client record | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Client Lifecycle Application** | 3 |
 | 2 | `ClientProfilePanel` | Add fact | `dbService.addProfileFact` | master profile facts | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 3 | `ClientProfilePanel` | Confirm fact | `dbService.confirmProfileFact` | fact verification state | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 4 | `ClientProfilePanel` | Reject fact | `dbService.rejectProfileFact` | fact verification state | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
@@ -80,7 +80,7 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 31 | `Modals` content-editor | Save content | `dbService.saveContent` | content record | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
 | 32 | `Modals` article-review | Save / approve / reject article | `dbService.saveClientArticleRevision`, `transitionContentPipeline`, `addFeedbackEvent`, `saveContent` | content + pipeline | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
 | 33 | `Modals` generate-content | Generate draft | provider call, then `dbService.saveContent` | content record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 34 | `ManagerCockpit` / `Modals` create-client | Create client + invite | `dbService.createClient`, `createInvitation`, `authService.createPendingAccount` | tenancy + identity | **NO** | `KEEP_LEGACY` | SPEC-009 adjacent, **UNDETERMINED** | 4 |
+| 34 | `ManagerCockpit` / `Modals` create-client | Create client + invite | `createClientWithInvite` → Application `CreateClientWithInvite` (legacy symbols: `createClient`, `createInvitation`, `createPendingAccount`) | tenancy + identity | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Client Lifecycle Application** (SPEC-009 remains authz/RBAC only) | 4 |
 
 Items 18 and 22 are recorded as `CU? PARTIAL` deliberately: their *authorization*
 is canonical but their *persistence* is not. A partially canonical command is not
@@ -257,7 +257,7 @@ Phase 4 from discharging it.
 
 | CR | Capability | Blocked writes | Why blocked | Candidate owner | Cut-over impact |
 |---|---|---|---|---|---|
-| **CR-1** | Onboarding, profile facts, proof wall, source registration, curation, delivery assembly and sending, tasks, evidence, content saves, thesis saves, client creation | **34** (registry items 1–34) | No canonical Application use case exists. Creating one is business authority, which SPEC-010 does not hold. | **UNDETERMINED** — no repository document assigns these to a SPEC's Application layer | Blocks FULL CUTOVER for all 5 pages, blocks Stage B (T-010-403), blocks a minimal `main.ts` (T-010-404), blocks legacy removal (Phase 6) |
+| **CR-1** | Onboarding, profile facts, proof wall, source registration, curation, delivery, tasks, evidence, content, thesis, **client lifecycle (partial)** | **34** registry rows · **2 canonicalized** (#34, #1) · **32** still without CU | Remaining writes lack Application owners. Client Lifecycle (#34/#1) owned by CR-1 Workstream 1. | **PARTIAL** — Client Lifecycle Application for #34/#1; others UNDETERMINED / approved CR-1 workstreams pending | Blocks FULL CUTOVER / T-010-403 / T-010-404 / Phase 6 until cutover spine completes |
 | **CR-2** | Strategic Brief creation from a curation entry | 1 (not counted in the 34 — the consumer exists) | Consumer requires the caller to pass the whole `CurationEntry` aggregate | **SPEC-003** (frozen) | Blocks migrating brief creation; approval already migrated |
 | **CR-3** | Trusted tenant entitlement in four consumer `buildTrusted*Context` builders | 4 builders (003/004/007/008) | Trusted `organizationId` was derived from the requested client record | **SPEC-003 · 004 · 007 · 008** | **RESOLVED** — see `cr-3-trusted-tenant-entitlement.md`; implementation `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
 
@@ -443,13 +443,29 @@ evidence-supported (AUDIT010-11 reclassified P3→P2), P3 **7** / **6**.
 
 | Item | State |
 |---|---|
-| CR-1 blocked writes | **34** — unchanged |
-| CR-1 ownership | **PARTIAL** (SPEC-006 1, unassigned 33) — unchanged |
-| CR-1 provisional groups | **10** — unchanged |
+| CR-1 blocked writes | **34** registry rows · **2** canonicalized (#34/#1 Client Lifecycle) · **32** still CU?=NO |
+| CR-1 ownership | **PARTIAL** — Client Lifecycle Application owns #34/#1; remaining UNDETERMINED / pending workstreams |
+| CR-1 provisional groups | **10** — unchanged labels; Client Lifecycle (CR-1A items 1, 34) now Application-owned |
 | CR-2 / SPEC-003 | **CHANGE_REQUIRED**, `CALLER_SNAPSHOT_AUTHORITY_PRESENT` — unchanged |
 | SPEC-003 modifications | **0** |
 | T-010-403 / T-010-404 | **BLOCKED_BY_PRECONDITION** — CR-1 unresolved |
 
-Gating a legacy write does not canonicalize it. Every one of the 34 still writes
-through `dbService` with no Application use case, and every one is still barred
-from React. The gates make the legacy path safer while it stays legacy.
+Gating a legacy write does not canonicalize it. **Exception (CR-1 WS1):** registry
+**#34** and **#1** now have canonical Application use cases (`CreateClientWithInvite`,
+`AcceptClientInvitation`); legacy UI invokes the consumer only (double authority 0).
+The remaining **32** CU?=NO rows still write through `dbService` with no Application
+use case and remain barred from React until their CR-1 workstreams land.
+
+---
+
+## CR-1 Workstream 1 — Client Lifecycle (post-adoption note)
+
+| Field | Value |
+|---|---|
+| Registry IDs | **#34**, **#1** |
+| Commands | `CreateClientWithInvite`, `AcceptClientInvitation` |
+| Owner | CR-1 Client Lifecycle Application (operational) |
+| Previous legacy authority | `main.ts` orchestrated `createClient` + `createInvitation` + `createPendingAccount` / `markInvitationAccepted` + `updateClient` |
+| Compatibility path | Legacy login + create-client forms call `clientLifecycleConsumer`; React remains `KEEP_LEGACY` / LegacyHandoff until presentation migration |
+| Removal eligibility | Not eligible — 10 other cutover-spine writes remain; T-010-403/404 stay blocked |
+| Evidence | `specs/010-react-migration/cr-1-client-lifecycle.md`; `tests/cr1ClientLifecycle.test.ts` |
