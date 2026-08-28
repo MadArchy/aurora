@@ -44,7 +44,7 @@ omits the action or points at the legacy surface that still owns it.
 | 5 | `ClientProfilePanel` | Edit fact value | `dbService.updateProfileFact` | master profile facts | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 6 | `ClientProfilePanel` | Extract facts from CV (paste or upload) | `dbService.importCandidateFactsFromCv` | bulk candidate facts | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 7 | `ProofWallPanel` | Mark asset ready / pending | `dbService.updateProofWallItem` | proof-wall item status | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
-| 8 | `SourceRegistryModal` | Register source | `dbService.addSource` | source registry | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
+| 8 | `SourceRegistryModal` | Register source | `registerSource` → Application `RegisterSource` (persistence: `dbService.addSource` via adapter) | source registry | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 3 |
 | 9 | `SourceRegistryModal` | Ingest now (one / all) | source polling → ingestion | signals produced downstream | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 10 | `OnboardingWizard` | Submit onboarding step / finish (handler owned by `main.ts`) | `applyOnboardingStep` → Application `ApplyOnboardingStep` (legacy symbol: `dbService.applyOnboardingStep` DEPRECATED) | client + master profile | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Master Profile Application** | 3 |
 
@@ -70,9 +70,9 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 21 | `ClientWorkspace` radar | Add to delivery | `dbService.addToCuration`, `decideSignal` | curation entry | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 22 | `ClientWorkspace` radar | Score signal | canonical routing use case, then `dbService.addRecommendation` | recommendation | **PARTIAL** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 23 | `ClientWorkspace` radar | Pin / unpin topic | `dbService.toggleTopicPin` | topic pin | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 24 | `ClientWorkspace` sources | Register / activate source | `dbService.addSource` | source registry | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 24 | `ClientWorkspace` sources | Register source (activate/pause remain legacy) | `registerSource` → Application `RegisterSource` (same command as #8) | source registry | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 4 |
 | 25 | `ClientWorkspace` sources | Pause / reactivate / archive / test feed | `dbService.updateSourceStatus`, `recordSourceRun` | source state | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 26 | `ClientWorkspace` sources | Manual signal | `dbService.addSignal` | signal record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 26 | `ClientWorkspace` sources | Manual signal | `registerManualSignal` → Application `RegisterManualSignal` (persistence: `dbService.addSignal` via adapter) | signal record | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 4 |
 | 27 | `ClientWorkspace` tasks | Assign / cancel task | `dbService.addTask`, `updateTaskStatus` | task record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 28 | `ClientPortal` feed | Open / complete / request changes on a task | `dbService.updateTaskStatus`, `updateTaskEvidence` | task state + evidence | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 29 | `ClientWorkspace` positioning | Assign evidence to thesis | `dbService.toggleEvidenceThesis` | evidence assignment | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
@@ -443,19 +443,20 @@ evidence-supported (AUDIT010-11 reclassified P3→P2), P3 **7** / **6**.
 
 | Item | State |
 |---|---|
-| CR-1 blocked writes | **34** registry rows · **6** canonicalized (#34/#1 Client Lifecycle, #10 Master Profile, #11/#12/#13 Thesis Lifecycle) · **28** still CU?=NO |
-| CR-1 ownership | **PARTIAL** — Client Lifecycle + Master Profile + Thesis Lifecycle Application; remaining UNDETERMINED / pending workstreams |
-| CR-1 provisional groups | **10** — Client Lifecycle (1, 34) + Master Profile (#10) + Thesis Lifecycle (11–13) Application-owned; IDs 2–6 remain OWNER_RESOLVED / NOT_IMPLEMENTED |
+| CR-1 blocked writes | **34** registry rows · **9** canonicalized (#34/#1 Client Lifecycle, #10 Master Profile, #11/#12/#13 Thesis Lifecycle, #8/#24/#26 Signal Intake) · **25** still CU?=NO |
+| CR-1 ownership | **PARTIAL** — Client Lifecycle + Master Profile + Thesis Lifecycle + Signal Intake Application; remaining UNDETERMINED / pending workstreams |
+| CR-1 provisional groups | **10** — Client Lifecycle (1, 34) + Master Profile (#10) + Thesis Lifecycle (11–13) + Signal Intake (8, 24, 26) Application-owned; IDs 2–6 remain OWNER_RESOLVED / NOT_IMPLEMENTED |
 | CR-2 / SPEC-003 | **CHANGE_REQUIRED**, `CALLER_SNAPSHOT_AUTHORITY_PRESENT` — unchanged |
 | SPEC-003 modifications | **0** |
 | T-010-403 / T-010-404 | **BLOCKED_BY_PRECONDITION** — CR-1 unresolved |
 
 Gating a legacy write does not canonicalize it. **Exceptions (CR-1):** registry
-**#34**, **#1** (Client Lifecycle), **#10** (Master Profile), and **#11**, **#12**,
-**#13** (Thesis Lifecycle) now have canonical Application use cases; legacy UI
-invokes the consumer only (double authority 0). The remaining **28** CU?=NO rows
-still write through `dbService` with no Application use case and remain barred
-from React until their CR-1 workstreams land.
+**#34**, **#1** (Client Lifecycle), **#10** (Master Profile), **#11**, **#12**,
+**#13** (Thesis Lifecycle), and **#8**, **#24**, **#26** (Signal Intake) now have
+canonical Application use cases; legacy UI invokes the consumer only (double
+authority 0). The remaining **25** CU?=NO rows still write through `dbService`
+with no Application use case and remain barred from React until their CR-1
+workstreams land.
 
 ---
 
@@ -504,3 +505,19 @@ from React until their CR-1 workstreams land.
 | Compatibility path | Legacy ThesisEditor / ClientWorkspace / ClientPortal → `thesisLifecycleConsumer`; React remains `DISPLAY_ONLY_REACT`; command seam exposes `thesisLifecycleCommands` |
 | Removal eligibility | Not eligible — 6 other cutover-spine writes remain |
 | Evidence | `specs/010-react-migration/cr-1-thesis-lifecycle.md`; `tests/cr1ThesisLifecycle.test.ts` |
+
+---
+
+## CR-1 Workstream 4 — Signal Intake (post-adoption note)
+
+| Field | Value |
+|---|---|
+| Registry IDs | **#8**, **#24**, **#26** |
+| Commands | `RegisterSource` (#8+#24 consolidated), `RegisterManualSignal` (#26) |
+| Owner | CR-1 Signal Intake Application (operational) |
+| Previous legacy authority | `main.ts` → `dbService.addSource` / `dbService.addSignal` with caller-built org ownership |
+| Dedup disposition | Signal fingerprint content identity unchanged; **lookup client-scoped** per F6 §186 (was global leakage) |
+| SPEC-001 | Intake ends at persistence; routing/scoring remain SPEC-001 after return |
+| Compatibility path | Legacy SourceRegistry / ClientWorkspace → `signalIntakeConsumer`; React remains `READ_ONLY_REACT`; seam exposes `signalIntakeCommands` |
+| Removal eligibility | Not eligible — 3 other cutover-spine writes remain (#28/#31/#32) |
+| Evidence | `specs/010-react-migration/cr-1-signal-intake.md`; `tests/cr1SignalIntake.test.ts` |
