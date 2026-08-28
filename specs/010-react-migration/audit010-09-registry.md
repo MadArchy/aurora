@@ -46,7 +46,7 @@ omits the action or points at the legacy surface that still owns it.
 | 7 | `ProofWallPanel` | Mark asset ready / pending | `dbService.updateProofWallItem` | proof-wall item status | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 8 | `SourceRegistryModal` | Register source | `dbService.addSource` | source registry | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
 | 9 | `SourceRegistryModal` | Ingest now (one / all) | source polling → ingestion | signals produced downstream | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 3 |
-| 10 | `OnboardingWizard` | Submit onboarding step / finish (handler owned by `main.ts`) | `dbService.applyOnboardingStep` | client + master profile | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 3 |
+| 10 | `OnboardingWizard` | Submit onboarding step / finish (handler owned by `main.ts`) | `applyOnboardingStep` → Application `ApplyOnboardingStep` (legacy symbol: `dbService.applyOnboardingStep` DEPRECATED) | client + master profile | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Master Profile Application** | 3 |
 
 ### Phase-3 page screen — 24 further blocked writes
 
@@ -257,7 +257,7 @@ Phase 4 from discharging it.
 
 | CR | Capability | Blocked writes | Why blocked | Candidate owner | Cut-over impact |
 |---|---|---|---|---|---|
-| **CR-1** | Onboarding, profile facts, proof wall, source registration, curation, delivery, tasks, evidence, content, thesis, **client lifecycle (partial)** | **34** registry rows · **2 canonicalized** (#34, #1) · **32** still without CU | Remaining writes lack Application owners. Client Lifecycle (#34/#1) owned by CR-1 Workstream 1. | **PARTIAL** — Client Lifecycle Application for #34/#1; others UNDETERMINED / approved CR-1 workstreams pending | Blocks FULL CUTOVER / T-010-403 / T-010-404 / Phase 6 until cutover spine completes |
+| **CR-1** | Onboarding, profile facts, proof wall, source registration, curation, delivery, tasks, evidence, content, thesis, **client lifecycle + master profile (partial)** | **34** registry rows · **3 canonicalized** (#34, #1, #10) · **31** still without CU | Remaining writes lack Application owners. Client Lifecycle (#34/#1) + Master Profile (#10) owned by CR-1 workstreams. | **PARTIAL** — Client Lifecycle + Master Profile Application; others UNDETERMINED / approved CR-1 workstreams pending | Blocks FULL CUTOVER / T-010-403 / T-010-404 / Phase 6 until cutover spine completes |
 | **CR-2** | Strategic Brief creation from a curation entry | 1 (not counted in the 34 — the consumer exists) | Consumer requires the caller to pass the whole `CurationEntry` aggregate | **SPEC-003** (frozen) | Blocks migrating brief creation; approval already migrated |
 | **CR-3** | Trusted tenant entitlement in four consumer `buildTrusted*Context` builders | 4 builders (003/004/007/008) | Trusted `organizationId` was derived from the requested client record | **SPEC-003 · 004 · 007 · 008** | **RESOLVED** — see `cr-3-trusted-tenant-entitlement.md`; implementation `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
 
@@ -443,17 +443,17 @@ evidence-supported (AUDIT010-11 reclassified P3→P2), P3 **7** / **6**.
 
 | Item | State |
 |---|---|
-| CR-1 blocked writes | **34** registry rows · **2** canonicalized (#34/#1 Client Lifecycle) · **32** still CU?=NO |
-| CR-1 ownership | **PARTIAL** — Client Lifecycle Application owns #34/#1; remaining UNDETERMINED / pending workstreams |
-| CR-1 provisional groups | **10** — unchanged labels; Client Lifecycle (CR-1A items 1, 34) now Application-owned |
+| CR-1 blocked writes | **34** registry rows · **3** canonicalized (#34/#1 Client Lifecycle, #10 Master Profile) · **31** still CU?=NO |
+| CR-1 ownership | **PARTIAL** — Client Lifecycle + Master Profile Application; remaining UNDETERMINED / pending workstreams |
+| CR-1 provisional groups | **10** — Client Lifecycle (1, 34) + Master Profile (#10) Application-owned; IDs 2–6 remain OWNER_RESOLVED / NOT_IMPLEMENTED |
 | CR-2 / SPEC-003 | **CHANGE_REQUIRED**, `CALLER_SNAPSHOT_AUTHORITY_PRESENT` — unchanged |
 | SPEC-003 modifications | **0** |
 | T-010-403 / T-010-404 | **BLOCKED_BY_PRECONDITION** — CR-1 unresolved |
 
-Gating a legacy write does not canonicalize it. **Exception (CR-1 WS1):** registry
-**#34** and **#1** now have canonical Application use cases (`CreateClientWithInvite`,
-`AcceptClientInvitation`); legacy UI invokes the consumer only (double authority 0).
-The remaining **32** CU?=NO rows still write through `dbService` with no Application
+Gating a legacy write does not canonicalize it. **Exceptions (CR-1):** registry
+**#34**, **#1** (Client Lifecycle) and **#10** (Master Profile) now have canonical
+Application use cases; legacy UI invokes the consumer only (double authority 0).
+The remaining **31** CU?=NO rows still write through `dbService` with no Application
 use case and remain barred from React until their CR-1 workstreams land.
 
 ---
@@ -467,5 +467,22 @@ use case and remain barred from React until their CR-1 workstreams land.
 | Owner | CR-1 Client Lifecycle Application (operational) |
 | Previous legacy authority | `main.ts` orchestrated `createClient` + `createInvitation` + `createPendingAccount` / `markInvitationAccepted` + `updateClient` |
 | Compatibility path | Legacy login + create-client forms call `clientLifecycleConsumer`; React remains `KEEP_LEGACY` / LegacyHandoff until presentation migration |
-| Removal eligibility | Not eligible — 10 other cutover-spine writes remain; T-010-403/404 stay blocked |
+| Removal eligibility | Not eligible — cutover-spine writes remain; T-010-403/404 stay blocked |
 | Evidence | `specs/010-react-migration/cr-1-client-lifecycle.md`; `tests/cr1ClientLifecycle.test.ts` |
+
+---
+
+## CR-1 Workstream 2 — Master Profile (post-adoption note)
+
+| Field | Value |
+|---|---|
+| Registry ID | **#10** |
+| Command | `ApplyOnboardingStep` |
+| Owner | CR-1 Master Profile Application (operational) |
+| Previous legacy authority | `main.ts` → `dbService.applyOnboardingStep` (now DEPRECATED fail-closed) |
+| Domain reuse | `buildFactsFromProfile`, `computeProfileCoverage` / `nextIncompleteOnboardingStep` (resume) |
+| Completeness | Domain-derived on `saveMasterProfile` refresh — not caller/legacy constant authority |
+| IDs 2–6 | OWNER_RESOLVED → Master Profile · **NOT_IMPLEMENTED** this workstream |
+| Compatibility path | Legacy onboarding form → `masterProfileConsumer`; React remains `DISPLAY_ONLY_REACT` |
+| Removal eligibility | Not eligible — 9 other cutover-spine writes remain |
+| Evidence | `specs/010-react-migration/cr-1-master-profile.md`; `tests/cr1MasterProfile.test.ts` |
