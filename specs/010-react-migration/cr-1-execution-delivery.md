@@ -5,7 +5,7 @@
 **Umbrella:** CR-1 — Cutover-Critical Application Ownership  
 **Authorized base checkpoint:** `974f88085732aa169996baf4389cbc266a2994ba`  
 **Implementation SHA:** `bce794c714e025bd820523730b33c40510ac7049`  
-**Governance / freeze SHA:** *(this commit)*  
+**Governance / freeze SHA:** `007083de5f86e0920b1dcf58a4482772717f0fc2`  
 **Timezone:** America/Bogota
 
 ---
@@ -83,5 +83,5 @@ Caller lifecycle / publication / claim-safety spoof → DENY.
 |------|-----|
 | Authorized start | `974f88085732aa169996baf4389cbc266a2994ba` |
 | Implementation | `bce794c714e025bd820523730b33c40510ac7049` |
-| Governance / freeze (content) | *(this commit)* |
+| Governance / freeze (content) | `007083de5f86e0920b1dcf58a4482772717f0fc2` |
 | Tip pin | points at freeze content above (not self) |
