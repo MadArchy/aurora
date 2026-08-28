@@ -57,9 +57,9 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 
 | # | Page | User action | Legacy symbol(s) | Business write | CU? | Disposition | Owning SPEC | Blocking phase |
 |---|---|---|---|---|---|---|---|---|
-| 11 | `ThesisEditorModal` | Save draft / send to client | `dbService.saveThesis` | thesis record + revision | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 12 | `ClientWorkspace` positioning | Activate thesis | `activateThesisByManager` → `dbService.saveThesis` | thesis status | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 13 | `ClientPortal` thesis | Approve / request changes | `approveThesisByClient` / `rejectThesisByClient` → `dbService.saveThesis` | client approval state | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 11 | `ThesisEditorModal` | Save draft / send to client | `saveThesis` → Application `SaveThesis` (persistence: `dbService.saveThesis` via adapter) | thesis record + revision | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Thesis Lifecycle Application** | 4 |
+| 12 | `ClientWorkspace` positioning | Activate thesis | `activateThesis` → Application `ActivateThesis` (Domain `activateThesisByManager`; persistence via adapter) | thesis status | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Thesis Lifecycle Application** | 4 |
+| 13 | `ClientPortal` thesis | Approve / request changes | `decideThesisClientReview` → Application `DecideThesisClientReview` (Domain `approveThesisByClient` / `rejectThesisByClient`) | client approval state | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Thesis Lifecycle Application** | 4 |
 | 14 | `ClientWorkspace` deliver | Confirm destination | `dbService.decideCuration`, `decideSignal` | curation decision | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 15 | `ClientWorkspace` deliver | Propose angle | `dbService.setCurationAngle` | curation angle | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 16 | `ClientWorkspace` deliver | Remove / reopen curation | `dbService.removeCuration`, `reopenCuration` | curation lifecycle | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
@@ -443,18 +443,19 @@ evidence-supported (AUDIT010-11 reclassified P3→P2), P3 **7** / **6**.
 
 | Item | State |
 |---|---|
-| CR-1 blocked writes | **34** registry rows · **3** canonicalized (#34/#1 Client Lifecycle, #10 Master Profile) · **31** still CU?=NO |
-| CR-1 ownership | **PARTIAL** — Client Lifecycle + Master Profile Application; remaining UNDETERMINED / pending workstreams |
-| CR-1 provisional groups | **10** — Client Lifecycle (1, 34) + Master Profile (#10) Application-owned; IDs 2–6 remain OWNER_RESOLVED / NOT_IMPLEMENTED |
+| CR-1 blocked writes | **34** registry rows · **6** canonicalized (#34/#1 Client Lifecycle, #10 Master Profile, #11/#12/#13 Thesis Lifecycle) · **28** still CU?=NO |
+| CR-1 ownership | **PARTIAL** — Client Lifecycle + Master Profile + Thesis Lifecycle Application; remaining UNDETERMINED / pending workstreams |
+| CR-1 provisional groups | **10** — Client Lifecycle (1, 34) + Master Profile (#10) + Thesis Lifecycle (11–13) Application-owned; IDs 2–6 remain OWNER_RESOLVED / NOT_IMPLEMENTED |
 | CR-2 / SPEC-003 | **CHANGE_REQUIRED**, `CALLER_SNAPSHOT_AUTHORITY_PRESENT` — unchanged |
 | SPEC-003 modifications | **0** |
 | T-010-403 / T-010-404 | **BLOCKED_BY_PRECONDITION** — CR-1 unresolved |
 
 Gating a legacy write does not canonicalize it. **Exceptions (CR-1):** registry
-**#34**, **#1** (Client Lifecycle) and **#10** (Master Profile) now have canonical
-Application use cases; legacy UI invokes the consumer only (double authority 0).
-The remaining **31** CU?=NO rows still write through `dbService` with no Application
-use case and remain barred from React until their CR-1 workstreams land.
+**#34**, **#1** (Client Lifecycle), **#10** (Master Profile), and **#11**, **#12**,
+**#13** (Thesis Lifecycle) now have canonical Application use cases; legacy UI
+invokes the consumer only (double authority 0). The remaining **28** CU?=NO rows
+still write through `dbService` with no Application use case and remain barred
+from React until their CR-1 workstreams land.
 
 ---
 
@@ -486,3 +487,20 @@ use case and remain barred from React until their CR-1 workstreams land.
 | Compatibility path | Legacy onboarding form → `masterProfileConsumer`; React remains `DISPLAY_ONLY_REACT` |
 | Removal eligibility | Not eligible — 9 other cutover-spine writes remain |
 | Evidence | `specs/010-react-migration/cr-1-master-profile.md`; `tests/cr1MasterProfile.test.ts` |
+
+---
+
+## CR-1 Workstream 3 — Thesis Lifecycle (post-adoption note)
+
+| Field | Value |
+|---|---|
+| Registry IDs | **#11**, **#12**, **#13** |
+| Commands | `SaveThesis`, `ActivateThesis`, `DecideThesisClientReview` |
+| Owner | CR-1 Thesis Lifecycle Application (operational) |
+| Previous legacy authority | `main.ts` orchestrated `planThesisSave` / `activateThesisByManager` / `approveThesisByClient` / `rejectThesisByClient` → `dbService.saveThesis` |
+| Domain reuse | `planThesisSave`, `assertThesisReadyForReview`, `activateThesisByManager` / `canActivateThesis`, `approveThesisByClient`, `rejectThesisByClient` |
+| Multi-thesis | Explicit `thesisId` required — positional thesis authority **0** |
+| SPEC-001 | Integration via ACTIVE thesis state only — routing unmodified |
+| Compatibility path | Legacy ThesisEditor / ClientWorkspace / ClientPortal → `thesisLifecycleConsumer`; React remains `DISPLAY_ONLY_REACT`; command seam exposes `thesisLifecycleCommands` |
+| Removal eligibility | Not eligible — 6 other cutover-spine writes remain |
+| Evidence | `specs/010-react-migration/cr-1-thesis-lifecycle.md`; `tests/cr1ThesisLifecycle.test.ts` |
