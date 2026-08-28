@@ -60,3 +60,24 @@ export interface ContentPublicationGatePort {
     now: string;
   }): { allowed: boolean; reason?: string; reasonCode?: string };
 }
+
+/**
+ * SPEC-003 Strategic Brief gate consumption — Execution Delivery does not own Brief lifecycle.
+ * Used before persisting updates to strategic ContentItems (authoritative strategicBriefId).
+ */
+export interface ContentStrategicBriefGatePort {
+  authorize(input: {
+    organizationId: string;
+    clientId: string;
+    actorId: string;
+    actorRole: 'ADMIN' | 'CLIENT';
+    now: string;
+    briefId: string;
+  }): {
+    authorized: boolean;
+    briefId: string;
+    version?: number;
+    denialCode?: string;
+    denialReason?: string;
+  };
+}

@@ -6,6 +6,7 @@ export type ExecutionDeliveryErrorCode =
   | 'CONTENT_NOT_FOUND'
   | 'INVALID_TRANSITION'
   | 'PUBLICATION_GATE_DENIED'
+  | 'STRATEGIC_BRIEF_GATE_DENIED'
   | 'PERSISTENCE_ERROR';
 
 export class ExecutionDeliveryError extends Error {

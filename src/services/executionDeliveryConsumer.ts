@@ -110,6 +110,7 @@ export function saveContentDraft(intent: {
   claimedPipelineStatus?: string;
   claimedPublicationState?: string;
   claimedClaimSafetyVerdict?: string;
+  claimedStrategicBriefId?: string;
 }): SaveContentDraftResult {
   const g = gate(intent.requestedClientId);
   try {
@@ -124,6 +125,7 @@ export function saveContentDraft(intent: {
       claimedPipelineStatus: intent.claimedPipelineStatus,
       claimedPublicationState: intent.claimedPublicationState,
       claimedClaimSafetyVerdict: intent.claimedClaimSafetyVerdict,
+      claimedStrategicBriefId: intent.claimedStrategicBriefId,
     });
     auditService.log(authService.getCurrentUser(), 'EDIT_CONTENT', 'ContentItem', result.content.id, {
       advanced: result.advanced,

@@ -4793,7 +4793,14 @@ class App {
       taskId,
       blob
     );
-    dbService.updateTaskStatus(taskId, 'COMPLETED', ref, 'Video enviado desde el teleprompter.');
+    // CR-1 #28 — teleprompter completion via TransitionClientTask (no direct dbService status write).
+    transitionClientTask({
+      requestedClientId: task.clientId,
+      taskId,
+      intent: 'complete',
+      evidenceUrl: ref,
+      clientNotes: 'Video enviado desde el teleprompter.',
+    });
     if (task?.contentItemId) {
       this.advanceContentPipelineTarget(
         task.contentItemId,

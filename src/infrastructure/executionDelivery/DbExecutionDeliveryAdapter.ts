@@ -5,10 +5,12 @@
 import type {
   ContentPublicationGatePort,
   ContentRepository,
+  ContentStrategicBriefGatePort,
   TaskRepository,
 } from '../../application/executionDelivery';
 import { authorizeContentPublicationGate } from '../../composition/claimEvidence/contentClaimPublicationGate';
 import { assertTransition, TASK_TRANSITIONS } from '../../domain/stateMachine';
+import { authorizeStrategicDownstream } from '../../services/strategicBriefConsumer';
 import { dbService } from '../../services/db';
 
 export function createDbTaskRepository(): TaskRepository {
@@ -53,7 +55,7 @@ export function createDbContentRepository(): ContentRepository {
       dbService.saveContent({
         ...content,
         ...fields,
-        // Preserve authoritative ownership / strategic refs
+        // Preserve authoritative ownership / strategic refs — caller Brief authority = 0
         id: content.id,
         organizationId: content.organizationId,
         clientId: content.clientId,
@@ -104,6 +106,33 @@ export function createDbContentPublicationGate(): ContentPublicationGatePort {
         actorRole: input.actorRole,
         now: input.now,
       });
+    },
+  };
+}
+
+/**
+ * SPEC-003 gate adapter — delegates to AuthorizeStrategicDownstream via consumer
+ * (shared Brief store). Execution Delivery does not own Brief lifecycle.
+ */
+export function createDbContentStrategicBriefGate(): ContentStrategicBriefGatePort {
+  return {
+    authorize(input) {
+      void input.organizationId;
+      void input.actorId;
+      void input.actorRole;
+      const result = authorizeStrategicDownstream({
+        clientId: input.clientId,
+        briefId: input.briefId,
+        requestedAction: 'CREATE_CONTENT',
+        now: input.now,
+      });
+      return {
+        authorized: result.authorized,
+        briefId: result.briefId,
+        version: result.version,
+        denialCode: result.denialCode,
+        denialReason: result.denialReason,
+      };
     },
   };
 }

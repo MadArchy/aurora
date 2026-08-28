@@ -10,6 +10,7 @@ import type {
   ContentDraftFields,
   ContentPublicationGatePort,
   ContentRepository,
+  ContentStrategicBriefGatePort,
 } from './ports/ContentRepository';
 import {
   assertNoExecutionSpoof,
@@ -33,6 +34,8 @@ export interface SaveContentDraftInput {
   claimedPipelineStatus?: string;
   claimedPublicationState?: string;
   claimedClaimSafetyVerdict?: string;
+  /** Forbidden — Brief reference is authoritative on the ContentItem. */
+  claimedStrategicBriefId?: string;
 }
 
 export interface SaveContentDraftResult {
@@ -43,12 +46,25 @@ export interface SaveContentDraftResult {
 export interface SaveContentDraftDeps {
   contents: ContentRepository;
   publicationGate: ContentPublicationGatePort;
+  /** SPEC-003 AuthorizeStrategicDownstream consumption — not owned here. */
+  strategicBriefGate: ContentStrategicBriefGatePort;
+}
+
+/**
+ * Repository classification: strategic content carries SPEC-003 authorization refs.
+ * Presence of strategicBriefId or upstream signal/evidence provenance — not thesisId alone.
+ */
+export function contentRequiresStrategicBriefAuthorization(content: ContentItem): boolean {
+  if (content.strategicBriefId?.trim()) return true;
+  if (content.signalIds && content.signalIds.length > 0) return true;
+  if (content.supportingEvidenceIds && content.supportingEvidenceIds.length > 0) return true;
+  return false;
 }
 
 /**
  * CR-1 #31 — SaveContentDraft.
  * Persists editable draft fields; preserves strategic refs from authoritative content.
- * Gated advances consume SPEC-006 AuthorizePublication — do not own claim safety.
+ * Strategic items: SPEC-003 Brief gate BEFORE persist. Publication advances: SPEC-006.
  */
 export function createSaveContentDraft(deps: SaveContentDraftDeps) {
   return function saveContentDraft(input: SaveContentDraftInput): SaveContentDraftResult {
@@ -62,6 +78,7 @@ export function createSaveContentDraft(deps: SaveContentDraftDeps) {
       claimedPipelineStatus: input.claimedPipelineStatus,
       claimedPublicationState: input.claimedPublicationState,
       claimedClaimSafetyVerdict: input.claimedClaimSafetyVerdict,
+      claimedStrategicBriefId: input.claimedStrategicBriefId,
     });
 
     const contentId = input.contentId?.trim();
@@ -90,6 +107,33 @@ export function createSaveContentDraft(deps: SaveContentDraftDeps) {
         'INVALID_INPUT',
         'Content must reference an authoritative thesisId (existing product rule).'
       );
+    }
+
+    // SPEC-003: strategic content requires Brief authorization before any draft persist.
+    // thesisId alone is never Brief substitute authority.
+    if (contentRequiresStrategicBriefAuthorization(existing)) {
+      const briefId = existing.strategicBriefId?.trim();
+      if (!briefId) {
+        throw new ExecutionDeliveryError(
+          'STRATEGIC_BRIEF_GATE_DENIED',
+          'Strategic content requires an authoritative strategicBriefId (thesisId is not Brief authority).'
+        );
+      }
+      const briefAuth = deps.strategicBriefGate.authorize({
+        organizationId: input.trusted.organizationId,
+        clientId: input.trusted.clientId,
+        actorId: input.trusted.actorId,
+        actorRole: input.trusted.actorRole === 'CLIENT' ? 'CLIENT' : 'ADMIN',
+        now: input.trusted.now,
+        briefId,
+      });
+      if (!briefAuth.authorized) {
+        throw new ExecutionDeliveryError(
+          'STRATEGIC_BRIEF_GATE_DENIED',
+          briefAuth.denialReason ||
+            `Strategic Brief does not authorize content update (${briefAuth.denialCode || 'DENIED'}).`
+        );
+      }
     }
 
     let content = deps.contents.saveDraft(contentId, input.fields, input.trusted.now);

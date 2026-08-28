@@ -15,6 +15,7 @@ export {
   type TransitionClientTaskResult,
 } from './TransitionClientTask';
 export {
+  contentRequiresStrategicBriefAuthorization,
   createSaveContentDraft,
   type SaveContentDraftDeps,
   type SaveContentDraftInput,
@@ -32,4 +33,5 @@ export type {
   ContentDraftFields,
   ContentPublicationGatePort,
   ContentRepository,
+  ContentStrategicBriefGatePort,
 } from './ports/ContentRepository';

@@ -31,6 +31,7 @@ import {
   createTransitionClientTask,
   type ContentPublicationGatePort,
   type ContentRepository,
+  type ContentStrategicBriefGatePort,
   type TaskRepository,
   type TrustedExecutionDeliveryContext,
 } from '../src/application/executionDelivery';
@@ -140,13 +141,28 @@ function baseContent(overrides: Partial<ContentItem> = {}): ContentItem {
 function memoryContents(seed: ContentItem[] = []) {
   const store = new Map(seed.map((c) => [c.id, { ...c }]));
   const feedback: unknown[] = [];
+  let persistCount = 0;
   const repo: ContentRepository = {
     getById(id) {
       return store.get(id);
     },
     saveDraft(contentId, fields, updatedAt) {
       const c = store.get(contentId)!;
-      const next = { ...c, ...fields, updatedAt };
+      persistCount += 1;
+      const next = {
+        ...c,
+        ...fields,
+        // Preserve authoritative strategic refs (adapter parity)
+        id: c.id,
+        organizationId: c.organizationId,
+        clientId: c.clientId,
+        thesisId: c.thesisId,
+        strategicBriefId: c.strategicBriefId,
+        strategicBriefVersion: c.strategicBriefVersion,
+        signalIds: c.signalIds,
+        supportingEvidenceIds: c.supportingEvidenceIds,
+        updatedAt,
+      };
       store.set(contentId, next);
       return next;
     },
@@ -198,7 +214,22 @@ function memoryContents(seed: ContentItem[] = []) {
   const gate: ContentPublicationGatePort = {
     authorize: () => ({ allowed: true }),
   };
-  return { repo, store, gate };
+  const briefGate: ContentStrategicBriefGatePort = {
+    authorize: (input) => ({
+      authorized: true,
+      briefId: input.briefId,
+      version: 1,
+    }),
+  };
+  return { repo, store, gate, briefGate, getPersistCount: () => persistCount };
+}
+
+function saveDraft(
+  contents: ContentRepository,
+  publicationGate: ContentPublicationGatePort,
+  strategicBriefGate: ContentStrategicBriefGatePort
+) {
+  return createSaveContentDraft({ contents, publicationGate, strategicBriefGate });
 }
 
 describe('CR-1 Execution Delivery — TransitionClientTask', () => {
@@ -263,9 +294,9 @@ describe('CR-1 Execution Delivery — TransitionClientTask', () => {
 });
 
 describe('CR-1 Execution Delivery — SaveContentDraft', () => {
-  it('saves draft fields preserving strategic refs', () => {
-    const { repo, store, gate } = memoryContents([baseContent()]);
-    const save = createSaveContentDraft({ contents: repo, publicationGate: gate });
+  it('saves draft fields preserving strategic refs when Brief authorizes', () => {
+    const { repo, store, gate, briefGate } = memoryContents([baseContent()]);
+    const save = saveDraft(repo, gate, briefGate);
     const result = save({
       trusted: adminTrusted(),
       contentId: 'cnt_1',
@@ -278,8 +309,8 @@ describe('CR-1 Execution Delivery — SaveContentDraft', () => {
   });
 
   it('ATTACK: claim-safety spoof denied', () => {
-    const { repo, gate } = memoryContents([baseContent()]);
-    const save = createSaveContentDraft({ contents: repo, publicationGate: gate });
+    const { repo, gate, briefGate } = memoryContents([baseContent()]);
+    const save = saveDraft(repo, gate, briefGate);
     expect(() =>
       save({
         trusted: adminTrusted(),
@@ -291,8 +322,8 @@ describe('CR-1 Execution Delivery — SaveContentDraft', () => {
   });
 
   it('ATTACK: CLIENT cannot save content draft', () => {
-    const { repo, gate } = memoryContents([baseContent()]);
-    const save = createSaveContentDraft({ contents: repo, publicationGate: gate });
+    const { repo, gate, briefGate } = memoryContents([baseContent()]);
+    const save = saveDraft(repo, gate, briefGate);
     expect(() =>
       save({
         trusted: clientTrusted(),
@@ -300,6 +331,168 @@ describe('CR-1 Execution Delivery — SaveContentDraft', () => {
         fields: { title: 'X' },
       })
     ).toThrow(/ADMIN/);
+  });
+});
+
+describe('CR-1 WS5 remediation — SaveContentDraft Brief gate', () => {
+  it('strategic content + APPROVED Brief → PASS', () => {
+    const { repo, store, gate } = memoryContents([baseContent()]);
+    const briefGate: ContentStrategicBriefGatePort = {
+      authorize: () => ({ authorized: true, briefId: 'brief_1', version: 2 }),
+    };
+    const save = saveDraft(repo, gate, briefGate);
+    save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'Ok' } });
+    expect(store.get('cnt_1')?.title).toBe('Ok');
+  });
+
+  it('strategic content + missing Brief reference → DENY before persist', () => {
+    const { repo, store, gate, briefGate, getPersistCount } = memoryContents([
+      baseContent({
+        strategicBriefId: undefined,
+        strategicBriefVersion: undefined,
+        signalIds: ['sig_1'],
+      }),
+    ]);
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'No' } })
+    ).toThrow(/strategicBriefId|Brief/i);
+    expect(getPersistCount()).toBe(0);
+    expect(store.get('cnt_1')?.title).toBe('Draft');
+  });
+
+  it('strategic content + nonexistent Brief → DENY before persist', () => {
+    const { repo, store, gate, getPersistCount } = memoryContents([baseContent()]);
+    const briefGate: ContentStrategicBriefGatePort = {
+      authorize: () => ({
+        authorized: false,
+        briefId: 'brief_1',
+        denialCode: 'BRIEF_NOT_FOUND',
+        denialReason: 'Brief not found: brief_1',
+      }),
+    };
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'No' } })
+    ).toThrow(ExecutionDeliveryError);
+    expect(getPersistCount()).toBe(0);
+    expect(store.get('cnt_1')?.title).toBe('Draft');
+  });
+
+  it('strategic content + REJECTED Brief → DENY', () => {
+    const { repo, gate, getPersistCount } = memoryContents([baseContent()]);
+    const briefGate: ContentStrategicBriefGatePort = {
+      authorize: () => ({
+        authorized: false,
+        briefId: 'brief_1',
+        denialCode: 'BRIEF_NOT_ACTIONABLE',
+        denialReason: 'Brief does not authorize CREATE_CONTENT (status=REJECTED).',
+      }),
+    };
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'No' } })
+    ).toThrow(/REJECTED|does not authorize|STRATEGIC_BRIEF/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('strategic content + SUPERSEDED Brief → DENY', () => {
+    const { repo, gate, getPersistCount } = memoryContents([baseContent()]);
+    const briefGate: ContentStrategicBriefGatePort = {
+      authorize: () => ({
+        authorized: false,
+        briefId: 'brief_1',
+        denialCode: 'BRIEF_NOT_ACTIONABLE',
+        denialReason: 'Brief does not authorize CREATE_CONTENT (status=SUPERSEDED).',
+      }),
+    };
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'No' } })
+    ).toThrow(/SUPERSEDED|does not authorize|STRATEGIC_BRIEF/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('strategic content + foreign tenant Brief → DENY', () => {
+    const { repo, gate, getPersistCount } = memoryContents([baseContent()]);
+    const briefGate: ContentStrategicBriefGatePort = {
+      authorize: () => ({
+        authorized: false,
+        briefId: 'brief_1',
+        denialCode: 'BRIEF_NOT_FOUND',
+        denialReason: 'Brief not found: brief_1',
+      }),
+    };
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'No' } })
+    ).toThrow(/Brief|STRATEGIC_BRIEF/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('strategic content + wrong-client Brief → DENY', () => {
+    const { repo, gate, getPersistCount } = memoryContents([baseContent()]);
+    const briefGate: ContentStrategicBriefGatePort = {
+      authorize: () => ({
+        authorized: false,
+        briefId: 'brief_1',
+        denialCode: 'BRIEF_NOT_FOUND',
+        denialReason: 'Brief not found for trusted client.',
+      }),
+    };
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'No' } })
+    ).toThrow(/Brief|STRATEGIC_BRIEF/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('thesisId alone is not Brief authorization (generic content may save)', () => {
+    const { repo, store, gate, briefGate } = memoryContents([
+      baseContent({
+        strategicBriefId: undefined,
+        strategicBriefVersion: undefined,
+        signalIds: undefined,
+        supportingEvidenceIds: undefined,
+        thesisId: 'thesis_only',
+      }),
+    ]);
+    let briefCalls = 0;
+    const trackingGate: ContentStrategicBriefGatePort = {
+      authorize: (input) => {
+        briefCalls += 1;
+        return briefGate.authorize(input);
+      },
+    };
+    const save = saveDraft(repo, gate, trackingGate);
+    save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'Generic ok' } });
+    expect(briefCalls).toBe(0);
+    expect(store.get('cnt_1')?.title).toBe('Generic ok');
+  });
+
+  it('ATTACK: caller Brief spoof denied', () => {
+    const { repo, gate, briefGate, getPersistCount } = memoryContents([baseContent()]);
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({
+        trusted: adminTrusted(),
+        contentId: 'cnt_1',
+        fields: { title: 'X' },
+        claimedStrategicBriefId: 'brief_attacker',
+      })
+    ).toThrow(/strategicBriefId|authority/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('caller cannot remove strategicBriefId via fields (preserved)', () => {
+    const { repo, store, gate, briefGate } = memoryContents([baseContent()]);
+    const save = saveDraft(repo, gate, briefGate);
+    save({
+      trusted: adminTrusted(),
+      contentId: 'cnt_1',
+      fields: { title: 'Keep brief', body: 'x' },
+    });
+    expect(store.get('cnt_1')?.strategicBriefId).toBe('brief_1');
   });
 });
 
@@ -390,6 +583,17 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(code).toMatch(/reviewClientArticle\s*\(/);
   });
 
+  it('teleprompter completes via TransitionClientTask — no direct updateTaskStatus', () => {
+    const source = readFileSync(resolve('src/main.ts'), 'utf8');
+    const submitIdx = source.indexOf('private async submitClientVideo');
+    expect(submitIdx).toBeGreaterThan(-1);
+    const nextMethod = source.indexOf('\n  private ', submitIdx + 10);
+    const block = source.slice(submitIdx, nextMethod === -1 ? undefined : nextMethod);
+    expect(block).toMatch(/transitionClientTask\s*\(/);
+    expect(block).toMatch(/intent:\s*'complete'/);
+    expect(block).not.toMatch(/dbService\.updateTaskStatus/);
+  });
+
   it('command seam exposes executionDeliveryCommands', () => {
     const source = readFileSync(resolve('src/ui/commands/commandSeam.ts'), 'utf8');
     expect(source).toMatch(/executionDeliveryCommands/);
@@ -407,7 +611,20 @@ describe('CR-1 Execution Delivery architecture', () => {
       expect(source).not.toMatch(/registerSignalOutcome|ApplyApprovedRecommendation/);
       expect(source).not.toMatch(/aiService|openai|fetch\(/);
       expect(source).not.toMatch(/VerifyClaim|LinkEvidenceToClaim/);
+      expect(source).not.toMatch(/from ['"].*strategicBriefConsumer/);
+      expect(source).not.toMatch(/from ['"][^'"]*\/main(\.ts)?['"]/);
+      expect(source).not.toMatch(/from ['"][^'"]*\/ui\//);
     }
+  });
+
+  it('SaveContentDraft consumes Brief gate port — thesis is not substitute', () => {
+    const source = readFileSync(
+      resolve('src/application/executionDelivery/SaveContentDraft.ts'),
+      'utf8'
+    );
+    expect(source).toMatch(/strategicBriefGate\.authorize/);
+    expect(source).toMatch(/contentRequiresStrategicBriefAuthorization/);
+    expect(source).toMatch(/thesisId is not Brief authority/);
   });
 
   it('does not reopen prior CR-1 workstreams', () => {

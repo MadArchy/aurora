@@ -32,6 +32,7 @@ export function assertNoExecutionSpoof(params: {
   claimedPipelineStatus?: string;
   claimedPublicationState?: string;
   claimedClaimSafetyVerdict?: string;
+  claimedStrategicBriefId?: string;
 }): void {
   const { trusted } = params;
   if (
@@ -63,6 +64,12 @@ export function assertNoExecutionSpoof(params: {
     throw new ExecutionDeliveryError(
       'TENANT_CONTEXT_INVALID',
       'Caller-supplied claim-safety verdict is not accepted as authority.'
+    );
+  }
+  if (params.claimedStrategicBriefId !== undefined) {
+    throw new ExecutionDeliveryError(
+      'TENANT_CONTEXT_INVALID',
+      'Caller-supplied strategicBriefId is not accepted as authority.'
     );
   }
 }
