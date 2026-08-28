@@ -5,6 +5,7 @@
 **Umbrella:** CR-1 — Cutover-Critical Application Ownership  
 **Authorized base checkpoint:** `d5472703aa39d5321417798860c7a5e476837b2b`  
 **Implementation SHA:** `63e8db8543bf2a13ae29249b71748402007f959a`  
+**Governance / freeze SHA:** `cf9350fb6de3a9b392b207d34e50714f49c13deb`  
 **Timezone:** America/Bogota
 
 ---
@@ -124,5 +125,5 @@ Master Profile · Thesis Lifecycle · Signal Intake · Execution Delivery · CR-
 |------|-----|
 | Authorized start | `d5472703aa39d5321417798860c7a5e476837b2b` |
 | Implementation | `63e8db8543bf2a13ae29249b71748402007f959a` |
-| Governance / freeze (content) | this ratification commit (recorded in commit message; tip may pin parent) |
-| Tip | branch tip after push |
+| Governance / freeze (content) | `cf9350fb6de3a9b392b207d34e50714f49c13deb` |
+| Tip pin | points at freeze content above (not self) |
