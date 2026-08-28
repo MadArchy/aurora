@@ -140,12 +140,12 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
     'discardDraftDelivery',
     'updateDelivery',
     'acknowledgeDelivery',
-    // sources and ingestion
-    'addSource',
+    // sources and ingestion — addSource/addSignal are CR-1 Signal Intake
+    // canonical via seam → consumer (registerSource / registerManualSignal).
+    // Legacy symbols must not appear as direct React writes.
     'updateSourceStatus',
     'recordSourceRun',
     'toggleTopicPin',
-    'addSignal',
     // tasks
     'addTask',
     'updateTaskStatus',

@@ -1521,9 +1521,13 @@ class DataService {
     if (!signal.clientId) {
       throw new Error('SIGNAL_CLIENT_REQUIRED');
     }
+    // F9-D09 content fingerprint (URL + title). Dedup lookup is client-scoped per
+    // F6 §186 ("deduplicación se realizará principalmente por Cliente"; global = future).
     const canonical = `${(signal.sourceUrl || '').toLowerCase().split(/[?#]/)[0]}|${signal.title.toLowerCase().replace(/[^a-z0-9]+/g, '')}`;
     const rawFingerprint = `fp_${canonical.substring(0, 64)}`;
-    const existing = this.signals.find(s => s.fingerprint === rawFingerprint);
+    const existing = this.signals.find(
+      (s) => s.fingerprint === rawFingerprint && s.clientId === signal.clientId
+    );
 
     if (existing) {
       return { signal: existing, isDuplicate: true };

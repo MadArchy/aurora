@@ -5,23 +5,15 @@
  *
  * READ SOURCE: compatibility (`readSources`).
  *
- * COMMANDS: none. Both actions the legacy modal offers are blocked for
- * migration (AUDIT010-09):
- *
- *   register source → `dbService.addSource`, a business write with no canonical
- *                     Application use case.
- *   ingest now      → source polling, which triggers ingestion and produces
- *                     signals downstream. That is a side-effect chain owned by
- *                     the radar/signal SPECs, not a UI concern, and it has no
- *                     canonical UI-facing use case either.
+ * COMMANDS: none on this React surface. CR-1 Signal Intake owns
+ * `RegisterSource` (#8/#24); legacy modal/workspace invoke
+ * `signalIntakeConsumer` via `main.ts`. Ingest-now / polling remains legacy
+ * (not this workstream). React does not call the consumer or mutate sources.
  *
  * The legacy modal additionally runs the source-discovery agent while rendering.
  * That is deliberately not reproduced: rendering a React view must not launch an
  * agent run, and the recommendation chips it produces belong to the surface that
  * owns the agent.
- *
- * Both actions remain available on the legacy surface, which is still served and
- * unchanged, so no capability is lost.
  */
 
 import { useSession } from '../../providers/SessionProvider';

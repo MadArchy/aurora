@@ -89,6 +89,11 @@ import {
   saveThesis,
 } from './services/thesisLifecycleConsumer';
 import { ThesisLifecycleError } from './application/thesisLifecycle';
+import {
+  registerManualSignal,
+  registerSource,
+} from './services/signalIntakeConsumer';
+import { SignalIntakeError } from './application/signalIntake';
 import { resolveArticleSavePipelineSteps } from './domain/articleReviewCore';
 import { VIDEO_SUBMIT_PIPELINE_TARGET } from './domain/videoSubmitCore';
 import type {
@@ -1680,28 +1685,25 @@ class App {
       // Client-wide source — no silent thesisId attribution to primary/[0].
 
       try {
-        const organizationId = this.resolveOrganizationId(clientId);
-        if (!organizationId) {
-          this.showToast('Cliente sin organizationId — no se puede registrar la fuente', 'warning');
-          return;
-        }
-        dbService.addSource({
-          organizationId,
-          clientId,
-          thesisId: undefined,
+        // CR-1 #8 — Signal Intake Application owns RegisterSource.
+        registerSource({
+          requestedClientId: clientId,
           name,
           type,
           url: url || undefined,
           fetchIntervalMinutes: 360,
-          status: 'ACTIVE',
-          createdBy: authService.getCurrentUser()?.uid || 'user_admin_01'
+          thesisId: undefined,
         });
-        auditService.log(authService.getCurrentUser(), 'ADD_SOURCE', 'Source', name, { type, clientId });
         this.showToast(`Fuente "${name}" registrada para el cliente`, 'success');
         this.activeModal = null;
         this.setTab('ws-sources');
       } catch (error) {
-        this.showToast(error instanceof Error ? error.message : 'No se pudo añadir la fuente', 'warning');
+        this.showToast(
+          error instanceof SignalIntakeError || error instanceof Error
+            ? error.message
+            : 'No se pudo añadir la fuente',
+          'warning'
+        );
       }
     });
 
@@ -1828,21 +1830,23 @@ class App {
         if (!candidate) return;
 
         try {
-          dbService.addSource({
-            organizationId: client.organizationId,
-            clientId,
+          // CR-1 #24 — same RegisterSource command as SourceRegistryModal.
+          registerSource({
+            requestedClientId: clientId,
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
             fetchIntervalMinutes: fetchIntervalForKind(candidate.kind),
-            status: 'ACTIVE',
-            createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
           });
-          auditService.log(authService.getCurrentUser(), 'ADD_DISCOVERED_SOURCE', 'Source', candidate.key, { clientId });
           this.showToast(`Fuente añadida: ${candidate.name}`, 'success');
           this.setTab('ws-sources');
         } catch (error) {
-          this.showToast(error instanceof Error ? error.message : 'No se pudo añadir la fuente', 'warning');
+          this.showToast(
+            error instanceof SignalIntakeError || error instanceof Error
+              ? error.message
+              : 'No se pudo añadir la fuente',
+            'warning'
+          );
         }
       });
     });
@@ -1873,15 +1877,12 @@ class App {
       let added = 0;
       for (const candidate of candidates) {
         try {
-          dbService.addSource({
-            organizationId: client.organizationId,
-            clientId,
+          registerSource({
+            requestedClientId: clientId,
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
             fetchIntervalMinutes: fetchIntervalForKind(candidate.kind),
-            status: 'ACTIVE',
-            createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
           });
           added += 1;
         } catch {
@@ -1923,15 +1924,12 @@ class App {
       let added = 0;
       for (const candidate of candidates) {
         try {
-          dbService.addSource({
-            organizationId: client.organizationId,
-            clientId,
+          registerSource({
+            requestedClientId: clientId,
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
             fetchIntervalMinutes: fetchIntervalForKind(candidate.kind),
-            status: 'ACTIVE',
-            createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
           });
           added += 1;
         } catch {
@@ -1972,15 +1970,12 @@ class App {
       let added = 0;
       for (const candidate of candidates) {
         try {
-          dbService.addSource({
-            organizationId: client.organizationId,
-            clientId,
+          registerSource({
+            requestedClientId: clientId,
             name: candidate.name,
             type: candidate.type,
             url: candidate.url,
             fetchIntervalMinutes: 240,
-            status: 'ACTIVE',
-            createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
           });
           added += 1;
         } catch {
@@ -2068,30 +2063,29 @@ class App {
     const title = prompt('Título de la noticia o acontecimiento:');
     if (!title?.trim()) return;
 
-    const organizationId = this.resolveOrganizationId(clientId);
-    if (!organizationId) {
-      this.showToast('Cliente sin organizationId — no se puede crear la señal', 'warning');
-      return;
-    }
+    try {
+      // CR-1 #26 — Signal Intake owns RegisterManualSignal (persistence only).
+      const result = registerManualSignal({
+        requestedClientId: clientId,
+        title: title.trim(),
+      });
 
-    const result = dbService.addSignal({
-      organizationId,
-      clientId,
-      title: title.trim(),
-      sourceType: 'MANUAL',
-      sourceName: 'Ingesta manual del manager',
-      contentSnippet: 'Acontecimiento ingresado manualmente para evaluación estratégica.',
-      status: 'NEW',
-    });
-
-    if (result.isDuplicate) {
-      this.showToast('Esta señal ya estaba registrada.', 'warning');
-      return;
+      if (result.isDuplicate) {
+        this.showToast('Esta señal ya estaba registrada.', 'warning');
+        return;
+      }
+      // SPEC-001 routing begins after intake persistence (not Application authority).
+      this.scoreSignal(result.signal.id, clientId);
+      this.showToast('Señal añadida. Revisa el radar.', 'success');
+      this.setTab('ws-radar');
+    } catch (error) {
+      this.showToast(
+        error instanceof SignalIntakeError || error instanceof Error
+          ? error.message
+          : 'No se pudo crear la señal',
+        'warning'
+      );
     }
-    this.scoreSignal(result.signal.id, clientId);
-    auditService.log(authService.getCurrentUser(), 'INGEST_SIGNAL_MANUAL', 'Signal', result.signal.id);
-    this.showToast('Señal añadida. Revisa el radar.', 'success');
-    this.setTab('ws-radar');
   }
 
   // ==========================================

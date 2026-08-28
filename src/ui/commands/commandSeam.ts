@@ -17,16 +17,15 @@
  * migrated command is a change of caller, never a change of authority: React and
  * legacy converge on the identical use case.
  *
- * CR-1 Client Lifecycle (#34, #1), Master Profile (#10), and Thesis Lifecycle
- * (#11–#13) are exposed below. Other AUDIT010-09 writes remain unexposed until
- * their Application owners exist
+ * CR-1 Client Lifecycle (#34, #1), Master Profile (#10), Thesis Lifecycle
+ * (#11–#13), and Signal Intake (#8/#24/#26) are exposed below. Other
+ * AUDIT010-09 writes remain unexposed until their Application owners exist
  * (full registry: `specs/010-react-migration/audit010-09-registry.md`):
  *
  *   - profile fact lifecycle     (`addProfileFact`, `confirmProfileFact`,
  *                                 `rejectProfileFact`, `updateProfileFact`,
  *                                 `importCandidateFactsFromCv`)
  *   - proof-wall status toggle   (`updateProofWallItem`)
- *   - source registration        (`addSource`) and ingestion polling
  *
  * In every remaining case the legacy surface remains served, so no capability is
  * lost by not migrating it yet.
@@ -55,10 +54,15 @@ import {
   decideThesisClientReview,
   saveThesis,
 } from '../../services/thesisLifecycleConsumer';
+import {
+  registerManualSignal,
+  registerSource,
+} from '../../services/signalIntakeConsumer';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
-import type { ThesisEditableFields } from '../../types';
+import { SignalIntakeError } from '../../application/signalIntake';
+import type { SourceType, ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
 import type { Client, MasterDossier } from '../../types';
@@ -438,6 +442,56 @@ export const thesisLifecycleCommands = {
           err instanceof ThesisLifecycleError || err instanceof Error
             ? err.message
             : 'No se pudo registrar la decisión',
+      };
+    }
+  },
+} as const;
+
+/**
+ * CR-1 Signal Intake (#8/#24 RegisterSource, #26 RegisterManualSignal).
+ * Seam authority = 0. No routing/scoring/thesis authority.
+ */
+export const signalIntakeCommands = {
+  registerSource(intent: {
+    requestedClientId: string | null | undefined;
+    name: string;
+    type: SourceType;
+    url?: string;
+    fetchIntervalMinutes?: number;
+  }): CommandResult {
+    try {
+      registerSource(intent);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof SignalIntakeError || err instanceof Error
+            ? err.message
+            : 'No se pudo registrar la fuente',
+      };
+    }
+  },
+
+  registerManualSignal(intent: {
+    requestedClientId: string | null | undefined;
+    title: string;
+    contentSnippet?: string;
+    sourceUrl?: string;
+  }): CommandResult {
+    try {
+      const result = registerManualSignal(intent);
+      if (result.isDuplicate) {
+        return { ok: false, message: 'Esta señal ya estaba registrada.' };
+      }
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof SignalIntakeError || err instanceof Error
+            ? err.message
+            : 'No se pudo registrar la señal',
       };
     }
   },
