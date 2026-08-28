@@ -6,6 +6,7 @@
 **Authorized owners:** SPEC-003 · SPEC-004 · SPEC-007 · SPEC-008  
 **Authorized base checkpoint:** `e0c483f30f5dc2a31ffee64c05e801036ff10640`  
 **Implementation SHA:** `af49c59c9c8042b925e29c8a71ac1cd585d2f941`  
+**Governance / re-freeze SHA:** `079ab9a8be05e4de76b6029e9da6851a12dfb88d`  
 **Timezone:** America/Bogota
 
 ---

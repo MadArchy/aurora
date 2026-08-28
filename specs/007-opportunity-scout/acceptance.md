@@ -50,7 +50,7 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 | **Domain / lifecycle** | **UNCHANGED** |
 | **DEPLOYED / DONE** | **NO** / **NO** |
 
-**New CR-3 frozen checkpoint:** governance ratification commit SHA on `spec/010-react-migration` (shared with SPEC-003/004/008).
+**New CR-3 frozen checkpoint:** `079ab9a8be05e4de76b6029e9da6851a12dfb88d` (shared with SPEC-003/004/008).
 
 ### Human SPEC approval (T-007-010)
 

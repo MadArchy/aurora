@@ -41,7 +41,7 @@ constitutional separation; `DONE` remains **NO**.
 | **Domain / lifecycle / silent learning** | **UNCHANGED** / **PROHIBITED** |
 | **DEPLOYED / DONE** | **NO** / **NO** |
 
-**New CR-3 frozen checkpoint:** governance ratification commit SHA on `spec/010-react-migration` (shared with SPEC-003/004/007).
+**New CR-3 frozen checkpoint:** `079ab9a8be05e4de76b6029e9da6851a12dfb88d` (shared with SPEC-003/004/007).
 
 ### Human SPEC approval (T-008-010) — RECORDED
 
