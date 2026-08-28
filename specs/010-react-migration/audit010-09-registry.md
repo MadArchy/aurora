@@ -534,6 +534,6 @@ from React until separately owned.
 | SPEC-006 | Consumed via `ContentPublicationGatePort` — ownership expansion **0** |
 | SPEC-004 / SPEC-008 | Not owned — expansion **0** / learning authority **0** |
 | Compatibility path | Legacy ClientPortal / content-editor / article-review / teleprompter complete → `executionDeliveryConsumer`; seam exposes `executionDeliveryCommands` |
-| Remediation | P1 Brief gate + P2 teleprompter competing authority closed — see `cr-1-execution-delivery-remediation.md` |
+| Remediation | P1 Brief gate + P2 teleprompter closed; **classification R2** fail-closes thesis-only / ambiguous legacy (`LEGACY_AMBIGUOUS`) — see `cr-1-execution-delivery-classification-r2.md` |
 | Removal eligibility | Cutover spine complete — non-cutover 22 writes remain; T-010-403/404 `BLOCKED_BY_OTHER_PRECONDITION` |
-| Evidence | `specs/010-react-migration/cr-1-execution-delivery.md`; `cr-1-execution-delivery-remediation.md`; `tests/cr1ExecutionDelivery.test.ts` |
+| Evidence | `specs/010-react-migration/cr-1-execution-delivery.md`; `cr-1-execution-delivery-remediation.md`; `cr-1-execution-delivery-classification-r2.md`; `tests/cr1ExecutionDelivery.test.ts` |
