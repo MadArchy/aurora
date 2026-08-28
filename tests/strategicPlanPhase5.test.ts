@@ -39,6 +39,7 @@ vi.mock('../src/services/auth', () => ({
       role: 'ADMIN',
       email: 'mgr@test',
       displayName: 'Mgr',
+      organizationId: 'org_test',
     }),
   },
 }));
@@ -857,6 +858,7 @@ describe('SPEC-004 Phase 5 — consumer facade attacks (T-004-506/507)', () => {
           role: 'ADMIN',
           email: 'mgr@test',
           displayName: 'Mgr',
+          organizationId: 'org_test',
         }),
       },
     }));
@@ -902,6 +904,7 @@ describe('SPEC-004 Phase 5 — consumer facade attacks (T-004-506/507)', () => {
           role: 'ADMIN',
           email: 'mgr@test',
           displayName: 'Mgr',
+          organizationId: 'org_test',
         }),
       },
     }));
@@ -960,6 +963,7 @@ describe('SPEC-004 Phase 5 — consumer facade attacks (T-004-506/507)', () => {
           role: 'ADMIN',
           email: 'a',
           displayName: 'A',
+          organizationId: 'org_test',
         }),
       },
     }));

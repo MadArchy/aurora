@@ -18,6 +18,7 @@ import {
 import { LocalOpportunityOutcomeReader } from '../infrastructure/learningLoop/LocalOpportunityOutcomeReader';
 import type { LocalOpportunityScoutStore } from '../infrastructure/opportunityScout';
 import { createId } from '../lib/id';
+import { requireTenantScope } from '../controllers/trustedTenant';
 import { authService } from './auth';
 import { dbService } from './db';
 
@@ -69,14 +70,18 @@ export function buildTrustedLearningContext(
   clientId: string,
   options?: { now?: string }
 ): TrustedLearningActorContext | undefined {
-  const user = authService.getCurrentUser();
-  const organizationId = dbService.getClientById(clientId)?.organizationId;
-  if (!user || !organizationId) return undefined;
+  // CR-3: organization comes from the trusted session via requireTenantScope —
+  // never from the requested client record.
+  const decision = requireTenantScope(clientId, {
+    getCurrentUser: () => authService.getCurrentUser(),
+    getClientById: (id) => dbService.getClientById(id),
+  });
+  if (!decision.ok) return undefined;
   return {
-    actorId: user.uid,
-    actorRole: user.role,
-    organizationId,
-    clientId,
+    actorId: decision.actorId,
+    actorRole: decision.actorRole,
+    organizationId: decision.organizationId,
+    clientId: decision.clientId,
     now: options?.now ?? new Date().toISOString(),
   };
 }

@@ -27,6 +27,7 @@ vi.mock('../src/services/auth', () => ({
       role: 'ADMIN',
       email: 'mgr@test',
       displayName: 'Mgr',
+      organizationId: 'org_test',
     }),
   },
 }));

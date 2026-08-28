@@ -34,6 +34,7 @@ vi.mock('../src/services/auth', () => ({
       email: 'c@test',
       displayName: 'Client',
       clientId: 'client_a',
+      organizationId: 'org_a',
     }),
   },
 }));
@@ -414,7 +415,8 @@ describe('SPEC-007 Phase 4 — lifecycle consumer (T-007-404)', () => {
     });
     expectAppError(
       () => c.getOpportunityForClient('client_b', 'opp-shared', { now: NOW }),
-      'OPPORTUNITY_NOT_FOUND'
+      // CR-3: CLIENT entitlement fails closed before store lookup (was OPPORTUNITY_NOT_FOUND).
+      'TRUSTED_CONTEXT_REQUIRED'
     );
   });
 

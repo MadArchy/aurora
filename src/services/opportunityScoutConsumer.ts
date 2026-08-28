@@ -19,6 +19,7 @@ import {
 } from '../infrastructure/opportunityScout';
 import { defaultOpportunityChecklist } from '../domain/opportunityLifecycle';
 import { createId } from '../lib/id';
+import { requireTenantScope } from '../controllers/trustedTenant';
 import { authService } from './auth';
 import { dbService } from './db';
 import { getStrategicBrief } from './strategicBriefConsumer';
@@ -84,14 +85,18 @@ export function buildTrustedOpportunityContext(
   clientId: string,
   options?: { now?: string; softwareAuthority?: boolean }
 ): TrustedOpportunityActorContext | undefined {
-  const user = authService.getCurrentUser();
-  const organizationId = dbService.getClientById(clientId)?.organizationId;
-  if (!user || !organizationId) return undefined;
+  // CR-3: organization comes from the trusted session via requireTenantScope —
+  // never from the requested client record.
+  const decision = requireTenantScope(clientId, {
+    getCurrentUser: () => authService.getCurrentUser(),
+    getClientById: (id) => dbService.getClientById(id),
+  });
+  if (!decision.ok) return undefined;
   return {
-    actorId: user.uid,
-    actorRole: user.role === 'CLIENT' ? 'CLIENT' : 'ADMIN',
-    organizationId,
-    clientId,
+    actorId: decision.actorId,
+    actorRole: decision.actorRole === 'CLIENT' ? 'CLIENT' : 'ADMIN',
+    organizationId: decision.organizationId,
+    clientId: decision.clientId,
     now: options?.now ?? new Date().toISOString(),
     softwareAuthority: options?.softwareAuthority === true ? true : undefined,
   };

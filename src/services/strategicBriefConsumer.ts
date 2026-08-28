@@ -15,6 +15,7 @@ import {
   type StrategicBriefContextSource,
 } from '../infrastructure/strategicBrief';
 import type { CurationDestination, CurationEntry } from '../types';
+import { requireTenantScope } from '../controllers/trustedTenant';
 import { authService } from './auth';
 import { dbService } from './db';
 import type { TrustedBriefActorContext } from '../application/strategicBrief/trustedContext';
@@ -44,14 +45,18 @@ export function resetStrategicBriefConsumerForTest(nextStore?: LocalStrategicBri
 }
 
 export function buildTrustedBriefContext(clientId: string, now?: string): TrustedBriefActorContext | undefined {
-  const user = authService.getCurrentUser();
-  const organizationId = dbService.getClientById(clientId)?.organizationId;
-  if (!user || !organizationId) return undefined;
+  // CR-3: organization comes from the trusted session via requireTenantScope —
+  // never from the requested client record.
+  const decision = requireTenantScope(clientId, {
+    getCurrentUser: () => authService.getCurrentUser(),
+    getClientById: (id) => dbService.getClientById(id),
+  });
+  if (!decision.ok) return undefined;
   return {
-    actorId: user.uid,
-    actorRole: user.role === 'CLIENT' ? 'CLIENT' : 'ADMIN',
-    organizationId,
-    clientId,
+    actorId: decision.actorId,
+    actorRole: decision.actorRole === 'CLIENT' ? 'CLIENT' : 'ADMIN',
+    organizationId: decision.organizationId,
+    clientId: decision.clientId,
     now: now ?? new Date().toISOString(),
   };
 }
