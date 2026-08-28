@@ -272,7 +272,7 @@ describe('AUDIT010-10 — every remediated effect path gates before the effect',
 
   const EFFECTS = [
     'pushCurrentLocalToFirestore(',
-    'dbService.applyOnboardingStep(',
+    'applyOnboardingStep(',
     'aiService.generateThesisProposal(',
     'runResearchSignalsAgent(',
     'generatePositioningAdvice(',

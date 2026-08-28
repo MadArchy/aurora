@@ -9,7 +9,9 @@ import {
   acceptClientInvitation,
   createClientWithInvite,
 } from './services/clientLifecycleConsumer';
+import { applyOnboardingStep } from './services/masterProfileConsumer';
 import { ClientLifecycleError } from './application/clientLifecycle';
+import { MasterProfileError } from './application/masterProfile';
 import { processDeadlineReminders } from './services/reminders';
 import {
   downloadRecording,
@@ -909,8 +911,25 @@ class App {
         fields.compliance = val('onb-compliance');
       }
 
-      dbService.applyOnboardingStep(clientId, step, fields);
-      auditService.log(authService.getCurrentUser(), 'ONBOARDING_STEP_COMPLETED', 'Client', clientId, { step });
+      // CR-1 #10 — business authority is ApplyOnboardingStep (Master Profile Application).
+      // Tenant/actor come from requireTenantScope inside the consumer; DOM id is only a proposal.
+      let result;
+      try {
+        result = applyOnboardingStep({
+          requestedClientId: clientId,
+          step,
+          fields,
+        });
+      } catch (err) {
+        const message =
+          err instanceof MasterProfileError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'No se pudo guardar el onboarding';
+        this.showToast(message, 'warning');
+        return;
+      }
 
       if (step < 6) {
         this.modalData = { clientId, step: step + 1 };
@@ -918,12 +937,13 @@ class App {
         return;
       }
 
-      auditService.log(authService.getCurrentUser(), 'COMPLETE_ONBOARDING', 'Client', clientId);
-      notifyManager(clientId, {
-        type: 'ONBOARDING',
-        title: 'Perfil listo para revisión',
-        body: 'El cliente completó el onboarding.',
-      });
+      if (result.completed) {
+        notifyManager(clientId, {
+          type: 'ONBOARDING',
+          title: 'Perfil listo para revisión',
+          body: 'El cliente completó el onboarding.',
+        });
+      }
       authService.clearOnboardingFlag();
       this.showToast('Onboarding completado. Abriendo propuesta de tesis…', 'success');
       this.activeModal = 'thesis-editor';

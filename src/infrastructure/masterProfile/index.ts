@@ -1,0 +1,1 @@
+export { createDbMasterProfileRepository } from './DbMasterProfileAdapter';

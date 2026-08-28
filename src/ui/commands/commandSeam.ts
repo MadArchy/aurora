@@ -17,7 +17,7 @@
  * migrated command is a change of caller, never a change of authority: React and
  * legacy converge on the identical use case.
  *
- * CR-1 Client Lifecycle (#34, #1) is exposed below as `clientLifecycleCommands`.
+ * CR-1 Client Lifecycle (#34, #1) and Master Profile (#10) are exposed below.
  * Other AUDIT010-09 writes remain unexposed until their Application owners exist
  * (full registry: `specs/010-react-migration/audit010-09-registry.md`):
  *
@@ -26,7 +26,6 @@
  *                                 `importCandidateFactsFromCv`)
  *   - proof-wall status toggle   (`updateProofWallItem`)
  *   - source registration        (`addSource`) and ingestion polling
- *   - onboarding step apply      (`applyOnboardingStep`)
  *
  * In every remaining case the legacy surface remains served, so no capability is
  * lost by not migrating it yet.
@@ -49,7 +48,9 @@ import {
   acceptClientInvitation,
   createClientWithInvite,
 } from '../../services/clientLifecycleConsumer';
+import { applyOnboardingStep } from '../../services/masterProfileConsumer';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
+import { MasterProfileError } from '../../application/masterProfile';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
@@ -332,6 +333,38 @@ export const clientLifecycleCommands = {
       return {
         ok: false,
         message: err instanceof Error ? err.message : 'No se pudo aceptar la invitación',
+      };
+    }
+  },
+} as const;
+
+/**
+ * CR-1 Master Profile (#10 ApplyOnboardingStep).
+ *
+ * Seam authority = 0. Delegates to `masterProfileConsumer`, which gates via
+ * `requireTenantScope`. React and legacy must converge on this use case.
+ */
+export const masterProfileCommands = {
+  applyOnboardingStep(intent: {
+    requestedClientId: string | null | undefined;
+    step: number;
+    fields: Record<string, string>;
+    claimedOrganizationId?: string;
+    claimedClientId?: string;
+    claimedProfileCompleteness?: number;
+    claimedOnboardingStatus?: string;
+    claimedClientStatus?: string;
+  }): CommandResult {
+    try {
+      applyOnboardingStep(intent);
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof MasterProfileError) {
+        return { ok: false, message: err.message };
+      }
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : 'No se pudo guardar el onboarding',
       };
     }
   },

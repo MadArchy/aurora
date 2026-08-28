@@ -2001,123 +2001,15 @@ class DataService {
     return this.subscription;
   }
 
-  public applyOnboardingStep(clientId: string, step: number, fields: Record<string, string>): ClientProfile {
-    const client = this.getClientById(clientId);
-    if (!client?.organizationId) {
-      throw new Error('Client missing organizationId for onboarding profile');
-    }
-    const existing = this.profiles[clientId] || {
-      organizationId: client.organizationId,
-      clientId,
-      identity: {},
-      goals: {},
-      audience: {},
-      career: {},
-      education: [],
-      careerHistory: [],
-      ventures: [],
-      keyPublications: [],
-      socialLinks: {},
-      voicePreferences: {
-        tone: 'authoritative' as const,
-        preferredPhrases: [],
-        topicsToAvoid: [],
-        complianceGuidelines: '',
-      },
-      onboardingCompleted: false,
-      onboardingCurrentStep: step,
-      updatedAt: new Date().toISOString(),
-    };
-
-    if (step === 1) {
-      existing.identity = {
-        ...existing.identity,
-        selfDescription: fields.selfDescription,
-        professionalHeadline: fields.profession,
-      };
-      existing.career = {
-        ...existing.career,
-        profession: fields.profession,
-        currentRole: fields.role,
-        currentCompany: fields.company,
-      };
-      if (client) {
-        if (fields.displayName?.trim()) {
-          const parts = fields.displayName.trim().split(/\s+/);
-          this.updateClient(clientId, {
-            displayName: fields.displayName.trim(),
-            firstName: parts[0],
-            lastName: parts.slice(1).join(' ') || parts[0],
-            profession: fields.profession,
-            company: fields.company,
-            onboardingStatus: 'IN_PROGRESS',
-          });
-        } else {
-          this.updateClient(clientId, { profession: fields.profession, company: fields.company, onboardingStatus: 'IN_PROGRESS' });
-        }
-      }
-    }
-    if (step === 2) {
-      existing.goals = {
-        primaryGoal: fields.primaryGoal,
-        secondaryGoals: fields.secondaryGoals ? fields.secondaryGoals.split(',').map((s) => s.trim()).filter(Boolean) : [],
-      };
-    }
-    if (step === 3) {
-      existing.audience = {
-        targetAudienceDescription: fields.targetAudience,
-        targetIndustries: fields.industries ? fields.industries.split(',').map((s) => s.trim()).filter(Boolean) : [],
-        targetCountries: fields.countries ? fields.countries.split(',').map((s) => s.trim()).filter(Boolean) : [],
-      };
-      if (client) this.updateClient(clientId, { targetMarket: fields.targetAudience });
-    }
-    if (step === 4) {
-      existing.education = (fields.education || '')
-        .split('\n')
-        .filter((l) => l.trim())
-        .map((line) => {
-          const [degree, rest] = line.split(' - ');
-          return { degree: degree?.trim() || line, institution: rest?.trim() || '', year: '' };
-        });
-      existing.careerHistory = (fields.highlights || '')
-        .split('\n')
-        .filter((l) => l.trim())
-        .map((line) => ({ role: line, organization: '', period: '', highlight: line }));
-    }
-    if (step === 5) {
-      existing.socialLinks = { ...existing.socialLinks, linkedin: fields.linkedin, website: fields.website };
-    }
-    if (step === 6) {
-      existing.voicePreferences = {
-        tone: (fields.tone as ClientProfile['voicePreferences']['tone']) || 'authoritative',
-        preferredPhrases: existing.voicePreferences.preferredPhrases,
-        topicsToAvoid: fields.avoid ? fields.avoid.split(',').map((s) => s.trim()).filter(Boolean) : [],
-        complianceGuidelines: fields.compliance || '',
-      };
-      existing.onboardingCompleted = true;
-      this.updateClient(clientId, { onboardingStatus: 'COMPLETED', profileCompleteness: 85, status: 'ACTIVE' });
-    }
-
-    existing.onboardingCurrentStep = step;
-    this.syncStructuredProfileFacts(clientId);
-    this.saveMasterProfile(existing);
-    return existing;
-  }
-
-  private syncStructuredProfileFacts(clientId: string) {
-    const profile = this.getMasterProfile(clientId);
-    if (!profile) return;
-    const preserved = (profile.facts || []).filter(
-      (fact) => fact.status === 'candidate' || (fact.source === 'manual' && fact.status === 'confirmed')
+  /**
+   * DEPRECATED_AUTHORITY_REMOVED — CR-1 Master Profile.
+   * Onboarding persistence is owned by `masterProfileConsumer.applyOnboardingStep`.
+   * Retained as a hard fail-closed guard so dual business authority stays 0.
+   */
+  public applyOnboardingStep(_clientId: string, _step: number, _fields: Record<string, string>): never {
+    throw new Error(
+      'DEPRECATED: use masterProfileConsumer.applyOnboardingStep (CR-1 Master Profile Application)'
     );
-    const structured = buildFactsFromProfile(profile);
-    const seen = new Set<string>();
-    profile.facts = [...structured, ...preserved].filter((fact) => {
-      const key = `${fact.section}:${fact.value.toLowerCase()}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
   }
 
   public decideSignal(id: string, decision: ManagerDecision, reason?: string): void {

@@ -125,7 +125,8 @@ describe('AUDIT010-09 / §7 — no legacy business write is wrapped in React', (
     'importCandidateFactsFromCv',
     'updateProofWallItem',
     'addSource',
-    'applyOnboardingStep',
+    // applyOnboardingStep is canonical CR-1 Master Profile (seam → consumer).
+    // Still forbidden: direct dbService.applyOnboardingStep (fail-closed deprecated).
     'updateTaskStatus',
   ];
 

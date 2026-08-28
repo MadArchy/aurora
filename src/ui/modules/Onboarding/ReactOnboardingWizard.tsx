@@ -12,15 +12,16 @@
  * coverage figures are computed by `domain/profileCoverage` inside the facade, so
  * no completion rule or threshold is evaluated here (threat T-010-19).
  *
- * COMMAND: none. Saving remains `dbService.applyOnboardingStep` on the legacy
- * path — a business write with no canonical Application use case
- * (AUDIT010-09 #10), so it must not be wrapped in React.
+ * COMMAND: none in this React surface. Persistence authority for registry #10 is
+ * CR-1 Master Profile Application (canonical consumer invoked from the retained
+ * legacy form via `main.ts`). Wrapping that write here remains out of this
+ * component's presentation scope (AUDIT010-09 disposition `DISPLAY_ONLY_REACT`).
  *
  * Because saving is not available here, the submit control is disabled with its
- * real reason and the user is handed to the legacy wizard, which is still served
- * and unchanged. The notice appears **before** any field, so nobody can type a
- * long answer believing it will be stored. Capability is preserved at system
- * level and the limitation is stated rather than hidden.
+ * real reason and the user is handed to the legacy wizard, which is still served.
+ * The notice appears **before** any field, so nobody can type a long answer
+ * believing it will be stored. Capability is preserved at system level and the
+ * limitation is stated rather than hidden.
  *
  * FORMS: React Hook Form + Zod, input shape only (acceptance A13). No tenant,
  * actor or role value is present in any schema or field (acceptance A18).
@@ -251,8 +252,8 @@ function StepForm({ step, context }: { step: number; context: OnboardingContextR
         </button>
 
         {/*
-          Disabled for its real reason, not as a placeholder: there is no
-          canonical use case behind onboarding persistence yet.
+          Disabled for its real reason: this React surface is presentation-only
+          (AUDIT010-09 DISPLAY_ONLY_REACT). Persistence runs on the legacy form.
         */}
         <button
           type="button"
