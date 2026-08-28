@@ -5,6 +5,7 @@
 **Umbrella:** CR-1 — Cutover-Critical Application Ownership  
 **Authorized base checkpoint:** `310dffa629332029a5ce014e5988a3698106244f`  
 **Implementation SHA:** `112492d85bb177211ca6b7481d29b04f41d3290b`  
+**Governance / freeze SHA:** `a4c2d484cf1f3218ed1233b5059015a4e4dee770`  
 **Timezone:** America/Bogota
 
 ---
@@ -83,8 +84,8 @@ Prior CR-1 reopen · Execution Delivery · CR-2 · CR-3 · Phase 5 · source pau
 |------|-----|
 | Authorized start | `310dffa629332029a5ce014e5988a3698106244f` |
 | Implementation | `112492d85bb177211ca6b7481d29b04f41d3290b` |
-| Governance / freeze (content) | *(this commit)* |
-| Tip pin | points at freeze content (not self) |
+| Governance / freeze (content) | `a4c2d484cf1f3218ed1233b5059015a4e4dee770` |
+| Tip pin | points at freeze content above (not self) |
 
 ---
 
