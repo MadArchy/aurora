@@ -450,7 +450,7 @@ evidence-supported (AUDIT010-11 reclassified P3→P2), P3 **7** / **6**.
 |---|---|
 | CR-1 blocked writes | **34** registry rows · **12** canonicalized (cutover spine complete: #1/#8/#10/#11/#12/#13/#24/#26/#28/#31/#32/#34) · **22** noncutover owned · **22** still CU?=NO (or PARTIAL #18/#22) |
 | CR-1 ownership | **CUTOVER_SPINE_COMPLETE** · **NONCUTOVER_OWNER_DISPOSITION_COMPLETE** — five operational Application boundaries ratified |
-| CR-1 noncutover map | **22 IDs** — `cr-1-noncutover-ownership.md` (Phase B ratified @ base `6579f9a9c247eb9c2ac2f57cd8251d52470786a6`) |
+| CR-1 noncutover map | **22 IDs** — `cr-1-noncutover-ownership.md` (Phase B ratified · content `e4bc16f5f8667792d443217d4ab2a6572274aa22`) |
 | CR-1 provisional groups | Superseded by Phase B ratification — IDs 2–6, 7, 9, 14–23, 25, 27, 29–30, 33 final owners recorded |
 | CR-2 / SPEC-003 | **CHANGE_REQUIRED**, `CALLER_SNAPSHOT_AUTHORITY_PRESENT` — unchanged |
 | SPEC-003 modifications | **0** |

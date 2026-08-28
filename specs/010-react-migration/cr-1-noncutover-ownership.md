@@ -5,9 +5,18 @@
 **Umbrella:** CR-1 — Cutover-Critical Application Ownership  
 **Human governance authorization:** APPROVED (Phase B noncutover ownership finalization)  
 **Authorized base checkpoint:** `6579f9a9c247eb9c2ac2f57cd8251d52470786a6`  
+**Governance content SHA:** `e4bc16f5f8667792d443217d4ab2a6572274aa22`  
 **Timezone:** America/Bogota
 
 ---
+
+## Checkpoint SHAs
+
+| Role | SHA |
+|------|-----|
+| Authorized start | `6579f9a9c247eb9c2ac2f57cd8251d52470786a6` |
+| Governance content (ratification) | `e4bc16f5f8667792d443217d4ab2a6572274aa22` |
+| Tip pin | points at governance content above (not self) |
 
 ## Scope
 
