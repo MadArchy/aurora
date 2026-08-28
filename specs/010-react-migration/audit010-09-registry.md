@@ -77,7 +77,7 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 28 | `ClientPortal` feed | Open / complete / request changes on a task | `transitionClientTask` → Application `TransitionClientTask` (Domain `TASK_TRANSITIONS`; persistence via adapter) | task state + evidence | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
 | 29 | `ClientWorkspace` positioning | Assign evidence to thesis | `dbService.toggleEvidenceThesis` | evidence assignment | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 30 | `Modals` add-evidence | Add evidence item | `dbService.addEvidenceItem` | evidence vault | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
-| 31 | `Modals` content-editor | Save content | `saveContentDraft` → Application `SaveContentDraft` (Domain `contentPipeline` + SPEC-006 gate consumption) | content record | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
+| 31 | `Modals` content-editor | Save content | `saveContentDraft` → Application `SaveContentDraft` (SPEC-003 Brief gate for strategic content + Domain `contentPipeline` + SPEC-006 gate consumption) | content record | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
 | 32 | `Modals` article-review | Save / approve / reject article | `reviewClientArticle` → Application `ReviewClientArticle` (Domain `articleReviewCore` + `contentPipeline`) | content + pipeline | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
 | 33 | `Modals` generate-content | Generate draft | provider call, then `dbService.saveContent` | content record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 34 | `ManagerCockpit` / `Modals` create-client | Create client + invite | `createClientWithInvite` → Application `CreateClientWithInvite` (legacy symbols: `createClient`, `createInvitation`, `createPendingAccount`) | tenancy + identity | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Client Lifecycle Application** (SPEC-009 remains authz/RBAC only) | 4 |
@@ -530,8 +530,10 @@ from React until separately owned.
 | Commands | `TransitionClientTask`, `SaveContentDraft`, `ReviewClientArticle` |
 | Owner | CR-1 Execution Delivery Application (operational) |
 | Domain reuse | `TASK_TRANSITIONS`, `contentPipeline`, `articleReviewCore`, `claimSafetyGateCore` (shim) |
+| SPEC-003 | Consumed via `ContentStrategicBriefGatePort` → `AuthorizeStrategicDownstream` for strategic ContentItem updates — ownership expansion **0** |
 | SPEC-006 | Consumed via `ContentPublicationGatePort` — ownership expansion **0** |
 | SPEC-004 / SPEC-008 | Not owned — expansion **0** / learning authority **0** |
-| Compatibility path | Legacy ClientPortal / content-editor / article-review → `executionDeliveryConsumer`; seam exposes `executionDeliveryCommands` |
+| Compatibility path | Legacy ClientPortal / content-editor / article-review / teleprompter complete → `executionDeliveryConsumer`; seam exposes `executionDeliveryCommands` |
+| Remediation | P1 Brief gate + P2 teleprompter competing authority closed — see `cr-1-execution-delivery-remediation.md` |
 | Removal eligibility | Cutover spine complete — non-cutover 22 writes remain; T-010-403/404 `BLOCKED_BY_OTHER_PRECONDITION` |
-| Evidence | `specs/010-react-migration/cr-1-execution-delivery.md`; `tests/cr1ExecutionDelivery.test.ts` |
+| Evidence | `specs/010-react-migration/cr-1-execution-delivery.md`; `cr-1-execution-delivery-remediation.md`; `tests/cr1ExecutionDelivery.test.ts` |
