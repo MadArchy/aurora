@@ -18,8 +18,9 @@
  * legacy converge on the identical use case.
  *
  * CR-1 Client Lifecycle (#34, #1), Master Profile (#10), Thesis Lifecycle
- * (#11–#13), and Signal Intake (#8/#24/#26) are exposed below. Other
- * AUDIT010-09 writes remain unexposed until their Application owners exist
+ * (#11–#13), Signal Intake (#8/#24/#26), and Execution Delivery (#28/#31/#32)
+ * are exposed below. Other AUDIT010-09 writes remain unexposed until their
+ * Application owners exist
  * (full registry: `specs/010-react-migration/audit010-09-registry.md`):
  *
  *   - profile fact lifecycle     (`addProfileFact`, `confirmProfileFact`,
@@ -58,11 +59,17 @@ import {
   registerManualSignal,
   registerSource,
 } from '../../services/signalIntakeConsumer';
+import {
+  reviewClientArticle,
+  saveContentDraft,
+  transitionClientTask,
+} from '../../services/executionDeliveryConsumer';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
 import { SignalIntakeError } from '../../application/signalIntake';
-import type { SourceType, ThesisEditableFields } from '../../types';
+import { ExecutionDeliveryError } from '../../application/executionDelivery';
+import type { ContentStatus, ContentType, SourceType, ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
 import type { Client, MasterDossier } from '../../types';
@@ -492,6 +499,83 @@ export const signalIntakeCommands = {
           err instanceof SignalIntakeError || err instanceof Error
             ? err.message
             : 'No se pudo registrar la señal',
+      };
+    }
+  },
+} as const;
+
+/**
+ * CR-1 Execution Delivery (#28 TransitionClientTask, #31 SaveContentDraft, #32 ReviewClientArticle).
+ * Seam authority = 0. Claim safety / learning / providers not owned here.
+ */
+export const executionDeliveryCommands = {
+  transitionClientTask(intent: {
+    requestedClientId: string | null | undefined;
+    taskId: string;
+    intent: 'view' | 'start' | 'complete' | 'cancel' | 'request_changes' | 'attach_evidence';
+    evidenceUrl?: string;
+    clientNotes?: string;
+  }): CommandResult {
+    try {
+      transitionClientTask(intent);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ExecutionDeliveryError || err instanceof Error
+            ? err.message
+            : 'No se pudo actualizar la tarea',
+      };
+    }
+  },
+
+  saveContentDraft(intent: {
+    requestedClientId: string | null | undefined;
+    contentId: string;
+    fields: {
+      title?: string;
+      body?: string;
+      type?: ContentType;
+      targetPlatform?: 'LinkedIn' | 'YouTube' | 'PersonalWebsite' | 'Substack' | 'LegalJournal';
+      teleprompterScript?: string;
+      managerNotes?: string;
+    };
+    requestedTargetStatus?: ContentStatus;
+  }): CommandResult {
+    try {
+      saveContentDraft(intent);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ExecutionDeliveryError || err instanceof Error
+            ? err.message
+            : 'No se pudo guardar el borrador',
+      };
+    }
+  },
+
+  reviewClientArticle(intent: {
+    requestedClientId: string | null | undefined;
+    contentId: string;
+    decision: 'save_revision' | 'approve' | 'request_changes';
+    title?: string;
+    body?: string;
+    reason?: string;
+    taskId?: string;
+  }): CommandResult {
+    try {
+      reviewClientArticle(intent);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ExecutionDeliveryError || err instanceof Error
+            ? err.message
+            : 'No se pudo registrar la revisión',
       };
     }
   },

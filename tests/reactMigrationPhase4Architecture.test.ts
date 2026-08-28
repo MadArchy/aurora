@@ -224,11 +224,10 @@ describe('§10 — the blocked writes were not wrapped to look canonical', () =>
   // If Phase 4 had "solved" AUDIT010-09 by wrapping legacy writes in a new
   // module, these symbols would appear outside main.ts and the legacy services.
   const BLOCKED = [
-    // applyOnboardingStep / saveThesis / addSource / addSignal are CR-1 canonical (seam → consumer).
+    // applyOnboardingStep / saveThesis / addSource / addSignal / updateTaskStatus /
+    // saveContent are CR-1 canonical (seam → consumer).
     'addDeliveryItem',
     'setCurationStrategicBriefId',
-    'updateTaskStatus',
-    'saveContent',
     'addFeedbackEvent',
     'recordSourceRun',
     'transitionContentPipeline',

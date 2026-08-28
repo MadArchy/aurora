@@ -94,6 +94,12 @@ import {
   registerSource,
 } from './services/signalIntakeConsumer';
 import { SignalIntakeError } from './application/signalIntake';
+import {
+  reviewClientArticle,
+  saveContentDraft,
+  transitionClientTask,
+} from './services/executionDeliveryConsumer';
+import { ExecutionDeliveryError } from './application/executionDelivery';
 import { resolveArticleSavePipelineSteps } from './domain/articleReviewCore';
 import { VIDEO_SUBMIT_PIPELINE_TARGET } from './domain/videoSubmitCore';
 import type {
@@ -2199,7 +2205,12 @@ class App {
 
     if (task.status === 'ASSIGNED' || task.status === 'DRAFT') {
       try {
-        dbService.updateTaskStatus(taskId, 'VIEWED');
+        // CR-1 #28 — TransitionClientTask (view).
+        transitionClientTask({
+          requestedClientId: task.clientId,
+          taskId,
+          intent: 'view',
+        });
       } catch {
         /* transiciones ya avanzadas */
       }
@@ -3346,35 +3357,40 @@ class App {
     });
   }
 
-  /** Aprueba un artículo del cliente y completa la tarea vinculada. */
-  private approveClientArticle(contentId: string, taskId?: string): boolean {
-    const content = dbService.getContentById(contentId);
-    const user = authService.getCurrentUser();
-    if (!content || !user) return false;
+  private toastExecErr(error: unknown, fallback: string): void {
+    this.showToast(
+      error instanceof ExecutionDeliveryError || error instanceof Error ? error.message : fallback,
+      'warning'
+    );
+  }
 
-    if (!this.syncContentToPipelineStatus(contentId, 'CLIENT_APPROVED', 'Aprobado por cliente')) {
+  /** Aprueba un artículo del cliente y completa la tarea vinculada. */
+  private approveClientArticle(
+    contentId: string,
+    taskId?: string,
+    draft?: { title?: string; body?: string }
+  ): boolean {
+    const content = dbService.getContentById(contentId);
+    if (!content || !authService.getCurrentUser()) return false;
+    try {
+      reviewClientArticle({
+        requestedClientId: content.clientId,
+        contentId,
+        decision: 'approve',
+        taskId,
+        title: draft?.title,
+        body: draft?.body,
+      });
+    } catch (error) {
+      this.toastExecErr(error, 'No se pudo aprobar el artículo');
       return false;
     }
-
-    dbService.addFeedbackEvent({
-      organizationId: content.organizationId,
-      clientId: content.clientId,
-      contentId,
-      taskId,
-      kind: 'CLIENT_APPROVE',
-      actorUid: user.uid,
-      actorRole: 'CLIENT',
-    });
-
-    this.completeLinkedArticleTask(contentId, taskId);
-
     notifyManager(content.clientId, {
       type: 'CONTENT_REVIEW',
       title: 'Artículo aprobado por el cliente',
       body: `«${content.title}» está listo para finalizar.`,
       href: 'ws-production',
     });
-
     this.showToast('Artículo aprobado y enviado al manager', 'success');
     this.render();
     return true;
@@ -3382,51 +3398,28 @@ class App {
 
   private rejectClientArticle(contentId: string, reason: string, taskId?: string): boolean {
     const content = dbService.getContentById(contentId);
-    const user = authService.getCurrentUser();
-    if (!content || !user || !reason.trim()) return false;
-
-    if (!this.syncContentToPipelineStatus(contentId, 'CHANGES_REQUESTED', reason.trim())) {
+    if (!content || !authService.getCurrentUser() || !reason.trim()) return false;
+    try {
+      reviewClientArticle({
+        requestedClientId: content.clientId,
+        contentId,
+        decision: 'request_changes',
+        reason: reason.trim(),
+        taskId,
+      });
+    } catch (error) {
+      this.toastExecErr(error, 'No se pudo rechazar el artículo');
       return false;
     }
-
-    dbService.addFeedbackEvent({
-      organizationId: content.organizationId,
-      clientId: content.clientId,
-      contentId,
-      taskId,
-      kind: 'CLIENT_REJECT',
-      actorUid: user.uid,
-      actorRole: 'CLIENT',
-      reason: reason.trim(),
-    });
-
-    dbService.saveContent({
-      ...content,
-      clientFeedback: reason.trim(),
-      updatedAt: new Date().toISOString(),
-    });
-
     notifyManager(content.clientId, {
       type: 'CONTENT_REVIEW',
       title: 'Artículo rechazado por el cliente',
       body: reason.trim(),
       href: 'ws-production',
     });
-
     this.showToast('Rechazo enviado con tu motivo', 'info');
     this.render();
     return true;
-  }
-
-  private completeLinkedArticleTask(contentId: string, taskId?: string): void {
-    const task = taskId
-      ? dbService.getAllTasks().find((t) => t.id === taskId)
-      : dbService.getAllTasks().find(
-          (t) => t.contentItemId === contentId && t.type === 'REVIEW_ARTICLE' && t.status !== 'COMPLETED'
-        );
-    if (task && task.status !== 'COMPLETED' && task.status !== 'CANCELLED') {
-      dbService.updateTaskStatus(task.id, 'COMPLETED', undefined, 'Artículo aprobado por el cliente.');
-    }
   }
 
   private bindClaimLocate(root: ParentNode = document) {
@@ -3769,20 +3762,22 @@ class App {
       const user = authService.getCurrentUser();
       if (!user) return;
 
-      const event = dbService.saveClientArticleRevision(contentId, {
-        title,
-        body,
-        actorUid: user.uid,
-        taskId: taskId || undefined,
-      });
-
+      let event;
+      try {
+        event = reviewClientArticle({
+          requestedClientId: user.clientId || this.resolveClientId(),
+          contentId,
+          decision: 'save_revision',
+          title,
+          body,
+          taskId: taskId || undefined,
+        }).feedbackEvent;
+      } catch (error) {
+        this.toastExecErr(error, 'No se pudo guardar la revisión');
+        return;
+      }
       const content = dbService.getContentById(contentId);
       if (content && event) {
-        const steps = resolveArticleSavePipelineSteps(content);
-        const actor = this.pipelineActor();
-        for (const step of steps) {
-          dbService.transitionContentPipeline(contentId, step, actor, 'Cliente editando borrador');
-        }
         notifyManager(content.clientId, {
           type: 'CONTENT_REVIEW',
           title: 'Cliente editó borrador',
@@ -3791,7 +3786,6 @@ class App {
           targetId: contentId,
         });
       }
-
       this.showToast(
         event ? 'Cambios guardados. Tu manager verá el diff.' : 'Sin cambios respecto al borrador original.',
         event ? 'success' : 'info'
@@ -3807,17 +3801,7 @@ class App {
 
       const title = (document.getElementById('article-review-title') as HTMLInputElement)?.value.trim();
       const body = (document.getElementById('article-review-body') as HTMLTextAreaElement)?.value.trim();
-      const user = authService.getCurrentUser();
-      if (user && title && body) {
-        dbService.saveClientArticleRevision(contentId, {
-          title,
-          body,
-          actorUid: user.uid,
-          taskId: taskId || undefined,
-        });
-      }
-
-      void this.approveClientArticle(contentId, taskId);
+      void this.approveClientArticle(contentId, taskId, { title, body });
       this.closeModal();
     });
 
@@ -3842,42 +3826,35 @@ class App {
       const type = (document.getElementById('edit-content-type') as HTMLSelectElement).value as typeof content.type;
       const targetStatus = (document.getElementById('edit-content-status') as HTMLSelectElement).value as typeof content.status;
 
-      // El texto pudo cambiar en este mismo formulario, así que se re-evalúa antes de avanzar.
       const thesis = dbService.getThesesByClient(content.clientId).find((t) => t.id === content.thesisId);
       if (!thesis) {
         this.showToast('No se encontró la tesis asociada al contenido.', 'warning');
         return;
       }
+      // Advisory projection only — Application does not treat this as publication authority.
       const claimSafety = aiService.reviewDraftClaims(body, thesis);
 
-      // Guarda el trabajo del manager aunque el avance se frene.
-      dbService.saveContent({
-        ...content,
-        title: (document.getElementById('edit-content-title') as HTMLInputElement).value,
-        targetPlatform: (document.getElementById('edit-content-platform') as HTMLSelectElement).value as typeof content.targetPlatform,
-        type,
-        body,
-        teleprompterScript: type === 'VIDEO_SCRIPT' ? body : content.teleprompterScript,
-        managerNotes: (document.getElementById('edit-content-notes') as HTMLInputElement).value,
-        claimSafety,
-        updatedAt: new Date().toISOString(),
-      });
-
-      if (targetStatus !== content.status) {
-        const advanced = this.syncContentToPipelineStatus(content.id, targetStatus, undefined, {
-          claimSafetyOverride: claimSafety,
-          requireReviewAck: true,
-          reviewAcknowledged: (document.getElementById('claim-review-ack') as HTMLInputElement | null)?.checked,
+      try {
+        saveContentDraft({
+          requestedClientId: content.clientId,
+          contentId: content.id,
+          fields: {
+            title: (document.getElementById('edit-content-title') as HTMLInputElement).value,
+            targetPlatform: (document.getElementById('edit-content-platform') as HTMLSelectElement)
+              .value as typeof content.targetPlatform,
+            type,
+            body,
+            teleprompterScript: type === 'VIDEO_SCRIPT' ? body : content.teleprompterScript,
+            managerNotes: (document.getElementById('edit-content-notes') as HTMLInputElement).value,
+            claimSafety,
+          },
+          requestedTargetStatus: targetStatus !== content.status ? targetStatus : undefined,
         });
-        if (!advanced) {
-          this.render();
-          return;
-        }
+      } catch (error) {
+        this.toastExecErr(error, 'No se pudo guardar el contenido');
+        this.render();
+        return;
       }
-
-      auditService.log(authService.getCurrentUser(), 'EDIT_CONTENT', 'ContentItem', content.id, {
-        status: targetStatus,
-      });
       this.showToast('Cambios guardados', 'success');
       this.closeModal();
     });
@@ -4104,8 +4081,25 @@ class App {
       if (!targetId || !notes) return;
 
       if (type === 'TASK') {
-        dbService.updateTaskStatus(targetId, 'IN_PROGRESS', undefined, notes);
-        this.showToast('Observaciones enviadas a tu Brand Manager', 'info');
+        try {
+          // CR-1 #28 — TransitionClientTask (request_changes).
+          const task = dbService.getAllTasks().find((t) => t.id === targetId);
+          transitionClientTask({
+            requestedClientId: task?.clientId || authService.getCurrentUser()?.clientId,
+            taskId: targetId,
+            intent: 'request_changes',
+            clientNotes: notes,
+          });
+          this.showToast('Observaciones enviadas a tu Brand Manager', 'info');
+        } catch (error) {
+          this.showToast(
+            error instanceof ExecutionDeliveryError || error instanceof Error
+              ? error.message
+              : 'No se pudo actualizar la tarea',
+            'warning'
+          );
+          return;
+        }
       } else if (type === 'OPPORTUNITY') {
         const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
         if (!clientId) {
@@ -4221,8 +4215,24 @@ class App {
           taskId,
           file
         );
-        dbService.updateTaskEvidence(taskId, ref, 'Versión re-subida por el manager.');
-        this.showToast('Video actualizado', 'success');
+        try {
+          // CR-1 #28 — TransitionClientTask (attach_evidence).
+          transitionClientTask({
+            requestedClientId: task.clientId,
+            taskId,
+            intent: 'attach_evidence',
+            evidenceUrl: ref,
+            clientNotes: 'Versión re-subida por el manager.',
+          });
+          this.showToast('Video actualizado', 'success');
+        } catch (error) {
+          this.showToast(
+            error instanceof ExecutionDeliveryError || error instanceof Error
+              ? error.message
+              : 'No se pudo actualizar la evidencia',
+            'warning'
+          );
+        }
         el.value = '';
         this.render();
       });
@@ -4234,9 +4244,24 @@ class App {
       btn.addEventListener('click', (e) => {
         const taskId = (e.currentTarget as HTMLElement).getAttribute('data-task-id');
         if (!taskId) return;
-        dbService.updateTaskStatus(taskId, 'COMPLETED');
-        this.showToast('Tarea completada', 'success');
-        this.render();
+        try {
+          const task = dbService.getAllTasks().find((t) => t.id === taskId);
+          // CR-1 #28 — TransitionClientTask (complete).
+          transitionClientTask({
+            requestedClientId: task?.clientId || authService.getCurrentUser()?.clientId,
+            taskId,
+            intent: 'complete',
+          });
+          this.showToast('Tarea completada', 'success');
+          this.render();
+        } catch (error) {
+          this.showToast(
+            error instanceof ExecutionDeliveryError || error instanceof Error
+              ? error.message
+              : 'No se pudo completar la tarea',
+            'warning'
+          );
+        }
       });
     });
 
@@ -4586,7 +4611,11 @@ class App {
   private markVideoCaptureStarted(task: import('./types').Task) {
     if (task.status === 'ASSIGNED' || task.status === 'VIEWED' || task.status === 'DRAFT') {
       try {
-        dbService.updateTaskStatus(task.id, 'IN_PROGRESS');
+        transitionClientTask({
+          requestedClientId: task.clientId,
+          taskId: task.id,
+          intent: 'start',
+        });
       } catch {
         /* ya avanzada */
       }
@@ -4599,7 +4628,11 @@ class App {
   private markArticleReviewStarted(task: import('./types').Task, contentId: string): void {
     if (task.status === 'ASSIGNED' || task.status === 'VIEWED' || task.status === 'DRAFT') {
       try {
-        dbService.updateTaskStatus(task.id, 'IN_PROGRESS');
+        transitionClientTask({
+          requestedClientId: task.clientId,
+          taskId: task.id,
+          intent: 'start',
+        });
       } catch {
         /* ya avanzada */
       }

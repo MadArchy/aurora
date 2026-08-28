@@ -146,15 +146,13 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
     'updateSourceStatus',
     'recordSourceRun',
     'toggleTopicPin',
-    // tasks
+    // tasks — updateTaskStatus/updateTaskEvidence are CR-1 Execution Delivery
+    // canonical via seam → consumer (transitionClientTask).
     'addTask',
-    'updateTaskStatus',
-    'updateTaskEvidence',
-    // evidence and content
+    // evidence and content — saveContent / saveClientArticleRevision canonical via
+    // saveContentDraft / reviewClientArticle
     'addEvidenceItem',
     'toggleEvidenceThesis',
-    'saveContent',
-    'saveClientArticleRevision',
     'transitionContentPipeline',
     'addFeedbackEvent',
     'updateRecommendationStatus',
