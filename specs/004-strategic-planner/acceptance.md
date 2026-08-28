@@ -22,6 +22,20 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **SPEC-004 FINAL CODE_COMPLETE CHECKPOINT:** `aa5e2afdbbad4c7b600e30069d6cee3fcbb2ee63`  
 **Branch:** `spec/004-strategic-planner`
 
+### CR-3 security amendment (AUTHORIZED · RESOLVED)
+
+| Field | Value |
+|-------|--------|
+| **Class** | `SECURITY_FIX` |
+| **Scope** | `buildTrustedPlanContext` only — trusted org from session via `requireTenantScope`; client entitlement validated |
+| **Previous frozen checkpoint** | `aa5e2afdbbad4c7b600e30069d6cee3fcbb2ee63` |
+| **Implementation SHA** | `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
+| **Evidence** | `specs/010-react-migration/cr-3-trusted-tenant-entitlement.md` · `tests/cr3TrustedTenantEntitlement.test.ts` |
+| **Domain / lifecycle** | **UNCHANGED** |
+| **DEPLOYED / DONE** | **NO** / **NO** |
+
+**New CR-3 frozen checkpoint:** governance ratification commit SHA on `spec/010-react-migration` (shared with SPEC-003/007/008).
+
 ### Human SPEC approval (T-004-010)
 
 | Field | Value |

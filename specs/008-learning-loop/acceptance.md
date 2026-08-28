@@ -27,6 +27,21 @@ constitutional separation; `DONE` remains **NO**.
 **Implementation baseline:** SPEC-007 CODE_COMPLETE @ `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0`  
 **Branch:** `spec/008-learning-loop`  
 **Phase-1 checkpoint:** `de4d7def9fdc386e1f1c962b8439b4a03658d506`
+**FINAL FREEZE (historical):** `642ae9390700a254fa390ba09a959bab3c37d616`
+
+### CR-3 security amendment (AUTHORIZED · RESOLVED)
+
+| Field | Value |
+|-------|--------|
+| **Class** | `SECURITY_FIX` |
+| **Scope** | `buildTrustedLearningContext` only — trusted org from session via `requireTenantScope`; client entitlement validated |
+| **Previous frozen checkpoint** | `642ae9390700a254fa390ba09a959bab3c37d616` |
+| **Implementation SHA** | `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
+| **Evidence** | `specs/010-react-migration/cr-3-trusted-tenant-entitlement.md` · `tests/cr3TrustedTenantEntitlement.test.ts` |
+| **Domain / lifecycle / silent learning** | **UNCHANGED** / **PROHIBITED** |
+| **DEPLOYED / DONE** | **NO** / **NO** |
+
+**New CR-3 frozen checkpoint:** governance ratification commit SHA on `spec/010-react-migration` (shared with SPEC-003/004/007).
 
 ### Human SPEC approval (T-008-010) — RECORDED
 

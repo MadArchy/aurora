@@ -16,6 +16,21 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification (separate) —
 **Phase-3 corrected:** `73004305561be5d12faaf2a524e50405d5e6809e`  
 **SPEC-001 compatibility:** `80c93d8b0b03a5eaa0e3a75e953131e4700873d5`  
 **Phase-6 acceptance evidence:** `2cfe13cc8f3369e3da59b0c4829022e0cc10a0c7`
+**CODE_COMPLETE declaration (historical):** `e16280607fa078941078d2cb4c233025a1bd66a1`
+
+### CR-3 security amendment (AUTHORIZED · RESOLVED)
+
+| Field | Value |
+|-------|--------|
+| **Class** | `SECURITY_FIX` |
+| **Scope** | `buildTrustedBriefContext` only — trusted org from session via `requireTenantScope`; client entitlement validated |
+| **Previous frozen checkpoint** | `e16280607fa078941078d2cb4c233025a1bd66a1` |
+| **Implementation SHA** | `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
+| **Evidence** | `specs/010-react-migration/cr-3-trusted-tenant-entitlement.md` · `tests/cr3TrustedTenantEntitlement.test.ts` |
+| **Domain / lifecycle / CR-2** | **UNCHANGED** |
+| **DEPLOYED / DONE** | **NO** / **NO** |
+
+**New CR-3 frozen checkpoint:** governance ratification commit SHA on `spec/010-react-migration` (shared with SPEC-003/004/007/008).
 
 ### Human CODE_COMPLETE approval
 

@@ -36,6 +36,21 @@ Spec **DONE** requires CODE_COMPLETE + agreed deploy verification — **NOT STAR
 **Phase-5 checkpoint:** `ed6c916f96ac5e46be1d366a69a670b1e2ed92b3`  
 **Phase-6 acceptance evidence SHA:** `9c7536a217e81d32a4c7fa3e14e1f956b292d7b8`  
 **Phase-6 CODE_COMPLETE candidate checkpoint:** `8a21ee0aa0c8b1acdb34805b6e47ead6ec1aec87`
+**FINAL FREEZE (historical):** `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0`
+
+### CR-3 security amendment (AUTHORIZED · RESOLVED)
+
+| Field | Value |
+|-------|--------|
+| **Class** | `SECURITY_FIX` |
+| **Scope** | `buildTrustedOpportunityContext` only — trusted org from session via `requireTenantScope`; client entitlement validated |
+| **Previous frozen checkpoint** | `5d084ea9274909fb3f1d1eb2f51a084ec3a1f4c0` |
+| **Implementation SHA** | `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
+| **Evidence** | `specs/010-react-migration/cr-3-trusted-tenant-entitlement.md` · `tests/cr3TrustedTenantEntitlement.test.ts` |
+| **Domain / lifecycle** | **UNCHANGED** |
+| **DEPLOYED / DONE** | **NO** / **NO** |
+
+**New CR-3 frozen checkpoint:** governance ratification commit SHA on `spec/010-react-migration` (shared with SPEC-003/004/008).
 
 ### Human SPEC approval (T-007-010)
 

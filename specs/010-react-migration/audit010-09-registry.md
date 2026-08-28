@@ -259,13 +259,14 @@ Phase 4 from discharging it.
 |---|---|---|---|---|---|
 | **CR-1** | Onboarding, profile facts, proof wall, source registration, curation, delivery assembly and sending, tasks, evidence, content saves, thesis saves, client creation | **34** (registry items 1–34) | No canonical Application use case exists. Creating one is business authority, which SPEC-010 does not hold. | **UNDETERMINED** — no repository document assigns these to a SPEC's Application layer | Blocks FULL CUTOVER for all 5 pages, blocks Stage B (T-010-403), blocks a minimal `main.ts` (T-010-404), blocks legacy removal (Phase 6) |
 | **CR-2** | Strategic Brief creation from a curation entry | 1 (not counted in the 34 — the consumer exists) | Consumer requires the caller to pass the whole `CurationEntry` aggregate | **SPEC-003** (frozen) | Blocks migrating brief creation; approval already migrated |
+| **CR-3** | Trusted tenant entitlement in four consumer `buildTrusted*Context` builders | 4 builders (003/004/007/008) | Trusted `organizationId` was derived from the requested client record | **SPEC-003 · 004 · 007 · 008** | **RESOLVED** — see `cr-3-trusted-tenant-entitlement.md`; implementation `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
 
-**FORMAL CHANGE REQUESTS REQUIRED = 2.** Neither is granted, drafted into code, or
-worked around in Phase 4.
+**FORMAL CHANGE REQUESTS:** CR-1 **OPEN** · CR-2 **CHANGE_REQUIRED** · CR-3 **RESOLVED** (security amendment; not a product CR).
 
 ## CR-2 — SPEC-003 consumer signature (§12)
 
-Investigated in Phase 4; **not modified**. SPEC-003 modifications remain **0**.
+Investigated in Phase 4; **not modified**. `createBriefFromCurationEntry` signature
+modifications remain **0**. (CR-3 amended only `buildTrustedBriefContext`.)
 
 | Field | Repository truth |
 |---|---|
