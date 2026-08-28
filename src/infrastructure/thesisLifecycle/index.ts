@@ -1,0 +1,1 @@
+export { createDbThesisRepository } from './DbThesisLifecycleAdapter';

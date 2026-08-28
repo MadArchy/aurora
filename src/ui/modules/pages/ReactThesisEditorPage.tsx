@@ -5,11 +5,10 @@
  *
  * READ SOURCE: compatibility (`readThesisOptions`, `readThesisDetail`).
  *
- * COMMAND: none. The legacy editor's two submit intents (`draft`,
- * `submit_review`) both complete with `dbService.saveThesis`
- * (`main.ts:1482`) — a business write with no canonical Application use case, so
- * AUDIT010-09 forbids routing it through React. Saving therefore stays on the
- * legacy editor, which is still served and unchanged.
+ * COMMAND: none on this React surface. CR-1 Thesis Lifecycle owns
+ * `SaveThesis` (#11); the legacy editor invokes `thesisLifecycleConsumer`
+ * via `main.ts`. React does not call the consumer or mutate lifecycle state
+ * (AUDIT010-09 disposition unchanged — presentation cutover still blocked).
  *
  * MULTI-THESIS — the point of this task. The thesis is chosen by explicit id and
  * nothing else:

@@ -17,8 +17,9 @@
  * migrated command is a change of caller, never a change of authority: React and
  * legacy converge on the identical use case.
  *
- * CR-1 Client Lifecycle (#34, #1) and Master Profile (#10) are exposed below.
- * Other AUDIT010-09 writes remain unexposed until their Application owners exist
+ * CR-1 Client Lifecycle (#34, #1), Master Profile (#10), and Thesis Lifecycle
+ * (#11–#13) are exposed below. Other AUDIT010-09 writes remain unexposed until
+ * their Application owners exist
  * (full registry: `specs/010-react-migration/audit010-09-registry.md`):
  *
  *   - profile fact lifecycle     (`addProfileFact`, `confirmProfileFact`,
@@ -49,8 +50,16 @@ import {
   createClientWithInvite,
 } from '../../services/clientLifecycleConsumer';
 import { applyOnboardingStep } from '../../services/masterProfileConsumer';
+import {
+  activateThesis,
+  decideThesisClientReview,
+  saveThesis,
+} from '../../services/thesisLifecycleConsumer';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
+import { ThesisLifecycleError } from '../../application/thesisLifecycle';
+import type { ThesisEditableFields } from '../../types';
+import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
@@ -365,6 +374,70 @@ export const masterProfileCommands = {
       return {
         ok: false,
         message: err instanceof Error ? err.message : 'No se pudo guardar el onboarding',
+      };
+    }
+  },
+} as const;
+
+/**
+ * CR-1 Thesis Lifecycle (#11 SaveThesis, #12 ActivateThesis, #13 DecideThesisClientReview).
+ * Seam authority = 0. Explicit thesisId required — no positional thesis authority.
+ */
+export const thesisLifecycleCommands = {
+  saveThesis(intent: {
+    requestedClientId: string | null | undefined;
+    thesisId: string;
+    intent: ThesisSaveIntent;
+    fields: ThesisEditableFields;
+  }): CommandResult {
+    try {
+      saveThesis(intent);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ThesisLifecycleError || err instanceof Error
+            ? err.message
+            : 'No se pudo guardar la tesis',
+      };
+    }
+  },
+
+  activateThesis(intent: {
+    requestedClientId: string | null | undefined;
+    thesisId: string;
+  }): CommandResult {
+    try {
+      activateThesis(intent);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ThesisLifecycleError || err instanceof Error
+            ? err.message
+            : 'No se pudo activar la tesis',
+      };
+    }
+  },
+
+  decideClientReview(intent: {
+    requestedClientId: string | null | undefined;
+    thesisId: string;
+    decision: 'approve' | 'request_changes';
+    feedback?: string;
+  }): CommandResult {
+    try {
+      decideThesisClientReview(intent);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ThesisLifecycleError || err instanceof Error
+            ? err.message
+            : 'No se pudo registrar la decisión',
       };
     }
   },

@@ -125,8 +125,7 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
    * read-only by contract.
    */
   const BLOCKED_MUTATORS = [
-    // thesis lifecycle
-    'saveThesis',
+    // thesis lifecycle — saveThesis is CR-1 Thesis Lifecycle canonical (seam → consumer)
     // curation and delivery
     'decideCuration',
     'decideSignal',

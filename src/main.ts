@@ -71,7 +71,6 @@ import {
   parseAudienceLines,
   parseTerritoryLines,
   validateWeights,
-  assertThesisReadyForReview,
   formatAudienceLines,
   formatTerritoryLines,
 } from './domain/thesisModelCore';
@@ -83,13 +82,13 @@ import {
   type ThesisEditorFormSnapshot,
   type ThesisEditorStep,
 } from './domain/thesisEditorCore';
+import { type ThesisSaveIntent } from './domain/thesisRevisionCore';
 import {
-  activateThesisByManager,
-  approveThesisByClient,
-  planThesisSave,
-  rejectThesisByClient,
-  type ThesisSaveIntent,
-} from './domain/thesisRevisionCore';
+  activateThesis,
+  decideThesisClientReview,
+  saveThesis,
+} from './services/thesisLifecycleConsumer';
+import { ThesisLifecycleError } from './application/thesisLifecycle';
 import { resolveArticleSavePipelineSteps } from './domain/articleReviewCore';
 import { VIDEO_SUBMIT_PIPELINE_TARGET } from './domain/videoSubmitCore';
 import type {
@@ -1375,9 +1374,7 @@ class App {
         const hardBlocks = lines('thesis-limits-hard');
         const softAvoid = lines('thesis-limits-soft');
 
-        const existing = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
-        const now = new Date().toISOString();
-        const actor = authService.getCurrentUser()?.uid || 'user_admin_01';
+        const existing = dbService.getThesisById(clientId, thesisId);
 
         const title = val('thesis-title').trim();
         if (!title || !val('thesis-expert-identity').trim()) {
@@ -1390,7 +1387,7 @@ class App {
           return;
         }
 
-        const editable = {
+        const editable: ThesisEditableFields = {
           title,
           expertIdentity: val('thesis-expert-identity'),
           targetAudience: val('thesis-target-audience'),
@@ -1411,73 +1408,18 @@ class App {
           priority: num('thesis-priority', 50),
         };
 
-        const organizationId = this.resolveOrganizationId(clientId);
-        if (!organizationId) {
-          this.showToast('Cliente sin organizationId', 'warning');
-          return;
-        }
-
-        if (intent === 'submit_review') {
-          const candidate: PositioningThesis = {
-            id: thesisId,
-            organizationId,
-            clientId,
-            ...editable,
-            status: existing?.status || 'DRAFT',
-            clientApprovalStatus: existing?.clientApprovalStatus || 'PENDING',
-            createdAt: existing?.createdAt || now,
-            createdBy: existing?.createdBy || actor,
-            updatedAt: now,
-            updatedBy: actor,
-          };
-          const readiness = assertThesisReadyForReview(candidate);
-          if (!readiness.ready) {
-            const preview = readiness.blockers.slice(0, 4).join(' · ');
-            this.showToast(
-              `Estructura ${readiness.score}/100. Completa: ${preview}`,
-              'warning'
-            );
-            return;
-          }
-        }
-
-        const plan = planThesisSave(existing, editable, actor, now, intent);
-
-        dbService.saveThesis({
-          id: thesisId,
-          organizationId,
-          clientId,
-          ...(plan.keepActive && existing
-            ? {
-                ...existing,
-                pendingRevision: plan.pendingRevision,
-                clientApprovalStatus: plan.clientApprovalStatus,
-                status: plan.status,
-                updatedAt: now,
-                updatedBy: actor,
-              }
-            : {
-                ...editable,
-                status: plan.status,
-                clientApprovalStatus: plan.clientApprovalStatus,
-                pendingRevision: plan.pendingRevision,
-                createdAt: existing?.createdAt || now,
-                createdBy: existing?.createdBy || actor,
-                updatedAt: now,
-                updatedBy: actor,
-              }),
-        });
-
-        auditService.log(authService.getCurrentUser(), 'SAVE_THESIS', 'PositioningThesis', thesisId, {
-          title,
-          keepActive: plan.keepActive,
+        // CR-1 #11 — Thesis Lifecycle Application owns save/review-submit.
+        const plan = saveThesis({
+          requestedClientId: clientId,
+          thesisId,
           intent,
+          fields: editable,
         });
 
         if (plan.notifyClient) {
           const notified = notifyClient(clientId, {
             type: 'THESIS',
-            title: plan.keepActive ? 'Revisión de tesis pendiente' : 'Tesis lista para tu aprobación',
+            title: plan.thesis.status === 'ACTIVE' ? 'Revisión de tesis pendiente' : 'Tesis lista para tu aprobación',
             body: title,
           });
           if (!notified) {
@@ -1488,7 +1430,12 @@ class App {
         this.showToast(plan.toast, 'success');
         this.closeModal();
       } catch (error) {
-        this.showToast(error instanceof Error ? error.message : 'No se pudo guardar la tesis', 'warning');
+        this.showToast(
+          error instanceof ThesisLifecycleError || error instanceof Error
+            ? error.message
+            : 'No se pudo guardar la tesis',
+          'warning'
+        );
       }
     });
 
@@ -1602,22 +1549,22 @@ class App {
         const target = e.currentTarget as HTMLButtonElement;
         const clientId = target.getAttribute('data-client-id') || this.resolveClientId();
         const thesisId = target.getAttribute('data-thesis-id');
-        const thesis = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
-        if (!thesis) return;
+        if (!thesisId) {
+          this.showToast('Selecciona una tesis explícita para activar.', 'warning');
+          return;
+        }
         try {
-          const actor = authService.getCurrentUser()?.uid || thesis.updatedBy;
-          const activated = activateThesisByManager(
-            { ...thesis, updatedAt: new Date().toISOString(), updatedBy: actor },
-            actor
-          );
-          dbService.saveThesis(activated);
-          auditService.log(authService.getCurrentUser(), 'THESIS_ACTIVATED', 'PositioningThesis', thesis.id, {
-            clientId,
-          });
+          // CR-1 #12 — Thesis Lifecycle Application owns activation.
+          activateThesis({ requestedClientId: clientId, thesisId });
           this.showToast('Tesis activada. El radar y el scoring ya la usan.', 'success');
           this.refreshMain();
         } catch (error) {
-          this.showToast(error instanceof Error ? error.message : 'No se pudo activar la tesis', 'warning');
+          this.showToast(
+            error instanceof ThesisLifecycleError || error instanceof Error
+              ? error.message
+              : 'No se pudo activar la tesis',
+            'warning'
+          );
         }
       });
     });
@@ -4397,34 +4344,42 @@ class App {
       btn.addEventListener('click', (e) => {
         const thesisId = (e.currentTarget as HTMLElement).getAttribute('data-thesis-id');
         const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
-        const thesis = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
-        if (!thesis) return;
-        const actor = authService.getCurrentUser()?.uid || thesis.updatedBy;
-        const result = approveThesisByClient(
-          { ...thesis, updatedAt: new Date().toISOString(), updatedBy: actor },
-          actor
-        );
-        dbService.saveThesis(result.thesis);
-        auditService.log(authService.getCurrentUser(), 'THESIS_CLIENT_APPROVED', 'PositioningThesis', thesis.id, {
-          clientId,
-        });
-        if (result.awaitsManagerActivation) {
-          notifyManager(clientId, {
-            type: 'THESIS',
-            title: 'Tesis aprobada por el cliente',
-            body: `«${thesis.title}» — puedes activarla en Identidad.`,
-            href: 'ws-positioning',
+        if (!thesisId) {
+          this.showToast('Selecciona una tesis explícita para aprobar.', 'warning');
+          return;
+        }
+        try {
+          // CR-1 #13 — Thesis Lifecycle Application owns client review.
+          const result = decideThesisClientReview({
+            requestedClientId: clientId,
+            thesisId,
+            decision: 'approve',
           });
-          this.showToast('Tesis aprobada. Tu Brand Manager la activará.', 'success');
-        } else {
+          if (result.awaitsManagerActivation) {
+            notifyManager(clientId, {
+              type: 'THESIS',
+              title: 'Tesis aprobada por el cliente',
+              body: `«${result.thesis.title}» — puedes activarla en Identidad.`,
+              href: 'ws-positioning',
+            });
+            this.showToast('Tesis aprobada. Tu Brand Manager la activará.', 'success');
+          } else {
+            this.showToast(
+              result.appliedRevision
+                ? 'Revisión aplicada. La tesis activa queda actualizada.'
+                : 'Tesis aprobada.',
+              'success'
+            );
+          }
+          this.render();
+        } catch (error) {
           this.showToast(
-            result.appliedRevision
-              ? 'Revisión aplicada. La tesis activa queda actualizada.'
-              : 'Tesis aprobada.',
-            'success'
+            error instanceof ThesisLifecycleError || error instanceof Error
+              ? error.message
+              : 'No se pudo aprobar la tesis',
+            'warning'
           );
         }
-        this.render();
       });
     });
 
@@ -4432,31 +4387,37 @@ class App {
       btn.addEventListener('click', (e) => {
         const thesisId = (e.currentTarget as HTMLElement).getAttribute('data-thesis-id');
         const clientId = authService.getCurrentUser()?.clientId || this.resolveClientId();
-        const thesis = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
-        if (!thesis) return;
+        if (!thesisId) {
+          this.showToast('Selecciona una tesis explícita.', 'warning');
+          return;
+        }
         const feedback =
           (document.getElementById('thesis-change-notes') as HTMLTextAreaElement | null)?.value.trim() || undefined;
-        const actor = authService.getCurrentUser()?.uid || thesis.updatedBy;
-        dbService.saveThesis(
-          rejectThesisByClient(
-            { ...thesis, updatedAt: new Date().toISOString(), updatedBy: actor },
+        try {
+          const result = decideThesisClientReview({
+            requestedClientId: clientId,
+            thesisId,
+            decision: 'request_changes',
             feedback,
-            actor
-          )
-        );
-        notifyManager(clientId, {
-          type: 'THESIS',
-          title: 'Cambios solicitados en la tesis',
-          body: feedback
-            ? `«${thesis.title}»: ${feedback.slice(0, 120)}`
-            : `El cliente pidió ajustes en «${thesis.title}».`,
-          href: 'ws-positioning',
-        });
-        auditService.log(authService.getCurrentUser(), 'THESIS_CHANGES_REQUESTED', 'PositioningThesis', thesis.id, {
-          clientId,
-        });
-        this.showToast('Cambios solicitados al manager', 'info');
-        this.render();
+          });
+          notifyManager(clientId, {
+            type: 'THESIS',
+            title: 'Cambios solicitados en la tesis',
+            body: feedback
+              ? `«${result.thesis.title}»: ${feedback.slice(0, 120)}`
+              : `El cliente pidió ajustes en «${result.thesis.title}».`,
+            href: 'ws-positioning',
+          });
+          this.showToast('Cambios solicitados al manager', 'info');
+          this.render();
+        } catch (error) {
+          this.showToast(
+            error instanceof ThesisLifecycleError || error instanceof Error
+              ? error.message
+              : 'No se pudo solicitar cambios',
+            'warning'
+          );
+        }
       });
     });
 
