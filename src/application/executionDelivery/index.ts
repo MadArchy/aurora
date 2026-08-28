@@ -15,7 +15,13 @@ export {
   type TransitionClientTaskResult,
 } from './TransitionClientTask';
 export {
+  classifyContentMutationAuthorization,
+  contentHasAuthoritativeGenericProof,
+  contentHasStrategicProvenance,
   contentRequiresStrategicBriefAuthorization,
+  type ContentMutationAuthorizationClass,
+} from './contentMutationAuthorization';
+export {
   createSaveContentDraft,
   type SaveContentDraftDeps,
   type SaveContentDraftInput,

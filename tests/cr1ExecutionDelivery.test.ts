@@ -26,6 +26,8 @@ vi.hoisted(() => {
 
 import {
   ExecutionDeliveryError,
+  classifyContentMutationAuthorization,
+  contentHasAuthoritativeGenericProof,
   createReviewClientArticle,
   createSaveContentDraft,
   createTransitionClientTask,
@@ -447,8 +449,8 @@ describe('CR-1 WS5 remediation — SaveContentDraft Brief gate', () => {
     expect(getPersistCount()).toBe(0);
   });
 
-  it('thesisId alone is not Brief authorization (generic content may save)', () => {
-    const { repo, store, gate, briefGate } = memoryContents([
+  it('thesisId alone is LEGACY_AMBIGUOUS — mutation DENY (not auto-generic)', () => {
+    const { repo, store, gate, briefGate, getPersistCount } = memoryContents([
       baseContent({
         strategicBriefId: undefined,
         strategicBriefVersion: undefined,
@@ -457,6 +459,7 @@ describe('CR-1 WS5 remediation — SaveContentDraft Brief gate', () => {
         thesisId: 'thesis_only',
       }),
     ]);
+    expect(classifyContentMutationAuthorization(store.get('cnt_1')!)).toBe('LEGACY_AMBIGUOUS');
     let briefCalls = 0;
     const trackingGate: ContentStrategicBriefGatePort = {
       authorize: (input) => {
@@ -465,9 +468,12 @@ describe('CR-1 WS5 remediation — SaveContentDraft Brief gate', () => {
       },
     };
     const save = saveDraft(repo, gate, trackingGate);
-    save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'Generic ok' } });
+    expect(() =>
+      save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { title: 'No auto-generic' } })
+    ).toThrow(/LEGACY_AMBIGUOUS|CONTENT_AUTHORIZATION_AMBIGUOUS/i);
     expect(briefCalls).toBe(0);
-    expect(store.get('cnt_1')?.title).toBe('Generic ok');
+    expect(getPersistCount()).toBe(0);
+    expect(store.get('cnt_1')?.title).toBe('Draft');
   });
 
   it('ATTACK: caller Brief spoof denied', () => {
@@ -493,6 +499,99 @@ describe('CR-1 WS5 remediation — SaveContentDraft Brief gate', () => {
       fields: { title: 'Keep brief', body: 'x' },
     });
     expect(store.get('cnt_1')?.strategicBriefId).toBe('brief_1');
+  });
+});
+
+describe('CR-1 WS5 classification remediation R2 — fail-closed', () => {
+  it('seed-shaped cnt_video_script_001 → LEGACY_AMBIGUOUS + DENY + zero persist', () => {
+    const seedShape = baseContent({
+      id: 'cnt_video_script_001',
+      thesisId: 'thesis_juan_ip_ai_adoption',
+      type: 'VIDEO_SCRIPT',
+      title: 'Guion Teleprompter: People, Tools & Rules',
+      strategicBriefId: undefined,
+      strategicBriefVersion: undefined,
+      signalIds: undefined,
+      supportingEvidenceIds: undefined,
+    });
+    expect(classifyContentMutationAuthorization(seedShape)).toBe('LEGACY_AMBIGUOUS');
+    const { repo, store, gate, briefGate, getPersistCount } = memoryContents([seedShape]);
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({
+        trusted: adminTrusted(),
+        contentId: 'cnt_video_script_001',
+        fields: { title: 'Mutate seed' },
+      })
+    ).toThrow(ExecutionDeliveryError);
+    expect(() =>
+      save({
+        trusted: adminTrusted(),
+        contentId: 'cnt_video_script_001',
+        fields: { title: 'Mutate seed' },
+      })
+    ).toThrow(/LEGACY_AMBIGUOUS|CONTENT_AUTHORIZATION_AMBIGUOUS/i);
+    expect(getPersistCount()).toBe(0);
+    expect(store.get('cnt_video_script_001')?.title).toMatch(/Guion Teleprompter/);
+  });
+
+  it('no strategic refs and no generic proof → LEGACY_AMBIGUOUS DENY', () => {
+    const { repo, gate, briefGate, getPersistCount } = memoryContents([
+      baseContent({
+        strategicBriefId: undefined,
+        signalIds: undefined,
+        supportingEvidenceIds: undefined,
+      }),
+    ]);
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({ trusted: adminTrusted(), contentId: 'cnt_1', fields: { body: 'x' } })
+    ).toThrow(/LEGACY_AMBIGUOUS|CONTENT_AUTHORIZATION_AMBIGUOUS/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('GENERIC_PROVEN is currently unrepresentable on ContentItem', () => {
+    expect(
+      contentHasAuthoritativeGenericProof(
+        baseContent({
+          strategicBriefId: undefined,
+          signalIds: undefined,
+          supportingEvidenceIds: undefined,
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('ATTACK: caller claims mutation class → DENY', () => {
+    const { repo, gate, briefGate, getPersistCount } = memoryContents([baseContent()]);
+    const save = saveDraft(repo, gate, briefGate);
+    expect(() =>
+      save({
+        trusted: adminTrusted(),
+        contentId: 'cnt_1',
+        fields: { title: 'X' },
+        claimedContentMutationClass: 'GENERIC_PROVEN',
+      })
+    ).toThrow(/classification|authority/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('legacy content remains readable (getById unchanged)', () => {
+    const { repo } = memoryContents([
+      baseContent({
+        id: 'cnt_video_script_001',
+        strategicBriefId: undefined,
+        signalIds: undefined,
+        supportingEvidenceIds: undefined,
+      }),
+    ]);
+    const read = repo.getById('cnt_video_script_001');
+    expect(read?.id).toBe('cnt_video_script_001');
+    expect(read?.thesisId).toBeTruthy();
+  });
+
+  it('STRATEGIC_GOVERNED classification for Brief-bearing content', () => {
+    expect(classifyContentMutationAuthorization(baseContent())).toBe('STRATEGIC_GOVERNED');
   });
 });
 
@@ -617,14 +716,21 @@ describe('CR-1 Execution Delivery architecture', () => {
     }
   });
 
-  it('SaveContentDraft consumes Brief gate port — thesis is not substitute', () => {
+  it('SaveContentDraft fail-closes ambiguous legacy — thesis is not substitute', () => {
     const source = readFileSync(
       resolve('src/application/executionDelivery/SaveContentDraft.ts'),
       'utf8'
     );
     expect(source).toMatch(/strategicBriefGate\.authorize/);
-    expect(source).toMatch(/contentRequiresStrategicBriefAuthorization/);
-    expect(source).toMatch(/thesisId is not Brief authority/);
+    expect(source).toMatch(/classifyContentMutationAuthorization/);
+    expect(source).toMatch(/LEGACY_AMBIGUOUS/);
+    expect(source).toMatch(/CONTENT_AUTHORIZATION_AMBIGUOUS/);
+    const classSource = readFileSync(
+      resolve('src/application/executionDelivery/contentMutationAuthorization.ts'),
+      'utf8'
+    );
+    expect(classSource).toMatch(/contentHasAuthoritativeGenericProof/);
+    expect(classSource).toMatch(/return false/);
   });
 
   it('does not reopen prior CR-1 workstreams', () => {

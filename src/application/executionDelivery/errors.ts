@@ -7,6 +7,7 @@ export type ExecutionDeliveryErrorCode =
   | 'INVALID_TRANSITION'
   | 'PUBLICATION_GATE_DENIED'
   | 'STRATEGIC_BRIEF_GATE_DENIED'
+  | 'CONTENT_AUTHORIZATION_AMBIGUOUS'
   | 'PERSISTENCE_ERROR';
 
 export class ExecutionDeliveryError extends Error {

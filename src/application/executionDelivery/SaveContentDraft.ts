@@ -5,6 +5,9 @@ import {
   resolvePipelineStepsToTarget,
 } from '../../domain/contentPipeline';
 import { assertClaimSafeTransition } from '../../domain/claimSafetyGateCore';
+import {
+  classifyContentMutationAuthorization,
+} from './contentMutationAuthorization';
 import { ExecutionDeliveryError } from './errors';
 import type {
   ContentDraftFields,
@@ -36,6 +39,8 @@ export interface SaveContentDraftInput {
   claimedClaimSafetyVerdict?: string;
   /** Forbidden — Brief reference is authoritative on the ContentItem. */
   claimedStrategicBriefId?: string;
+  /** Forbidden — caller cannot declare generic/strategic classification. */
+  claimedContentMutationClass?: string;
 }
 
 export interface SaveContentDraftResult {
@@ -50,21 +55,18 @@ export interface SaveContentDraftDeps {
   strategicBriefGate: ContentStrategicBriefGatePort;
 }
 
-/**
- * Repository classification: strategic content carries SPEC-003 authorization refs.
- * Presence of strategicBriefId or upstream signal/evidence provenance — not thesisId alone.
- */
-export function contentRequiresStrategicBriefAuthorization(content: ContentItem): boolean {
-  if (content.strategicBriefId?.trim()) return true;
-  if (content.signalIds && content.signalIds.length > 0) return true;
-  if (content.supportingEvidenceIds && content.supportingEvidenceIds.length > 0) return true;
-  return false;
-}
+export {
+  classifyContentMutationAuthorization,
+  contentHasAuthoritativeGenericProof,
+  contentHasStrategicProvenance,
+  contentRequiresStrategicBriefAuthorization,
+  type ContentMutationAuthorizationClass,
+} from './contentMutationAuthorization';
 
 /**
  * CR-1 #31 — SaveContentDraft.
  * Persists editable draft fields; preserves strategic refs from authoritative content.
- * Strategic items: SPEC-003 Brief gate BEFORE persist. Publication advances: SPEC-006.
+ * Mutation class: STRATEGIC_GOVERNED | GENERIC_PROVEN | LEGACY_AMBIGUOUS (fail-closed).
  */
 export function createSaveContentDraft(deps: SaveContentDraftDeps) {
   return function saveContentDraft(input: SaveContentDraftInput): SaveContentDraftResult {
@@ -80,6 +82,12 @@ export function createSaveContentDraft(deps: SaveContentDraftDeps) {
       claimedClaimSafetyVerdict: input.claimedClaimSafetyVerdict,
       claimedStrategicBriefId: input.claimedStrategicBriefId,
     });
+    if (input.claimedContentMutationClass !== undefined) {
+      throw new ExecutionDeliveryError(
+        'TENANT_CONTEXT_INVALID',
+        'Caller-supplied content mutation classification is not accepted as authority.'
+      );
+    }
 
     const contentId = input.contentId?.trim();
     if (!contentId) {
@@ -109,9 +117,18 @@ export function createSaveContentDraft(deps: SaveContentDraftDeps) {
       );
     }
 
-    // SPEC-003: strategic content requires Brief authorization before any draft persist.
-    // thesisId alone is never Brief substitute authority.
-    if (contentRequiresStrategicBriefAuthorization(existing)) {
+    const mutationClass = classifyContentMutationAuthorization(existing);
+
+    if (mutationClass === 'LEGACY_AMBIGUOUS') {
+      // Readable; not mutable via SaveContentDraft. No Brief invention / no auto-generic.
+      throw new ExecutionDeliveryError(
+        'CONTENT_AUTHORIZATION_AMBIGUOUS',
+        'Content authorization class is LEGACY_AMBIGUOUS: mutation denied until governed strategic or proven generic origin is established from authoritative repository data (thesisId alone is insufficient).'
+      );
+    }
+
+    // STRATEGIC_GOVERNED: SPEC-003 Brief gate BEFORE any draft persist.
+    if (mutationClass === 'STRATEGIC_GOVERNED') {
       const briefId = existing.strategicBriefId?.trim();
       if (!briefId) {
         throw new ExecutionDeliveryError(
@@ -135,6 +152,7 @@ export function createSaveContentDraft(deps: SaveContentDraftDeps) {
         );
       }
     }
+    // GENERIC_PROVEN: Brief not required (currently unrepresentable in ContentItem schema).
 
     let content = deps.contents.saveDraft(contentId, input.fields, input.trusted.now);
 
