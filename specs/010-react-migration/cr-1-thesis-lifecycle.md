@@ -5,6 +5,7 @@
 **Umbrella:** CR-1 — Cutover-Critical Application Ownership  
 **Authorized base checkpoint:** `9957b14d8d9648b1aa08699b24745c0b080536d0`  
 **Implementation SHA:** `9cfbb1520bdc19f3f9ce584cb8f95fef6192638c`  
+**Governance / freeze SHA:** `c20c08dd6f3ba887f4c25d2db3c37e8ee40df34c`  
 **Timezone:** America/Bogota
 
 ---
@@ -89,8 +90,8 @@ Client Lifecycle reopen · Master Profile reopen · Signal Intake · Execution D
 |------|-----|
 | Authorized start | `9957b14d8d9648b1aa08699b24745c0b080536d0` |
 | Implementation | `9cfbb1520bdc19f3f9ce584cb8f95fef6192638c` |
-| Governance / freeze (content) | *(this commit)* |
-| Tip pin | points at freeze content (not self) |
+| Governance / freeze (content) | `c20c08dd6f3ba887f4c25d2db3c37e8ee40df34c` |
+| Tip pin | points at freeze content above (not self) |
 
 ---
 
