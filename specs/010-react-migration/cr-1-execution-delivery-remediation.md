@@ -45,7 +45,7 @@ This freeze remains historical evidence of the implementation later found to req
 |------|-----|
 | Authorized start | `7c9552091f3b8ab4d8b40a83c2ce4f40b2f408a4` |
 | Remediation implementation | `585da0f9355a588b79710a4decd2bb2fc5dfc8d2` |
-| Remediation freeze (content) | *(this commit)* |
+| Remediation freeze (content) | `cc2e772a4c07806f1170286bfb1ab0d05ab2c657` |
 | Tip pin | points at remediation freeze content (not self) |
 
 ---
