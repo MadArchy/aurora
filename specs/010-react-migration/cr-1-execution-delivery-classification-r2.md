@@ -47,7 +47,7 @@ No schema field · no data migration · no retroactive Brief · no UI reclassifi
 |------|-----|
 | Authorized start | `85efc8f2dae2af49e8d957e0b7a8d80d2df6d117` |
 | Classification remediation implementation | `d317ef2c806979b8e755839a48c9617bc4307dac` |
-| Classification remediation freeze (content) | *(this commit)* |
+| Classification remediation freeze (content) | `faffd1d35390bf712077c17f0d5522961201ab39` |
 | Tip pin | points at freeze content (not self) |
 
 ---
