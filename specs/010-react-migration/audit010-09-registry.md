@@ -74,11 +74,11 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 25 | `ClientWorkspace` sources | Pause / reactivate / archive / test feed | `dbService.updateSourceStatus`, `recordSourceRun` | source state | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 26 | `ClientWorkspace` sources | Manual signal | `registerManualSignal` → Application `RegisterManualSignal` (persistence: `dbService.addSignal` via adapter) | signal record | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 4 |
 | 27 | `ClientWorkspace` tasks | Assign / cancel task | `dbService.addTask`, `updateTaskStatus` | task record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
-| 28 | `ClientPortal` feed | Open / complete / request changes on a task | `dbService.updateTaskStatus`, `updateTaskEvidence` | task state + evidence | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
+| 28 | `ClientPortal` feed | Open / complete / request changes on a task | `transitionClientTask` → Application `TransitionClientTask` (Domain `TASK_TRANSITIONS`; persistence via adapter) | task state + evidence | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
 | 29 | `ClientWorkspace` positioning | Assign evidence to thesis | `dbService.toggleEvidenceThesis` | evidence assignment | **NO** | `DISPLAY_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 30 | `Modals` add-evidence | Add evidence item | `dbService.addEvidenceItem` | evidence vault | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
-| 31 | `Modals` content-editor | Save content | `dbService.saveContent` | content record | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
-| 32 | `Modals` article-review | Save / approve / reject article | `dbService.saveClientArticleRevision`, `transitionContentPipeline`, `addFeedbackEvent`, `saveContent` | content + pipeline | **NO** | `KEEP_LEGACY` | **UNDETERMINED** | 4 |
+| 31 | `Modals` content-editor | Save content | `saveContentDraft` → Application `SaveContentDraft` (Domain `contentPipeline` + SPEC-006 gate consumption) | content record | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
+| 32 | `Modals` article-review | Save / approve / reject article | `reviewClientArticle` → Application `ReviewClientArticle` (Domain `articleReviewCore` + `contentPipeline`) | content + pipeline | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
 | 33 | `Modals` generate-content | Generate draft | provider call, then `dbService.saveContent` | content record | **NO** | `READ_ONLY_REACT` | **UNDETERMINED** | 4 |
 | 34 | `ManagerCockpit` / `Modals` create-client | Create client + invite | `createClientWithInvite` → Application `CreateClientWithInvite` (legacy symbols: `createClient`, `createInvitation`, `createPendingAccount`) | tenancy + identity | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Client Lifecycle Application** (SPEC-009 remains authz/RBAC only) | 4 |
 
@@ -443,20 +443,18 @@ evidence-supported (AUDIT010-11 reclassified P3→P2), P3 **7** / **6**.
 
 | Item | State |
 |---|---|
-| CR-1 blocked writes | **34** registry rows · **9** canonicalized (#34/#1 Client Lifecycle, #10 Master Profile, #11/#12/#13 Thesis Lifecycle, #8/#24/#26 Signal Intake) · **25** still CU?=NO |
-| CR-1 ownership | **PARTIAL** — Client Lifecycle + Master Profile + Thesis Lifecycle + Signal Intake Application; remaining UNDETERMINED / pending workstreams |
-| CR-1 provisional groups | **10** — Client Lifecycle (1, 34) + Master Profile (#10) + Thesis Lifecycle (11–13) + Signal Intake (8, 24, 26) Application-owned; IDs 2–6 remain OWNER_RESOLVED / NOT_IMPLEMENTED |
+| CR-1 blocked writes | **34** registry rows · **12** canonicalized (cutover spine complete: #1/#8/#10/#11/#12/#13/#24/#26/#28/#31/#32/#34) · **22** still CU?=NO (non-cutover) |
+| CR-1 ownership | **CUTOVER_SPINE_COMPLETE** — five operational Application boundaries; remaining UNDETERMINED writes are non-cutover |
+| CR-1 provisional groups | Cutover spine Application-owned; IDs 2–6 remain OWNER_RESOLVED / NOT_IMPLEMENTED |
 | CR-2 / SPEC-003 | **CHANGE_REQUIRED**, `CALLER_SNAPSHOT_AUTHORITY_PRESENT` — unchanged |
 | SPEC-003 modifications | **0** |
-| T-010-403 / T-010-404 | **BLOCKED_BY_PRECONDITION** — CR-1 unresolved |
+| T-010-403 / T-010-404 | **BLOCKED_BY_OTHER_PRECONDITION** — cutover spine canonical; remaining 22 CU?=NO writes + Stage B precondition (`main.ts` still event bus) |
 
-Gating a legacy write does not canonicalize it. **Exceptions (CR-1):** registry
-**#34**, **#1** (Client Lifecycle), **#10** (Master Profile), **#11**, **#12**,
-**#13** (Thesis Lifecycle), and **#8**, **#24**, **#26** (Signal Intake) now have
-canonical Application use cases; legacy UI invokes the consumer only (double
-authority 0). The remaining **25** CU?=NO rows still write through `dbService`
-with no Application use case and remain barred from React until their CR-1
-workstreams land.
+Gating a legacy write does not canonicalize it. **Exceptions (CR-1):** all **12**
+cutover-spine registry IDs now have canonical Application use cases; legacy UI
+invokes consumers only (double authority 0). The remaining **22** CU?=NO rows
+still write through `dbService` with no Application use case and remain barred
+from React until separately owned.
 
 ---
 
@@ -521,3 +519,19 @@ workstreams land.
 | Compatibility path | Legacy SourceRegistry / ClientWorkspace → `signalIntakeConsumer`; React remains `READ_ONLY_REACT`; seam exposes `signalIntakeCommands` |
 | Removal eligibility | Not eligible — 3 other cutover-spine writes remain (#28/#31/#32) |
 | Evidence | `specs/010-react-migration/cr-1-signal-intake.md`; `tests/cr1SignalIntake.test.ts` |
+
+---
+
+## CR-1 Workstream 5 — Execution Delivery (post-adoption note)
+
+| Field | Value |
+|---|---|
+| Registry IDs | **#28**, **#31**, **#32** |
+| Commands | `TransitionClientTask`, `SaveContentDraft`, `ReviewClientArticle` |
+| Owner | CR-1 Execution Delivery Application (operational) |
+| Domain reuse | `TASK_TRANSITIONS`, `contentPipeline`, `articleReviewCore`, `claimSafetyGateCore` (shim) |
+| SPEC-006 | Consumed via `ContentPublicationGatePort` — ownership expansion **0** |
+| SPEC-004 / SPEC-008 | Not owned — expansion **0** / learning authority **0** |
+| Compatibility path | Legacy ClientPortal / content-editor / article-review → `executionDeliveryConsumer`; seam exposes `executionDeliveryCommands` |
+| Removal eligibility | Cutover spine complete — non-cutover 22 writes remain; T-010-403/404 `BLOCKED_BY_OTHER_PRECONDITION` |
+| Evidence | `specs/010-react-migration/cr-1-execution-delivery.md`; `tests/cr1ExecutionDelivery.test.ts` |
