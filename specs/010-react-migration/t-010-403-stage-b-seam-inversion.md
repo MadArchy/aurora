@@ -3,7 +3,7 @@
 **Task:** Invert the seam — React shell hosts remaining legacy islands (Stage B)  
 **Authorization:** APPROVED (human governance, precondition review PASS)  
 **Start SHA:** `33aea7a6336d031b0d02e9d7cd0d8bb4ab01187d`  
-**Implementation SHA:** `66d849b` (full SHA after governance pin)  
+**Implementation SHA:** `66d849b3bbb78ede5e34a06f3166cb332d97bc34`  
 **Former status:** `BLOCKED_BY_PRECONDITION` (stale — circular blockers invalidated)  
 **Precondition review:** PASS · `TRUE PRECONDITIONS TO START T403 = 0`
 
