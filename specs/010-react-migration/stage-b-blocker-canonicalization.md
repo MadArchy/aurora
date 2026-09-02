@@ -64,8 +64,8 @@
 | Pin | SHA |
 |-----|-----|
 | **#9 + #18 implementation** | `75497f7b30110da5f40114d29164223b2d5caa8a` |
-| **Governance content** | `7593c79` (tip commit; see `stage-b-blocker-canonicalization.md` at ratification) |
-| **Governance tip** | `7593c79b30110da5f40114d29164223b2d5caa8a` |
+| **Governance content** | `94aa7db` (ratification commit) |
+| **Governance tip** | `94aa7dbc96a76feb1382fd772c06d3527a1f6ced` |
 | **CR-2 freeze preserved** | `3c53b49f1eddc1606ad74828708e7dd83c8cd45a` (unchanged) |
 
 **Full check:** 1872/1872 · **Rules:** 91/91 · **Build:** PASS
