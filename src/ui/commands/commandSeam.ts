@@ -289,15 +289,11 @@ export const signalOutcomeCommands = {
  * the id and returns the consumer's verdict. It never marks a brief approved in
  * the UI, and a refused approval leaves no optimistic state behind (T-010-14).
  *
- * NOT EXPOSED — brief creation. `createBriefFromCurationEntry` requires the
- * caller to pass the whole `CurationEntry` aggregate
- * (`strategicBriefConsumer.ts:117-122`). Passing a cached aggregate as command
- * input is exactly the caller-snapshot authority this seam must keep at zero
- * (threat T-010-07), and the seam cannot re-read the entry from a trusted source
- * without importing `dbService`. So brief creation stays on the legacy path,
- * recorded in the wave-3 registry as
- * `CANONICAL_CONSUMER_REQUIRES_CALLER_AGGREGATE` — a different reason from
- * AUDIT010-09, and one that a signature change in SPEC-003 would resolve.
+ * NOT EXPOSED — brief creation. CR-2 (2026-08-28) changed
+ * `createBriefFromCurationEntry` to id-based authoritative reload
+ * (`curationEntryId` only). The seam still does not expose brief creation until
+ * a presentation migration explicitly adopts the consumer; legacy UI invokes it
+ * directly from `main.ts`.
  */
 export const briefCommands = {
   approve(scope: TrustedTenantScope, briefId: string): CommandResult {

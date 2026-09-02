@@ -2668,10 +2668,8 @@ class App {
         const curationId = (e.currentTarget as HTMLElement).getAttribute('data-curation-id');
         const destination = (e.currentTarget as HTMLElement).getAttribute('data-destination') as CurationDestination;
         if (!curationId || !destination) return;
-        const entry = dbService.getCurationById(curationId);
-        if (!entry) return;
         try {
-          const { brief } = createBriefFromCurationEntry({ entry, destination });
+          const { brief } = createBriefFromCurationEntry({ curationEntryId: curationId, destination });
           this.showToast(`Strategic Brief DRAFT created (${brief.id}).`, 'success');
         } catch (error) {
           this.showToast(error instanceof Error ? error.message : 'Could not create Strategic Brief.', 'warning');

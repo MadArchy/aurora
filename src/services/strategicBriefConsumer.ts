@@ -14,7 +14,7 @@ import {
   LocalStrategicBriefStore,
   type StrategicBriefContextSource,
 } from '../infrastructure/strategicBrief';
-import type { CurationDestination, CurationEntry } from '../types';
+import type { CurationDestination } from '../types';
 import { requireTenantScope } from '../controllers/trustedTenant';
 import { authService } from './auth';
 import { dbService } from './db';
@@ -120,14 +120,19 @@ export function formatAuthorizationDenial(result: AuthorizeStrategicDownstreamRe
 }
 
 export function createBriefFromCurationEntry(params: {
-  entry: CurationEntry;
+  curationEntryId: string;
   destination: CurationDestination;
   briefId?: string;
   now?: string;
 }): { brief: StrategicBrief; created: boolean } {
-  const trusted = buildTrustedBriefContext(params.entry.clientId, params.now);
+  const entry = dbService.getCurationById(params.curationEntryId);
+  if (!entry) {
+    throw new Error('Curation entry not found.');
+  }
+
+  const trusted = buildTrustedBriefContext(entry.clientId, params.now);
   if (!trusted) throw new Error('Trusted actor context required to create Strategic Brief.');
-  if (!params.entry.signalId) {
+  if (!entry.signalId) {
     throw new Error('Curation entry must reference a signal to create a governed Brief.');
   }
 
@@ -138,25 +143,25 @@ export function createBriefFromCurationEntry(params: {
 
   const input: CreateStrategicBriefInput = {
     trusted,
-    briefId: params.briefId ?? `brief_${params.entry.id}`,
-    signalIds: [params.entry.signalId],
+    briefId: params.briefId ?? `brief_${entry.id}`,
+    signalIds: [entry.signalId],
     primaryAudience: 'Target audience',
     geography: 'TBD',
-    territory: params.entry.title.slice(0, 120),
+    territory: entry.title.slice(0, 120),
     framework: 'Governed curation decision',
-    strategicAngle: params.entry.aiAngle || params.entry.title,
+    strategicAngle: entry.aiAngle || entry.title,
     supportingEvidenceIds: [],
     riskFlags: [],
     recommendedChannel: 'LINKEDIN',
     recommendedFormat: 'ARTICLE',
     CTA: 'Review and approve',
     authorizedAction,
-    decisionRationale: params.entry.managerRationale || 'Governed Brief from curation review.',
+    decisionRationale: entry.managerRationale || 'Governed Brief from curation review.',
   };
 
   try {
     const result = useCases.create(input);
-    dbService.setCurationStrategicBriefId(params.entry.id, result.brief.id);
+    dbService.setCurationStrategicBriefId(entry.id, result.brief.id);
     return { brief: result.brief, created: result.created };
   } catch (err) {
     if (err instanceof Error && 'code' in err) {
