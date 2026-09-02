@@ -7,9 +7,8 @@
  * domain state, and switching it requires no data migration — that is precisely
  * what makes it the rollback mechanism (acceptance A43, threat T-010-26).
  *
- * Default is `legacy`. React is opt-in for the whole of Phase 1: the legacy
- * application stays the served presentation until parity evidence exists, per
- * §24 step 7 and the parity gate.
+ * Default is `react` for Stage B (T-010-403): React owns the normal shell. Explicit
+ * rollback to `legacy` remains available via the presentation toggle.
  *
  * Persisted in `localStorage` as a per-browser presentation preference. This is
  * presentation state, not business state — losing it simply returns the user to
@@ -20,13 +19,13 @@ export type UiMode = 'legacy' | 'react';
 
 export const UI_MODE_STORAGE_KEY = 'postura_ui_mode';
 export const UI_MODE_ATTRIBUTE = 'data-postura-ui';
-export const DEFAULT_UI_MODE: UiMode = 'legacy';
+export const DEFAULT_UI_MODE: UiMode = 'react';
 
 function isUiMode(value: unknown): value is UiMode {
   return value === 'legacy' || value === 'react';
 }
 
-/** Reads the requested presentation mode. Never throws; unknown values fall back to legacy. */
+/** Reads the requested presentation mode. Unknown values fall back to Stage-B default. */
 export function readUiMode(): UiMode {
   try {
     const stored = localStorage.getItem(UI_MODE_STORAGE_KEY);

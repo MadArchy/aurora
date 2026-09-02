@@ -31,11 +31,11 @@ function businessSnapshot(page: import('@playwright/test').Page) {
 }
 
 test.describe('Phase-4 controller strangler', () => {
-  test('the legacy shell still boots and renders through the extracted orchestration', async ({ page }) => {
+  test('the legacy shell still boots when rollback mode is explicit', async ({ page }) => {
     await page.goto('/');
+    await page.evaluate(([key]) => localStorage.setItem(key, 'legacy'), [UI_MODE_KEY]);
+    await page.reload();
 
-    // Render orchestration still assembles the app into the legacy root, and the
-    // login view is still what an anonymous visitor gets.
     await expect(page.locator('#app')).toBeVisible();
     await expect(page.locator('#form-login')).toBeVisible();
     await expect(page.locator('#react-root')).toBeHidden();
@@ -43,6 +43,8 @@ test.describe('Phase-4 controller strangler', () => {
 
   test('a failed sign-in round-trips through the extracted presentation state', async ({ page }) => {
     await page.goto('/');
+    await page.evaluate(([key]) => localStorage.setItem(key, 'legacy'), [UI_MODE_KEY]);
+    await page.reload();
 
     // `loginError` is one of the fields that moved to `AppUiState`, and the
     // legacy path is: set the field, re-render, show it. If the extraction had
@@ -61,6 +63,8 @@ test.describe('Phase-4 controller strangler', () => {
 
   test('a failed sign-in reports the failure without writing business state', async ({ page }) => {
     await page.goto('/');
+    await page.evaluate(([key]) => localStorage.setItem(key, 'legacy'), [UI_MODE_KEY]);
+    await page.reload();
     const before = await businessSnapshot(page);
 
     await page.fill('#login-email', 'nobody@example.invalid');
@@ -119,6 +123,7 @@ test.describe('Phase-4 controller strangler', () => {
       return ['app', 'react-root'].filter(shown);
     });
 
-    expect(visibleRoots).toEqual(['app']);
+    // Stage B normal mode is React-owned; legacy rollback remains explicit.
+    expect(visibleRoots).toEqual(['react-root']);
   });
 });

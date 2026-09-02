@@ -13,10 +13,12 @@
  * `theses[0]`, and no ordering is treated as precedence (threat T-010-15). The
  * same holds for the campaign selector.
  *
- * Navigation is local presentation state (see T-010-102 routing decision).
+ * Navigation is local presentation state owned by this shell in Stage B (T-010-403).
+ * Legacy islands request navigation through the presentation bridge; they do not
+ * own global sidebar or top-level tab authority in normal React mode.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from '../../providers/SessionProvider';
 import {
   useCanonicalOpportunities,
@@ -27,6 +29,9 @@ import {
 } from '../../hooks/useShellData';
 import { sessionCommands } from '../../commands/commandSeam';
 import { applyUiMode } from '../../mount';
+import { subscribeShellNavigation } from '../../legacy/navigationBridge';
+import { LegacyIslandHost } from '../../legacy/LegacyIslandHost';
+import { isLegacyIslandTab, isWorkspaceTab, legacyIslandTabId } from '../../legacy/shellTabs';
 import { Wave2Surface, type Wave2Group } from '../wave2/Wave2Surface';
 import { ReactManagerCockpitPage } from '../pages/ReactManagerCockpitPage';
 import { ReactClientPortalPage, type ClientPortalTab } from '../pages/ReactClientPortalPage';
@@ -115,11 +120,37 @@ function NavGroup({
 export function ReactAppShell() {
   const { user, tenantScope, isAdmin, isImpersonating } = useSession();
   const [activeTab, setActiveTab] = useState(isAdmin ? 'dashboard' : 'client-home');
+  const [activeClientId, setActiveClientId] = useState('all');
 
   // Presentation filters. Empty string means "all" — an explicit, non-authoritative
   // absence of filter rather than an implicit first-item selection.
   const [campaignFilter, setCampaignFilter] = useState('');
   const [thesisFilter, setThesisFilter] = useState('');
+
+  useEffect(() => {
+    return subscribeShellNavigation((intent) => {
+      setActiveTab(intent.tab);
+      if (intent.clientId !== undefined) setActiveClientId(intent.clientId);
+    });
+  }, []);
+
+  const enterClient = (clientId: string, tab = 'ws-radar') => {
+    setActiveClientId(clientId);
+    setActiveTab(tab);
+  };
+
+  const backToPortfolio = () => {
+    setActiveClientId('all');
+    setActiveTab('dashboard');
+  };
+
+  const selectTab = (tab: string) => {
+    if (isAdmin && isWorkspaceTab(tab) && activeClientId === 'all') {
+      setActiveTab('clients');
+      return;
+    }
+    setActiveTab(tab);
+  };
 
   const portfolio = usePortfolioBadges(isAdmin ? tenantScope : null);
   const workspace = useWorkspaceBadges(isAdmin ? null : tenantScope);
@@ -153,6 +184,10 @@ export function ReactAppShell() {
   const cockpitTab = COCKPIT_TABS.has(activeTab);
   const wave3Owns = Boolean(workspaceTab || portalTab || cockpitTab);
   const wave2Group = wave3Owns ? undefined : WAVE2_BY_TAB[activeTab];
+  const legacyIsland = isLegacyIslandTab(activeTab);
+  const inWorkspace = isAdmin && activeClientId !== 'all';
+  const cockpitSection =
+    activeTab === 'clients' ? 'clients' : activeTab === 'ai-center' ? 'ai' : 'portfolio';
 
   const sidebar = isAdmin ? (
     <>
@@ -163,27 +198,46 @@ export function ReactAppShell() {
           { id: 'clients', label: 'Clientes' },
         ]}
         activeTab={activeTab}
-        onSelect={setActiveTab}
+        onSelect={selectTab}
       />
-      <NavGroup
-        label="Workspace"
-        items={[
-          { id: 'ws-radar', label: 'Radar' },
-          { id: 'ws-deliver', label: 'Entregas' },
-          { id: 'ws-briefs', label: 'Strategic Briefs' },
-          { id: 'ws-positioning', label: 'Posicionamiento' },
-          { id: 'ws-sources-react', label: 'Fuentes' },
-          { id: 'ws-tasks', label: 'Tareas' },
-          { id: 'ws-results', label: 'Resultados' },
-        ]}
-        activeTab={activeTab}
-        onSelect={setActiveTab}
-      />
+      {inWorkspace ? (
+        <NavGroup
+          label={`Cliente · ${activeClientId}`}
+          items={[
+            { id: 'ws-briefing', label: 'Resumen' },
+            { id: 'ws-radar', label: 'Radar' },
+            { id: 'ws-deliver', label: 'Entregas' },
+            { id: 'ws-briefs', label: 'Strategic Briefs' },
+            { id: 'ws-positioning', label: 'Posicionamiento' },
+            { id: 'ws-sources-react', label: 'Fuentes' },
+            { id: 'ws-tasks', label: 'Tareas' },
+            { id: 'ws-production', label: 'Producción' },
+            { id: 'ws-results', label: 'Resultados' },
+          ]}
+          activeTab={activeTab}
+          onSelect={selectTab}
+        />
+      ) : (
+        <NavGroup
+          label="Workspace"
+          items={[
+            { id: 'ws-radar', label: 'Radar' },
+            { id: 'ws-deliver', label: 'Entregas' },
+            { id: 'ws-briefs', label: 'Strategic Briefs' },
+            { id: 'ws-positioning', label: 'Posicionamiento' },
+            { id: 'ws-sources-react', label: 'Fuentes' },
+            { id: 'ws-tasks', label: 'Tareas' },
+            { id: 'ws-results', label: 'Resultados' },
+          ]}
+          activeTab={activeTab}
+          onSelect={selectTab}
+        />
+      )}
       <NavGroup
         label="Sistema"
         items={[{ id: 'ai-center', label: 'IA y operación' }]}
         activeTab={activeTab}
-        onSelect={setActiveTab}
+        onSelect={selectTab}
       />
     </>
   ) : (
@@ -204,7 +258,7 @@ export function ReactAppShell() {
           },
         ]}
         activeTab={activeTab}
-        onSelect={setActiveTab}
+        onSelect={selectTab}
       />
       <NavGroup
         label="Mi trayectoria"
@@ -218,7 +272,7 @@ export function ReactAppShell() {
           { id: 'client-results', label: 'Resultados' },
         ]}
         activeTab={activeTab}
-        onSelect={setActiveTab}
+        onSelect={selectTab}
       />
     </>
   );
@@ -248,6 +302,16 @@ export function ReactAppShell() {
       <header className="topbar">
         <nav className="breadcrumb" aria-label="Ubicación">
           <span className="breadcrumb-root">{isAdmin ? 'Cartera' : 'Mi espacio'}</span>
+          {inWorkspace ? (
+            <>
+              <span className="breadcrumb-sep" aria-hidden="true">
+                /
+              </span>
+              <button type="button" className="link-btn" onClick={backToPortfolio}>
+                Volver a cartera
+              </button>
+            </>
+          ) : null}
         </nav>
 
         <div className="topbar-right">
@@ -342,25 +406,36 @@ export function ReactAppShell() {
         </div>
       </header>
 
-      <main className="main-wrapper">
-        <div className="card" data-testid="react-shell-body">
-          <h2>Shell React (SPEC-010)</h2>
-          <p className="muted">
-            Cimiento de presentación. La interfaz anterior sigue siendo la implementación servida por
-            defecto hasta que exista evidencia de paridad.
-          </p>
-          <p className="muted small">Pestaña activa: {activeTab}</p>
-        </div>
+      <main className="main-wrapper" data-testid="react-shell-body">
+        {isAdmin && isWorkspaceTab(activeTab) && activeClientId === 'all' ? (
+          <div className="card" data-testid="react-shell-workspace-guard">
+            <h3>Selecciona un cliente</h3>
+            <p className="muted">Abre un workspace desde la cartera para trabajar en pestañas de cliente.</p>
+          </div>
+        ) : null}
 
-        {/*
-          Wave-3 pages own their tab exclusively; wave-2 components render only
-          on tabs no wave-3 page has claimed. A tab with neither shows nothing
-          extra, because the legacy page it belongs to is not yet migrated.
-        */}
-        {cockpitTab ? <ReactManagerCockpitPage /> : null}
-        {workspaceTab ? <ReactClientWorkspacePage tab={workspaceTab} /> : null}
+        {cockpitTab && !(isWorkspaceTab(activeTab) && activeClientId === 'all') ? (
+          <ReactManagerCockpitPage
+            shellTab={cockpitSection}
+            onEnterClient={(clientId) => enterClient(clientId, 'ws-radar')}
+          />
+        ) : null}
+        {workspaceTab && activeClientId !== 'all' ? (
+          <ReactClientWorkspacePage tab={workspaceTab} />
+        ) : null}
         {portalTab ? <ReactClientPortalPage tab={portalTab} /> : null}
         {wave2Group ? <Wave2Surface group={wave2Group} /> : null}
+        {legacyIsland &&
+        (!isWorkspaceTab(activeTab) || activeClientId !== 'all') &&
+        !(workspaceTab && activeClientId !== 'all') ? (
+          <LegacyIslandHost
+            tab={legacyIslandTabId(activeTab)}
+            clientId={activeClientId}
+            campaignId={campaignFilter || null}
+            thesisId={thesisFilter || undefined}
+            testId="react-legacy-island"
+          />
+        ) : null}
       </main>
     </>
   );

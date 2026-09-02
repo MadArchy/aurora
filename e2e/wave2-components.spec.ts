@@ -36,11 +36,11 @@ function businessSnapshot(page: import('@playwright/test').Page) {
 }
 
 test.describe('wave-2 component extraction', () => {
-  test('legacy remains the served presentation after wave 2', async ({ page }) => {
+  test('React is the served presentation after Stage-B seam inversion', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.locator('#app')).toBeVisible();
-    await expect(page.locator('#react-root')).toBeHidden();
+    await expect(page.locator('#react-root')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
 
     // No wave-2 component leaked into the default presentation.
     await expect(page.locator('[data-testid="react-wave2-surface"]')).toHaveCount(0);

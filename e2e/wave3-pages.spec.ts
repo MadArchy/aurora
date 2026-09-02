@@ -52,11 +52,11 @@ const WAVE3_SURFACES = [
 ];
 
 test.describe('wave-3 page migration', () => {
-  test('legacy remains the served presentation after wave 3', async ({ page }) => {
+  test('React is the served presentation after Stage-B seam inversion', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.locator('#app')).toBeVisible();
-    await expect(page.locator('#react-root')).toBeHidden();
+    await expect(page.locator('#react-root')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
 
     // Five migrated pages, none of them served by default.
     for (const surface of WAVE3_SURFACES) {

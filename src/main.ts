@@ -163,6 +163,13 @@ import {
   NOTIFICATION_HIGHLIGHT_MS,
   NOTIFICATION_SCROLL_DELAY_MS,
 } from './controllers/navigationController';
+import { readUiMode } from './ui/strangler/toggle';
+import {
+  registerLegacyIslandController,
+  type LegacyIslandMountConfig,
+} from './controllers/legacyIslandBridge';
+import { publishShellNavigation } from './ui/legacy/navigationBridge';
+import { PORTFOLIO_SCOPE } from './controllers/appUiState';
 
 const DESTINATION_TO_KIND: Record<Exclude<CurationDestination, 'DISCARD'>, DeliveryItemKind> = {
   TASK_VIDEO: 'TASK',
@@ -209,6 +216,9 @@ class App {
   private claimLiveTimer: number | null = null;
   private lastDiscoveryScanAt = 0;
   private readonly renderScheduler = createRenderScheduler(() => this.render());
+  /** Stage-B legacy island host supplied by React shell (T-010-403). */
+  private islandHostEl: HTMLElement | null = null;
+  private islandGeneration = 0;
 
   /** Intervalo entre escaneos del agente de fuentes (1 h). */
   private static readonly DISCOVERY_SCAN_MS = 60 * 60 * 1000;
@@ -216,7 +226,49 @@ class App {
   private static readonly INGEST_TICK_MS = 5 * 60 * 1000;
 
   constructor() {
+    registerLegacyIslandController({
+      mountIsland: (host, config) => this.mountLegacyIsland(host, config),
+      unmountIsland: () => this.unmountLegacyIsland(),
+      refreshIsland: () => this.refreshLegacyIslandIfMounted(),
+    });
     void this.boot();
+  }
+
+  private isReactShellOwner(): boolean {
+    return readUiMode() === 'react';
+  }
+
+  private publishShellNavigationFromLegacy(tab: string): void {
+    publishShellNavigation({
+      tab,
+      clientId: this.activeClientId !== PORTFOLIO_SCOPE ? this.activeClientId : PORTFOLIO_SCOPE,
+    });
+  }
+
+  /** Called by React LegacyIslandHost — mounts page-local legacy surface only. */
+  mountLegacyIsland(host: HTMLElement, config: LegacyIslandMountConfig): void {
+    this.islandGeneration += 1;
+    this.islandHostEl = host;
+    this.activeTab = config.tab;
+    this.activeClientId = config.clientId ?? PORTFOLIO_SCOPE;
+    if (config.campaignId !== undefined) this.activeCampaignId = config.campaignId;
+    if (config.thesisId !== undefined) this.filterState.thesisId = config.thesisId;
+    this.renderIsland();
+  }
+
+  unmountLegacyIsland(): void {
+    this.islandGeneration += 1;
+    if (this.islandHostEl) this.islandHostEl.innerHTML = '';
+    this.islandHostEl = null;
+    if (this.activeModal === 'teleprompter') {
+      this.stopRecordingSession();
+      this.stopTeleprompter();
+    }
+    this.ui.closeModal();
+  }
+
+  refreshLegacyIslandIfMounted(): void {
+    if (this.islandHostEl) this.renderIsland();
   }
 
   private async boot() {
@@ -337,6 +389,14 @@ class App {
   }
 
   private enterClient(clientId: string, tab?: string) {
+    if (this.isReactShellOwner()) {
+      const resolvedTab = tab && tab.startsWith('ws-') ? tab : 'ws-briefing';
+      publishShellNavigation({ tab: resolvedTab, clientId });
+      const client = dbService.getClientById(clientId);
+      auditService.log(authService.getCurrentUser(), 'OPEN_CLIENT_WORKSPACE', 'Client', clientId);
+      this.showToast(`Trabajando con ${client?.displayName || clientId}`, 'info');
+      return;
+    }
     this.ui.enterClient(clientId, tab);
     const client = dbService.getClientById(clientId);
     auditService.log(authService.getCurrentUser(), 'OPEN_CLIENT_WORKSPACE', 'Client', clientId);
@@ -345,12 +405,21 @@ class App {
   }
 
   private backToPortfolio() {
+    if (this.isReactShellOwner()) {
+      publishShellNavigation({ tab: 'dashboard', clientId: PORTFOLIO_SCOPE });
+      return;
+    }
     this.ui.backToPortfolio();
     this.render();
   }
 
   public render() {
     this.renderScheduler.cancel();
+    if (this.isReactShellOwner()) {
+      if (this.islandHostEl) this.renderIsland();
+      return;
+    }
+
     const appEl = document.getElementById('app');
     if (!appEl) return;
 
@@ -377,6 +446,44 @@ class App {
 
     this.bindEvents();
     this.renderToasts();
+    if (this.activeModal) {
+      requestAnimationFrame(() => {
+        const firstControl = document.querySelector<HTMLElement>(
+          '.modal-overlay .modal-content button, .modal-overlay .modal-content input, .modal-overlay .modal-content select, .modal-overlay .modal-content textarea'
+        );
+        firstControl?.focus();
+      });
+    }
+    if (user) processDeadlineReminders();
+  }
+
+  /** Stage-B island render — no global legacy shell; React owns sidebar and lifecycle. */
+  private renderIsland() {
+    const host = this.islandHostEl;
+    if (!host) return;
+    const generation = this.islandGeneration;
+
+    const user = authService.getCurrentUser();
+    if (!user) {
+      host.innerHTML = '';
+      return;
+    }
+
+    const workspaceClientId = user.role === 'ADMIN' ? this.currentClientId() : null;
+
+    host.innerHTML = `
+      <div class="legacy-island-root" data-legacy-island="true">
+        <main class="main-wrapper">
+          ${this.renderMainView()}
+        </main>
+        ${workspaceClientId ? renderBriefingBar(this.activeTab, workspaceClientId) : ''}
+        ${this.renderActiveModal()}
+      </div>
+    `;
+
+    this.bindEvents();
+    this.renderToasts();
+    if (generation !== this.islandGeneration) return;
     if (this.activeModal) {
       requestAnimationFrame(() => {
         const firstControl = document.querySelector<HTMLElement>(
@@ -494,6 +601,10 @@ class App {
     const transition = resolveTabTransition(tab, this.currentClientId());
     if (!transition.ok) {
       this.showToast(transition.message, 'warning');
+      return;
+    }
+    if (this.isReactShellOwner()) {
+      this.publishShellNavigationFromLegacy(transition.tab);
       return;
     }
     this.activeTab = transition.tab;
@@ -4781,6 +4892,6 @@ if (import.meta.env.DEV) {
 new App();
 
 // SPEC-010 strangler mount seam. Owns #react-root only; never touches #app.
-// Defaults to the legacy presentation, so React is not loaded unless requested.
+// Stage B (T-010-403): normal mode is React-owned shell; legacy rollback remains available.
 exposeStranglerControls();
 void initReactStrangler();

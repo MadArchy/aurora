@@ -22,6 +22,7 @@
 
 import './strangler/strangler.css';
 import { applyUiModeAttribute, readUiMode, writeUiMode, type UiMode } from './strangler/toggle';
+import { mountLegacyIsland, unmountLegacyIsland } from '../controllers/legacyIslandBridge';
 
 export const REACT_ROOT_ID = 'react-root';
 export const LEGACY_ROOT_ID = 'app';
@@ -95,7 +96,7 @@ export async function applyUiMode(mode: UiMode): Promise<void> {
 /**
  * Boot entry called once by the legacy bootstrap.
  *
- * In legacy mode this only publishes the attribute — React is never imported.
+ * Stage B (T-010-403): normal mode mounts the React shell; legacy rollback skips React import.
  */
 export async function initReactStrangler(): Promise<void> {
   const mode = readUiMode();
@@ -111,5 +112,7 @@ export function exposeStranglerControls(): void {
     isReactMounted,
     REACT_ROOT_ID,
     LEGACY_ROOT_ID,
+    mountLegacyIsland,
+    unmountLegacyIsland,
   };
 }

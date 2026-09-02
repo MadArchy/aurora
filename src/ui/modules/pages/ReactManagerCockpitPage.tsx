@@ -26,7 +26,7 @@
  *     gateway strip stays legacy-only and this view reports quota and history.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from '../../providers/SessionProvider';
 import { useAiCenter, usePortfolioOverview } from '../../hooks/useWave3Data';
 import { LegacyHandoff, PanelState } from './LegacyHandoff';
@@ -218,11 +218,17 @@ function AiCenterPanel() {
 
 export function ReactManagerCockpitPage({
   onEnterClient,
+  shellTab = 'portfolio',
 }: {
   onEnterClient?: (clientId: string) => void;
+  shellTab?: CockpitTab;
 }) {
   const { tenantScope, isAdmin } = useSession();
-  const [tab, setTab] = useState<CockpitTab>('portfolio');
+  const [tab, setTab] = useState<CockpitTab>(shellTab);
+
+  useEffect(() => {
+    setTab(shellTab);
+  }, [shellTab]);
 
   if (!tenantScope) {
     return (

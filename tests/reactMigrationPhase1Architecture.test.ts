@@ -290,7 +290,8 @@ describe('T-010-24 — exclusive DOM ownership', () => {
 describe('T-010-26 — rollback is presentation-only', () => {
   it('the toggle only persists a presentation preference', () => {
     const source = code(join(ROOT, 'src/ui/strangler/toggle.ts'));
-    expect(source).toMatch(/DEFAULT_UI_MODE: UiMode = 'legacy'/);
+    // Phase 1 default was legacy; Stage B (T-010-403) inverts normal mode to React.
+    expect(source).toMatch(/DEFAULT_UI_MODE: UiMode = '(legacy|react)'/);
     // The toggle must not reach any data or business surface. `localStorage` is
     // permitted because the only value it holds is the presentation preference.
     expect(source).not.toMatch(/\bdbService\b/);

@@ -2,7 +2,7 @@
  * SPEC-010 Phase 1 — strangler foundation E2E (T-010-104).
  *
  * Proves the four foundation properties and nothing more:
- *   1. the app boots and the legacy presentation is the default
+ *   1. the app boots and the React presentation is the Stage-B default
  *   2. the React island mounts when requested
  *   3. rollback returns to legacy without touching business state
  *   4. the two DOM owners never render simultaneously
@@ -15,17 +15,14 @@ import { expect, test } from '@playwright/test';
 const UI_MODE_KEY = 'postura_ui_mode';
 
 test.describe('strangler foundation', () => {
-  test('the app boots with the legacy presentation by default', async ({ page }) => {
+  test('the app boots with the React presentation by default', async ({ page }) => {
     await page.goto('/');
 
-    const legacy = page.locator('#app');
-    await expect(legacy).toBeVisible();
+    await expect(page.locator('#react-root')).toBeVisible();
+    await expect(page.locator('[data-testid="react-login"]')).toBeVisible();
 
-    // Legacy actually rendered content, not just an empty container.
-    await expect(legacy.locator('.login-shell, .app-container')).toBeVisible();
-
-    // React is opt-in, so its container stays hidden and unmounted.
-    await expect(page.locator('#react-root')).toBeHidden();
+    // Legacy rollback remains available but is hidden in normal Stage-B mode.
+    await expect(page.locator('#app')).toBeHidden();
     await expect(page.locator('[data-testid="react-shell"]')).toHaveCount(0);
   });
 

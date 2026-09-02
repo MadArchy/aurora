@@ -442,8 +442,8 @@ over, 5 HYBRID, 0 blocked · Phase 4 authorization **NO**
 |----|-------|-------|-----------|------------|--------|
 | **T-010-401** | Audit and record side-effect ordering (gate→effect) for every `main.ts` command path | TECHNICAL | Phase 3 | A5, A39 | **[x] DONE** |
 | **T-010-402** | Relocate UI orchestration out of `main.ts` per audited path | TECHNICAL | T-010-401 | A39 | **[x] DONE** |
-| **T-010-403** | Invert the seam — React shell hosts remaining legacy islands (Stage B) | TECHNICAL | T-010-402 | A38 | **[ ] BLOCKED_BY_PRECONDITION** |
-| **T-010-404** | Reduce `main.ts` to minimal bootstrap/composition entrypoint | TECHNICAL | T-010-403 | A39 | **[ ] BLOCKED_BY_PRECONDITION** |
+| **T-010-403** | Invert the seam — React shell hosts remaining legacy islands (Stage B) | TECHNICAL | T-010-402 | A38 | **[x] DONE** (implementation — closure review pending) |
+| **T-010-404** | Reduce `main.ts` to minimal bootstrap/composition entrypoint | TECHNICAL | T-010-403 | A39 | **[ ] BLOCKED_PENDING_T403_CLOSURE_REVIEW** |
 | **T-010-405** | Extract UI logic from domain-adjacent services without changing authority | TECHNICAL | T-010-402 | A5, A34 | **[x] DONE** |
 
 Full evidence: **`main-controller-audit.md`** (new in this phase).
