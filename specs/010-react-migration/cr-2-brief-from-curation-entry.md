@@ -5,6 +5,8 @@
 **Umbrella:** CR-2 — `createBriefFromCurationEntry` caller snapshot authority  
 **Human governance authorization:** APPROVED  
 **Authorized base checkpoint:** `85fbdb707eab531d198c154d517ae435d3fb9d45`  
+**Implementation SHA:** `3eb548487a425e830a4758244326b78a88481521`  
+**Governance content SHA:** `3c53b49f1eddc1606ad74828708e7dd83c8cd45a`  
 **Timezone:** America/Bogota
 
 ---
@@ -101,5 +103,5 @@ curationEntryId
 |------|-----|
 | Authorized start | `85fbdb707eab531d198c154d517ae435d3fb9d45` |
 | Implementation | `3eb548487a425e830a4758244326b78a88481521` |
-| Governance content (freeze) | _(this document at freeze commit)_ |
+| Governance content (freeze) | `3c53b49f1eddc1606ad74828708e7dd83c8cd45a` |
 | Tip pin | points at governance content above (not self) |
