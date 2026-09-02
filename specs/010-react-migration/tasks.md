@@ -442,8 +442,8 @@ over, 5 HYBRID, 0 blocked · Phase 4 authorization **NO**
 |----|-------|-------|-----------|------------|--------|
 | **T-010-401** | Audit and record side-effect ordering (gate→effect) for every `main.ts` command path | TECHNICAL | Phase 3 | A5, A39 | **[x] DONE** |
 | **T-010-402** | Relocate UI orchestration out of `main.ts` per audited path | TECHNICAL | T-010-401 | A39 | **[x] DONE** |
-| **T-010-403** | Invert the seam — React shell hosts remaining legacy islands (Stage B) | TECHNICAL | T-010-402 | A38 | **[x] DONE** (implementation — closure review pending) |
-| **T-010-404** | Reduce `main.ts` to minimal bootstrap/composition entrypoint | TECHNICAL | T-010-403 | A39 | **[ ] BLOCKED_PENDING_T403_CLOSURE_REVIEW** |
+| **T-010-403** | Invert the seam — React shell hosts remaining legacy islands (Stage B) | TECHNICAL | T-010-402 | A38 | **[x] DONE — FORMALLY_ACCEPTED** (implementation `66d849b3` · E2E verification complete) |
+| **T-010-404** | Reduce `main.ts` to minimal bootstrap/composition entrypoint | TECHNICAL | T-010-403 | A39 | **[ ] READY_FOR_AUTHORIZATION** |
 | **T-010-405** | Extract UI logic from domain-adjacent services without changing authority | TECHNICAL | T-010-402 | A5, A34 | **[x] DONE** |
 
 Full evidence: **`main-controller-audit.md`** (new in this phase).
@@ -587,8 +587,7 @@ four responsibilities that left are gone rather than relocated within it.
 | Tests | 28 architecture + 26 focused Vitest + 6 Playwright |
 | Governance | AUDIT010-07 closed as audit; AUDIT010-10/-11 opened; CR inventory (2 CRs); SPEC-003 signature analysis |
 
-**Exit:** Phase 4 **PARTIAL** — T-010-401, 402, 405 **DONE** · T-010-403, 404
-**BLOCKED_BY_PRECONDITION (CR-1)** · Phase 5 authorization **NO**
+**Exit:** Phase 4 **PARTIAL** — T-010-401, 402, 403 **DONE** (T-403 formally accepted) · T-010-404 **READY_FOR_AUTHORIZATION** · Phase 5 authorization **NO**
 
 ---
 
@@ -596,8 +595,7 @@ four responsibilities that left are gone rather than relocated within it.
 
 Not a new task range. Phase 4C discharges two Phase-4 findings that Phase 4B
 classified as `PHASE4_LOCAL_UI_REMEDIATION`: they live in `main.ts`, they need no
-new business authority, and they need no owner assignment. T-010-403 and
-T-010-404 remain **BLOCKED_BY_PRECONDITION** — CR-1 is untouched.
+new business authority, and they need no owner assignment. T-010-404 is **READY_FOR_AUTHORIZATION** after T-403 formal acceptance — CR-1 is untouched.
 
 | Finding | Before | After |
 |---|---|---|
