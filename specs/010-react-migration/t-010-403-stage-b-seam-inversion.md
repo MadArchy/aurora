@@ -3,6 +3,7 @@
 **Task:** Invert the seam — React shell hosts remaining legacy islands (Stage B)  
 **Authorization:** APPROVED (human governance, precondition review PASS)  
 **Start SHA:** `33aea7a6336d031b0d02e9d7cd0d8bb4ab01187d`  
+**Implementation SHA:** `66d849b` (full SHA after governance pin)  
 **Former status:** `BLOCKED_BY_PRECONDITION` (stale — circular blockers invalidated)  
 **Precondition review:** PASS · `TRUE PRECONDITIONS TO START T403 = 0`
 
@@ -41,9 +42,11 @@ Human authorization records both as **invalid start blockers**. They remain hist
 
 ## Tests
 
-- `tests/t010403StageBSeamInversion.test.ts`
-- `e2e/t010403-stage-b-seam.spec.ts`
+- `tests/t010403StageBSeamInversion.test.ts` (11 tests)
+- `e2e/t010403-stage-b-seam.spec.ts` (4 tests — requires Playwright browser install)
 - Updated Phase 1–4 E2E defaults for Stage-B normal mode
+
+**Regression (post-implementation):** FULL CHECK **1883/1883 PASS** · RULES **91/91 PASS** · BUILD **PASS**
 
 ## Next action
 
