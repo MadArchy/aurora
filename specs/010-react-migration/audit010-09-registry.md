@@ -97,16 +97,14 @@ como cliente" control, which is SPEC-009 authority and out of scope regardless.
 ### A separate, non-AUDIT010-09 blocker: brief creation
 
 `createBriefFromCurationEntry` (SPEC-003) **is** a canonical consumer, so
-AUDIT010-09 does not apply. It is nevertheless not migrated, for a different
-reason: its signature requires the caller to pass the whole `CurationEntry`
-aggregate (`strategicBriefConsumer.ts:117-122`). Passing a cached aggregate as
-command input is precisely the caller-snapshot authority the seam keeps at zero
-(threat T-010-07), and the seam cannot re-read the entry from a trusted source
-without importing `dbService`.
+AUDIT010-09 does not apply. **CR-2 (2026-08-28)** remediated caller snapshot
+authority: production callers pass `curationEntryId` only; the consumer reloads
+authoritatively via `dbService.getCurationById`. Brief creation remains on the
+legacy UI path (not React seam) by presentation migration policy, not by
+aggregate-signature blocker.
 
-Class: `CANONICAL_CONSUMER_REQUIRES_CALLER_AGGREGATE`. Unlike the rows above,
-this one is resolvable by an id-based overload in SPEC-003 rather than by new
-business authority. Brief *approval* has no such problem and was migrated.
+Class was `CANONICAL_CONSUMER_REQUIRES_CALLER_AGGREGATE` — **resolved** by CR-2.
+See `cr-2-brief-from-curation-entry.md`.
 
 **Noncutover ownership ratified (CR-1 Phase B).** The 22 rows with `CU? = NO`
 (or `PARTIAL` for #18/#22) now have final **business Application owners** recorded
@@ -266,65 +264,36 @@ Phase 4 from discharging it.
 | **CR-2** | Strategic Brief creation from a curation entry | 1 (not counted in the 34 — the consumer exists) | Consumer requires the caller to pass the whole `CurationEntry` aggregate | **SPEC-003** (frozen) | Blocks migrating brief creation; approval already migrated |
 | **CR-3** | Trusted tenant entitlement in four consumer `buildTrusted*Context` builders | 4 builders (003/004/007/008) | Trusted `organizationId` was derived from the requested client record | **SPEC-003 · 004 · 007 · 008** | **RESOLVED** — see `cr-3-trusted-tenant-entitlement.md`; implementation `af49c59c9c8042b925e29c8a71ac1cd585d2f941` |
 
-**FORMAL CHANGE REQUESTS:** CR-1 **CODE_COMPLETE_WITH_DEBT** (ownership complete · noncutover implementation deferred) · CR-2 **CHANGE_REQUIRED** · CR-3 **RESOLVED** (security amendment; not a product CR).
+**FORMAL CHANGE REQUESTS:** CR-1 **CODE_COMPLETE_WITH_DEBT** (ownership complete · noncutover implementation deferred) · CR-2 **COMPLETE** · CR-3 **RESOLVED** (security amendment; not a product CR).
 
 ## CR-2 — SPEC-003 consumer signature (§12)
 
-Investigated in Phase 4; **not modified**. `createBriefFromCurationEntry` signature
-modifications remain **0**. (CR-3 amended only `buildTrustedBriefContext`.)
+**Status:** **COMPLETE / FROZEN** (CR-2 remediation @ base `85fbdb707eab531d198c154d517ae435d3fb9d45`)
 
 | Field | Repository truth |
 |---|---|
 | Consumer | `createBriefFromCurationEntry` |
-| File | `src/services/strategicBriefConsumer.ts:117` |
-| Current signature | `{ entry: CurationEntry; destination: CurationDestination; briefId?: string; now?: string }` |
-| Caller-supplied aggregate | `entry: CurationEntry` — the whole record |
-| Frozen SPEC owner | **SPEC-003** (Strategic Brief) |
-| Classification | **`FORMAL_CHANGE_REQUEST_REQUIRED`** |
+| File | `src/services/strategicBriefConsumer.ts` |
+| **Before signature** | `{ entry: CurationEntry; destination; briefId?; now? }` |
+| **After signature** | `{ curationEntryId: string; destination; briefId?; now? }` |
+| Authoritative reload | `dbService.getCurationById(curationEntryId)` |
+| Trusted tenant | CR-3 `buildTrustedBriefContext` → `requireTenantScope` |
+| Production call sites | `main.ts` — `curationEntryId` only |
+| Caller curation snapshot authority | **0** |
+| Unsafe aggregate overload active | **0** |
+| Frozen SPEC owner | **SPEC-003** (Strategic Brief) — integration only; Domain **0** changes |
+| Evidence | `cr-2-brief-from-curation-entry.md`; `tests/cr2BriefFromCurationEntry.test.ts` |
 
-### Why the current signature is a caller-snapshot risk
+### Historical defect (closed)
 
-The consumer derives business-material values from the caller's object without
-re-reading it from persistence:
-
-| Derived value | Taken from |
-|---|---|
-| tenant `clientId` (feeds `buildTrustedBriefContext`) | `entry.clientId` |
-| `signalIds` | `entry.signalId` |
-| `territory` | `entry.title.slice(0, 120)` |
-| `strategicAngle` | `entry.aiAngle \|\| entry.title` |
-| `decisionRationale` | `entry.managerRationale` |
-| `briefId` | `brief_${entry.id}` |
-
-Two parts of the context **are** trusted and should be credited as such:
-`actorId`/`actorRole` come from `authService`, and `organizationId` is resolved
-server-side via `dbService.getClientById(clientId)?.organizationId`. So the
-organization cannot be forged.
-
-What can be supplied by the caller is the **`clientId`** and the Brief's entire
-substantive content. Nothing verifies that the passed entry matches the stored
-one, or that the session is entitled to that client. Today's only caller
-(`main.ts:2651`) passes an entry it just read, so no live defect is claimed — the
-risk is what the contract *permits*, which matters the moment a React caller
-exists. That is why the seam refused it in Phase 3 rather than adopting it.
-
-### Proposed safe contract — recorded, not implemented
+The consumer previously derived business-material values from a caller-supplied
+`CurationEntry` without authoritative re-read. CR-2 enforces load-before-trust:
 
 ```text
-createBriefFromCurationEntry({
-  curationEntryId: string,      // an id, not an aggregate
-  destination: CurationDestination,
-  briefId?: string,
-  now?: string,
-})
+curationEntryId → getCurationById → requireTenantScope(entry.clientId) → create
 ```
 
-The consumer re-reads the entry itself (`dbService.getCurationById` already
-exists, `src/services/db.ts:2449`) and derives `clientId`, `signalId`, territory,
-angle and rationale from the stored record. Caller snapshot authority becomes 0
-for this path, and the change needs no new infrastructure.
-
-**Authorization required from the SPEC-003 owner. Not implemented in Phase 4.**
+**NEXT ACTION (post-CR-2):** `AUTHORIZE_STAGE_B_BLOCKER_CANONICALIZATION` (#9, #18)
 
 ---
 
