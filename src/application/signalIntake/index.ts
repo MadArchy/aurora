@@ -17,5 +17,17 @@ export {
   type RegisterManualSignalInput,
   type RegisterManualSignalResult,
 } from './RegisterManualSignal';
+export {
+  createPollAllActiveSources,
+  createPollRegisteredSource,
+  type PollAllActiveSourcesInput,
+  type PollAllActiveSourcesResult,
+  type PollRegisteredSourceDeps,
+  type PollRegisteredSourceInput,
+  type PollRegisteredSourceResult,
+} from './PollRegisteredSource';
 export type { SourceRegistryPort } from './ports/SourceRegistryPort';
 export type { SignalIntakePort, SignalIntakeWrite } from './ports/SignalIntakePort';
+export type { SourceFeedPort } from './ports/SourceFeedPort';
+export type { ProfileKeywordsPort } from './ports/ProfileKeywordsPort';
+export type { PostIngestRoutingPort } from './ports/PostIngestRoutingPort';

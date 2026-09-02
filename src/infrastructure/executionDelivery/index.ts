@@ -4,3 +4,4 @@ export {
   createDbContentStrategicBriefGate,
   createDbTaskRepository,
 } from './DbExecutionDeliveryAdapter';
+export { createDbDeliverySendPort } from './DbDeliverySendAdapter';

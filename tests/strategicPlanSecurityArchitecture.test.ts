@@ -26,6 +26,7 @@ const INFRA_PLAN = join(SRC, 'infrastructure/strategicPlan');
 const COMPOSE = join(SRC, 'composition/strategicPlan');
 const CONSUMER = join(SRC, 'services/strategicPlanConsumer.ts');
 const MAIN = join(SRC, 'main.ts');
+const DELIVERY_SEND = join(SRC, 'infrastructure/executionDelivery/DbDeliverySendAdapter.ts');
 const COMPONENTS = join(SRC, 'components');
 
 function collectTsFiles(dir: string): string[] {
@@ -144,8 +145,9 @@ describe('SPEC-004 Phase 5 — security architecture bans (T-004-501)', () => {
 
   it('main.ts has zero UI/status-alone Plan authority and zero [0] planner picks', () => {
     const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const deliverySend = stripComments(readFileSync(DELIVERY_SEND, 'utf8'));
     expect(main).toMatch(/requirePlannedAuthorization/);
-    expect(main).toMatch(/assertCurationNotPlanAuthority/);
+    expect(deliverySend).toMatch(/assertCurationNotPlanAuthority/);
     for (const pattern of FIRST_PRIMARY) {
       expect(main).not.toContain(pattern);
     }

@@ -8,6 +8,7 @@ import { join, relative } from 'node:path';
 
 const ROOT = process.cwd();
 const MAIN = join(ROOT, 'src/main.ts');
+const DELIVERY_SEND = join(ROOT, 'src/infrastructure/executionDelivery/DbDeliverySendAdapter.ts');
 const COMPONENTS = join(ROOT, 'src/components');
 const CONSUMER = join(ROOT, 'src/services/strategicPlanConsumer.ts');
 const COMPOSE = join(ROOT, 'src/composition/strategicPlan');
@@ -27,10 +28,11 @@ function collectTsFiles(dir: string): string[] {
 }
 
 describe('SPEC-004 Phase 4 — consumer architecture (T-004-407)', () => {
-  it('main.ts uses requirePlannedAuthorization and demotes CurationEntry', () => {
+  it('main.ts uses requirePlannedAuthorization and demotes CurationEntry via delivery adapter', () => {
     const main = readFileSync(MAIN, 'utf8');
+    const deliverySend = readFileSync(DELIVERY_SEND, 'utf8');
     expect(main).toMatch(/requirePlannedAuthorization/);
-    expect(main).toMatch(/assertCurationNotPlanAuthority/);
+    expect(deliverySend).toMatch(/assertCurationNotPlanAuthority/);
     expect(main).toMatch(/formatPlannedAuthorizationDenial/);
     // No dual-authority Brief-only gate for strategic downstream.
     expect(main).not.toMatch(

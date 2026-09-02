@@ -1,13 +1,16 @@
 /**
  * CR-1 Workstream 4 — Signal Intake consumer facade.
  *
- * Security: requireTenantScope. Commands: RegisterSource (#8/#24), RegisterManualSignal (#26).
- * Does not own thesis routing or scoring (SPEC-001).
+ * Security: requireTenantScope. Commands: RegisterSource (#8/#24), RegisterManualSignal (#26),
+ * PollRegisteredSource (#9).
+ * Does not own thesis routing or scoring (SPEC-001) — invokes canonical consumer after ingest.
  */
 
 import type { SourceType } from '../types';
 import {
   SignalIntakeError,
+  type PollAllActiveSourcesResult,
+  type PollRegisteredSourceResult,
   type RegisterManualSignalResult,
   type RegisterSourceResult,
 } from '../application/signalIntake';
@@ -16,6 +19,7 @@ import { requireTenantScope } from '../controllers/trustedTenant';
 import { authService } from './auth';
 import { auditService } from './audit';
 import { dbService } from './db';
+import { metricsService } from './metrics';
 
 type SignalIntakeUseCases = ReturnType<typeof composeSignalIntake>;
 
@@ -58,6 +62,61 @@ export interface RegisterSourceIntent {
   claimedScore?: number;
   claimedRoutingDecision?: string;
   claimedStrategicDecision?: string;
+}
+
+function trustedFrom(g: ReturnType<typeof gate>) {
+  return {
+    actorId: g.actorId,
+    actorRole: g.actorRole,
+    organizationId: g.organizationId,
+    clientId: g.clientId,
+    now: new Date().toISOString(),
+  };
+}
+
+/** Registry #9 — poll one registered source by id (authoritative reload). */
+export async function pollRegisteredSource(intent: {
+  requestedClientId: string | null | undefined;
+  sourceId: string;
+}): Promise<PollRegisteredSourceResult> {
+  const g = gate(intent.requestedClientId);
+  try {
+    const result = await useCases.pollRegisteredSource({
+      trusted: trustedFrom(g),
+      sourceId: intent.sourceId,
+    });
+    metricsService.track(
+      'ingest_source_poll',
+      {
+        accepted: result.accepted,
+        rejected: result.rejected,
+        duplicates: result.duplicates,
+        fetched: result.fetched,
+      },
+      g.clientId
+    );
+    auditService.log(authService.getCurrentUser(), 'SOURCE_RUN_COMPLETED', 'Source', result.sourceId, {
+      fetched: result.fetched,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      duplicates: result.duplicates,
+    });
+    return result;
+  } catch (err) {
+    mapError(err, 'No se pudo ingerir la fuente');
+  }
+}
+
+/** Registry #9 — poll all active sources for trusted client. */
+export async function pollAllActiveSources(intent: {
+  requestedClientId: string | null | undefined;
+}): Promise<PollAllActiveSourcesResult> {
+  const g = gate(intent.requestedClientId);
+  try {
+    return await useCases.pollAllActiveSources({ trusted: trustedFrom(g) });
+  } catch (err) {
+    mapError(err, 'No se pudo ingerir las fuentes');
+  }
 }
 
 /** Registry #8 + #24 — single canonical command. */

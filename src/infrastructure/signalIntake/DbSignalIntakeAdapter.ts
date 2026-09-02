@@ -14,6 +14,17 @@ export function createDbSourceRegistryPort(): SourceRegistryPort {
     listByClient(clientId) {
       return dbService.getSourcesByClient(clientId);
     },
+    getById(sourceId) {
+      return dbService.getSources().find((s) => s.id === sourceId);
+    },
+    listPollableByClient(clientId) {
+      return dbService
+        .getSourcesByClient(clientId)
+        .filter((s) => s.url && s.status !== 'ARCHIVED' && s.status !== 'PAUSED');
+    },
+    recordSourceRun(sourceId, outcome) {
+      dbService.recordSourceRun(sourceId, outcome);
+    },
   };
 }
 

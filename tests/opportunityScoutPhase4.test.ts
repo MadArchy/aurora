@@ -432,11 +432,16 @@ describe('SPEC-007 Phase 4 — lifecycle consumer (T-007-404)', () => {
 });
 
 describe('SPEC-007 Phase 4 — source scans (T-007-401/403/406/407)', () => {
-  it('main.ts uses materializeOpportunityForDelivery and not dbService.addOpportunity', () => {
+  it('main.ts delegates delivery materialization to Execution Delivery adapter', () => {
     const main = readFileSync(join(ROOT, 'src/main.ts'), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/.*$/gm, '');
-    expect(main).toMatch(/materializeOpportunityForDelivery/);
+    const deliverySend = readFileSync(
+      join(ROOT, 'src/infrastructure/executionDelivery/DbDeliverySendAdapter.ts'),
+      'utf8'
+    );
+    expect(deliverySend).toMatch(/materializeOpportunityForDelivery/);
+    expect(main).toMatch(/sendDeliveryPackage/);
     expect(main).toMatch(/acceptClientOpportunity/);
     expect(main).toMatch(/declineClientOpportunity/);
     expect(main).toMatch(/submitClientOpportunity/);

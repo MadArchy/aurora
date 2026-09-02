@@ -34,6 +34,12 @@ export {
   type ReviewClientArticleInput,
   type ReviewClientArticleResult,
 } from './ReviewClientArticle';
+export {
+  createSendDeliveryPackage,
+  type SendDeliveryPackageDeps,
+  type SendDeliveryPackageInput,
+  type SendDeliveryPackageResult,
+} from './SendDeliveryPackage';
 export type { TaskRepository } from './ports/TaskRepository';
 export type {
   ContentDraftFields,
@@ -41,3 +47,4 @@ export type {
   ContentRepository,
   ContentStrategicBriefGatePort,
 } from './ports/ContentRepository';
+export type { DeliverySendPort } from './ports/DeliverySendPort';

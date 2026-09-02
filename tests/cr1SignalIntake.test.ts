@@ -70,6 +70,17 @@ function memorySources() {
     listByClient(clientId) {
       return store.filter((s) => s.clientId === clientId);
     },
+    getById(sourceId) {
+      return store.find((s) => s.id === sourceId);
+    },
+    listPollableByClient(clientId) {
+      return store.filter(
+        (s) => s.clientId === clientId && s.url && s.status !== 'ARCHIVED' && s.status !== 'PAUSED'
+      );
+    },
+    recordSourceRun() {
+      // test stub
+    },
   };
   return { repo, store };
 }
@@ -382,19 +393,29 @@ describe('CR-1 Signal Intake consumer gate', () => {
 });
 
 describe('CR-1 Signal Intake architecture', () => {
-  it('compose exposes RegisterSource and RegisterManualSignal only', () => {
+  it('compose exposes RegisterSource, RegisterManualSignal, and poll commands', () => {
     const c = composeSignalIntake();
     expect(typeof c.registerSource).toBe('function');
     expect(typeof c.registerManualSignal).toBe('function');
-    expect(Object.keys(c).sort()).toEqual(['registerManualSignal', 'registerSource']);
+    expect(typeof c.pollRegisteredSource).toBe('function');
+    expect(typeof c.pollAllActiveSources).toBe('function');
+    expect(Object.keys(c).sort()).toEqual([
+      'pollAllActiveSources',
+      'pollRegisteredSource',
+      'registerManualSignal',
+      'registerSource',
+    ]);
   });
 
-  it('main.ts adopts signalIntakeConsumer for #8/#24/#26', () => {
+  it('main.ts adopts signalIntakeConsumer for #8/#24/#26/#9', () => {
     const source = readFileSync(resolve('src/main.ts'), 'utf8');
     const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code).toMatch(/registerSource\s*\(/);
     expect(code).toMatch(/registerManualSignal\s*\(/);
+    expect(code).toMatch(/pollRegisteredSource\s*\(/);
+    expect(code).toMatch(/pollAllActiveSources\s*\(/);
     expect(code).not.toMatch(/dbService\.addSource\s*\(/);
+    expect(code).not.toMatch(/dbService\.addSignal\s*\(/);
   });
 
   it('command seam exposes signalIntakeCommands', () => {
@@ -408,6 +429,7 @@ describe('CR-1 Signal Intake architecture', () => {
     const files = [
       'src/application/signalIntake/RegisterSource.ts',
       'src/application/signalIntake/RegisterManualSignal.ts',
+      'src/application/signalIntake/PollRegisteredSource.ts',
     ];
     for (const file of files) {
       const source = readFileSync(resolve(file), 'utf8');

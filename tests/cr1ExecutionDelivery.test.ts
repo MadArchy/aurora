@@ -667,16 +667,18 @@ describe('CR-1 Execution Delivery — ReviewClientArticle', () => {
 });
 
 describe('CR-1 Execution Delivery architecture', () => {
-  it('compose exposes three commands', () => {
+  it('compose exposes four commands including sendDeliveryPackage', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.transitionClientTask).toBe('function');
     expect(typeof c.saveContentDraft).toBe('function');
     expect(typeof c.reviewClientArticle).toBe('function');
+    expect(typeof c.sendDeliveryPackage).toBe('function');
   });
 
-  it('main.ts adopts executionDeliveryConsumer for #28/#31/#32', () => {
+  it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {
     const source = readFileSync(resolve('src/main.ts'), 'utf8');
     const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).toMatch(/sendDeliveryPackage\s*\(/);
     expect(code).toMatch(/transitionClientTask\s*\(/);
     expect(code).toMatch(/saveContentDraft\s*\(/);
     expect(code).toMatch(/reviewClientArticle\s*\(/);

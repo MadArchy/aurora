@@ -34,6 +34,7 @@ const INFRA = join(ROOT, 'src/infrastructure/opportunityScout');
 const COMPOSE = join(ROOT, 'src/composition/opportunityScout');
 const CONSUMER = join(ROOT, 'src/services/opportunityScoutConsumer.ts');
 const MAIN = join(ROOT, 'src/main.ts');
+const DELIVERY_SEND = join(ROOT, 'src/infrastructure/executionDelivery/DbDeliverySendAdapter.ts');
 const PANEL = join(ROOT, 'src/components/OpportunityPanel.ts');
 const PORTAL = join(ROOT, 'src/components/ClientPortal.ts');
 const DB = join(ROOT, 'src/services/db.ts');
@@ -121,7 +122,9 @@ describe('T-007-501 — architecture bans (Domain / UI / [0] thesis)', () => {
 describe('T-007-506 — legacy db bypass inventory = 0 on strategic paths', () => {
   it('main.ts strategic Opportunity path does not call authoritative dbService mutators', () => {
     const main = stripComments(readFileSync(MAIN, 'utf8'));
-    expect(main).toMatch(/materializeOpportunityForDelivery/);
+    const deliverySend = stripComments(readFileSync(DELIVERY_SEND, 'utf8'));
+    expect(deliverySend).toMatch(/materializeOpportunityForDelivery/);
+    expect(main).toMatch(/sendDeliveryPackage/);
     expect(main).not.toMatch(/dbService\.addOpportunity\s*\(/);
     expect(main).not.toMatch(/dbService\.updateOpportunityDecision\s*\(/);
     expect(main).not.toMatch(/dbService\.submitOpportunity\s*\(/);
@@ -279,8 +282,13 @@ describe('T-007-12 / authority search — AUTHORITY_BYPASS = 0 on SPEC-007 paths
   it('classifies Opportunity authority path hits without AUTHORITY_BYPASS', () => {
     const scans: Array<{ file: string; pattern: RegExp; class: string }> = [
       {
-        file: 'src/main.ts',
+        file: 'src/infrastructure/executionDelivery/DbDeliverySendAdapter.ts',
         pattern: /materializeOpportunityForDelivery/,
+        class: 'CANONICAL',
+      },
+      {
+        file: 'src/main.ts',
+        pattern: /sendDeliveryPackage/,
         class: 'CANONICAL',
       },
       {

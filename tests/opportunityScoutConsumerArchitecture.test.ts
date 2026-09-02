@@ -8,6 +8,7 @@ import { join, relative } from 'node:path';
 
 const ROOT = process.cwd();
 const MAIN = join(ROOT, 'src/main.ts');
+const DELIVERY_SEND = join(ROOT, 'src/infrastructure/executionDelivery/DbDeliverySendAdapter.ts');
 const COMPONENTS = join(ROOT, 'src/components');
 const CONSUMER = join(ROOT, 'src/services/opportunityScoutConsumer.ts');
 const COMPOSE = join(ROOT, 'src/composition/opportunityScout');
@@ -56,8 +57,10 @@ describe('SPEC-007 Phase 4 — consumer architecture (T-007-407)', () => {
 
   it('main.ts does not open canonical opportunity store keys', () => {
     const main = readFileSync(MAIN, 'utf8');
+    const deliverySend = readFileSync(DELIVERY_SEND, 'utf8');
     expect(main).not.toMatch(/postura_opportunity_|LocalOpportunityScoutStore/);
-    expect(main).toMatch(/materializeOpportunityForDelivery/);
+    expect(deliverySend).toMatch(/materializeOpportunityForDelivery/);
+    expect(main).toMatch(/sendDeliveryPackage/);
   });
 
   it('consumer facade documents non-authority of caller claims and compatibility mirror', () => {

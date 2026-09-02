@@ -1,7 +1,7 @@
 /**
  * CR-1 Workstream 5 — Execution Delivery consumer facade.
  *
- * #28 TransitionClientTask · #31 SaveContentDraft · #32 ReviewClientArticle
+ * #18 SendDeliveryPackage · #28 TransitionClientTask · #31 SaveContentDraft · #32 ReviewClientArticle
  * SPEC-006 gate is consumed, not owned. No SPEC-008 learning. No providers.
  */
 
@@ -12,6 +12,7 @@ import {
   type ClientTaskTransitionIntent,
   type ReviewClientArticleResult,
   type SaveContentDraftResult,
+  type SendDeliveryPackageResult,
   type TransitionClientTaskResult,
 } from '../application/executionDelivery';
 import { composeExecutionDelivery } from '../composition/executionDelivery/composeExecutionDelivery';
@@ -55,6 +56,32 @@ function trustedFrom(g: ReturnType<typeof gate>) {
     clientId: g.clientId,
     now: new Date().toISOString(),
   };
+}
+
+/** Registry #18 — delivery orchestration by package id (authoritative reload). */
+export async function sendDeliveryPackage(intent: {
+  requestedClientId: string | null | undefined;
+  packageId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): Promise<SendDeliveryPackageResult> {
+  const g = gate(intent.requestedClientId);
+  try {
+    const result = await useCases.sendDeliveryPackage({
+      trusted: trustedFrom(g),
+      packageId: intent.packageId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+    auditService.log(authService.getCurrentUser(), 'DELIVERY_SENT', 'DeliveryPackage', result.packageId, {
+      clientId: result.clientId,
+      items: result.itemCount,
+      createdTasks: result.createdTasks,
+    });
+    return result;
+  } catch (err) {
+    mapError(err, 'No se pudo enviar el briefing');
+  }
 }
 
 /** Registry #28 */

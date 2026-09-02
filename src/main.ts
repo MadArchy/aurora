@@ -33,10 +33,8 @@ import {
   buildMergedProfileKeywords,
   discoverSources,
   normalizeSourceUrl,
-  ProfileKeywords,
 } from './services/sourceDiscovery';
 import { resolveThesisForSignalOperation } from './domain/routedThesisContext';
-import { assessSourceQuality, gateItem, FeedItem } from './services/ingestFilter';
 import { renderAppShell, renderBriefingBar } from './components/AppShell';
 import { renderManagerCockpit } from './components/ManagerCockpit';
 import { renderClientWorkspace } from './components/ClientWorkspace';
@@ -44,7 +42,7 @@ import { renderClientPortal } from './components/ClientPortal';
 import { renderLogin } from './components/Login';
 import { renderClaimSafetyPanel } from './components/ClaimSafetyPanel';
 import { PORTFOLIO_TAB_IDS, WORKSPACE_TAB_IDS, CLIENT_TAB_IDS, isWorkspaceTab } from './components/PageHeader';
-import { CurationDestination, DeliveryItemKind, Source, TaskType, ContentStatus, BusinessKpiType, ContentPipelineStatus, DeliveryItem } from './types';
+import { CurationDestination, DeliveryItemKind, Source, TaskType, ContentStatus, BusinessKpiType, ContentPipelineStatus } from './types';
 import { createId } from './lib/id';
 import { CAMP_ADOPTION } from './data/juanCampaignSeed';
 import { bindSessionUi } from './controllers/sessionController';
@@ -92,18 +90,20 @@ import { ThesisLifecycleError } from './application/thesisLifecycle';
 import {
   registerManualSignal,
   registerSource,
+  pollRegisteredSource,
+  pollAllActiveSources,
 } from './services/signalIntakeConsumer';
 import { SignalIntakeError } from './application/signalIntake';
 import {
   reviewClientArticle,
   saveContentDraft,
+  sendDeliveryPackage,
   transitionClientTask,
 } from './services/executionDeliveryConsumer';
 import { ExecutionDeliveryError } from './application/executionDelivery';
 import { resolveArticleSavePipelineSteps } from './domain/articleReviewCore';
 import { VIDEO_SUBMIT_PIPELINE_TARGET } from './domain/videoSubmitCore';
 import type {
-  PositioningThesis,
   ProfileFactSection,
   ThesisObjective,
   ThesisObjectiveKind,
@@ -111,8 +111,6 @@ import type {
   ThesisEditableFields,
 } from './types';
 import { metricsService } from './services/metrics';
-import { readingTaskDescription, validateDeliveryForSend } from './domain/deliveryCore';
-import { curationDestinationToDownstreamAction } from './domain/briefConsumerCore';
 import type { StrategicDownstreamAction } from './domain/strategicBriefCore';
 import {
   approveStrategicBrief,
@@ -122,14 +120,12 @@ import {
   listStrategicBriefs,
 } from './services/strategicBriefConsumer';
 import {
-  assertCurationNotPlanAuthority,
   formatPlannedAuthorizationDenial,
   requirePlannedAuthorization,
 } from './services/strategicPlanConsumer';
 import {
   acceptClientOpportunity,
   declineClientOpportunity,
-  materializeOpportunityForDelivery,
   OpportunityApplicationError,
   submitClientOpportunity,
   toggleClientOpportunityChecklistItem,
@@ -2961,262 +2957,28 @@ class App {
     if (!pkg || !clientId) {
       throw new Error('Briefing no encontrado.');
     }
-
-    const validation = validateDeliveryForSend(
-      pkg,
-      (item) => (item.refId ? dbService.getCurationById(item.refId)?.destination : undefined),
-      undefined,
-      (item, destination) => {
-        const action = destination ? curationDestinationToDownstreamAction(destination) : undefined;
-        if (!action) {
-          return { ok: false, message: 'Strategic destination requires Brief authorization.' };
-        }
-        const entry = item.refId ? dbService.getCurationById(item.refId) : undefined;
-        // CurationEntry is intake/COMPATIBILITY only — never Plan authority.
-        assertCurationNotPlanAuthority(entry);
-        const briefId = item.strategicBriefId || entry?.strategicBriefId;
-        const planned = requirePlannedAuthorization({
-          clientId,
-          briefId,
-          requestedAction: action,
-        });
-        if (!planned.authorized) {
-          return { ok: false, message: formatPlannedAuthorizationDenial(planned) };
-        }
-        return {
-          ok: true,
-          briefId: planned.briefId,
-          action,
-          version: planned.briefVersion,
-        };
-      }
-    );
-    if (!validation.ok) {
-      throw new Error(validation.message);
+    const grant = this.requireTenant(clientId);
+    if (!grant.ok) {
+      throw new Error(grant.message);
     }
 
-    type CurationEntry = ReturnType<typeof dbService.getCurationById>;
-    type DraftPlan =
-      | {
-          kind: 'task_content';
-          item: DeliveryItem;
-          entry?: CurationEntry;
-          destination: 'TASK_VIDEO' | 'TASK_ARTICLE';
-          draft: Awaited<ReturnType<typeof aiService.generateContentDraft>>;
-          thesis: PositioningThesis;
-          gate: {
-            briefId: string;
-            version?: number;
-            signalIds: string[];
-            evidenceIds: string[];
-            planId: string;
-            planItemId: string;
-          };
-        }
-      | {
-          kind: 'opportunity';
-          item: DeliveryItem;
-          entry?: CurationEntry;
-          thesis: PositioningThesis;
-          gate: {
-            briefId: string;
-            version?: number;
-            signalIds: string[];
-            evidenceIds: string[];
-            planId: string;
-            planItemId: string;
-          };
-        }
-      | { kind: 'evidence'; item: DeliveryItem; entry?: CurationEntry; thesis: PositioningThesis }
-      | {
-          kind: 'reading';
-          item: DeliveryItem;
-          entry?: CurationEntry;
-          thesis: PositioningThesis;
-          gate: {
-            briefId: string;
-            version?: number;
-            signalIds: string[];
-            evidenceIds: string[];
-            planId: string;
-            planItemId: string;
-          };
-        };
-
-    const plans: DraftPlan[] = [];
-    const briefingItems = pkg.items;
-
-    for (const item of briefingItems) {
-      const entry = item.refId ? dbService.getCurationById(item.refId) : undefined;
-      const destination = entry?.destination;
-
-      if (destination === 'EVIDENCE') {
-        const thesis = entry?.thesisId
-          ? dbService.getThesisById(clientId, entry.thesisId)
-          : undefined;
-        if (!thesis) {
-          throw new Error('El ítem de evidencia requiere contexto de tesis válido.');
-        }
-        plans.push({ kind: 'evidence', item, entry, thesis });
-        continue;
-      }
-
-      const action = destination ? curationDestinationToDownstreamAction(destination) : undefined;
-      if (!action) {
-        if (item.kind === 'READING') {
-          const gate = this.gateStrategicDownstream(
-            clientId,
-            item.strategicBriefId || entry?.strategicBriefId,
-            'CREATE_TASK'
-          );
-          if (!gate.ok) throw new Error(gate.message);
-          const thesis = dbService.getThesisById(clientId, gate.thesisId);
-          if (!thesis) throw new Error('Approved Brief thesis not found.');
-          plans.push({ kind: 'reading', item, entry, thesis, gate });
-        }
-        continue;
-      }
-
-      const gate = this.gateStrategicDownstream(
-        clientId,
-        item.strategicBriefId || entry?.strategicBriefId,
-        action
-      );
-      if (!gate.ok) throw new Error(gate.message);
-
-      const thesis = dbService.getThesisById(clientId, gate.thesisId);
-      if (!thesis) {
-        throw new Error('Approved Brief thesis not found.');
-      }
-
-      if (destination === 'TASK_VIDEO' || destination === 'TASK_ARTICLE') {
-        const format = destination === 'TASK_VIDEO' ? 'VIDEO_SCRIPT' : 'LINKEDIN_ARTICLE';
-        const draft = await aiService.generateContentDraft(thesis, item.title, format);
-        plans.push({ kind: 'task_content', item, entry, destination, draft, thesis, gate });
-      } else if (destination === 'OPPORTUNITY') {
-        plans.push({ kind: 'opportunity', item, entry, thesis, gate });
-      } else if (destination === 'REFERENCE_READING') {
-        plans.push({ kind: 'reading', item, entry, thesis, gate });
-      }
-    }
-
-    let createdTasks = 0;
-    const convertedSignalIds: string[] = [];
-    dbService.runInSaveBatch(() => {
-      for (const plan of plans) {
-        if (plan.kind === 'task_content') {
-          const contentId = createId('cnt');
-          const advanced = this.saveContentWithClaimGate(
-            {
-              ...plan.draft,
-              id: contentId,
-              status: 'AI_GENERATED',
-              managerNotes: `${plan.draft.managerNotes || ''} Justificación: ${plan.item.rationale || 'sin nota'}`.trim(),
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              strategicBriefId: plan.gate.briefId,
-              strategicBriefVersion: plan.gate.version,
-              signalIds: plan.gate.signalIds,
-              supportingEvidenceIds: plan.gate.evidenceIds,
-            },
-            'CLIENT_REVIEW',
-            'Enviado con briefing'
-          );
-          if (!advanced) {
-            // El contenido queda en AI_GENERATED con el veredicto; se sigue creando la tarea.
-          }
-
-          dbService.addTask({
-            organizationId: plan.thesis.organizationId,
-            clientId,
-            thesisId: plan.thesis.id,
-            type: plan.destination === 'TASK_VIDEO' ? 'RECORD_VIDEO' : 'REVIEW_ARTICLE',
-            title: plan.item.title.slice(0, 90),
-            description: plan.item.rationale || 'Preparado por tu Brand Manager.',
-            estimatedMinutes: plan.destination === 'TASK_VIDEO' ? 15 : 20,
-            status: 'ASSIGNED',
-            contentItemId: contentId,
-            curationEntryId: plan.entry?.id,
-            deliveryPackageId: packageId,
-            scriptPayload: plan.draft.teleprompterScript,
-            strategicBriefId: plan.gate.briefId,
-            strategicBriefVersion: plan.gate.version,
-            signalId: plan.gate.signalIds[0],
-          });
-          createdTasks += 1;
-          for (const sid of plan.gate.signalIds) convertedSignalIds.push(sid);
-        } else if (plan.kind === 'opportunity') {
-          // SPEC-007 Phase 4: canonical MaterializeOpportunity after SPEC-004 gate.
-          // No dbService.addOpportunity authority; no legacy fallback on deny.
-          materializeOpportunityForDelivery({
-            clientId,
-            planId: plan.gate.planId,
-            planItemId: plan.gate.planItemId,
-            thesisId: plan.thesis.id,
-            title: plan.item.title.slice(0, 120),
-            organization: plan.entry?.sourceName || 'Por confirmar',
-            type: 'PANEL',
-            deadline: new Date(Date.now() + 21 * 86400000).toISOString(),
-            description: plan.item.note || plan.item.title,
-            fitRationale: plan.item.rationale || 'Alineado con la tesis activa.',
-            strategicBriefId: plan.gate.briefId,
-            strategicBriefVersion: plan.gate.version,
-            signalId: plan.gate.signalIds[0],
-            intentKey: `delivery:${packageId}:opp:${plan.item.id || plan.item.title}`,
-          });
-          for (const sid of plan.gate.signalIds) convertedSignalIds.push(sid);
-        } else if (plan.kind === 'evidence') {
-          dbService.addEvidenceItem({
-            organizationId: plan.thesis.organizationId,
-            clientId,
-            title: plan.item.title.slice(0, 120),
-            type: 'DOCUMENT',
-            sourceUrl: plan.item.url,
-            snippet: plan.item.note || plan.item.title,
-            confidenceScore: 70,
-            verified: false,
-            associatedThesesIds: [plan.thesis.id],
-          });
-        } else if (plan.kind === 'reading') {
-          dbService.addTask({
-            organizationId: plan.thesis.organizationId,
-            clientId,
-            thesisId: plan.thesis.id,
-            type: 'SUBMIT_INFO',
-            title: `Leer: ${plan.item.title.slice(0, 80)}`,
-            description: readingTaskDescription(plan.item),
-            estimatedMinutes: 10,
-            status: 'ASSIGNED',
-            curationEntryId: plan.entry?.id,
-            deliveryPackageId: packageId,
-            strategicBriefId: plan.gate.briefId,
-            strategicBriefVersion: plan.gate.version,
-            signalId: plan.gate.signalIds[0],
-          });
-          createdTasks += 1;
-          for (const sid of plan.gate.signalIds) convertedSignalIds.push(sid);
-        }
-      }
-      dbService.markDeliverySent(packageId, [...new Set(convertedSignalIds)]);
+    const result = await sendDeliveryPackage({
+      requestedClientId: grant.clientId,
+      packageId,
     });
 
-    const notified = notifyClient(clientId!, {
+    const notified = notifyClient(clientId, {
       type: 'BRIEFING',
       title: 'Nuevo briefing de tu Brand Manager',
-      body: `${pkg!.title} · ${pkg!.items.length} ítem(s)`,
+      body: `${pkg.title} · ${pkg.items.length} ítem(s)`,
       href: 'client-home',
     });
     if (!notified) {
       this.showToast('Briefing enviado. El cliente no tiene cuenta vinculada para avisos.', 'info');
     }
-    auditService.log(authService.getCurrentUser(), 'DELIVERY_SENT', 'DeliveryPackage', packageId, {
-      clientId: clientId!,
-      items: pkg!.items.length,
-      createdTasks,
-    });
 
     this.showToast(
-      `Briefing enviado. ${createdTasks ? `${createdTasks} tarea(s) creada(s).` : 'Sin tareas nuevas.'}`,
+      `Briefing enviado. ${result.createdTasks ? `${result.createdTasks} tarea(s) creada(s).` : 'Sin tareas nuevas.'}`,
       'success'
     );
     this.render();
@@ -4988,125 +4750,25 @@ class App {
     }
   }
 
-  /** Corre todas las fuentes activas sin que un fallo aislado detenga el resto. */
+  /** Presentation wiring — delegates ingest orchestration to Signal Intake Application (#9). */
   private async pollSources(): Promise<{ created: number; failed: number; rejected: number }> {
     const clientId = this.currentClientId();
-    const sources = (clientId ? dbService.getSourcesByClient(clientId) : dbService.getSources()).filter(
-      (s) => s.url && s.status !== 'ARCHIVED' && s.status !== 'PAUSED'
-    );
-
-    let created = 0;
-    let failed = 0;
-    let rejected = 0;
-
-    for (const source of sources) {
-      try {
-        const outcome = await this.pollOneSource(source);
-        created += outcome.created;
-        rejected += outcome.rejected;
-      } catch {
-        failed += 1;
-      }
+    const grant = this.requireTenant(clientId);
+    if (!grant.ok) return { created: 0, failed: 0, rejected: 0 };
+    const result = await pollAllActiveSources({ requestedClientId: grant.clientId });
+    if (result.created > 0) {
+      await this.autoResearchPrioritySignals(grant.clientId);
     }
-
-    if (created > 0 && clientId) {
-      await this.autoResearchPrioritySignals(clientId);
-    }
-
-    return { created, failed, rejected };
-  }
-
-  private profileKeywordsFor(clientId?: string): ProfileKeywords {
-    const client = clientId ? dbService.getClientById(clientId) : null;
-    if (!client) return { coreEn: [], coreEs: [], strong: [], context: [], negative: [] };
-    return buildMergedProfileKeywords(client, dbService.getActiveTheses(client.id));
+    return result;
   }
 
   private async pollOneSource(source: Source): Promise<{ created: number; rejected: number }> {
-    if (!source.url) return { created: 0, rejected: 0 };
-
     const clientId = source.clientId || this.currentClientId();
-    if (!clientId) {
-      dbService.recordSourceRun(source.id, {
-        fetched: 0,
-        accepted: 0,
-        rejected: 0,
-        duplicates: 0,
-        error: 'SOURCE_CLIENT_REQUIRED',
-      });
-      throw new Error('SOURCE_CLIENT_REQUIRED');
-    }
-    const keywords = this.profileKeywordsFor(clientId);
-
-    let items: FeedItem[] = [];
-    try {
-      const { items: fetched, error } = await fetchSourceItems(source.url);
-      if (error) throw new Error(error);
-      items = fetched as FeedItem[];
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'RSS_FAILED';
-      dbService.recordSourceRun(source.id, { fetched: 0, accepted: 0, rejected: 0, duplicates: 0, error: message });
-      throw error;
-    }
-
-    let accepted = 0;
-    let rejected = 0;
-    let duplicates = 0;
-
-    for (const item of items) {
-      const gate = gateItem(item, keywords, source);
-      if (!gate.accepted) {
-        rejected += 1;
-        continue;
-      }
-
-      const organizationId =
-        source.organizationId?.trim() || this.resolveOrganizationId(clientId) || '';
-      if (!organizationId) {
-        rejected += 1;
-        continue;
-      }
-      const result = dbService.addSignal({
-        organizationId,
-        clientId,
-        sourceId: source.id,
-        title: item.title,
-        sourceType:
-          source.type === 'REGULATORY'
-            ? 'REGULATORY'
-            : source.type === 'ACADEMIC'
-              ? 'ACADEMIC'
-              : source.type === 'VIDEO'
-                ? 'VIDEO'
-                : source.type === 'SOCIAL'
-                  ? 'SOCIAL'
-                  : 'RSS',
-        sourceName: source.name,
-        sourceUrl: item.link,
-        contentSnippet: item.snippet || item.title,
-        status: 'NEW',
-        aiStatus: 'PENDING_AI',
-        managerDecision: 'UNREVIEWED',
-        sourceQuality: assessSourceQuality(source, item),
-      });
-
-      if (result.isDuplicate) {
-        duplicates += 1;
-        continue;
-      }
-      this.scoreSignal(result.signal.id, clientId);
-      accepted += 1;
-    }
-
-    dbService.recordSourceRun(source.id, { fetched: items.length, accepted, rejected, duplicates });
-    metricsService.track('ingest_source_poll', { accepted, rejected, duplicates, fetched: items.length }, clientId);
-    auditService.log(authService.getCurrentUser(), 'SOURCE_RUN_COMPLETED', 'Source', source.id, {
-      fetched: items.length,
-      accepted,
-      rejected,
-      duplicates,
+    const result = await pollRegisteredSource({
+      requestedClientId: clientId,
+      sourceId: source.id,
     });
-    return { created: accepted, rejected };
+    return { created: result.created, rejected: result.rejected };
   }
 }
 
