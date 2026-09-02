@@ -45,7 +45,7 @@ omits the action or points at the legacy surface that still owns it.
 | 6 | `ClientProfilePanel` | Extract facts from CV (paste or upload) | `dbService.importCandidateFactsFromCv` | bulk candidate facts | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_EXISTING | 3 |
 | 7 | `ProofWallPanel` | Mark asset ready / pending | `dbService.updateProofWallItem` | proof-wall item status | **NO** | `READ_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 3 |
 | 8 | `SourceRegistryModal` | Register source | `registerSource` → Application `RegisterSource` (persistence: `dbService.addSource` via adapter) | source registry | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 3 |
-| 9 | `SourceRegistryModal` | Ingest now (one / all) | source polling → ingestion | signals produced downstream | **NO** | `READ_ONLY_REACT` | **CR-1 Signal Intake Application** · OWNER_RESOLVED_EXISTING · Stage B: **CANONICALIZE_BEFORE_STAGE_B** | 3 |
+| 9 | `SourceRegistryModal` | Ingest now (one / all) | `pollRegisteredSource` / `pollAllActiveSources` → Application `PollRegisteredSource` | signals produced downstream | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** · `PollRegisteredSource` · Stage B blocker **COMPLETE** | 3 |
 | 10 | `OnboardingWizard` | Submit onboarding step / finish (handler owned by `main.ts`) | `applyOnboardingStep` → Application `ApplyOnboardingStep` (legacy symbol: `dbService.applyOnboardingStep` DEPRECATED) | client + master profile | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Master Profile Application** | 3 |
 
 ### Phase-3 page screen — 24 further blocked writes
@@ -64,7 +64,7 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 15 | `ClientWorkspace` deliver | Propose angle | `dbService.setCurationAngle` | curation angle | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE · SPEC-005 AI | 4 |
 | 16 | `ClientWorkspace` deliver | Remove / reopen curation | `dbService.removeCuration`, `reopenCuration` | curation lifecycle | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
 | 17 | `ClientWorkspace` deliver | Assemble briefing | `dbService.ensureDraftDelivery`, `addDeliveryItem`, `attachCurationToDelivery`, `removeDeliveryItem`, `updateDelivery`, `discardDraftDelivery` | delivery package | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
-| 18 | `ClientWorkspace` deliver | Send to client | canonical gate, then delivery writes + notifications | delivery + notification | **PARTIAL** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE · Stage B: **CANONICALIZE_BEFORE_STAGE_B** | 4 |
+| 18 | `ClientWorkspace` deliver | Send to client | `sendDeliveryPackage` → Application `SendDeliveryPackage` | delivery + notification | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** · `SendDeliveryPackage` · Stage B blocker **COMPLETE** | 4 |
 | 19 | `ClientPortal` home | Mark briefing read | `dbService.acknowledgeDelivery` | delivery acknowledgement | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
 | 20 | `ClientWorkspace` radar | Discard signal | `dbService.decideSignal` | signal decision | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Signal Intake Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
 | 21 | `ClientWorkspace` radar | Add to delivery | `dbService.addToCuration`, `decideSignal` | curation entry | **NO** | `DISPLAY_ONLY_REACT` | **COMPOSITE — Execution Delivery + Signal Intake (split)** · see § noncutover | 4 |
@@ -534,12 +534,12 @@ Per-row debt metadata (owner resolution does not change `CU?`):
 | 5 | Master Profile | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Update fact |
 | 6 | Master Profile | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | CV import |
 | 7 | Master Profile | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | NOT_REQUIRED | Proof wall toggle |
-| 9 | Signal Intake | OWNER_RESOLVED_EXISTING | SPEC-001 post-ingest | NO | **REQUIRED BEFORE** | REQUIRED | Ingest / poll / scheduler |
+| 9 | Signal Intake | OWNER_RESOLVED_EXISTING | SPEC-001 post-ingest consumer | **YES** | COMPLETE | REQUIRED | `PollRegisteredSource` / `PollAllActiveSources` |
 | 14 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-003 gate | NO | LEGACY_ISLAND | REQUIRED | Decide curation |
 | 15 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-005 AI | NO | LEGACY_ISLAND | PARTIAL | Set curation angle |
 | 16 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | PARTIAL | Remove / reopen curation |
 | 17 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Delivery package assembly |
-| 18 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-003/004/006/007 | PARTIAL | **REQUIRED BEFORE** | REQUIRED | Send delivery orchestration |
+| 18 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-003/004/006/007 via adapter | **YES** | COMPLETE | REQUIRED | `SendDeliveryPackage` orchestration |
 | 19 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Acknowledge delivery |
 | 20 | Signal Intake | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Discard signal |
 | 21 | **COMPOSITE** Execution Delivery + Signal Intake | SPLIT_AUTHORITY | — | NO | LEGACY_ISLAND | REQUIRED | Composed canonical intent |
