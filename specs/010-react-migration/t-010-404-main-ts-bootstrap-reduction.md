@@ -5,7 +5,7 @@
 **Start SHA:** `30579eeac589e8cd9cf70588861aaef82984041f`  
 **T403 formal acceptance SHA:** `30579eeac589e8cd9cf70588861aaef82984041f`  
 **Implementation SHA:** `cda56b17db878c5bec98e00619f7916de7cd5178`  
-**Frozen content SHA:** _(recorded at governance commit)_  
+**Frozen content SHA:** `20e5dead2fbd3b951c06a9a07c1f0ef46a62012c`  
 **Formal acceptance:** **FORMALLY_ACCEPTED**
 
 ## Summary
