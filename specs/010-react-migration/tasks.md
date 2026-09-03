@@ -626,20 +626,22 @@ the original scripts · `npm run check` **1679/1679** · rules **91/91** · buil
 
 ---
 
-## Phase 5 — Regression / parity / security / E2E (§24 step 6) — NOT AUTHORIZED
+## Phase 5 — Regression / parity / security / E2E (§24 step 6) — IMPLEMENTATION_COMPLETE_PENDING_PHASE5_CLOSURE_REVIEW
 
 | ID | Title | Class | Depends on | Acceptance | Threats | Status |
 |----|-------|-------|-----------|------------|---------|--------|
-| **T-010-501** | Adversarial authority suite — caller tenant/actor/role spoof | TECHNICAL | Phase 4 | A16, A17, A18 | T-010-09…11 | **[ ] TODO** |
-| **T-010-502** | Adversarial cache suite — stale, optimistic, cross-tenant bleed | TECHNICAL | Phase 4 | A11, A14, A15, A19 | T-010-05…08 | **[ ] TODO** |
-| **T-010-503** | Adversarial write-path suite — `dbService`/store/Firestore/provider bypass | TECHNICAL | Phase 4 | A8, A26, A32, A33 | T-010-01…04 | **[ ] TODO** |
-| **T-010-504** | Adversarial approval suite — UI approval spoof, SPEC-008 boundary | TECHNICAL | Phase 4 | A29, A30 | T-010-14, 22 | **[ ] TODO** |
-| **T-010-505** | Duplication suite — scoring/routing/lifecycle/opportunity/learning logic | TECHNICAL | Phase 4 | A23, A28, A34 | T-010-17, 19…22 | **[ ] TODO** |
-| **T-010-506** | Dual-authority suite — command, read, auth, DOM ownership | TECHNICAL | Phase 4 | A35, A36, A37, A38 | T-010-12, 13, 23, 24 | **[ ] TODO** |
-| **T-010-507** | Multi-thesis and presentation-default suite | TECHNICAL | Phase 4 | A20, A21 | T-010-15, 16 | **[ ] TODO** |
-| **T-010-508** | Playwright legacy-vs-React parity journeys + rollback | TECHNICAL | Phase 4 | A41, A42, A43 | T-010-26 | **[ ] TODO** |
-| **T-010-509** | Accessibility and performance evidence per migrated module | TECHNICAL | Phase 4 | A41 | — | **[ ] TODO** |
-| **T-010-510** | Confirm all 26 formal threats | TECHNICAL | T-010-501…509 | all threats | T-010-01…26 | **[ ] TODO** |
+| **T-010-501** | Adversarial authority suite — caller tenant/actor/role spoof | TECHNICAL | Phase 4 | A16, A17, A18 | T-010-09…11 | **[x] DONE** |
+| **T-010-502** | Adversarial cache suite — stale, optimistic, cross-tenant bleed | TECHNICAL | Phase 4 | A11, A14, A15, A19 | T-010-05…08 | **[x] DONE** |
+| **T-010-503** | Adversarial write-path suite — `dbService`/store/Firestore/provider bypass | TECHNICAL | Phase 4 | A8, A26, A32, A33 | T-010-01…04 | **[x] DONE** |
+| **T-010-504** | Adversarial approval suite — UI approval spoof, SPEC-008 boundary | TECHNICAL | Phase 4 | A29, A30 | T-010-14, 22 | **[x] DONE** |
+| **T-010-505** | Duplication suite — scoring/routing/lifecycle/opportunity/learning logic | TECHNICAL | Phase 4 | A23, A28, A34 | T-010-17, 19…22 | **[x] DONE** |
+| **T-010-506** | Dual-authority suite — command, read, auth, DOM ownership | TECHNICAL | Phase 4 | A35, A36, A37, A38 | T-010-12, 13, 23, 24 | **[x] DONE** |
+| **T-010-507** | Multi-thesis and presentation-default suite | TECHNICAL | Phase 4 | A20, A21 | T-010-15, 16 | **[x] DONE** |
+| **T-010-508** | Playwright legacy-vs-React parity journeys + rollback | TECHNICAL | Phase 4 | A41, A42, A43 | T-010-26 | **[x] DONE** |
+| **T-010-509** | Accessibility and performance evidence per migrated module | TECHNICAL | Phase 4 | A41 | — | **[x] DONE** |
+| **T-010-510** | Confirm all 26 formal threats | TECHNICAL | T-010-501…509 | all threats | T-010-01…26 | **[x] DONE** |
+
+**Evidence:** `t-010-phase5-regression-parity-security-e2e.md` · focused Vitest **73/73** · Playwright **21/21** (Stage-B 11 + T-508 10) · FULL CHECK **1965/1965** · RULES **91/91** · BUILD **PASS** · product changes **0**
 
 ---
 
