@@ -81,7 +81,7 @@ Caller org/client spoof → DENY. GATE_FIRST ordering enforced.
 | Implementation | `c7377ff525a27fbaea44b1b42914d8b14bc012da` |
 | Error-semantics remediation | `eccd91268acc329ba2669334b07ade7e6c07f762` |
 | Frozen content (#20 Wave A1) | `eccd91268acc329ba2669334b07ade7e6c07f762` |
-| Governance tip | *(filled at commit)* |
+| Governance tip | `38bf364d721155572f6ae9a4c11ff94f628e6fcc` |
 
 ---
 
