@@ -626,7 +626,7 @@ the original scripts · `npm run check` **1679/1679** · rules **91/91** · buil
 
 ---
 
-## Phase 5 — Regression / parity / security / E2E (§24 step 6) — IMPLEMENTATION_COMPLETE_PENDING_PHASE5_CLOSURE_REVIEW
+## Phase 5 — Regression / parity / security / E2E (§24 step 6) — FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT
 
 | ID | Title | Class | Depends on | Acceptance | Threats | Status |
 |----|-------|-------|-----------|------------|---------|--------|
@@ -638,10 +638,12 @@ the original scripts · `npm run check` **1679/1679** · rules **91/91** · buil
 | **T-010-506** | Dual-authority suite — command, read, auth, DOM ownership | TECHNICAL | Phase 4 | A35, A36, A37, A38 | T-010-12, 13, 23, 24 | **[x] DONE** |
 | **T-010-507** | Multi-thesis and presentation-default suite | TECHNICAL | Phase 4 | A20, A21 | T-010-15, 16 | **[x] DONE** |
 | **T-010-508** | Playwright legacy-vs-React parity journeys + rollback | TECHNICAL | Phase 4 | A41, A42, A43 | T-010-26 | **[x] DONE** |
-| **T-010-509** | Accessibility and performance evidence per migrated module | TECHNICAL | Phase 4 | A41 | — | **[x] DONE** |
+| **T-010-509** | Accessibility and performance evidence per migrated module | TECHNICAL | Phase 4 | A41 | — | **[x] DONE** (verdict **PARTIAL** — static evidence only; runtime a11y audit absent — **NONBLOCKING_DEBT**) |
 | **T-010-510** | Confirm all 26 formal threats | TECHNICAL | T-010-501…509 | all threats | T-010-01…26 | **[x] DONE** |
 
-**Evidence:** `t-010-phase5-regression-parity-security-e2e.md` · focused Vitest **73/73** · Playwright **21/21** (Stage-B 11 + T-508 10) · FULL CHECK **1965/1965** · RULES **91/91** · BUILD **PASS** · product changes **0**
+**Evidence:** `t-010-phase5-regression-parity-security-e2e.md` · `t-010-phase5-formal-closure.md` · focused Vitest **73/73** · Playwright **21/21** (Stage-B 11 + T-508 10; stability **5/5 + 3/3 + 2/2**) · FULL CHECK **1965/1965** · RULES **91/91** · BUILD **PASS** · product changes **0** · threats **23 PASS / 3 PARTIAL / 0 FAIL**
+
+**Exit:** Phase 5 **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** · Phase 6 **NOT_AUTHORIZED** · next **`SPEC010_PHASE6_READINESS_REVIEW`**
 
 ---
 
@@ -681,7 +683,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 2 | T-010-201…206 | 6 | NOT AUTHORIZED |
 | 3 | T-010-301…306 | 6 | NOT AUTHORIZED |
 | 4 | T-010-401…405 | 5 | **FORMALLY_ACCEPTED** |
-| 5 | T-010-501…510 | 10 | NOT AUTHORIZED |
+| 5 | T-010-501…510 | 10 | **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** |
 | 6 | T-010-601…604 | 4 | NOT AUTHORIZED |
 | Deploy | D1–D3 | 3 | NOT_STARTED |
 

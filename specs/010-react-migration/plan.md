@@ -6,8 +6,8 @@
 Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**; AUDIT010-09 remains open) ·
 Phase 3 **COMPLETE** (T-010-301…306 all **DONE**; 5 pages HYBRID, 0 fully cut over; AUDIT010-09
 extended to 34 blocked writes) ·
-Phase 4 **PARTIAL** (T-010-401, 402, 405 **DONE**; T-010-403, 404 **BLOCKED_BY_PRECONDITION**) ·
-Phase 5+ **NOT AUTHORIZED**
+Phase 4 **FORMALLY_ACCEPTED** · Phase 5 **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** ·
+Phase 6 **NOT AUTHORIZED**
 
 ### Phase-4 outcome, stated plainly
 

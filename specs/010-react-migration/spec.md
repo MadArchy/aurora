@@ -5,7 +5,7 @@
 | **Spec ID** | `010-react-migration` |
 | **Display name** | **SPEC-010 — React migration** |
 | **Status** | **`APPROVED`** · Phase 0 **COMPLETE** · human approval **APPROVED** (T-010-010, 2026-08-26 America/Bogota) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**) · Phase 3 **COMPLETE** (T-010-301…306 all **DONE**; 5 pages HYBRID, 0 fully cut over) · Phase 4 **FORMALLY_ACCEPTED** (T-010-401…405 **DONE**; T-403/T-404 formally accepted; A39 reconciled) · Phase 4B discovery **COMPLETE** (read-only) · Phase 4C local security remediation **COMPLETE** (AUDIT010-10, -11 **RESOLVED**) · Phase 5+ **NOT AUTHORIZED** · deployment **NOT_STARTED** |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**) · Phase 3 **COMPLETE** (T-010-301…306 all **DONE**; 5 pages HYBRID, 0 fully cut over) · Phase 4 **FORMALLY_ACCEPTED** (T-010-401…405 **DONE**; T-403/T-404 formally accepted; A39 reconciled) · Phase 4B discovery **COMPLETE** (read-only) · Phase 4C local security remediation **COMPLETE** (AUDIT010-10, -11 **RESOLVED**) · Phase 5 **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** (T-010-501…510 **DONE**; T-509 PARTIAL nonblocking; threats **23 PASS / 3 PARTIAL / 0 FAIL**) · Phase 6 **NOT AUTHORIZED** · deployment **NOT_STARTED** |
 | **Branch** | `spec/010-react-migration` |
 | **Baseline SHA** | SPEC-008 CODE_COMPLETE final freeze `642ae9390700a254fa390ba09a959bab3c37d616` |
 | **Priority** | P2 — terminal SPEC in the constitutional dependency graph |

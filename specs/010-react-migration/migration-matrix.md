@@ -110,7 +110,10 @@ organizations must not collide in cache or in a read result.
 |------|--------|----------|
 | **W1 — Shell** | **FOUNDATION COMPLETE · NO CUTOVER** | Mount seam, toggle, providers, query/command seams, React `AppShell` + `Login` implemented and mountable. Legacy remains the served presentation. 27 architecture + 5 Playwright tests PASS |
 | **W2 — Leaf components** | **EXTRACTION COMPLETE · NO CUTOVER** | 9 of 9 candidates extracted (4 with their commands, 5 display/read-only with commands retained in legacy per AUDIT010-09). 52 Vitest (34 architecture + 18 behaviour) + 5 Playwright PASS. All 9 legacy counterparts retained |
-| W3…W6 | **NOT STARTED** | Phase 3+ not authorized |
+| W3 — Pages | **HYBRID COMPLETE · NO CUTOVER** | 5 pages migrated (Phase 3); `E2E3` + architecture tests PASS |
+| W4 — Controller strangler | **STAGE B COMPLETE · NO CUTOVER** | T-403/T-404; Stage-B Playwright **11/11** |
+| **W5 — Proof** | **EVIDENCE COMPLETE · NO CUTOVER** | Phase 5 (T-501…510): adversarial Vitest **73/73**, Playwright **21/21**, threats **23/3/0** |
+| **W6 — Removal** | **NOT STARTED** | Phase 6 — legacy deletion after proven equivalence |
 
 ### Wave-2 component dispositions
 

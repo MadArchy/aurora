@@ -5,7 +5,8 @@
 **Phase 2:** **COMPLETE** — 9 bounded components, read seams, canonical commands
 **Phase 3:** **COMPLETE** — 5 pages migrated (all HYBRID), 34 blocked writes registered
 **Phase 4:** **FORMALLY_ACCEPTED** (T-010-401…405 · A39 reconciled · `t-010-phase4-formal-closure.md`)
-**Phase 5+:** **NOT AUTHORIZED**
+**Phase 5:** **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** (T-010-501…510 · `t-010-phase5-formal-closure.md`)
+**Phase 6:** **NOT AUTHORIZED**
 **A1-A44:** **8 PASS** · **33 PARTIAL** · **0 FAIL** · **3 PENDING** (Phase-4 exit)
 **CODE_COMPLETE:** **NO**
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
@@ -196,6 +197,21 @@ working tree (30 paths); hygiene reconciliation proved **0** semantic deltas vs
 Criteria deliberately **not** advanced at closure: A21–A30, A41, A43, A44 (Phase 5–6 scope); **T-010-20** stays PARTIAL (display-only scoring in React — **NON_BLOCKER**).
 
 **SPEC-010 Phase 4:** **FORMALLY_ACCEPTED** · Phase 5 authorization **NO** · Phase 5 readiness **READY_FOR_AUTHORIZATION_REVIEW**
+
+### Phase-5 formal closure (T-010-501…510)
+
+Closure record: `t-010-phase5-formal-closure.md` · implementation evidence: `t-010-phase5-regression-parity-security-e2e.md`.
+
+| Task | Verdict |
+|------|---------|
+| T-010-501…508, T-010-510 | **PASS** |
+| T-010-509 | **PARTIAL** — static/architectural a11y + perf evidence only; **no runtime a11y audit tooling** (**NONBLOCKING_DEBT**) |
+
+Threat ledger: **23 PASS · 3 PARTIAL · 0 FAIL** (T-010-20, 25, 26 governed debt preserved).
+
+Playwright stability at closure: rollback **5/5** · T508 suite **3/3** · Stage-B+T508 **2/2** · final **21/21 PASS**.
+
+**SPEC-010 Phase 5:** **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** · Phase 6 **NOT_AUTHORIZED** · next **`SPEC010_PHASE6_READINESS_REVIEW`**
 
 ### Phase-3 acceptance movement (T-010-301…306)
 

@@ -1,7 +1,8 @@
 # Threat model 010 — React migration
 
 **Phase 0 formal threats.** Defensive evidence through Phase 3 (all 26 PARTIAL).
-Adversarial proof: **NOT STARTED** (Phase 5) — **0 PASS**.
+**Phase 5 exit:** adversarial proof **COMPLETE** (T-010-501…510) — **23 PASS · 3 PARTIAL · 0 FAIL**
+(T-010-20 display-only cutover debt · T-010-25 deferred CR-1 · T-010-26 Phase-6 legacy removal).
 
 Constitution: UI = intent/display only · AI advisory · human-in-the-loop · tenant isolation ·
 multi-thesis native · strangler only.
@@ -395,3 +396,18 @@ No new constitutional or security blocker was found: **P0 = 0**, **P1 = 0**.
 | T-010-13 (divergent reads) | the first compatibility read facade in W1 |
 
 These must be covered by tests from the first wave, not deferred to Phase 5.
+
+---
+
+## Phase-5 threat exit (T-010-510 capstone)
+
+Adversarial suites T-010-501…509 plus Playwright T-010-508 provide the Phase-5 evidence.
+Capstone test `tests/t010510ThreatCapstone.test.ts` locks the ledger at **23 PASS · 3 PARTIAL · 0 FAIL**.
+
+| ID | Exit | Remaining condition | Owner |
+|----|------|---------------------|-------|
+| T-010-20 | **PARTIAL** | Display-only scoring labels in React radar | Later cutover |
+| T-010-25 | **PARTIAL** | 34 CR-1 deferred legacy writes remain unaudited for cutover | CR-1 / Phase 6 |
+| T-010-26 | **PARTIAL** | Legacy not removed; parity gate for deletion is Phase 6 | Phase 6 |
+
+**Phase-5 severity:** P0 **0** · P1 **0** · P2 **3** · P3 **7** (unchanged from Phase-4C exit).
