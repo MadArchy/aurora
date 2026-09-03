@@ -4,6 +4,7 @@ import { aiService } from '../../../services/ai';
 import { auditService } from '../../../services/audit';
 import { buildMergedProfileKeywords } from '../../../services/sourceDiscovery';
 import { resolveThesisForSignalOperation } from '../../../domain/routedThesisContext';
+import { SignalIntakeError } from '../../../application/signalIntake';
 import { StrategicRoutingError } from '../../../application/strategicSignalRouting';
 import { runResearchSignalsAgent } from '../../../services/researchSignalsAgent';
 import { registerSignalOutcomeIntent } from '../../../services/learningLoopConsumer';
@@ -76,6 +77,34 @@ export function queueCurationInBriefing(curationId: string): boolean {
   });
   dbService.attachCurationToDelivery(curationId, pkg.id);
   return true;
+}
+
+/**
+ * Primary #20 radar discard click — canonical consumer with legacy missing-signal
+ * presentation compatibility (Wave A1 remediation).
+ */
+export function handleRadarDiscardSignalClick(host: RadarHandlerHost, signalId: string): void {
+  if (!signalId) return;
+  const signal = dbService.getSignalById(signalId);
+  const clientId = host.resolveClientId(signal?.clientId);
+  if (!clientId) return;
+  try {
+    discardSignal({ requestedClientId: clientId, signalId });
+  } catch (error) {
+    if (error instanceof SignalIntakeError && error.code === 'SIGNAL_NOT_FOUND') {
+      auditService.log(authService.getCurrentUser(), 'SIGNAL_DISCARDED', 'Signal', signalId);
+      host.showToast('Señal descartada', 'info');
+      host.refreshMain();
+      return;
+    }
+    host.showToast(
+      error instanceof Error ? error.message : 'No se pudo descartar la señal',
+      'warning'
+    );
+    return;
+  }
+  host.showToast('Señal descartada', 'info');
+  host.refreshMain();
 }
 
 export function bindRadarHandlers(host: RadarHandlerHost): void  {
@@ -212,20 +241,7 @@ export function bindRadarHandlers(host: RadarHandlerHost): void  {
     btn.addEventListener('click', (e) => {
       const id = (e.currentTarget as HTMLElement).getAttribute('data-signal-id');
       if (!id) return;
-      const signal = dbService.getSignalById(id);
-      const clientId = host.resolveClientId(signal?.clientId);
-      if (!clientId) return;
-      try {
-        discardSignal({ requestedClientId: clientId, signalId: id });
-      } catch (error) {
-        host.showToast(
-          error instanceof Error ? error.message : 'No se pudo descartar la señal',
-          'warning'
-        );
-        return;
-      }
-      host.showToast('Señal descartada', 'info');
-      host.refreshMain();
+      handleRadarDiscardSignalClick(host, id);
     });
   });
 

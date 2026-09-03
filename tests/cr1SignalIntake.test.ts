@@ -39,9 +39,13 @@ import {
   registerSource,
   resetSignalIntakeConsumerForTest,
 } from '../src/services/signalIntakeConsumer';
+import * as signalIntakeConsumer from '../src/services/signalIntakeConsumer';
 import { composeSignalIntake } from '../src/composition/signalIntake/composeSignalIntake';
 import { authService } from '../src/services/auth';
+import { auditService } from '../src/services/audit';
 import { dbService } from '../src/services/db';
+import { handleRadarDiscardSignalClick } from '../src/ui/legacy/handlers/radarHandlers';
+import type { RadarHandlerHost } from '../src/ui/legacy/legacyAppHost';
 
 function adminTrusted(
   overrides: Partial<TrustedSignalIntakeContext> = {}
@@ -676,6 +680,125 @@ describe('CR-1 Signal Intake consumer — DiscardSignal (#20)', () => {
   });
 });
 
+function radarHandlerHost(overrides: Partial<RadarHandlerHost> = {}): RadarHandlerHost {
+  return {
+    resolveClientId: () => 'client_trust',
+    showToast: vi.fn(),
+    refreshMain: vi.fn(),
+    ...overrides,
+  } as RadarHandlerHost;
+}
+
+describe('CR-1 Wave A1 #20 — radar discard missing-signal compatibility', () => {
+  beforeEach(() => {
+    resetSignalIntakeConsumerForTest();
+    vi.restoreAllMocks();
+  });
+
+  it('stale signal ID: canonical throw translated to legacy success observables', () => {
+    const host = radarHandlerHost();
+    const discardSpy = vi
+      .spyOn(signalIntakeConsumer, 'discardSignal')
+      .mockImplementation(() => {
+        throw new SignalIntakeError('SIGNAL_NOT_FOUND', 'Signal not found: sig_stale');
+      });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+
+    handleRadarDiscardSignalClick(host, 'sig_stale');
+
+    expect(discardSpy).toHaveBeenCalledTimes(1);
+    expect(discardSpy).toHaveBeenCalledWith({
+      requestedClientId: 'client_trust',
+      signalId: 'sig_stale',
+    });
+    expect(auditSpy).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledWith(
+      authService.getCurrentUser(),
+      'SIGNAL_DISCARDED',
+      'Signal',
+      'sig_stale'
+    );
+    expect(host.showToast).toHaveBeenCalledTimes(1);
+    expect(host.showToast).toHaveBeenCalledWith('Señal descartada', 'info');
+    expect(host.refreshMain).toHaveBeenCalledTimes(1);
+    expect(host.showToast).not.toHaveBeenCalledWith(expect.any(String), 'warning');
+  });
+
+  it('authorization denial is not translated into legacy success', () => {
+    const host = radarHandlerHost();
+    vi.spyOn(signalIntakeConsumer, 'discardSignal').mockImplementation(() => {
+      throw new SignalIntakeError('ACTOR_NOT_AUTHORIZED', 'Denied');
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+
+    handleRadarDiscardSignalClick(host, 'sig_denied');
+
+    expect(host.showToast).toHaveBeenCalledWith('Denied', 'warning');
+    expect(host.showToast).not.toHaveBeenCalledWith('Señal descartada', 'info');
+    expect(host.refreshMain).not.toHaveBeenCalled();
+    expect(auditSpy).not.toHaveBeenCalled();
+  });
+
+  it('successful discard: one canonical invocation, consumer audit, success presentation', () => {
+    const admin: User = {
+      uid: 'u_admin',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId: 'org_sess',
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    };
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue(admin);
+    const client = dbService.createClient({
+      organizationId: 'org_sess',
+      primaryManagerId: 'u_admin',
+      firstName: 'A',
+      lastName: 'B',
+      displayName: 'A B',
+      primaryEmail: `discard_ok_${Date.now()}@ex.com`,
+      onboardingStatus: 'IN_PROGRESS',
+      profileCompleteness: 20,
+      status: 'ACTIVE',
+      avatarUrl: '',
+      createdBy: 'u_admin',
+      updatedBy: 'u_admin',
+    });
+    const created = dbService.addSignal({
+      organizationId: 'org_sess',
+      clientId: client.id,
+      title: `Discard ok ${Date.now()}`,
+      sourceType: 'MANUAL',
+      sourceName: 't',
+      contentSnippet: 'x',
+      status: 'NEW',
+    });
+    const host = radarHandlerHost({ resolveClientId: () => client.id });
+    const discardSpy = vi.spyOn(signalIntakeConsumer, 'discardSignal');
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    const decideSpy = vi.spyOn(dbService, 'decideSignal');
+
+    handleRadarDiscardSignalClick(host, created.signal.id);
+
+    expect(discardSpy).toHaveBeenCalledTimes(1);
+    expect(decideSpy).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledWith(
+      admin,
+      'SIGNAL_DISCARDED',
+      'Signal',
+      created.signal.id
+    );
+    expect(host.showToast).toHaveBeenCalledWith('Señal descartada', 'info');
+    expect(host.refreshMain).toHaveBeenCalledTimes(1);
+    expect(dbService.getSignalById(created.signal.id)?.status).toBe('DISCARDED');
+  });
+});
+
 describe('CR-1 Signal Intake architecture', () => {
   it('compose exposes RegisterSource, RegisterManualSignal, DiscardSignal, and poll commands', () => {
     const c = composeSignalIntake();
@@ -740,9 +863,12 @@ describe('CR-1 Signal Intake architecture', () => {
 
   it('primary #20 radar discard delegates through signalIntakeConsumer (not direct dbService)', () => {
     const source = readFileSync(resolve('src/ui/legacy/handlers/radarHandlers.ts'), 'utf8');
+    expect(source).toMatch(/handleRadarDiscardSignalClick/);
+    expect(source).toMatch(/discardSignal\s*\(/);
+    expect(source).toMatch(/error\.code === 'SIGNAL_NOT_FOUND'/);
     const discardBlock = source.match(/\.btn-discard-signal[\s\S]*?\}\);/);
     expect(discardBlock).toBeTruthy();
-    expect(discardBlock![0]).toMatch(/discardSignal\s*\(/);
+    expect(discardBlock![0]).toMatch(/handleRadarDiscardSignalClick\s*\(/);
     expect(discardBlock![0]).not.toMatch(/dbService\.decideSignal/);
   });
 
