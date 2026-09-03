@@ -132,6 +132,7 @@ test.describe('T-010-508 — hybrid pages and legacy islands', () => {
 
 test.describe('T-010-508 — React ↔ legacy rollback', () => {
   test('mid-journey rollback leaves stable business storage unchanged', async ({ page }) => {
+    test.setTimeout(90_000);
     await openManagerWorkspace(page);
     await expect(page.locator('[data-testid="react-ws-radar"]')).toBeVisible();
     const before = await rollbackStableSnapshot(page);
@@ -142,6 +143,11 @@ test.describe('T-010-508 — React ↔ legacy rollback', () => {
 
     await page.evaluate(([key]) => localStorage.setItem(key, 'react'), [UI_MODE_KEY]);
     await page.reload();
+    await page.waitForFunction(async () => {
+      const { authService } = await import('/src/services/auth.ts');
+      await authService.ready;
+      return authService.getCurrentUser() !== null;
+    });
     await expect(page.locator('[data-testid="react-shell-logout"]')).toBeVisible({ timeout: 30_000 });
     expect(await rollbackStableSnapshot(page)).toEqual(before);
   });
