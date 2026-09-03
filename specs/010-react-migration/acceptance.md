@@ -6,8 +6,8 @@
 **Phase 3:** **COMPLETE** — 5 pages migrated (all HYBRID), 34 blocked writes registered
 **Phase 4:** **FORMALLY_ACCEPTED** (T-010-401…405 · A39 reconciled · `t-010-phase4-formal-closure.md`)
 **Phase 5:** **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** (T-010-501…510 · `t-010-phase5-formal-closure.md`)
-**Phase 6:** **NOT AUTHORIZED**
-**A1-A44:** **8 PASS** · **33 PARTIAL** · **0 FAIL** · **3 PENDING** (Phase-4 exit)
+**Phase 6:** **PRE_REMOVAL_GATES_COMPLETE** (T-010-601…602 · `t-010-phase6-pre-removal-gates.md`) · T-603/T-604 **NOT AUTHORIZED**
+**A1-A44:** **8 PASS** · **33 PARTIAL** · **0 FAIL** · **3 PENDING** (T-601 reconciled · no false promotion)
 **CODE_COMPLETE:** **NO**
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -63,7 +63,7 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | A21 | Presentation defaults explicitly non-authoritative; command carries a confirmed, revalidated id | 2–6 | ⚠️ PARTIAL | `ARCH3`: `Modals.ts` decomposed (7 of 13); the legacy `approvedBriefs[0]` pre-selection is not reproduced and selectors start empty. Full command set Phase 5–6 |
 | A22 | SPEC-001 preserved — React displays routing, owns no routing decision | 2–6 | ⚠️ PARTIAL | `ARCH3`: radar displays `routingDecision.routingState`; routing computation and first-thesis selection banned in any page |
 | A23 | SPEC-002 preserved — no scoring formula recreated in components/hooks | 2–6 | ⚠️ PARTIAL | `ARCH3` + `ARCH4`: **0** score functions and **0** weight arithmetic in `src/ui/**` or `src/controllers/**` |
-| A24 | SPEC-003 preserved — Brief consumed via canonical consumer; no lifecycle duplication | 2–6 | ⚠️ PARTIAL | Briefs read via `strategicBriefConsumer`; approval forwards ids only. Creation deliberately unmigrated — CR-2 |
+| A24 | SPEC-003 preserved — Brief consumed via canonical consumer; no lifecycle duplication | 2–6 | ⚠️ PARTIAL | Briefs read via `strategicBriefConsumer`; approval forwards ids only. Brief creation on legacy UI; **CR-2 COMPLETE/FROZEN** |
 | A25 | SPEC-004 preserved — Plan/PlanItem via canonical Application boundary | 2–6 | ⏳ PENDING | no migrated React surface exposes a plan command |
 | A26 | SPEC-005 preserved — direct AI provider access from React: **0** | 1–6 | ⚠️ PARTIAL | `ARCH`: **0** provider imports or endpoints in `src/ui/**` |
 | A27 | SPEC-006 preserved — React never verifies claims or authorizes publication | 2–6 | ⚠️ PARTIAL | `ARCH3`: the claim verdict is displayed as data; pipeline actions and the publication gate stayed legacy; `PUBLISHED` assignment banned |
@@ -81,9 +81,9 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | A39 | `main.ts` strangler — ceases to be a controller/event bus; shrinks per wave | 1–4 | ✅ PASS | T-010-404: `main.ts` **15-line** bootstrap (4,473 → 15); **0** business imports, **0** shell authority, **0** navigation authority, **0** business orchestration. Feature wiring in **18** handler modules + presentation controllers; `LegacyApp.ts` (**639** lines) is a compatibility host only. `t010404MainBootstrapReduction.test.ts` **9/9**; Stage-B Playwright **11/11**. Deferred CR-1 writes remain in legacy handlers by design |
 | A40 | Component migration matrix complete — a row per UI file, dispositioned | 0 | ✅ PASS | `migration-matrix.md` (17 files) |
 | A41 | Behavioral parity proven per migrated module across all applicable dimensions | 5 | ⚠️ PARTIAL | Page-level evidence for 12 of 18 dimensions per migrated page; dimensions whose legacy command stays outside React are classified, not claimed. **0** modules cut over — cutover parity is Phase 5 |
-| A42 | E2E/parity harness (Playwright) implemented; legacy-vs-React journeys pass | 5 | ⚠️ PARTIAL | harness implemented, 5/5 foundation tests PASS. Full journey/parity suites T-010-508 |
-| A43 | Legacy removed only after parity gate; rollback exercised without data migration | 6 | ⚠️ PARTIAL | `E2E`: rollback leaves business storage byte-identical. **0** legacy removed |
-| A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ⏳ PENDING | T-010-602. Phase-1 regression: check 1494/1494, rules 91/91 |
+| A42 | E2E/parity harness (Playwright) implemented; legacy-vs-React journeys pass | 5 | ⚠️ PARTIAL | T-508 + Stage-B: **21/21 PASS**; governed MVP journey (Planner excluded). Full cutover parity remains Phase 6 |
+| A43 | Legacy removed only after parity gate; rollback exercised without data migration | 6 | ⚠️ PARTIAL | T-508 rollback stability proven; **0** legacy removed (T-603 not authorized) |
+| A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ⏳ PENDING | **T602 REGRESSION_GATE_PASS** @ 1965/1965 · 91/91 · BUILD · 73/73 · 21/21. **A44 formal PASS** requires CODE_COMPLETE Required A* + T-604 |
 
 **Acceptance count:** **44** (A1–A44) — unchanged.
 
@@ -211,7 +211,20 @@ Threat ledger: **23 PASS · 3 PARTIAL · 0 FAIL** (T-010-20, 25, 26 governed deb
 
 Playwright stability at closure: rollback **5/5** · T508 suite **3/3** · Stage-B+T508 **2/2** · final **21/21 PASS**.
 
-**SPEC-010 Phase 5:** **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** · Phase 6 **NOT_AUTHORIZED** · next **`SPEC010_PHASE6_READINESS_REVIEW`**
+**SPEC-010 Phase 5:** **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** · Phase 6 **PRE_REMOVAL_GATES_COMPLETE** · next **`SPEC010_T603_SUBSET_REMOVAL_AUTHORIZATION_REVIEW`**
+
+### Phase-6 pre-removal gates (T-010-601…602)
+
+Evidence: `t-010-phase6-pre-removal-gates.md` · `t-010-phase6-a1-a44-reconciliation.md`
+
+| Task | Verdict |
+|------|---------|
+| T-010-601 | **COMPLETE** — 44/44 criteria reconciled; T603 inventory recorded; **0** false PASS promotions |
+| T-010-602 | **COMPLETE** — `REGRESSION_GATE_PASS`; **A44 remains PENDING** (formal CODE_COMPLETE gate) |
+| T-010-603 | **NOT_AUTHORIZED** |
+| T-010-604 | **NOT_AUTHORIZED** |
+
+**T603 manifest:** 5 future subset candidates (wave-2 leaves) · 12+ blocked · **FULL LEGACY DELETION READY = NO**
 
 ### Phase-3 acceptance movement (T-010-301…306)
 

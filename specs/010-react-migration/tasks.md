@@ -647,14 +647,18 @@ the original scripts · `npm run check` **1679/1679** · rules **91/91** · buil
 
 ---
 
-## Phase 6 — Final acceptance / legacy removal / CODE_COMPLETE (§24 step 7) — NOT AUTHORIZED
+## Phase 6 — Final acceptance / legacy removal / CODE_COMPLETE (§24 step 7) — PRE_REMOVAL_GATES_COMPLETE
 
 | ID | Title | Class | Depends on | Acceptance | Status |
 |----|-------|-------|-----------|------------|--------|
-| **T-010-601** | Run full acceptance matrix A1–A44 | TECHNICAL | Phase 5 | A1–A44 | **[ ] TODO** |
-| **T-010-602** | Full check + rules regression | TECHNICAL | T-010-601 | A44 | **[ ] TODO** |
-| **T-010-603** | Remove legacy implementations that passed the parity gate | TECHNICAL | T-010-601, T-010-602 | A43 | **[ ] TODO** |
-| **T-010-604** | **Human CODE_COMPLETE approval** | **HUMAN** | T-010-601…603 | CODE_COMPLETE gate | **[ ] TODO** |
+| **T-010-601** | Run full acceptance matrix A1–A44 | TECHNICAL | Phase 5 | A1–A44 | **[x] DONE** |
+| **T-010-602** | Full check + rules regression | TECHNICAL | T-010-601 | A44 | **[x] DONE** (`REGRESSION_GATE_PASS`; A44 formal **PENDING**) |
+| **T-010-603** | Remove legacy implementations that passed the parity gate | TECHNICAL | T-010-601, T-010-602 | A43 | **[ ] TODO · NOT AUTHORIZED** |
+| **T-010-604** | **Human CODE_COMPLETE approval** | **HUMAN** | T-010-601…603 | CODE_COMPLETE gate | **[ ] TODO · NOT AUTHORIZED** |
+
+**Evidence:** `t-010-phase6-pre-removal-gates.md` · `t-010-phase6-a1-a44-reconciliation.md` · A1–A44 **8/33/0/3** · T602 **1965/1965 · 91/91 · BUILD · 73/73 · 21/21** · product changes **0** · legacy deletions **0**
+
+**Exit:** Phase 6 pre-removal gates **COMPLETE** · T-603/T-604 **NOT AUTHORIZED** · next **`SPEC010_T603_SUBSET_REMOVAL_AUTHORIZATION_REVIEW`**
 
 **Required human CODE_COMPLETE statement (T-010-604) — future:**
 
@@ -684,7 +688,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 3 | T-010-301…306 | 6 | NOT AUTHORIZED |
 | 4 | T-010-401…405 | 5 | **FORMALLY_ACCEPTED** |
 | 5 | T-010-501…510 | 10 | **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** |
-| 6 | T-010-601…604 | 4 | NOT AUTHORIZED |
+| 6 | T-010-601…604 | 4 | **PRE_REMOVAL_GATES_COMPLETE** (T-601/T-602 DONE · T-603/T-604 NOT AUTHORIZED) |
 | Deploy | D1–D3 | 3 | NOT_STARTED |
 
 **Total formal tasks:** 55 (52 implementation + 3 deployment)
