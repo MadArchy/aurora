@@ -541,8 +541,8 @@ Per-row debt metadata (owner resolution does not change `CU?`):
 | 17 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Delivery package assembly |
 | 18 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-003/004/006/007 via adapter | **YES** | COMPLETE | REQUIRED | `SendDeliveryPackage` orchestration |
 | 19 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Acknowledge delivery |
-| 20 | Signal Intake | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | **YES** | LEGACY_ISLAND | REQUIRED | `DiscardSignal` · Wave A1 **CANONICALIZED** |
-| 21 | **COMPOSITE** Execution Delivery + Signal Intake | SPLIT_AUTHORITY | — | NO | LEGACY_ISLAND | REQUIRED | Composed canonical intent · **#21b DEFERRED** |
+| 20 | Signal Intake | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | **YES** | LEGACY_ISLAND | REQUIRED | `DiscardSignal` · Wave A1 **CANONICALIZED_AND_FROZEN** |
+| 21 | **COMPOSITE** Execution Delivery + Signal Intake | SPLIT_AUTHORITY | — | **NO** | LEGACY_ISLAND | REQUIRED | **#21a DEFERRED** · **#21b CANONICALIZED_AND_FROZEN** (Wave A2) · row `CU?` stays NO until #21a migrates |
 | 22 | Signal Intake (recommendation only) | OWNER_RESOLVED | SPEC-001 routing | PARTIAL | LEGACY_ISLAND · PHASE6_REMOVE_LATER | PARTIAL | Retire or replace recommendation store |
 | 23 | POST_MVP_PRESENTATION_STATE | POST_MVP | — | NO | POST_MVP | NOT_REQUIRED | None required |
 | 25 | Signal Intake | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Source status / run record |
@@ -555,10 +555,13 @@ Per-row debt metadata (owner resolution does not change `CU?`):
 
 **#21 — split authority (do not collapse):**
 
-| Mutation | Owner |
-|---|---|
-| `addToCuration(...)` | Execution Delivery Application |
-| `decideSignal(..., SAVED)` | Signal Intake Application |
+| Mutation | Owner | Wave A2 status |
+|---|---|---|
+| `addToCuration(...)` | Execution Delivery Application | **DEFERRED** (#21a) |
+| `MarkSignalSaved` / `decideSignal(..., SAVED)` | Signal Intake Application | **CANONICALIZED_AND_FROZEN** (#21b) |
+
+Composite handler `.btn-send-to-curation` remains **partial legacy** until #21a migrates.
+Do **not** set registry row #21 `CU? = YES` while split persists.
 
 **#30 — verified flag:** legacy UI `verified: true` = **NONAUTHORITATIVE_LEGACY_METADATA**.
 Formal SPEC-006 Verification / `AuthorizePublication` authority **0**. Compatibility
