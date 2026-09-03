@@ -83,7 +83,7 @@ satisfy claim verification. Compatibility advisory consumers
 | ID | Capability | Owner state |
 |----|------------|-------------|
 | 9 | Source poll / scheduled ingest → signals | OWNER_RESOLVED_EXISTING |
-| 20 | Manager signal discard triage | OWNER_RESOLVED_BY_CURRENT_EVIDENCE |
+| 20 | Manager signal discard triage | OWNER_RESOLVED_BY_CURRENT_EVIDENCE · **CANONICALIZED Wave A1** |
 | 22 | Legacy `addRecommendation` persistence | OWNER_RESOLVED (compatibility advisory) |
 | 25 | Source pause / resume / archive / probe runs | OWNER_RESOLVED_EXISTING |
 

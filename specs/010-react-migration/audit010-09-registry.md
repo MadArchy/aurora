@@ -66,7 +66,7 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 17 | `ClientWorkspace` deliver | Assemble briefing | `dbService.ensureDraftDelivery`, `addDeliveryItem`, `attachCurationToDelivery`, `removeDeliveryItem`, `updateDelivery`, `discardDraftDelivery` | delivery package | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
 | 18 | `ClientWorkspace` deliver | Send to client | `sendDeliveryPackage` → Application `SendDeliveryPackage` | delivery + notification | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** · `SendDeliveryPackage` · Stage B blocker **COMPLETE** | 4 |
 | 19 | `ClientPortal` home | Mark briefing read | `dbService.acknowledgeDelivery` | delivery acknowledgement | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
-| 20 | `ClientWorkspace` radar | Discard signal | `dbService.decideSignal` | signal decision | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Signal Intake Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
+| 20 | `ClientWorkspace` radar | Discard signal | `discardSignal` → Application `DiscardSignal` (persistence: `dbService.decideSignal` via adapter) | signal decision | **YES** | `DISPLAY_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** · `DiscardSignal` | 4 |
 | 21 | `ClientWorkspace` radar | Add to delivery | `dbService.addToCuration`, `decideSignal` | curation entry | **NO** | `DISPLAY_ONLY_REACT` | **COMPOSITE — Execution Delivery + Signal Intake (split)** · see § noncutover | 4 |
 | 22 | `ClientWorkspace` radar | Score signal | canonical routing use case, then `dbService.addRecommendation` | recommendation | **PARTIAL** | `DISPLAY_ONLY_REACT` | **CR-1 Signal Intake Application** (recommendation persist only) · SPEC-001 routing · `PHASE6_REMOVE_LATER_CANDIDATE` | 4 |
 | 23 | `ClientWorkspace` radar | Pin / unpin topic | `dbService.toggleTopicPin` | topic pin | **NO** | `DISPLAY_ONLY_REACT` | **POST_MVP_PRESENTATION_STATE** · no Application owner | 4 |
@@ -541,8 +541,8 @@ Per-row debt metadata (owner resolution does not change `CU?`):
 | 17 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Delivery package assembly |
 | 18 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-003/004/006/007 via adapter | **YES** | COMPLETE | REQUIRED | `SendDeliveryPackage` orchestration |
 | 19 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Acknowledge delivery |
-| 20 | Signal Intake | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Discard signal |
-| 21 | **COMPOSITE** Execution Delivery + Signal Intake | SPLIT_AUTHORITY | — | NO | LEGACY_ISLAND | REQUIRED | Composed canonical intent |
+| 20 | Signal Intake | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | **YES** | LEGACY_ISLAND | REQUIRED | `DiscardSignal` · Wave A1 **CANONICALIZED** |
+| 21 | **COMPOSITE** Execution Delivery + Signal Intake | SPLIT_AUTHORITY | — | NO | LEGACY_ISLAND | REQUIRED | Composed canonical intent · **#21b DEFERRED** |
 | 22 | Signal Intake (recommendation only) | OWNER_RESOLVED | SPEC-001 routing | PARTIAL | LEGACY_ISLAND · PHASE6_REMOVE_LATER | PARTIAL | Retire or replace recommendation store |
 | 23 | POST_MVP_PRESENTATION_STATE | POST_MVP | — | NO | POST_MVP | NOT_REQUIRED | None required |
 | 25 | Signal Intake | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Source status / run record |
