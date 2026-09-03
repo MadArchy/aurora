@@ -180,7 +180,7 @@ describe('AUDIT010-11 — no positional/first-client authority', () => {
   });
 
   it('the controller no longer resolves a client by array position', () => {
-    const source = readFileSync(resolve(__dirname, '../src/main.ts'), 'utf8');
+    const source = readFileSync(resolve(__dirname, '../src/ui/legacy/LegacyApp.ts'), 'utf8');
     const resolver = source.slice(
       source.indexOf('private resolveClientId('),
       source.indexOf('private displayClientId('),
@@ -189,7 +189,7 @@ describe('AUDIT010-11 — no positional/first-client authority', () => {
   });
 
   it('the display default is separate, and is the only positional pick left in code', () => {
-    const source = code(readFileSync(resolve(__dirname, '../src/main.ts'), 'utf8'));
+    const source = code(readFileSync(resolve(__dirname, '../src/ui/legacy/LegacyApp.ts'), 'utf8'));
     const occurrences = source.match(/getClients\(\)\[0\]/g) || [];
     expect(occurrences).toHaveLength(1);
 
@@ -203,7 +203,7 @@ describe('AUDIT010-11 — no positional/first-client authority', () => {
   it('a client session without a trusted clientId renders no portal at all', () => {
     // Previously this fell through to getClients()[0], rendering another
     // tenant's portal to a client whose session carried no clientId.
-    const source = code(readFileSync(resolve(__dirname, '../src/main.ts'), 'utf8'));
+    const source = code(readFileSync(resolve(__dirname, '../src/ui/legacy/LegacyApp.ts'), 'utf8'));
     const view = source.slice(
       source.indexOf('private renderMainView('),
       source.indexOf('const clientId = this.currentClientId();'),
@@ -214,13 +214,13 @@ describe('AUDIT010-11 — no positional/first-client authority', () => {
   });
 
   it('the ingest scheduler will not pick a tenant by position', () => {
-    const source = code(readFileSync(resolve(__dirname, '../src/main.ts'), 'utf8'));
+    const source = code(readFileSync(resolve(__dirname, '../src/controllers/sourceAutomationScheduler.ts'), 'utf8'));
     const tick = source.slice(
-      source.indexOf('private async tickScheduledIngest('),
+      source.indexOf('async tickScheduledIngest('),
       source.indexOf('const due = sourcesDueForIngest('),
     );
     expect(tick).not.toMatch(/getClients\(\)\[0\]/);
-    expect(tick).toMatch(/this\.requireTenant\(/);
+    expect(tick).toMatch(/requireTenant\(/);
     expect(tick).toMatch(/if \(!grant\.ok\) return;/);
   });
 });
@@ -267,7 +267,7 @@ describe('AUDIT010-10 — the gate holds no authority of its own', () => {
 });
 
 describe('AUDIT010-10 — every remediated effect path gates before the effect', () => {
-  const source = readFileSync(resolve(__dirname, '../src/main.ts'), 'utf8');
+  const source = readLegacyControllerSurface();
   const lines = source.split(/\r?\n/);
 
   const EFFECTS = [
@@ -282,7 +282,7 @@ describe('AUDIT010-10 — every remediated effect path gates before the effect',
   /** Nearest preceding gate, searching back to the start of the handler. */
   function gatedBefore(effectLine: number): boolean {
     for (let i = effectLine; i >= Math.max(0, effectLine - 40); i -= 1) {
-      if (/this\.require(Tenant|Admin)\(/.test(lines[i])) return true;
+      if (/(?:this|host)\.require(Tenant|Admin)\(/.test(lines[i])) return true;
     }
     return false;
   }
@@ -312,7 +312,7 @@ describe('AUDIT010-10 — every remediated effect path gates before the effect',
   });
 
   it('keeps the tenant gate as the only tenant decision in the remediated paths', () => {
-    const gateCalls = (source.match(/this\.require(Tenant|Admin)\(/g) || []).length;
+    const gateCalls = (source.match(/(?:this|host)\.require(Tenant|Admin)\(/g) || []).length;
     expect(gateCalls).toBeGreaterThanOrEqual(8);
   });
 

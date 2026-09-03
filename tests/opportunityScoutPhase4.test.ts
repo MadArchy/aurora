@@ -433,7 +433,7 @@ describe('SPEC-007 Phase 4 — lifecycle consumer (T-007-404)', () => {
 
 describe('SPEC-007 Phase 4 — source scans (T-007-401/403/406/407)', () => {
   it('main.ts delegates delivery materialization to Execution Delivery adapter', () => {
-    const main = readFileSync(join(ROOT, 'src/main.ts'), 'utf8')
+    const main = readLegacyControllerSurface()
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/.*$/gm, '');
     const deliverySend = readFileSync(

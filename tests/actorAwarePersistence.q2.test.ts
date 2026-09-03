@@ -102,7 +102,7 @@ describe('SPEC-009 Phase 2 — actor-aware persistence (A21)', () => {
 
 /** Production write-path modules that must not hardcode tenant ids. */
 const A22_WRITE_PATH_GLOBS = [
-  'src/main.ts',
+  'src/ui/legacy/LegacyApp.ts',
   'src/services/topicAgent.ts',
   'src/services/researchSignalsAgent.ts',
   'src/services/notifications.ts',

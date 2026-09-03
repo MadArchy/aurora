@@ -184,7 +184,7 @@ describe('Stage B #18 SendDeliveryPackage', () => {
   });
 
   it('main.ts delegates sendDelivery to executionDeliveryConsumer', () => {
-    const source = readFileSync(resolve('src/main.ts'), 'utf8');
+    const source = readLegacyControllerSurface();
     const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code).toMatch(/sendDeliveryPackage\s*\(/);
     expect(code).not.toMatch(/materializeOpportunityForDelivery\s*\(/);

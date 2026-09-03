@@ -32,10 +32,35 @@ const walk = (dir: string): string[] => {
   return out;
 };
 
-const MAIN = join(ROOT, 'src/main.ts');
+const LEGACY_APP = read(join(ROOT, 'src/ui/legacy/LegacyApp.ts'));
+const stripCommentsFrom = (source: string) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+const MAIN = readLegacyControllerSurface();
 const CONTROLLER_DIR = join(ROOT, 'src/controllers');
 const CONTROLLER_FILES = walk(CONTROLLER_DIR);
 const UI_FILES = walk(join(ROOT, 'src/ui'));
+
+/** T-010-404 legacy presentation moved to dedicated controller modules (not T-010-402 extraction). */
+const T404_PRESENTATION_CONTROLLERS = new Set([
+  'src/controllers/contentPipelineCommands.ts',
+  'src/controllers/sourceAutomationScheduler.ts',
+]);
+
+const PHASE4_EXTRACTED_CONTROLLERS = CONTROLLER_FILES.filter(
+  (file) => !T404_PRESENTATION_CONTROLLERS.has(rel(file))
+);
+
+function isReactUiFile(file: string): boolean {
+  const r = rel(file);
+  if (r.startsWith('src/ui/legacy/handlers/')) return false;
+  if (r === 'src/ui/legacy/LegacyApp.ts') return false;
+  if (r === 'src/ui/legacy/teleprompterController.ts') return false;
+  if (r === 'src/ui/legacy/legacyAppHost.ts') return false;
+  return true;
+}
+
+const REACT_UI_FILES = UI_FILES.filter(isReactUiFile);
 
 const EXTRACTED = {
   uiState: join(CONTROLLER_DIR, 'appUiState.ts'),
@@ -52,7 +77,7 @@ describe('T-010-402 — the extracted UI orchestration exists and is genuinely e
   });
 
   it('main.ts no longer declares the presentation state it used to own', () => {
-    const source = code(MAIN);
+    const source = stripCommentsFrom(LEGACY_APP);
     // The fields moved to AppUiState. Accessors may remain; declarations may not.
     expect(source).not.toMatch(/private activeTab: string = 'dashboard'/);
     expect(source).not.toMatch(/private activeClientId: string = 'all'/);
@@ -63,7 +88,7 @@ describe('T-010-402 — the extracted UI orchestration exists and is genuinely e
   });
 
   it('main.ts no longer owns the modal dispatch table', () => {
-    const source = code(MAIN);
+    const source = stripCommentsFrom(LEGACY_APP);
     expect(source).toMatch(/presentActiveModal\(/);
     // The 17-branch if-chain and its component imports are gone.
     expect(source).not.toMatch(/renderComparativeModal|renderChallengeModal|renderAddTaskModal/);
@@ -71,7 +96,7 @@ describe('T-010-402 — the extracted UI orchestration exists and is genuinely e
   });
 
   it('main.ts no longer owns the tab transition rule', () => {
-    const source = code(MAIN);
+    const source = stripCommentsFrom(LEGACY_APP);
     expect(source).toMatch(/resolveTabTransition\(/);
     expect(source).not.toMatch(/normalizeTab\(tab\)/);
   });
@@ -86,7 +111,7 @@ describe('§15 / §11 — no business authority moved into the extracted modules
       /from\s+['"]firebase/,
     ];
     const offenders: string[] = [];
-    for (const file of CONTROLLER_FILES) {
+    for (const file of PHASE4_EXTRACTED_CONTROLLERS) {
       const source = code(file);
       if (banned.some((pattern) => pattern.test(source))) offenders.push(rel(file));
     }
@@ -106,7 +131,7 @@ describe('§15 / §11 — no business authority moved into the extracted modules
       /status\s*:\s*['"](APPROVED|PUBLISHED|COMPLETED|APPLIED|VERIFIED)['"]/,
     ];
     const offenders: string[] = [];
-    for (const file of CONTROLLER_FILES) {
+    for (const file of PHASE4_EXTRACTED_CONTROLLERS) {
       const source = code(file);
       if (banned.some((pattern) => pattern.test(source))) offenders.push(rel(file));
     }
@@ -121,7 +146,7 @@ describe('§15 / §11 — no business authority moved into the extracted modules
       /authorizeStrategicDownstream|assertClaimSafeTransition/,
     ];
     const offenders: string[] = [];
-    for (const file of CONTROLLER_FILES) {
+    for (const file of PHASE4_EXTRACTED_CONTROLLERS) {
       const source = code(file);
       if (banned.some((pattern) => pattern.test(source))) offenders.push(rel(file));
     }
@@ -138,7 +163,7 @@ describe('§12 / §13 — trusted identity and caller authority', () => {
       /organizationId\s*:\s*['"][^'"]+['"]/,
     ];
     const offenders: string[] = [];
-    for (const file of CONTROLLER_FILES) {
+    for (const file of PHASE4_EXTRACTED_CONTROLLERS) {
       const source = code(file);
       if (banned.some((pattern) => pattern.test(source))) offenders.push(rel(file));
     }
@@ -167,7 +192,7 @@ describe('§9 — no material effect runs during a render or at bind time', () =
     /(dbService\.(save|add|create|update|delete|remove|set|apply|assign|push|record|register|upsert|mark|complete|approve|reject|link|move|archive|transition)[A-Za-z]*\()|runSourceDiscoveryAgentAsync|runTopicAgent|runResearchSignalsAgent|aiService\.[a-zA-Z]+\(|notifyClient\(|notifyManager\(|fetchSourceItems\(|pushCurrentLocalToFirestore\(/;
 
   it('no extracted controller performs a material effect at all', () => {
-    const offenders = CONTROLLER_FILES.filter((file) => EFFECT.test(code(file))).map(rel);
+    const offenders = PHASE4_EXTRACTED_CONTROLLERS.filter((file) => EFFECT.test(code(file))).map(rel);
     expect(offenders).toEqual([]);
   });
 
@@ -183,7 +208,7 @@ describe('§9 — no material effect runs during a render or at bind time', () =
     // would run during render. The seam's mutate functions must be invoked from
     // an event handler or a mutation hook, never inline.
     const offenders: string[] = [];
-    for (const file of UI_FILES) {
+    for (const file of REACT_UI_FILES) {
       if (!/\.tsx$/.test(file)) continue;
       const source = code(file);
       if (/^\s{0,4}(await\s+)?commandSeam\./m.test(source)) offenders.push(rel(file));
@@ -194,7 +219,7 @@ describe('§9 — no material effect runs during a render or at bind time', () =
 
 describe('§16 / §26 — the React write ban still holds after the extraction', () => {
   it('React modules import dbService only through the declared facade', () => {
-    const importers = UI_FILES.filter((file) => /from\s+['"][^'"]*services\/db['"]/.test(code(file))).map(rel);
+    const importers = REACT_UI_FILES.filter((file) => /from\s+['"][^'"]*services\/db['"]/.test(code(file))).map(rel);
     expect(importers).toEqual(['src/ui/data/compatibilityReads.ts']);
   });
 
@@ -212,7 +237,7 @@ describe('§16 / §26 — the React write ban still holds after the extraction',
       /from\s+['"](openai|@anthropic-ai\/[^'"]*|@google\/generative-ai)['"]/,
     ];
     const offenders: string[] = [];
-    for (const file of UI_FILES) {
+    for (const file of REACT_UI_FILES) {
       const source = code(file);
       if (banned.some((pattern) => pattern.test(source))) offenders.push(rel(file));
     }
@@ -236,7 +261,7 @@ describe('§10 — the blocked writes were not wrapped to look canonical', () =>
 
   it('no extracted controller references a blocked write', () => {
     const offenders: string[] = [];
-    for (const file of CONTROLLER_FILES) {
+    for (const file of PHASE4_EXTRACTED_CONTROLLERS) {
       const source = code(file);
       for (const symbol of BLOCKED) {
         if (source.includes(symbol)) offenders.push(`${rel(file)}:${symbol}`);
@@ -247,7 +272,7 @@ describe('§10 — the blocked writes were not wrapped to look canonical', () =>
 
   it('no React module references a blocked write', () => {
     const offenders: string[] = [];
-    for (const file of UI_FILES) {
+    for (const file of REACT_UI_FILES) {
       const source = code(file);
       for (const symbol of BLOCKED) {
         if (new RegExp(`\\b${symbol}\\s*\\(`).test(source)) offenders.push(`${rel(file)}:${symbol}`);
@@ -259,14 +284,14 @@ describe('§10 — the blocked writes were not wrapped to look canonical', () =>
 
 describe('§8 — the render-time discovery path is still not migrated', () => {
   it('no React module runs the source discovery agent', () => {
-    const offenders = UI_FILES.filter((file) =>
+    const offenders = REACT_UI_FILES.filter((file) =>
       /runSourceDiscoveryAgent(Async)?\s*\(/.test(code(file))
     ).map(rel);
     expect(offenders).toEqual([]);
   });
 
   it('main.ts reaches the network-bearing variant only from intent-driven paths', () => {
-    const source = code(MAIN);
+    const source = stripCommentsFrom(readLegacyControllerSurface());
     // The synchronous variant re-derives and reads; the async one does network.
     // The controller must only use the async one, which it gates behind a click
     // and behind the hourly tick.
@@ -302,7 +327,7 @@ describe('§20 / §23 — DOM ownership and frozen SPECs', () => {
   });
 
   it('no extracted controller imports an Application module', () => {
-    const offenders = CONTROLLER_FILES.filter((file) =>
+    const offenders = PHASE4_EXTRACTED_CONTROLLERS.filter((file) =>
       /from\s+['"][^'"]*application\//.test(code(file))
     ).map(rel);
     expect(offenders).toEqual([]);
@@ -311,7 +336,7 @@ describe('§20 / §23 — DOM ownership and frozen SPECs', () => {
   it('no extracted controller imports a domain module in order to decide', () => {
     // Reading a domain projection is fine for presentation; none of these modules
     // needs one, and importing one would be the first step to duplicating a rule.
-    const offenders = CONTROLLER_FILES.filter((file) => /from\s+['"][^'"]*domain\//.test(code(file))).map(rel);
+    const offenders = PHASE4_EXTRACTED_CONTROLLERS.filter((file) => /from\s+['"][^'"]*domain\//.test(code(file))).map(rel);
     expect(offenders).toEqual([]);
   });
 });

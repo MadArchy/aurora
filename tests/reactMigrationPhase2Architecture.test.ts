@@ -41,6 +41,18 @@ const MODULE_FILES = collectFiles(MODULES_ROOT);
 const HOOK_FILES = collectFiles(join(UI_ROOT, 'hooks'));
 
 const rel = (file: string) => relative(ROOT, file).replace(/\\/g, '/');
+
+/** T-010-404 legacy presentation modules under src/ui/legacy are not React UI. */
+function isReactUiFile(file: string): boolean {
+  const r = rel(file);
+  if (r.startsWith('src/ui/legacy/handlers/')) return false;
+  if (r === 'src/ui/legacy/LegacyApp.ts') return false;
+  if (r === 'src/ui/legacy/teleprompterController.ts') return false;
+  if (r === 'src/ui/legacy/legacyAppHost.ts') return false;
+  return true;
+}
+
+const REACT_UI_FILES = UI_FILES.filter(isReactUiFile);
 const read = (file: string) => readFileSync(file, 'utf8');
 
 /** Code with comments stripped: a boundary violation is a property of code, not prose. */
@@ -101,7 +113,7 @@ describe('T-010-01 / A8 — no wave-2 component reaches dbService', () => {
   });
 
   it('the compatibility facade remains the only dbService importer in src/ui', () => {
-    const importers = UI_FILES.filter((file) =>
+    const importers = REACT_UI_FILES.filter((file) =>
       /from\s+['"][^'"]*services\/db['"]/.test(code(file))
     ).map(rel);
     expect(importers).toEqual([COMPATIBILITY_FACADE]);
@@ -132,7 +144,7 @@ describe('AUDIT010-09 / §7 — no legacy business write is wrapped in React', (
 
   it('no blocked mutator is called anywhere in the React layer', () => {
     const offenders: string[] = [];
-    for (const file of UI_FILES) {
+    for (const file of REACT_UI_FILES) {
       const source = code(file);
       for (const mutator of BLOCKED_MUTATORS) {
         if (new RegExp(`\\b${mutator}\\s*\\(`).test(source)) {

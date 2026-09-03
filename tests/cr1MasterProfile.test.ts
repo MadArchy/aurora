@@ -344,7 +344,7 @@ describe('CR-1 Master Profile architecture / adoption', () => {
   });
 
   it('main.ts adopts masterProfileConsumer for #10', () => {
-    const source = readFileSync(resolve('src/main.ts'), 'utf8');
+    const source = readLegacyControllerSurface();
     const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code).toMatch(/applyOnboardingStep\s*\(/);
     expect(code).not.toMatch(/dbService\.applyOnboardingStep\s*\(/);

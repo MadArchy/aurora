@@ -25,7 +25,7 @@ const APP_PLAN = join(SRC, 'application/strategicPlan');
 const INFRA_PLAN = join(SRC, 'infrastructure/strategicPlan');
 const COMPOSE = join(SRC, 'composition/strategicPlan');
 const CONSUMER = join(SRC, 'services/strategicPlanConsumer.ts');
-const MAIN = join(SRC, 'main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 const DELIVERY_SEND = join(SRC, 'infrastructure/executionDelivery/DbDeliverySendAdapter.ts');
 const COMPONENTS = join(SRC, 'components');
 
@@ -144,7 +144,7 @@ describe('SPEC-004 Phase 5 — security architecture bans (T-004-501)', () => {
   });
 
   it('main.ts has zero UI/status-alone Plan authority and zero [0] planner picks', () => {
-    const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const main = stripComments(LEGACY_SURFACE);
     const deliverySend = stripComments(readFileSync(DELIVERY_SEND, 'utf8'));
     expect(main).toMatch(/requirePlannedAuthorization/);
     expect(deliverySend).toMatch(/assertCurationNotPlanAuthority/);
@@ -165,7 +165,7 @@ describe('SPEC-004 Phase 5 — security architecture bans (T-004-501)', () => {
   });
 
   it('direct consumer persistence authority = 0 (consumers use composition)', () => {
-    const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const main = stripComments(LEGACY_SURFACE);
     expect(main).not.toMatch(/LocalStrategicPlanRepository|createLocalStrategicPlanStore/);
     const consumer = readFileSync(CONSUMER, 'utf8');
     // Consumer may own the store privately for composition — must still route through useCases.
@@ -188,7 +188,7 @@ describe('SPEC-004 Phase 5 — security architecture bans (T-004-501)', () => {
   });
 
   it('legacy strategic fallback inventory = 0 in main gate', () => {
-    const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const main = stripComments(LEGACY_SURFACE);
     expect(main).toMatch(/gateStrategicDownstream/);
     // No CurationEntry.status === APPROVED as strategic allow.
     expect(main).not.toMatch(
@@ -221,7 +221,7 @@ describe('SPEC-004 Phase 5 — security architecture bans (T-004-501)', () => {
       const content = readFileSync(file, 'utf8');
       expect(content).not.toMatch(/AuthorizePublication|VerifyClaim|markClaimVerified/);
     }
-    const main = readFileSync(MAIN, 'utf8');
+    const main = LEGACY_SURFACE;
     expect(main).toMatch(/saveContentWithClaimGate|authorizeContentPublicationGate/);
     const gate = readFileSync(
       join(SRC, 'composition/claimEvidence/contentClaimPublicationGate.ts'),
@@ -236,13 +236,16 @@ describe('SPEC-004 Phase 5 — security architecture bans (T-004-501)', () => {
       ...collectTsFiles(APP_PLAN),
       ...collectTsFiles(INFRA_PLAN),
       CONSUMER,
-      MAIN,
     ];
     for (const file of files) {
       const body = stripComments(readFileSync(file, 'utf8'));
       for (const pattern of FIRST_PRIMARY) {
         expect(body).not.toContain(pattern);
       }
+    }
+    const legacyBody = stripComments(LEGACY_SURFACE);
+    for (const pattern of FIRST_PRIMARY) {
+      expect(legacyBody).not.toContain(pattern);
     }
   });
 

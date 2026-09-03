@@ -40,6 +40,18 @@ const UI_FILES = collectFiles(UI_ROOT);
 const PAGE_FILES = collectFiles(PAGES_ROOT);
 
 const rel = (file: string) => relative(ROOT, file).replace(/\\/g, '/');
+
+/** T-010-404 legacy presentation modules under src/ui/legacy are not React UI. */
+function isReactUiFile(file: string): boolean {
+  const r = rel(file);
+  if (r.startsWith('src/ui/legacy/handlers/')) return false;
+  if (r === 'src/ui/legacy/LegacyApp.ts') return false;
+  if (r === 'src/ui/legacy/teleprompterController.ts') return false;
+  if (r === 'src/ui/legacy/legacyAppHost.ts') return false;
+  return true;
+}
+
+const REACT_UI_FILES = UI_FILES.filter(isReactUiFile);
 const read = (file: string) => readFileSync(file, 'utf8');
 
 /** Code with comments stripped: a boundary violation is a property of code, not prose. */
@@ -92,7 +104,7 @@ describe('T-010-01 / A8 — no wave-3 page reaches dbService', () => {
   });
 
   it('the compatibility facade remains the only dbService importer in src/ui', () => {
-    const importers = UI_FILES.filter((file) =>
+    const importers = REACT_UI_FILES.filter((file) =>
       /from\s+['"][^'"]*services\/db['"]/.test(code(file))
     ).map(rel);
     expect(importers).toEqual([COMPATIBILITY_FACADE]);
@@ -166,7 +178,7 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
 
   it('no blocked mutator is referenced anywhere in the React layer', () => {
     const offenders: string[] = [];
-    for (const file of UI_FILES) {
+    for (const file of REACT_UI_FILES) {
       const source = code(file);
       for (const mutator of BLOCKED_MUTATORS) {
         if (new RegExp(`\\b${mutator}\\s*\\(`).test(source)) {
@@ -313,7 +325,7 @@ describe('§20 — EFFECT_FIRST legacy paths are not migrated', () => {
       /pollSources/,
     ];
     const offenders: string[] = [];
-    for (const file of UI_FILES) {
+    for (const file of REACT_UI_FILES) {
       const source = code(file);
       if (banned.some((pattern) => pattern.test(source))) offenders.push(rel(file));
     }
@@ -321,7 +333,7 @@ describe('§20 — EFFECT_FIRST legacy paths are not migrated', () => {
   });
 
   it('no React module probes the AI gateway during render', () => {
-    const offenders = UI_FILES.filter((file) =>
+    const offenders = REACT_UI_FILES.filter((file) =>
       /isServerGatewayAvailable/.test(code(file))
     ).map(rel);
     expect(offenders).toEqual([]);
@@ -406,7 +418,7 @@ describe('§19 — main.ts is not rewritten in Phase 3', () => {
   // the Phase-4 suite for the extraction itself.
 
   it('main.ts does not import a wave-3 page — the seam is unchanged', () => {
-    const source = code(join(ROOT, 'src/main.ts'));
+    const source = code(join(ROOT, 'src/ui/legacy/LegacyApp.ts'));
     expect(source).not.toMatch(/modules\/pages/);
   });
 });

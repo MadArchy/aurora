@@ -676,7 +676,7 @@ describe('CR-1 Execution Delivery architecture', () => {
   });
 
   it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {
-    const source = readFileSync(resolve('src/main.ts'), 'utf8');
+    const source = readLegacyControllerSurface();
     const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code).toMatch(/sendDeliveryPackage\s*\(/);
     expect(code).toMatch(/transitionClientTask\s*\(/);
@@ -685,8 +685,8 @@ describe('CR-1 Execution Delivery architecture', () => {
   });
 
   it('teleprompter completes via TransitionClientTask — no direct updateTaskStatus', () => {
-    const source = readFileSync(resolve('src/main.ts'), 'utf8');
-    const submitIdx = source.indexOf('private async submitClientVideo');
+    const source = readFileSync(resolve(process.cwd(), 'src/ui/legacy/teleprompterController.ts'), 'utf8');
+    const submitIdx = source.indexOf('async submitClientVideo');
     expect(submitIdx).toBeGreaterThan(-1);
     const nextMethod = source.indexOf('\n  private ', submitIdx + 10);
     const block = source.slice(submitIdx, nextMethod === -1 ? undefined : nextMethod);

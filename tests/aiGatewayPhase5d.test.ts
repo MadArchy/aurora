@@ -106,7 +106,7 @@ describe('SPEC-005 Phase 5D — negative security / legacy removed', () => {
 
   it('Manager session-key UI controls removed', () => {
     const cockpit = readFileSync(join(SRC_ROOT, 'components/ManagerCockpit.ts'), 'utf8');
-    const main = readFileSync(join(SRC_ROOT, 'main.ts'), 'utf8');
+    const main = readLegacyControllerSurface();
     expect(cockpit).not.toMatch(/openai-key-input|claude-key-input|btn-save-ai-keys|ai-provider-select/);
     expect(main).not.toMatch(/btn-save-ai-keys|setSessionKeys|clearSessionKeys/);
   });

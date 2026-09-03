@@ -447,7 +447,7 @@ describe('CR-1 Thesis Lifecycle architecture', () => {
   });
 
   it('main.ts adopts thesisLifecycleConsumer for #11/#12/#13', () => {
-    const source = readFileSync(resolve('src/main.ts'), 'utf8');
+    const source = readLegacyControllerSurface();
     const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code).toMatch(/saveThesis\s*\(/);
     expect(code).toMatch(/activateThesis\s*\(/);

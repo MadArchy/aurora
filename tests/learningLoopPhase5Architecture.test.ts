@@ -158,7 +158,7 @@ describe('T-008-510 — layer purity', () => {
   });
 
   it('main.ts reaches the Learning Loop only through the consumer facade', () => {
-    const main = read(join(ROOT, 'src/main.ts'));
+    const main = readLegacyControllerSurface();
     for (const specifier of extractImportSpecifiers(main)) {
       expect(specifier).not.toMatch(/infrastructure\/learningLoop/);
       expect(specifier).not.toMatch(/application\/learningLoop/);
@@ -222,7 +222,7 @@ describe('T-008-09 — feedbackScoringHints has zero strategic authority', () =>
   it('scoring/routing context builders contain no hints and no learning imports', () => {
     const paths = [
       'src/infrastructure/strategicSignalRouting/DbStrategicSignalRoutingAdapter.ts',
-      'src/main.ts',
+      'src/ui/legacy/LegacyApp.ts',
     ];
     for (const path of paths) {
       const body = stripComments(read(join(ROOT, path)));
@@ -262,7 +262,7 @@ describe('T-008-10 / T-008-23 — learning never triggers scoring or routing', (
   });
 
   it('the outcome handler in main.ts contains no rescore loop or hard-coded actor', () => {
-    const main = read(join(ROOT, 'src/main.ts'));
+    const main = readLegacyControllerSurface();
     const start = main.indexOf("document.querySelectorAll('.btn-signal-outcome')");
     expect(start).toBeGreaterThan(-1);
     const end = main.indexOf("document.querySelectorAll('.btn-send-to-curation')", start);

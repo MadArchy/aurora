@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = process.cwd();
-const MAIN = join(ROOT, 'src/main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 const AI = join(ROOT, 'src/services/ai.ts');
 const GATE = join(ROOT, 'src/domain/claimSafetyGateCore.ts');
 const COMPOSITION = join(ROOT, 'src/composition/claimEvidence');
@@ -43,20 +43,20 @@ function extractImports(content: string): string[] {
 
 describe('SPEC-006 Phase 4 — consumer architecture (T-006-407)', () => {
   it('main.ts publication paths call authorizeContentPublicationGate', () => {
-    const content = readFileSync(MAIN, 'utf8');
+    const content = LEGACY_SURFACE;
     expect(content).toContain('authorizeContentPublicationGate');
     expect(content).toContain('saveContentWithClaimGate');
     expect(content).toContain('canonical:');
   });
 
   it('main.ts does not treat claimSafety.verdict === PASS as publication authority', () => {
-    const withoutComments = stripComments(readFileSync(MAIN, 'utf8'));
+    const withoutComments = stripComments(LEGACY_SURFACE);
     expect(withoutComments).not.toMatch(/claimSafety\.verdict\s*===\s*['"]PASS['"]/);
     expect(withoutComments).not.toMatch(/claimSafety\.verdict\s*===\s*['"]BLOCK['"]/);
   });
 
   it('main.ts does not read canonical postura_claim_* store keys', () => {
-    const content = readFileSync(MAIN, 'utf8');
+    const content = LEGACY_SURFACE;
     expect(content).not.toContain('postura_claim_v1');
     expect(content).not.toContain('postura_claim_verification_v1');
     expect(content).not.toContain('postura_claim_history_v1');
@@ -108,7 +108,7 @@ describe('SPEC-006 Phase 4 — consumer architecture (T-006-407)', () => {
   });
 
   it('first/index Claim authority absent from main gate path', () => {
-    const withoutComments = stripComments(readFileSync(MAIN, 'utf8'));
+    const withoutComments = stripComments(LEGACY_SURFACE);
     const gateRegion = withoutComments.slice(
       withoutComments.indexOf('authorizeContentPublicationGate'),
       withoutComments.indexOf('authorizeContentPublicationGate') + 2500

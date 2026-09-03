@@ -1,4 +1,12 @@
 import { beforeEach, vi } from 'vitest';
+import { readLegacyControllerSurface as readLegacyControllerSurfaceImpl } from './lib/legacyControllerSurface';
+
+declare global {
+  // eslint-disable-next-line no-var
+  var readLegacyControllerSurface: typeof readLegacyControllerSurfaceImpl;
+}
+
+globalThis.readLegacyControllerSurface = readLegacyControllerSurfaceImpl;
 
 class LocalStorageMock {
   private store = new Map<string, string>();

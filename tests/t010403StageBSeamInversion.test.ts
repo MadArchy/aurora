@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { readLegacyControllerSurface } from './lib/legacyControllerSurface';
+
 const ROOT = join(import.meta.dirname, '..');
 
 function read(rel: string): string {
@@ -18,9 +20,9 @@ describe('T-010-403 — Stage-B shell ownership', () => {
     expect(toggle).toMatch(/DEFAULT_UI_MODE: UiMode = 'react'/);
   });
 
-  it('main.ts does not render the legacy global shell while React owns presentation', () => {
-    const main = read('src/main.ts');
-    expect(main).toMatch(
+  it('LegacyApp does not render the legacy global shell while React owns presentation', () => {
+    const legacy = read('src/ui/legacy/LegacyApp.ts');
+    expect(legacy).toMatch(
       /if \(this\.isReactShellOwner\(\)\) \{\s*\n\s*if \(this\.islandHostEl\) this\.renderIsland\(\);\s*\n\s*return;\s*\n\s*\}/
     );
   });
@@ -41,9 +43,9 @@ describe('T-010-403 — Stage-B shell ownership', () => {
   });
 
   it('legacy navigation publishes intents instead of owning shell state in React mode', () => {
-    const main = read('src/main.ts');
-    expect(main).toMatch(/publishShellNavigation/);
-    expect(main).toMatch(/if \(this\.isReactShellOwner\(\)\)/);
+    const legacy = read('src/ui/legacy/LegacyApp.ts');
+    expect(legacy).toMatch(/publishShellNavigation/);
+    expect(legacy).toMatch(/if \(this\.isReactShellOwner\(\)\)/);
   });
 });
 
@@ -67,16 +69,16 @@ describe('T-010-403 — rollback and single global shell', () => {
 
 describe('T-010-403 — canonical path preservation', () => {
   it('#9 ingest remains consumer-owned', () => {
-    const main = read('src/main.ts');
-    expect(main).toMatch(/pollRegisteredSource/);
-    expect(main).toMatch(/pollAllActiveSources/);
-    expect(main).not.toMatch(/async function pollRegisteredSource/);
+    const surface = readLegacyControllerSurface();
+    expect(surface).toMatch(/pollRegisteredSource/);
+    expect(surface).toMatch(/pollAllActiveSources/);
+    expect(surface).not.toMatch(/async function pollRegisteredSource/);
   });
 
   it('#18 send remains consumer-owned', () => {
-    const main = read('src/main.ts');
-    expect(main).toMatch(/sendDeliveryPackage/);
-    expect(main).not.toMatch(/async function sendDeliveryPackage/);
+    const surface = readLegacyControllerSurface();
+    expect(surface).toMatch(/sendDeliveryPackage/);
+    expect(surface).not.toMatch(/async function sendDeliveryPackage/);
   });
 
   it('React shell has no business authority imports', () => {

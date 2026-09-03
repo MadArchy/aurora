@@ -33,7 +33,7 @@ const APP = join(ROOT, 'src/application/opportunityScout');
 const INFRA = join(ROOT, 'src/infrastructure/opportunityScout');
 const COMPOSE = join(ROOT, 'src/composition/opportunityScout');
 const CONSUMER = join(ROOT, 'src/services/opportunityScoutConsumer.ts');
-const MAIN = join(ROOT, 'src/main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 const DELIVERY_SEND = join(ROOT, 'src/infrastructure/executionDelivery/DbDeliverySendAdapter.ts');
 const PANEL = join(ROOT, 'src/components/OpportunityPanel.ts');
 const PORTAL = join(ROOT, 'src/components/ClientPortal.ts');
@@ -121,7 +121,7 @@ describe('T-007-501 — architecture bans (Domain / UI / [0] thesis)', () => {
 
 describe('T-007-506 — legacy db bypass inventory = 0 on strategic paths', () => {
   it('main.ts strategic Opportunity path does not call authoritative dbService mutators', () => {
-    const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const main = stripComments(LEGACY_SURFACE);
     const deliverySend = stripComments(readFileSync(DELIVERY_SEND, 'utf8'));
     expect(deliverySend).toMatch(/materializeOpportunityForDelivery/);
     expect(main).toMatch(/sendDeliveryPackage/);
@@ -287,7 +287,7 @@ describe('T-007-12 / authority search — AUTHORITY_BYPASS = 0 on SPEC-007 paths
         class: 'CANONICAL',
       },
       {
-        file: 'src/main.ts',
+        file: 'src/controllers/contentPipelineCommands.ts',
         pattern: /sendDeliveryPackage/,
         class: 'CANONICAL',
       },
@@ -321,7 +321,7 @@ describe('T-007-12 / authority search — AUTHORITY_BYPASS = 0 on SPEC-007 paths
     }
 
     // Active path: no dbService.addOpportunity as authority
-    const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const main = stripComments(LEGACY_SURFACE);
     if (/dbService\.addOpportunity\s*\(/.test(main)) {
       bypasses.push('main.ts:addOpportunity');
     }

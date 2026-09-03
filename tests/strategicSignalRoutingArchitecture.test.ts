@@ -53,9 +53,9 @@ describe('SPEC-001 Phase 2 — application hexagonal + central fallback ban', ()
   });
 
   it('central scoreSignal path does not use getPrimaryThesis or candidates[0]', () => {
-    const main = readFileSync(join(ROOT, 'src/main.ts'), 'utf8');
+    const main = readLegacyControllerSurface();
     const scoreFn = main.match(
-      /private scoreSignal\([\s\S]*?\n {2}private bindRadar/
+      /function scoreSignal\([\s\S]*?\n(?:export )?function bindRadarHandlers/
     )?.[0];
     expect(scoreFn).toBeTruthy();
     expect(scoreFn!).toMatch(/scoreAndRouteSignal/);

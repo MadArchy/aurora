@@ -197,7 +197,7 @@ describe('SPEC-002 Phase 4 — consumer migration', () => {
       const content = readFileSync(file, 'utf8');
       if (content.split('\n').some((line) => assignLine.test(line))) hits.push(rel);
     }
-    const main = readFileSync(join(ROOT, 'src/main.ts'), 'utf8');
+    const main = readLegacyControllerSurface();
     if (main.split('\n').some((line) => assignLine.test(line) && !line.includes('filterState'))) {
       hits.push('main.ts');
     }

@@ -58,7 +58,7 @@ const STRATEGIC_MODULES = [
   'src/services/researchSignalsAgent.ts',
   'src/components/ClientWorkspace.ts',
   'src/components/SourceRegistryModal.ts',
-  'src/main.ts',
+  'src/ui/legacy/LegacyApp.ts',
 ];
 
 describe('SPEC-001 Phase 4 — routed thesis consumers', () => {

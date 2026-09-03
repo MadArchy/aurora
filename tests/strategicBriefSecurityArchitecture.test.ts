@@ -18,7 +18,7 @@ const APP_BRIEF = join(SRC, 'application/strategicBrief');
 const INFRA_BRIEF = join(SRC, 'infrastructure/strategicBrief');
 const COMPOSITION = join(SRC, 'composition/strategicBrief');
 const CONSUMER = join(SRC, 'services/strategicBriefConsumer.ts');
-const MAIN = join(SRC, 'main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 const ADVISOR = join(SRC, 'services/advisor.ts');
 
 function collectTsFiles(dir: string): string[] {
@@ -142,7 +142,7 @@ describe('SPEC-003 Phase 5 — security architecture bans (T-003-501)', () => {
   });
 
   it('strategic consumer authorization bypass via brief.status alone = 0', () => {
-    const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const main = stripComments(LEGACY_SURFACE);
     // Display/filter of APPROVED is allowed; sole-authority before generateContentDraft is not.
     expect(main).not.toMatch(
       /brief\.status\s*===\s*['"]APPROVED['"]\s*&&[\s\S]{0,200}generateContentDraft/
@@ -159,7 +159,7 @@ describe('SPEC-003 Phase 5 — security architecture bans (T-003-501)', () => {
   });
 
   it('direct write inventory — strategic ungated executable paths = 0', () => {
-    const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const main = stripComments(LEGACY_SURFACE);
     // Strategic AI generation sites must sit after gate helpers in source order proximity checks
     // via known handler patterns requiring gateStrategicDownstream.
     const strategicHandlers = [

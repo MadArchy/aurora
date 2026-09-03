@@ -7,7 +7,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = process.cwd();
-const MAIN = join(ROOT, 'src/main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 const DELIVERY_SEND = join(ROOT, 'src/infrastructure/executionDelivery/DbDeliverySendAdapter.ts');
 const COMPONENTS = join(ROOT, 'src/components');
 const CONSUMER = join(ROOT, 'src/services/opportunityScoutConsumer.ts');
@@ -56,7 +56,7 @@ describe('SPEC-007 Phase 4 — consumer architecture (T-007-407)', () => {
   });
 
   it('main.ts does not open canonical opportunity store keys', () => {
-    const main = readFileSync(MAIN, 'utf8');
+    const main = LEGACY_SURFACE;
     const deliverySend = readFileSync(DELIVERY_SEND, 'utf8');
     expect(main).not.toMatch(/postura_opportunity_|LocalOpportunityScoutStore/);
     expect(deliverySend).toMatch(/materializeOpportunityForDelivery/);
@@ -99,7 +99,7 @@ describe('SPEC-007 Phase 4 — consumer architecture (T-007-407)', () => {
   });
 
   it('active SPEC-007 consumer paths have zero id-only getOpportunityById authority', () => {
-    const main = readFileSync(MAIN, 'utf8')
+    const main = LEGACY_SURFACE
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/.*$/gm, '');
     expect(main).not.toMatch(/getOpportunityById\s*\(/);

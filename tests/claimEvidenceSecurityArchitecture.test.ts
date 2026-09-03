@@ -13,7 +13,7 @@ const APP_CLAIM = join(SRC, 'application/claimEvidence');
 const INFRA_CLAIM = join(SRC, 'infrastructure/claimEvidence');
 const COMPOSITION = join(SRC, 'composition/claimEvidence');
 const COMPONENTS = join(SRC, 'components');
-const MAIN = join(SRC, 'main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 const AI = join(SRC, 'services/ai.ts');
 
 const CLAIM_DOMAIN_FILES = [
@@ -128,7 +128,7 @@ describe('SPEC-006 Phase 5 — security architecture (T-006-501)', () => {
   });
 
   it('main.ts does not implement alternate claim truth or direct store keys', () => {
-    const content = readFileSync(MAIN, 'utf8');
+    const content = LEGACY_SURFACE;
     const without = stripComments(content);
     expect(content).toContain('authorizeContentPublicationGate');
     expect(without).not.toMatch(/claimSafety\.verdict\s*===\s*['"]PASS['"]/);
@@ -277,7 +277,7 @@ describe('SPEC-006 Phase 5 — cross-SPEC freeze / advisory (T-006-507…509)', 
 describe('SPEC-006 Phase 5 — UI/display legacy uses are non-authoritative (T-006-09/10)', () => {
   it('UI claimSafety.verdict checks are display/filter only (not publication gate)', () => {
     // Publication authority is exclusively authorizeContentPublicationGate in main.
-    const main = stripComments(readFileSync(MAIN, 'utf8'));
+    const main = stripComments(LEGACY_SURFACE);
     expect(main).toContain('authorizeContentPublicationGate');
     expect(main).not.toMatch(/claimSafety\.verdict\s*===\s*['"]PASS['"]/);
 

@@ -7,7 +7,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = process.cwd();
-const MAIN = join(ROOT, 'src/main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 const DELIVERY_SEND = join(ROOT, 'src/infrastructure/executionDelivery/DbDeliverySendAdapter.ts');
 const COMPONENTS = join(ROOT, 'src/components');
 const CONSUMER = join(ROOT, 'src/services/strategicPlanConsumer.ts');
@@ -29,7 +29,7 @@ function collectTsFiles(dir: string): string[] {
 
 describe('SPEC-004 Phase 4 — consumer architecture (T-004-407)', () => {
   it('main.ts uses requirePlannedAuthorization and demotes CurationEntry via delivery adapter', () => {
-    const main = readFileSync(MAIN, 'utf8');
+    const main = LEGACY_SURFACE;
     const deliverySend = readFileSync(DELIVERY_SEND, 'utf8');
     expect(main).toMatch(/requirePlannedAuthorization/);
     expect(deliverySend).toMatch(/assertCurationNotPlanAuthority/);
@@ -41,7 +41,7 @@ describe('SPEC-004 Phase 4 — consumer architecture (T-004-407)', () => {
   });
 
   it('main.ts has zero approved[0] / briefs[0] / plans[0] planner authority', () => {
-    const main = readFileSync(MAIN, 'utf8')
+    const main = LEGACY_SURFACE
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/.*$/gm, '');
     expect(main).not.toMatch(/approved\s*\[\s*0\s*\]/);
@@ -67,7 +67,7 @@ describe('SPEC-004 Phase 4 — consumer architecture (T-004-407)', () => {
   });
 
   it('main.ts does not import LocalStrategicPlanStore for authority', () => {
-    const main = readFileSync(MAIN, 'utf8');
+    const main = LEGACY_SURFACE;
     expect(main).not.toMatch(/LocalStrategicPlanStore|postura_strategic_plan_/);
   });
 
@@ -92,7 +92,7 @@ describe('SPEC-004 Phase 4 — consumer architecture (T-004-407)', () => {
       'utf8'
     );
     expect(gate).toMatch(/authorizeContentPublicationGate|AuthorizePublication/);
-    const main = readFileSync(MAIN, 'utf8');
+    const main = LEGACY_SURFACE;
     expect(main).toMatch(/saveContentWithClaimGate|authorizeContentPublicationGate/);
   });
 

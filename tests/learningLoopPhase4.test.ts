@@ -167,7 +167,7 @@ describe('SPEC-008 Phase 4 — learning consumer (T-008-401/402/403)', () => {
 
 describe('SPEC-008 Phase 4 — P0 removal evidence (T-008-405/406)', () => {
   it('main.ts scoringContext does not invoke feedbackScoringHints', () => {
-    const main = readFileSync(join(ROOT, 'src/main.ts'), 'utf8');
+    const main = readLegacyControllerSurface();
     expect(main).not.toMatch(/feedbackScoringHints/);
     expect(main).not.toMatch(/recordSignalOutcome\s*\(/);
     expect(main).not.toMatch(/dbService\.addResult\s*\(/);
@@ -176,7 +176,7 @@ describe('SPEC-008 Phase 4 — P0 removal evidence (T-008-405/406)', () => {
   });
 
   it('post-outcome mass rescore loop removed from main.ts outcome handler', () => {
-    const main = readFileSync(join(ROOT, 'src/main.ts'), 'utf8');
+    const main = readLegacyControllerSurface();
     const start = main.indexOf("document.querySelectorAll('.btn-signal-outcome')");
     const end = main.indexOf("document.querySelectorAll('.btn-send-to-curation')");
     const outcomeBlock = main.slice(start, end);

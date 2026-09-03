@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = process.cwd();
-const MAIN = join(ROOT, 'src/main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 
 function stripComments(content: string): string {
   return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -11,7 +11,7 @@ function stripComments(content: string): string {
 
 describe('SPEC-003 Phase 4 — strategic consumer architecture', () => {
   it('main.ts strategic paths call gateStrategicDownstream with Plan+Brief mediation', () => {
-    const content = readFileSync(MAIN, 'utf8');
+    const content = LEGACY_SURFACE;
     expect(content).toContain('gateStrategicDownstream');
     expect(content).toContain('requirePlannedAuthorization');
     // Brief AuthorizeStrategicDownstream still invoked inside SPEC-004 Plan consumer.
@@ -24,7 +24,7 @@ describe('SPEC-003 Phase 4 — strategic consumer architecture', () => {
   });
 
   it('main.ts does not authorize strategic content via direct brief.status checks', () => {
-    const withoutComments = stripComments(readFileSync(MAIN, 'utf8'));
+    const withoutComments = stripComments(LEGACY_SURFACE);
     expect(withoutComments).not.toMatch(/brief\.status\s*===\s*['"]APPROVED['"]\s*&&\s*.*generateContentDraft/s);
   });
 

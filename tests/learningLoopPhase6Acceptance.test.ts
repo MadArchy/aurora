@@ -21,7 +21,7 @@ const CANONICAL_RUNTIME = [
 ];
 
 const ACCEPTANCE = 'specs/008-learning-loop/acceptance.md';
-const MAIN = 'src/main.ts';
+const MAIN = 'src/ui/legacy/LegacyApp.ts';
 
 /** Non-learning operations that legitimately own the residual `main.ts` fallbacks. */
 const NON_LEARNING_FALLBACK_OWNERS = [

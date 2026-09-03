@@ -408,7 +408,7 @@ describe('CR-1 Signal Intake architecture', () => {
   });
 
   it('main.ts adopts signalIntakeConsumer for #8/#24/#26/#9', () => {
-    const source = readFileSync(resolve('src/main.ts'), 'utf8');
+    const source = readLegacyControllerSurface();
     const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code).toMatch(/registerSource\s*\(/);
     expect(code).toMatch(/registerManualSignal\s*\(/);

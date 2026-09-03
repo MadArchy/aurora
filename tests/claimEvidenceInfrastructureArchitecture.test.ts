@@ -166,7 +166,7 @@ describe('SPEC-006 Phase 3 — claim evidence infrastructure architecture (T-006
   it('UI / main do not import SPEC-006 claimEvidence infrastructure', () => {
     const hits: string[] = [];
     const scanRoots = [
-      join(ROOT, 'src/main.ts'),
+      join(ROOT, 'src/ui/legacy/LegacyApp.ts'),
       ...UI_HINTS.flatMap((d) => collectTsFiles(d)),
     ];
     for (const file of scanRoots) {

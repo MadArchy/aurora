@@ -436,7 +436,7 @@ describe('CR-1 Client Lifecycle architecture / adoption', () => {
   });
 
   it('main.ts adopts canonical consumer for #34 and #1 (no direct db writes)', () => {
-    const source = readFileSync(resolve('src/main.ts'), 'utf8');
+    const source = readLegacyControllerSurface();
     const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code).toMatch(/createClientWithInvite\s*\(/);
     expect(code).toMatch(/acceptClientInvitation\s*\(/);

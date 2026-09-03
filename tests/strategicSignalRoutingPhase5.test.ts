@@ -42,7 +42,7 @@ const STRATEGIC_MODULES = [
   'src/services/researchSignalsAgent.ts',
   'src/components/ClientWorkspace.ts',
   'src/components/SourceRegistryModal.ts',
-  'src/main.ts',
+  'src/ui/legacy/LegacyApp.ts',
   'src/application/strategicSignalRouting',
   'src/domain/thesisRoutingCore.ts',
   'src/domain/routedThesisContext.ts',
@@ -766,7 +766,7 @@ describe('SPEC-001 Phase 5 — architecture / static security', () => {
   });
 
   it('main override UI uses OverrideSignalThesis + auth actor (no direct thesisId write)', () => {
-    const main = readFileSync(join(ROOT, 'src/main.ts'), 'utf8');
+    const main = readLegacyControllerSurface();
     const overrideBlock = main.match(
       /document\.querySelectorAll\('\[data-thesis-override\]'\)[\s\S]*?document\.querySelectorAll\('\.btn-challenge-thesis'\)/
     )?.[0];

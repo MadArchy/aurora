@@ -426,10 +426,10 @@ describe('SPEC-002 Phase 5 — security and governance hardening', () => {
 
   describe('unscored signal reachability', () => {
     it('main.ts exposes governed score paths for unscored signals', () => {
-      const main = readFileSync(join(ROOT, 'src/main.ts'), 'utf8');
+      const main = readLegacyControllerSurface();
       expect(main).toMatch(/btn-score-all-signals/);
       expect(main).toMatch(/relevanceScore === undefined/);
-      expect(main).toMatch(/this\.scoreSignal\(/);
+      expect(main).toMatch(/scoreSignal\(/);
       expect(main).toMatch(/scoreAndRouteSignal/);
     });
   });

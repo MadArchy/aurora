@@ -35,6 +35,18 @@ function collectFiles(dir: string): string[] {
 
 const UI_FILES = collectFiles(UI_ROOT);
 const rel = (file: string) => relative(ROOT, file).replace(/\\/g, '/');
+
+/** T-010-404 legacy presentation modules live under src/ui/legacy but are not React UI. */
+function isReactUiFile(file: string): boolean {
+  const r = rel(file);
+  if (r.startsWith('src/ui/legacy/handlers/')) return false;
+  if (r === 'src/ui/legacy/LegacyApp.ts') return false;
+  if (r === 'src/ui/legacy/teleprompterController.ts') return false;
+  if (r === 'src/ui/legacy/legacyAppHost.ts') return false;
+  return true;
+}
+
+const REACT_UI_FILES = UI_FILES.filter(isReactUiFile);
 const read = (file: string) => readFileSync(file, 'utf8');
 
 /**
@@ -57,7 +69,7 @@ describe('SPEC-010 wave-1 React layer exists and is scoped', () => {
   });
 
   it('every React UI file lives under src/ui', () => {
-    for (const file of UI_FILES) {
+    for (const file of REACT_UI_FILES) {
       expect(rel(file).startsWith('src/ui/')).toBe(true);
     }
   });
@@ -65,7 +77,7 @@ describe('SPEC-010 wave-1 React layer exists and is scoped', () => {
 
 describe('A8 / T-010-01 — React modules never import dbService directly', () => {
   it('only the declared compatibility facade imports dbService', () => {
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       if (rel(file) === COMPATIBILITY_FACADE) return false;
       return /from\s+['"][^'"]*services\/db['"]/.test(code(file));
     }).map(rel);
@@ -88,7 +100,7 @@ describe('A8 / T-010-01 — React modules never import dbService directly', () =
 
 describe('A32 / T-010-02 — React never imports a canonical store', () => {
   it('no React UI file imports a Local*Store or infrastructure store', () => {
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       const source = code(file);
       return (
         /from\s+['"][^'"]*infrastructure\//.test(source) ||
@@ -102,7 +114,7 @@ describe('A32 / T-010-02 — React never imports a canonical store', () => {
 
 describe('A33 / T-010-03 — React never imports Firestore', () => {
   it('no React UI file imports the Firebase/Firestore SDK', () => {
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       const source = code(file);
       return (
         /from\s+['"]firebase\//.test(source) ||
@@ -126,7 +138,7 @@ describe('A26 / T-010-04 — React never reaches an AI provider', () => {
       /generativelanguage\.googleapis\.com/,
     ];
 
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       const source = code(file);
       return forbidden.some((pattern) => pattern.test(source));
     }).map(rel);
@@ -159,7 +171,7 @@ describe('A34 / T-010-19 — no business authority inside the React layer', () =
       /feedbackScoringHints/,
     ];
 
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       const source = code(file);
       return forbidden.some((pattern) => pattern.test(source));
     }).map(rel);
@@ -177,7 +189,7 @@ describe('A16-A18 / T-010-09…11 — React cannot manufacture trusted identity'
       /\bisAdmin\s*[:=]\s*true\b/,
     ];
 
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       const source = code(file);
       return forbidden.some((pattern) => pattern.test(source));
     }).map(rel);
@@ -210,7 +222,7 @@ describe('A19 / T-010-08 — tenant-safe query keys', () => {
     // A tenant-owned key must come from `tenantQueryKey`. A literal array key is
     // only allowed as the disabled-query placeholder.
     const offenders: string[] = [];
-    for (const file of UI_FILES) {
+    for (const file of REACT_UI_FILES) {
       const source = code(file);
       const matches = source.match(/queryKey:\s*\[[^\]]*\]/g) ?? [];
       for (const match of matches) {
@@ -231,7 +243,7 @@ describe('A20 / T-010-15 — multi-thesis preserved in the React layer', () => {
       /\.sort\([^)]*\)\s*\[\s*0\s*\]/,
     ];
 
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       const source = code(file);
       return forbidden.some((pattern) => pattern.test(source));
     }).map(rel);
@@ -272,7 +284,7 @@ describe('T-010-24 — exclusive DOM ownership', () => {
   });
 
   it('no React UI file writes into the legacy container', () => {
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       const source = code(file);
       return /getElementById\(\s*['"]app['"]\s*\)/.test(source);
     }).map(rel);
@@ -322,7 +334,7 @@ describe('A10 / T-010-01 — the command seam is the only write path', () => {
       /deleteDoc\s*\(/,
     ];
 
-    const offenders = UI_FILES.filter((file) => {
+    const offenders = REACT_UI_FILES.filter((file) => {
       if (rel(file) === 'src/ui/strangler/toggle.ts') return false; // presentation preference only
       const source = code(file);
       return forbidden.some((pattern) => pattern.test(source));

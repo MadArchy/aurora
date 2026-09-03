@@ -151,8 +151,8 @@ describe('CR-2 — createBriefFromCurationEntry contract', () => {
     expect(source).not.toMatch(/entry:\s*CurationEntry/);
   });
 
-  it('main.ts production call site passes curationEntryId only', () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/main.ts'), 'utf8');
+  it('legacy production call site passes curationEntryId only', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/ui/legacy/handlers/curationHandlers.ts'), 'utf8');
     expect(source).toMatch(/createBriefFromCurationEntry\(\{\s*curationEntryId:\s*curationId/);
     expect(source).not.toMatch(/createBriefFromCurationEntry\(\{\s*entry,/);
   });

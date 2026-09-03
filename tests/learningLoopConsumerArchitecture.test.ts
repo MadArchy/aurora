@@ -7,7 +7,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = process.cwd();
-const MAIN = join(ROOT, 'src/main.ts');
+const LEGACY_SURFACE = readLegacyControllerSurface();
 const COMPONENTS = join(ROOT, 'src/components');
 const CONSUMER = join(ROOT, 'src/services/learningLoopConsumer.ts');
 const COMPOSE = join(ROOT, 'src/composition/learningLoop');
@@ -62,7 +62,7 @@ describe('SPEC-008 Phase 4 — consumer architecture', () => {
   });
 
   it('main.ts does not open canonical learning store keys or legacy authority writes', () => {
-    const main = readFileSync(MAIN, 'utf8');
+    const main = LEGACY_SURFACE;
     expect(main).not.toMatch(/postura_learning_|LocalLearningLoopStore/);
     expect(main).not.toMatch(/recordSignalOutcome\s*\(/);
     expect(main).not.toMatch(/dbService\.addResult\s*\(/);
