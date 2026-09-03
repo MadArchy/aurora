@@ -1,10 +1,20 @@
 # CR-1 Pre-T603 Wave A1 — #20 DiscardSignal
 
 **Class:** `OPERATIONAL_APPLICATION_CANONICALIZATION`  
-**Status:** `CANONICALIZED_AND_FROZEN`  
+**Status:** `FORMALLY_ACCEPTED` · `CANONICALIZED_AND_FROZEN`  
 **Authorized base checkpoint:** `2c099a94b0ef79f902b2e5a37a38c811c4ba0466`  
 **Wave scope:** **#20 only** — `#21b`, `#14`, and all other CR-1 IDs **NOT AUTHORIZED**  
 **Timezone:** America/Bogota
+
+---
+
+## Error-semantics remediation (Wave A1 closure)
+
+Primary `#20` caller preserves legacy **observable** missing-signal behavior via
+`handleRadarDiscardSignalClick` compatibility shim in `radarHandlers.ts` when
+Application returns typed `SignalIntakeError` code `SIGNAL_NOT_FOUND`.
+
+Application fail-closed contract **unchanged** (`DiscardSignal` still throws).
 
 ---
 
@@ -52,13 +62,13 @@ Caller org/client spoof → DENY. GATE_FIRST ordering enforced.
 
 | Gate | Result |
 |------|--------|
-| FULL CHECK | **1985/1985 PASS** |
+| FULL CHECK | **1988/1988 PASS** |
 | RULES | **91/91 PASS** |
 | BUILD | **PASS** |
 | PHASE5 FOCUSED | **73/73 PASS** |
 | PLAYWRIGHT | **21/21 PASS** (Stage-B 11 + T508 10) |
-| FOCUSED #20 | **15/15** (within `cr1SignalIntake.test.ts`) |
-| CR1 Signal Intake | **34/34 PASS** |
+| FOCUSED #20 | **18/18** (within `cr1SignalIntake.test.ts`) |
+| CR1 Signal Intake | **37/37 PASS** |
 | CR-3 attack suite | **17/17 PASS** |
 
 ---
@@ -69,7 +79,9 @@ Caller org/client spoof → DENY. GATE_FIRST ordering enforced.
 |------|-----|
 | Authorized start | `2c099a94b0ef79f902b2e5a37a38c811c4ba0466` |
 | Implementation | `c7377ff525a27fbaea44b1b42914d8b14bc012da` |
-| Governance tip | `58d607e8b9bca53cc181e124a28cd33b8a2accf0` |
+| Error-semantics remediation | `eccd91268acc329ba2669334b07ade7e6c07f762` |
+| Frozen content (#20 Wave A1) | `eccd91268acc329ba2669334b07ade7e6c07f762` |
+| Governance tip | *(filled at commit)* |
 
 ---
 
