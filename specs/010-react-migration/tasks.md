@@ -436,7 +436,7 @@ over, 5 HYBRID, 0 blocked · Phase 4 authorization **NO**
 
 ---
 
-## Phase 4 — Extract UI logic from services + `main.ts` strangler (§24 step 5) — PARTIAL
+## Phase 4 — Extract UI logic from services + `main.ts` strangler (§24 step 5) — FORMALLY_ACCEPTED
 
 | ID | Title | Class | Depends on | Acceptance | Status |
 |----|-------|-------|-----------|------------|--------|
@@ -587,7 +587,7 @@ four responsibilities that left are gone rather than relocated within it.
 | Tests | 28 architecture + 26 focused Vitest + 6 Playwright |
 | Governance | AUDIT010-07 closed as audit; AUDIT010-10/-11 opened; CR inventory (2 CRs); SPEC-003 signature analysis |
 
-**Exit:** Phase 4 **IMPLEMENTATION_COMPLETE_PENDING_PHASE4_CLOSURE_REVIEW** — T-010-401…405 **DONE** (T-403/T-404 formally accepted) · Phase 5 authorization **NO**
+**Exit:** Phase 4 **FORMALLY_ACCEPTED** — T-010-401…405 **DONE** (T-403/T-404 formally accepted) · A39 reconciled · dirty-tree hygiene **PASS** · formal closure record `t-010-phase4-formal-closure.md` · Phase 5 authorization **NO** · Phase 5 readiness **READY_FOR_AUTHORIZATION_REVIEW**
 
 ---
 
@@ -619,7 +619,7 @@ every case models a caller proposing a tenant it should not get) · re-audit by
 the original scripts · `npm run check` **1679/1679** · rules **91/91** · build
 **PASS** · Playwright **22/22**.
 
-**Exit:** Phase 4 remains **PARTIAL** · AUDIT010-10 **RESOLVED** · AUDIT010-11
+**Exit:** Phase 4 remains **FORMALLY_ACCEPTED** · AUDIT010-10 **RESOLVED** · AUDIT010-11
 **RESOLVED** · AUDIT010-12 **OPEN (P3)** · CR-1 **34, ownership PARTIAL** · CR-2
 **CHANGE_REQUIRED** · SPEC-001…008 modifications **0** · Phase 5 authorization
 **NO**
@@ -678,7 +678,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 1 | T-010-101…111 | 11 | NOT AUTHORIZED |
 | 2 | T-010-201…206 | 6 | NOT AUTHORIZED |
 | 3 | T-010-301…306 | 6 | NOT AUTHORIZED |
-| 4 | T-010-401…405 | 5 | 3 DONE · 2 BLOCKED_BY_PRECONDITION (CR-1) |
+| 4 | T-010-401…405 | 5 | **FORMALLY_ACCEPTED** |
 | 5 | T-010-501…510 | 10 | NOT AUTHORIZED |
 | 6 | T-010-601…604 | 4 | NOT AUTHORIZED |
 | Deploy | D1–D3 | 3 | NOT_STARTED |

@@ -4,8 +4,9 @@
 **Phase 1:** **COMPLETE** — React foundation, shell, strangler seams, query/command boundaries, E2E foundation
 **Phase 2:** **COMPLETE** — 9 bounded components, read seams, canonical commands
 **Phase 3:** **COMPLETE** — 5 pages migrated (all HYBRID), 34 blocked writes registered
-**Phase 4+:** **NOT AUTHORIZED**
-**A1-A44:** **7 PASS** · **34 PARTIAL** · **0 FAIL** · **3 PENDING** (Phase-4 exit)
+**Phase 4:** **FORMALLY_ACCEPTED** (T-010-401…405 · A39 reconciled · `t-010-phase4-formal-closure.md`)
+**Phase 5+:** **NOT AUTHORIZED**
+**A1-A44:** **8 PASS** · **33 PARTIAL** · **0 FAIL** · **3 PENDING** (Phase-4 exit)
 **CODE_COMPLETE:** **NO**
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 
@@ -76,7 +77,7 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | A36 | No dual read authority — one declared read source per module | 2–6 | ⚠️ PARTIAL | Each hook declares one source, and the source is part of the cache key |
 | A37 | Single auth/session authority; React Context projects only | 1–6 | ⚠️ PARTIAL | `ARCH`: projection is derived and setter-free. Adversarial proof T-010-506 |
 | A38 | No competing DOM/CSS ownership of a subtree | 1–6 | ✅ PASS | `ARCH` + `E2E`: sibling containers, exclusive owners, never both visible, no cross-nesting, CSS scoped to the two ids, clean unmount |
-| A39 | `main.ts` strangler — ceases to be a controller/event bus; shrinks per wave | 1–4 | ⚠️ PARTIAL | 5,138 → **5,041** lines; **4** responsibilities extracted (presentation state, toasts, modal dispatch, navigation rules); named component imports 28 → 11. Still a controller: 25 business-write methods and 158 handler sites remain. T-010-403/404 blocked on CR-1 |
+| A39 | `main.ts` strangler — ceases to be a controller/event bus; shrinks per wave | 1–4 | ✅ PASS | T-010-404: `main.ts` **15-line** bootstrap (4,473 → 15); **0** business imports, **0** shell authority, **0** navigation authority, **0** business orchestration. Feature wiring in **18** handler modules + presentation controllers; `LegacyApp.ts` (**639** lines) is a compatibility host only. `t010404MainBootstrapReduction.test.ts` **9/9**; Stage-B Playwright **11/11**. Deferred CR-1 writes remain in legacy handlers by design |
 | A40 | Component migration matrix complete — a row per UI file, dispositioned | 0 | ✅ PASS | `migration-matrix.md` (17 files) |
 | A41 | Behavioral parity proven per migrated module across all applicable dimensions | 5 | ⚠️ PARTIAL | Page-level evidence for 12 of 18 dimensions per migrated page; dimensions whose legacy command stays outside React are classified, not claimed. **0** modules cut over — cutover parity is Phase 5 |
 | A42 | E2E/parity harness (Playwright) implemented; legacy-vs-React journeys pass | 5 | ⚠️ PARTIAL | harness implemented, 5/5 foundation tests PASS. Full journey/parity suites T-010-508 |
@@ -91,7 +92,7 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | Phase 1 exit | 7 | 24 | 0 | 13 |
 | Phase 2 exit | 7 | 26 | 0 | 11 |
 | Phase 3 exit | 7 | 33 | 0 | 4 |
-| **Phase 4 exit** | **7** | **34** | **0** | **3** |
+| **Phase 4 exit** | **8** | **33** | **0** | **3** |
 
 ### Row/summary reconciliation (governance finding, documentation-only)
 
@@ -173,6 +174,28 @@ Criteria deliberately **not** advanced: everything about migration coverage
 (A21–A30, A39, A41, A43), because gating a legacy write does not migrate it.
 A39 in particular stays PARTIAL — `main.ts` grew by 89 lines, since fail-closed
 gates cost lines, and §17 forbids treating line count as acceptance either way.
+
+### Phase-4 formal closure (T-010-403, 404, hygiene + A39 reconciliation)
+
+`T404` = `tests/t010404MainBootstrapReduction.test.ts` (9/9) ·
+`E2E403` = `e2e/t010403-stage-b-seam.spec.ts` (11/11, Chrome channel) ·
+closure record = `t-010-phase4-formal-closure.md`.
+
+**One criterion advanced: A39, from PARTIAL to PASS.** T-010-404 reduced `main.ts`
+to a **15-line** bootstrap/composition entrypoint. Event wiring and legacy
+presentation moved to **18** feature-local handler modules plus presentation
+controllers; `LegacyApp.ts` (**639** lines) is a compatibility/coordination host,
+not a relocated monolith. The read-only Phase-4 closure review found a dirty
+working tree (30 paths); hygiene reconciliation proved **0** semantic deltas vs
+`6257877` (29 line-ending-only, 1 whitespace-only indent in `LegacyApp.ts`).
+
+| # | Was | Now | Why |
+|---|-----|-----|-----|
+| **A39** | ⚠️ PARTIAL | ✅ **PASS** | `main.ts` ceased to be a controller/event bus: **0** `addEventListener`, **0** `dbService`, **0** Consumer/Application/domain imports, **0** shell or navigation authority. Handler sites remain legacy by design (deferred CR-1), but they no longer live in `main.ts`. `T404` + `E2E403` prove bootstrap purity and Stage-B invariants |
+
+Criteria deliberately **not** advanced at closure: A21–A30, A41, A43, A44 (Phase 5–6 scope); **T-010-20** stays PARTIAL (display-only scoring in React — **NON_BLOCKER**).
+
+**SPEC-010 Phase 4:** **FORMALLY_ACCEPTED** · Phase 5 authorization **NO** · Phase 5 readiness **READY_FOR_AUTHORIZATION_REVIEW**
 
 ### Phase-3 acceptance movement (T-010-301…306)
 
