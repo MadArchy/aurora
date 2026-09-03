@@ -10,7 +10,7 @@
  * and this module does not read or write `location`/`history`. Adding a router
  * would create a second navigation authority during legacy/React coexistence.
  */
-import { isWorkspaceTab, normalizeTab } from '../components/PageHeader';
+import { isWorkspaceTab, normalizeTab } from '../ui/presentation/pageTabMeta';
 
 export type TabTransition =
   | { ok: true; tab: string }

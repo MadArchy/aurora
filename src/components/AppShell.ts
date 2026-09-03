@@ -6,7 +6,7 @@ import { mapOpportunityLifecycle } from '../domain/opportunityLifecycle';
 import { notificationService } from '../services/notifications';
 import { esc } from '../lib/escape';
 import { icon } from '../lib/icons';
-import { isWorkspaceTab, normalizeTab } from './PageHeader';
+import { isWorkspaceTab, normalizeTab } from '../ui/presentation/pageTabMeta';
 import { computeProfileCoverage } from '../domain/profileCoverage';
 
 type NavItem = { id: string; label: string; icon: string; badge?: number };

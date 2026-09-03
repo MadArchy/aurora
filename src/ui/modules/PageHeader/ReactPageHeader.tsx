@@ -7,14 +7,13 @@
  * Reads: NONE. Commands: NONE. There is no `dbService`, store, Firestore or
  * provider dependency, which is what makes this a wave-2 leaf.
  *
- * The tab metadata is imported from the legacy module rather than copied. Two
- * copies of the same titles would drift, and a drifting title is a parity defect
- * (parity dimension: rendered information). The imported module is presentation
- * data only — it holds no read, no command and no rule.
+ * Tab metadata lives in the shared presentation module (`pageTabMeta.ts`) so
+ * React and legacy renderers stay aligned without importing the legacy HTML
+ * renderer. The metadata holds no read, no command and no rule.
  */
 
 import type { ReactNode } from 'react';
-import { TAB_META } from '../../../components/PageHeader';
+import { TAB_META } from '../../presentation/pageTabMeta';
 
 export function ReactPageHeader({
   title,

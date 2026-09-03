@@ -10,7 +10,12 @@ import { renderClientWorkspace } from '../../components/ClientWorkspace';
 import { renderClientPortal } from '../../components/ClientPortal';
 import { renderLogin } from '../../components/Login';
 import { renderClaimSafetyPanel } from '../../components/ClaimSafetyPanel';
-import { PORTFOLIO_TAB_IDS, WORKSPACE_TAB_IDS, CLIENT_TAB_IDS, isWorkspaceTab } from '../../components/PageHeader';
+import {
+  PORTFOLIO_TAB_IDS,
+  WORKSPACE_TAB_IDS,
+  CLIENT_TAB_IDS,
+  isWorkspaceTab,
+} from '../presentation/pageTabMeta';
 import { CAMP_ADOPTION } from '../../data/juanCampaignSeed';
 import {
   gateStrategicDownstream as gateStrategicDownstreamCmd,

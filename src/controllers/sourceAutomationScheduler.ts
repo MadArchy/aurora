@@ -1,7 +1,7 @@
 import { authService } from '../services/auth';
 import { dbService } from '../services/db';
 import { auditService } from '../services/audit';
-import { isWorkspaceTab } from '../components/PageHeader';
+import { isWorkspaceTab } from '../ui/presentation/pageTabMeta';
 import type { Source } from '../types';
 import {
   loadLastAgentRun,

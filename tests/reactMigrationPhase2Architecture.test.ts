@@ -455,3 +455,54 @@ describe('§16 / §20 — DOM ownership and no main.ts big bang', () => {
     expect(main).toContain('initReactStrangler');
   });
 });
+
+describe('SPEC-010 Phase 6 — PageHeader shared presentation refactor', () => {
+  const SHARED_META = 'src/ui/presentation/pageTabMeta.ts';
+  const LEGACY_RENDERER = 'src/components/PageHeader.ts';
+  const REACT_HEADER = 'src/ui/modules/PageHeader/ReactPageHeader.tsx';
+
+  const sharedConsumers = [
+    'src/ui/modules/PageHeader/ReactPageHeader.tsx',
+    'src/components/AppShell.ts',
+    'src/ui/legacy/LegacyApp.ts',
+    'src/controllers/navigationController.ts',
+    'src/controllers/sourceAutomationScheduler.ts',
+    'src/components/ClientWorkspace.ts',
+  ];
+
+  it('the shared presentation module exists and the legacy renderer remains', () => {
+    expect(statSync(join(ROOT, SHARED_META)).isFile()).toBe(true);
+    expect(statSync(join(ROOT, LEGACY_RENDERER)).isFile()).toBe(true);
+  });
+
+  it('ReactPageHeader imports tab metadata from the shared module only', () => {
+    const source = read(join(ROOT, REACT_HEADER));
+    expect(source).toContain("from '../../presentation/pageTabMeta'");
+    expect(source).not.toMatch(/from\s+['"][^'"]*components\/PageHeader['"]/);
+  });
+
+  it('shared navigation consumers import metadata from the shared module', () => {
+    for (const path of sharedConsumers) {
+      const source = read(join(ROOT, path));
+      expect(source).toMatch(/from\s+['"][^'"]*presentation\/pageTabMeta['"]/);
+    }
+  });
+
+  it('legacy renderPage consumers may still import the legacy renderer', () => {
+    for (const path of [
+      'src/components/ClientPortal.ts',
+      'src/components/ManagerCockpit.ts',
+      'src/components/ClientWorkspace.ts',
+    ]) {
+      const source = read(join(ROOT, path));
+      expect(source).toMatch(/from\s+['"]\.\/PageHeader['"]/);
+    }
+  });
+
+  it('the shared module carries no business authority imports', () => {
+    const source = code(join(ROOT, SHARED_META));
+    expect(source).not.toMatch(/from\s+['"][^'"]*services\/db['"]/);
+    expect(source).not.toMatch(/from\s+['"][^'"]*services\//);
+    expect(source).not.toMatch(/dbService/);
+  });
+});

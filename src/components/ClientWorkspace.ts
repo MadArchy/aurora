@@ -26,7 +26,8 @@ import {
 import { computeThesisLearningMetrics, type ThesisLearningMetrics } from '../domain/thesisMetricsCore';
 import { icon } from '../lib/icons';
 import { deriveWorkStage, WORK_STAGE_BADGE, WORK_STAGE_LABELS } from '../domain/workPipeline';
-import { renderPage, normalizeTab } from './PageHeader';
+import { normalizeTab } from '../ui/presentation/pageTabMeta';
+import { renderPage } from './PageHeader';
 import { renderContentPipeline, renderScientificFocusPanel } from './ManagerCockpit';
 import { buildProfileKeywords, normalizeSourceUrl } from '../services/sourceDiscovery';
 import {

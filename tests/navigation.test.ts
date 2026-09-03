@@ -4,7 +4,7 @@ import {
   normalizeTab,
   PORTFOLIO_TABS,
   WORKSPACE_TABS,
-} from '../src/components/PageHeader';
+} from '../src/ui/presentation/pageTabMeta';
 
 describe('navigation information architecture', () => {
   it('keeps retired manager routes compatible with the consolidated workflow', () => {
