@@ -8,7 +8,7 @@ import { SignalIntakeError } from '../../../application/signalIntake';
 import { StrategicRoutingError } from '../../../application/strategicSignalRouting';
 import { runResearchSignalsAgent } from '../../../services/researchSignalsAgent';
 import { registerSignalOutcomeIntent } from '../../../services/learningLoopConsumer';
-import { discardSignal } from '../../../services/signalIntakeConsumer';
+import { discardSignal, markSignalSaved } from '../../../services/signalIntakeConsumer';
 import { metricsService } from '../../../services/metrics';
 import type { ScoringContext } from '../../../services/scoring';
 import type { CurationDestination, DeliveryItemKind } from '../../../types';
@@ -104,6 +104,59 @@ export function handleRadarDiscardSignalClick(host: RadarHandlerHost, signalId: 
     return;
   }
   host.showToast('Señal descartada', 'info');
+  host.refreshMain();
+}
+
+/**
+ * Primary #21 composite send-to-curation click — #21a legacy addToCuration then canonical #21b
+ * with legacy missing-signal presentation compatibility (Wave A2).
+ */
+export function handleSendToCurationClick(host: RadarHandlerHost, signalId: string): void {
+  if (!signalId) return;
+
+  const signal = dbService.getSignalById(signalId);
+  const clientId = host.resolveClientId(signal?.clientId);
+  if (!signal) return;
+
+  if (dbService.isSignalInCuration(clientId, signalId)) {
+    host.showToast('Esta señal ya está en la mesa de curación.', 'info');
+    return;
+  }
+
+  if (signal.relevanceScore === undefined) scoreSignal(host, signalId, clientId);
+  const scored = dbService.getSignalById(signalId);
+
+  dbService.addToCuration({
+    organizationId: signal.organizationId,
+    clientId,
+    signalId,
+    thesisId: scored?.thesisId || signal.thesisId,
+    title: signal.title,
+    sourceName: signal.sourceName,
+    sourceUrl: signal.sourceUrl,
+    snippet: signal.contentSnippet,
+    score: scored?.relevanceScore,
+    priorityBand: scored?.priorityBand,
+    suggestedAction: scored?.recommendedAction,
+    createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
+  });
+
+  try {
+    markSignalSaved({ requestedClientId: clientId, signalId });
+  } catch (error) {
+    if (error instanceof SignalIntakeError && error.code === 'SIGNAL_NOT_FOUND') {
+      // #21a already persisted — legacy composite continues to audit/toast/refresh.
+    } else {
+      host.showToast(
+        error instanceof Error ? error.message : 'No se pudo marcar la señal como guardada',
+        'warning'
+      );
+      return;
+    }
+  }
+
+  auditService.log(authService.getCurrentUser(), 'SIGNAL_TO_CURATION', 'Signal', signalId, { clientId });
+  host.showToast('Enviada a curación', 'success');
   host.refreshMain();
 }
 
@@ -283,38 +336,7 @@ export function bindRadarHandlers(host: RadarHandlerHost): void  {
     btn.addEventListener('click', (e) => {
       const signalId = (e.currentTarget as HTMLElement).getAttribute('data-signal-id');
       if (!signalId) return;
-
-      const signal = dbService.getSignalById(signalId);
-      const clientId = host.resolveClientId(signal?.clientId);
-      if (!signal) return;
-
-      if (dbService.isSignalInCuration(clientId, signalId)) {
-        host.showToast('Esta señal ya está en la mesa de curación.', 'info');
-        return;
-      }
-
-      if (signal.relevanceScore === undefined) scoreSignal(host, signalId, clientId);
-      const scored = dbService.getSignalById(signalId);
-
-      dbService.addToCuration({
-        organizationId: signal.organizationId,
-        clientId,
-        signalId,
-        thesisId: scored?.thesisId || signal.thesisId,
-        title: signal.title,
-        sourceName: signal.sourceName,
-        sourceUrl: signal.sourceUrl,
-        snippet: signal.contentSnippet,
-        score: scored?.relevanceScore,
-        priorityBand: scored?.priorityBand,
-        suggestedAction: scored?.recommendedAction,
-        createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
-      });
-
-      dbService.decideSignal(signalId, 'SAVED');
-      auditService.log(authService.getCurrentUser(), 'SIGNAL_TO_CURATION', 'Signal', signalId, { clientId });
-      host.showToast('Enviada a curación', 'success');
-      host.refreshMain();
+      handleSendToCurationClick(host, signalId);
     });
   });
 }

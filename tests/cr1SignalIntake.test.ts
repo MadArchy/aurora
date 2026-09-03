@@ -27,6 +27,7 @@ vi.hoisted(() => {
 import {
   SignalIntakeError,
   createDiscardSignal,
+  createMarkSignalSaved,
   createRegisterManualSignal,
   createRegisterSource,
   type SignalIntakePort,
@@ -36,6 +37,7 @@ import {
 import type { Signal, Source, User } from '../src/types';
 import {
   discardSignal,
+  markSignalSaved,
   registerSource,
   resetSignalIntakeConsumerForTest,
 } from '../src/services/signalIntakeConsumer';
@@ -44,7 +46,7 @@ import { composeSignalIntake } from '../src/composition/signalIntake/composeSign
 import { authService } from '../src/services/auth';
 import { auditService } from '../src/services/audit';
 import { dbService } from '../src/services/db';
-import { handleRadarDiscardSignalClick } from '../src/ui/legacy/handlers/radarHandlers';
+import { handleRadarDiscardSignalClick, handleSendToCurationClick } from '../src/ui/legacy/handlers/radarHandlers';
 import type { RadarHandlerHost } from '../src/ui/legacy/legacyAppHost';
 
 function adminTrusted(
@@ -799,16 +801,384 @@ describe('CR-1 Wave A1 #20 — radar discard missing-signal compatibility', () =
   });
 });
 
+describe('CR-1 Signal Intake — MarkSignalSaved (#21b)', () => {
+  it('ADMIN marks existing signal SAVED without changing status or discardReason', () => {
+    const { repo, store } = memorySignals();
+    store.push(
+      seedSignal({
+        id: 'sig_saved_1',
+        status: 'NEW',
+        discardReason: undefined,
+        managerDecision: 'UNREVIEWED',
+      })
+    );
+    const markSaved = createMarkSignalSaved({ signals: repo });
+    const result = markSaved({ trusted: adminTrusted(), signalId: 'sig_saved_1' });
+    expect(result.signal.managerDecision).toBe('SAVED');
+    expect(result.signal.status).toBe('NEW');
+    expect(result.signal.discardReason).toBeUndefined();
+    expect(store[0].managerDecision).toBe('SAVED');
+    expect(store[0].status).toBe('NEW');
+  });
+
+  it('authoritative reload rejects stale caller tenant claims', () => {
+    const { repo, store } = memorySignals();
+    store.push(seedSignal({ id: 'sig_stale_saved', clientId: 'client_trust' }));
+    const markSaved = createMarkSignalSaved({ signals: repo });
+    expect(() =>
+      markSaved({
+        trusted: adminTrusted({ clientId: 'client_evil' }),
+        signalId: 'sig_stale_saved',
+      })
+    ).toThrow(/client entitlement/i);
+    expect(store[0].managerDecision).toBe('UNREVIEWED');
+  });
+
+  it('missing signal fails safely without persist', () => {
+    const calls: string[] = [];
+    const repo: SignalIntakePort = {
+      ...memorySignals().repo,
+      getById(id) {
+        calls.push(`get:${id}`);
+        return undefined;
+      },
+      decideManagerOutcome() {
+        calls.push('decide');
+        throw new Error('should not persist');
+      },
+    };
+    const markSaved = createMarkSignalSaved({ signals: repo });
+    expect(() => markSaved({ trusted: adminTrusted(), signalId: 'sig_missing' })).toThrow(
+      /not found/i
+    );
+    expect(calls).toEqual(['get:sig_missing']);
+  });
+
+  it('ATTACK: CLIENT role denied', () => {
+    const { repo, store } = memorySignals();
+    store.push(seedSignal({ id: 'sig_role_saved' }));
+    const markSaved = createMarkSignalSaved({ signals: repo });
+    expect(() =>
+      markSaved({ trusted: adminTrusted({ actorRole: 'CLIENT' }), signalId: 'sig_role_saved' })
+    ).toThrow(/ADMIN/);
+    expect(store[0].managerDecision).toBe('UNREVIEWED');
+  });
+
+  it('ATTACK: cross-tenant organization denied', () => {
+    const { repo, store } = memorySignals();
+    store.push(seedSignal({ id: 'sig_org_saved', organizationId: 'org_other' }));
+    const markSaved = createMarkSignalSaved({ signals: repo });
+    expect(() => markSaved({ trusted: adminTrusted(), signalId: 'sig_org_saved' })).toThrow(
+      /organization/i
+    );
+    expect(store[0].managerDecision).toBe('UNREVIEWED');
+  });
+
+  it('already-SAVED repeat preserves legacy persistence semantics', () => {
+    const calls: string[] = [];
+    const { repo, store } = memorySignals();
+    store.push(
+      seedSignal({ id: 'sig_repeat_saved', managerDecision: 'SAVED', status: 'NEW' })
+    );
+    const markSaved = createMarkSignalSaved({
+      signals: {
+        ...repo,
+        decideManagerOutcome(args) {
+          calls.push('decide');
+          return repo.decideManagerOutcome(args);
+        },
+      },
+    });
+    markSaved({ trusted: adminTrusted(), signalId: 'sig_repeat_saved' });
+    expect(calls).toEqual(['decide']);
+    expect(store[0].managerDecision).toBe('SAVED');
+  });
+
+  it('GATE_FIRST: unauthorized role denied before signal reload', () => {
+    const calls: string[] = [];
+    const repo: SignalIntakePort = {
+      add: memorySignals().repo.add,
+      getById() {
+        calls.push('getById');
+        return seedSignal({ id: 'sig_gate_saved' });
+      },
+      decideManagerOutcome() {
+        calls.push('decideManagerOutcome');
+        throw new Error('should not persist');
+      },
+    };
+    const markSaved = createMarkSignalSaved({ signals: repo });
+    expect(() =>
+      markSaved({ trusted: adminTrusted({ actorRole: 'CLIENT' }), signalId: 'sig_gate_saved' })
+    ).toThrow(/ADMIN/);
+    expect(calls).toEqual([]);
+  });
+
+  it('GATE_FIRST: cross-client denial before persist', () => {
+    const calls: string[] = [];
+    const repo: SignalIntakePort = {
+      add: memorySignals().repo.add,
+      getById() {
+        calls.push('getById');
+        return seedSignal({ id: 'sig_gate_saved', clientId: 'client_other' });
+      },
+      decideManagerOutcome() {
+        calls.push('decideManagerOutcome');
+        throw new Error('should not persist');
+      },
+    };
+    const markSaved = createMarkSignalSaved({ signals: repo });
+    expect(() => markSaved({ trusted: adminTrusted(), signalId: 'sig_gate_saved' })).toThrow(
+      /client/i
+    );
+    expect(calls).toEqual(['getById']);
+  });
+
+  it('does not invoke scoring or routing authority', () => {
+    const source = readFileSync(resolve('src/application/signalIntake/MarkSignalSaved.ts'), 'utf8');
+    expect(source).not.toMatch(/ScoreAndRoute|scoreSignal|OverrideSignal|routeSignal/);
+    expect(source).not.toMatch(/relevanceScore|matchedThesis|selectedThesis/);
+  });
+});
+
+describe('CR-1 Signal Intake consumer — MarkSignalSaved (#21b)', () => {
+  beforeEach(() => {
+    resetSignalIntakeConsumerForTest();
+    vi.restoreAllMocks();
+  });
+
+  it('does not emit consumer audit on success', () => {
+    const admin: User = {
+      uid: 'u_admin',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId: 'org_sess',
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    };
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue(admin);
+    const client = dbService.createClient({
+      organizationId: 'org_sess',
+      primaryManagerId: 'u_admin',
+      firstName: 'A',
+      lastName: 'B',
+      displayName: 'A B',
+      primaryEmail: `saved_${Date.now()}@ex.com`,
+      onboardingStatus: 'IN_PROGRESS',
+      profileCompleteness: 20,
+      status: 'ACTIVE',
+      avatarUrl: '',
+      createdBy: 'u_admin',
+      updatedBy: 'u_admin',
+    });
+    const created = dbService.addSignal({
+      organizationId: 'org_sess',
+      clientId: client.id,
+      title: `Saved ok ${Date.now()}`,
+      sourceType: 'MANUAL',
+      sourceName: 't',
+      contentSnippet: 'x',
+      status: 'NEW',
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    markSignalSaved({ requestedClientId: client.id, signalId: created.signal.id });
+    expect(auditSpy).not.toHaveBeenCalled();
+    expect(dbService.getSignalById(created.signal.id)?.managerDecision).toBe('SAVED');
+    expect(dbService.getSignalById(created.signal.id)?.status).toBe('NEW');
+  });
+});
+
+describe('CR-1 Wave A2 #21b — send-to-curation composite compatibility', () => {
+  beforeEach(() => {
+    resetSignalIntakeConsumerForTest();
+    vi.restoreAllMocks();
+  });
+
+  it('executes addToCuration before markSignalSaved then audit, toast, refresh', () => {
+    const order: string[] = [];
+    const host = radarHandlerHost();
+    vi.spyOn(dbService, 'getSignalById').mockReturnValue({
+      id: 'sig_order',
+      organizationId: 'org_trust',
+      clientId: 'client_trust',
+      title: 'Order test',
+      sourceName: 'src',
+      contentSnippet: 'x',
+      relevanceScore: 80,
+      status: 'NEW',
+    } as Signal);
+    vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
+    vi.spyOn(dbService, 'addToCuration').mockImplementation(() => {
+      order.push('addToCuration');
+      return { id: 'cur_1' } as ReturnType<typeof dbService.addToCuration>;
+    });
+    vi.spyOn(signalIntakeConsumer, 'markSignalSaved').mockImplementation(() => {
+      order.push('markSignalSaved');
+      return { signal: { id: 'sig_order', managerDecision: 'SAVED' } as Signal };
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => {
+      order.push('audit');
+    });
+
+    handleSendToCurationClick(host, 'sig_order');
+
+    expect(order).toEqual(['addToCuration', 'markSignalSaved', 'audit']);
+    expect(host.showToast).toHaveBeenCalledWith('Enviada a curación', 'success');
+    expect(host.refreshMain).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledWith(
+      authService.getCurrentUser(),
+      'SIGNAL_TO_CURATION',
+      'Signal',
+      'sig_order',
+      { clientId: 'client_trust' }
+    );
+  });
+
+  it('missing signal after #21a: compat success audit, toast, refresh without warning', () => {
+    const host = radarHandlerHost();
+    vi.spyOn(dbService, 'getSignalById').mockReturnValue({
+      id: 'sig_stale_curation',
+      organizationId: 'org_trust',
+      clientId: 'client_trust',
+      title: 'Stale',
+      sourceName: 'src',
+      contentSnippet: 'x',
+      relevanceScore: 70,
+      status: 'NEW',
+    } as Signal);
+    vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
+    const addSpy = vi.spyOn(dbService, 'addToCuration').mockImplementation(() => {
+      return { id: 'cur_stale' } as ReturnType<typeof dbService.addToCuration>;
+    });
+    vi.spyOn(signalIntakeConsumer, 'markSignalSaved').mockImplementation(() => {
+      throw new SignalIntakeError('SIGNAL_NOT_FOUND', 'Signal not found: sig_stale_curation');
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+
+    handleSendToCurationClick(host, 'sig_stale_curation');
+
+    expect(addSpy).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledWith(
+      authService.getCurrentUser(),
+      'SIGNAL_TO_CURATION',
+      'Signal',
+      'sig_stale_curation',
+      { clientId: 'client_trust' }
+    );
+    expect(host.showToast).toHaveBeenCalledWith('Enviada a curación', 'success');
+    expect(host.showToast).not.toHaveBeenCalledWith(expect.any(String), 'warning');
+    expect(host.refreshMain).toHaveBeenCalledTimes(1);
+  });
+
+  it('authorization denial after #21a is not translated into legacy success', () => {
+    const host = radarHandlerHost();
+    vi.spyOn(dbService, 'getSignalById').mockReturnValue({
+      id: 'sig_denied_curation',
+      organizationId: 'org_trust',
+      clientId: 'client_trust',
+      title: 'Denied',
+      sourceName: 'src',
+      contentSnippet: 'x',
+      relevanceScore: 70,
+      status: 'NEW',
+    } as Signal);
+    vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
+    const addSpy = vi.spyOn(dbService, 'addToCuration').mockImplementation(() => {
+      return { id: 'cur_denied' } as ReturnType<typeof dbService.addToCuration>;
+    });
+    vi.spyOn(signalIntakeConsumer, 'markSignalSaved').mockImplementation(() => {
+      throw new SignalIntakeError('ACTOR_NOT_AUTHORIZED', 'Denied');
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+
+    handleSendToCurationClick(host, 'sig_denied_curation');
+
+    expect(addSpy).toHaveBeenCalledTimes(1);
+    expect(host.showToast).toHaveBeenCalledWith('Denied', 'warning');
+    expect(host.showToast).not.toHaveBeenCalledWith('Enviada a curación', 'success');
+    expect(host.refreshMain).not.toHaveBeenCalled();
+    expect(auditSpy).not.toHaveBeenCalled();
+  });
+
+  it('valid composite path: one canonical markSignalSaved, zero direct dbService SAVED write', () => {
+    const admin: User = {
+      uid: 'u_admin',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId: 'org_sess',
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    };
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue(admin);
+    const client = dbService.createClient({
+      organizationId: 'org_sess',
+      primaryManagerId: 'u_admin',
+      firstName: 'A',
+      lastName: 'B',
+      displayName: 'A B',
+      primaryEmail: `curation_ok_${Date.now()}@ex.com`,
+      onboardingStatus: 'IN_PROGRESS',
+      profileCompleteness: 20,
+      status: 'ACTIVE',
+      avatarUrl: '',
+      createdBy: 'u_admin',
+      updatedBy: 'u_admin',
+    });
+    const created = dbService.addSignal({
+      organizationId: 'org_sess',
+      clientId: client.id,
+      title: `Curation ok ${Date.now()}`,
+      sourceType: 'MANUAL',
+      sourceName: 't',
+      contentSnippet: 'x',
+      status: 'NEW',
+      relevanceScore: 88,
+    });
+    const host = radarHandlerHost({ resolveClientId: () => client.id });
+    const markSavedSpy = vi.spyOn(signalIntakeConsumer, 'markSignalSaved');
+    const decideSpy = vi.spyOn(dbService, 'decideSignal');
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+
+    handleSendToCurationClick(host, created.signal.id);
+
+    expect(markSavedSpy).toHaveBeenCalledTimes(1);
+    expect(decideSpy).not.toHaveBeenCalledWith(created.signal.id, 'SAVED');
+    expect(dbService.getSignalById(created.signal.id)?.managerDecision).toBe('SAVED');
+    expect(auditSpy).toHaveBeenCalledWith(
+      admin,
+      'SIGNAL_TO_CURATION',
+      'Signal',
+      created.signal.id,
+      { clientId: client.id }
+    );
+    expect(host.showToast).toHaveBeenCalledWith('Enviada a curación', 'success');
+    expect(host.refreshMain).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('CR-1 Signal Intake architecture', () => {
-  it('compose exposes RegisterSource, RegisterManualSignal, DiscardSignal, and poll commands', () => {
+  it('compose exposes RegisterSource, RegisterManualSignal, DiscardSignal, MarkSignalSaved, and poll commands', () => {
     const c = composeSignalIntake();
     expect(typeof c.registerSource).toBe('function');
     expect(typeof c.registerManualSignal).toBe('function');
     expect(typeof c.discardSignal).toBe('function');
+    expect(typeof c.markSignalSaved).toBe('function');
     expect(typeof c.pollRegisteredSource).toBe('function');
     expect(typeof c.pollAllActiveSources).toBe('function');
     expect(Object.keys(c).sort()).toEqual([
       'discardSignal',
+      'markSignalSaved',
       'pollAllActiveSources',
       'pollRegisteredSource',
       'registerManualSignal',
@@ -839,6 +1209,7 @@ describe('CR-1 Signal Intake architecture', () => {
       'src/application/signalIntake/RegisterSource.ts',
       'src/application/signalIntake/RegisterManualSignal.ts',
       'src/application/signalIntake/DiscardSignal.ts',
+      'src/application/signalIntake/MarkSignalSaved.ts',
       'src/application/signalIntake/PollRegisteredSource.ts',
     ];
     for (const file of files) {
@@ -875,5 +1246,16 @@ describe('CR-1 Signal Intake architecture', () => {
   it('#14 curation cascade discard remains legacy direct dbService (deferred wave)', () => {
     const source = readFileSync(resolve('src/ui/legacy/handlers/curationHandlers.ts'), 'utf8');
     expect(source).toMatch(/dbService\.decideSignal\([^)]*DISCARDED/);
+  });
+
+  it('primary #21b send-to-curation delegates markSignalSaved (not direct dbService SAVED)', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/radarHandlers.ts'), 'utf8');
+    expect(source).toMatch(/handleSendToCurationClick/);
+    expect(source).toMatch(/markSignalSaved\s*\(/);
+    expect(source).toMatch(/error\.code === 'SIGNAL_NOT_FOUND'/);
+    const curationBlock = source.match(/\.btn-send-to-curation[\s\S]*?\}\);/);
+    expect(curationBlock).toBeTruthy();
+    expect(curationBlock![0]).toMatch(/handleSendToCurationClick\s*\(/);
+    expect(curationBlock![0]).not.toMatch(/dbService\.decideSignal\([^)]*['"]SAVED['"]/);
   });
 });

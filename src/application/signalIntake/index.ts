@@ -24,6 +24,12 @@ export {
   type DiscardSignalResult,
 } from './DiscardSignal';
 export {
+  createMarkSignalSaved,
+  type MarkSignalSavedDeps,
+  type MarkSignalSavedInput,
+  type MarkSignalSavedResult,
+} from './MarkSignalSaved';
+export {
   createPollAllActiveSources,
   createPollRegisteredSource,
   type PollAllActiveSourcesInput,

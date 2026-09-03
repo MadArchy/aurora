@@ -10,6 +10,7 @@ import type { SourceType } from '../types';
 import {
   SignalIntakeError,
   type DiscardSignalResult,
+  type MarkSignalSavedResult,
   type PollAllActiveSourcesResult,
   type PollRegisteredSourceResult,
   type RegisterManualSignalResult,
@@ -237,5 +238,27 @@ export function discardSignal(intent: DiscardSignalIntent): DiscardSignalResult 
     return result;
   } catch (err) {
     mapError(err, 'No se pudo descartar la señal');
+  }
+}
+
+export interface MarkSignalSavedIntent {
+  requestedClientId: string | null | undefined;
+  signalId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}
+
+/** Registry #21b — manager SAVED on send-to-curation composite. No consumer audit (#21 composite owns SIGNAL_TO_CURATION). */
+export function markSignalSaved(intent: MarkSignalSavedIntent): MarkSignalSavedResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.markSignalSaved({
+      trusted: trustedFrom(g),
+      signalId: intent.signalId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo marcar la señal como guardada');
   }
 }
