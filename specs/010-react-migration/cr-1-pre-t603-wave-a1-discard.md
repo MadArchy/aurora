@@ -69,7 +69,7 @@ Caller org/client spoof → DENY. GATE_FIRST ordering enforced.
 |------|-----|
 | Authorized start | `2c099a94b0ef79f902b2e5a37a38c811c4ba0466` |
 | Implementation | `c7377ff525a27fbaea44b1b42914d8b14bc012da` |
-| Governance tip | *(filled at commit)* |
+| Governance tip | `58d607e8b9bca53cc181e124a28cd33b8a2accf0` |
 
 ---
 
