@@ -107,7 +107,7 @@ Caller org/client spoof → DENY. GATE_FIRST ordering enforced.
 | Authorized start | `15e4a82b6ff091312e665347f780ef0663ace83b` |
 | Implementation | `a54bd351733ea4d3984e2738362fc7f93c0797a0` |
 | Frozen content (#21b Wave A2) | `a54bd351733ea4d3984e2738362fc7f93c0797a0` |
-| Wave A2 formal acceptance / governance tip | *(recorded after freeze commit)* |
+| Wave A2 formal acceptance / governance tip | `4c20429d1050b574c660e39da46206ca6844cbe2` |
 
 ---
 
