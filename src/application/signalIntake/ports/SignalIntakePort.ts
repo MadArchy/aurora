@@ -1,4 +1,4 @@
-import type { Signal } from '../../../types';
+import type { ManagerDecision, Signal } from '../../../types';
 
 export type SignalIntakeWrite = Omit<
   Signal,
@@ -12,4 +12,10 @@ export type SignalIntakeWrite = Omit<
  */
 export interface SignalIntakePort {
   add(signal: SignalIntakeWrite): { signal: Signal; isDuplicate: boolean };
+  getById(signalId: string): Signal | undefined;
+  decideManagerOutcome(params: {
+    signalId: string;
+    decision: ManagerDecision;
+    reason?: string;
+  }): Signal;
 }

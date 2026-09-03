@@ -1,4 +1,5 @@
 import {
+  createDiscardSignal,
   createPollAllActiveSources,
   createPollRegisteredSource,
   createRegisterManualSignal,
@@ -54,6 +55,7 @@ export function composeSignalIntake(options: {
   return {
     registerSource: createRegisterSource({ sources }),
     registerManualSignal: createRegisterManualSignal({ signals }),
+    discardSignal: createDiscardSignal({ signals }),
     pollRegisteredSource: createPollRegisteredSource(pollDeps),
     pollAllActiveSources: createPollAllActiveSources(pollDeps),
   };

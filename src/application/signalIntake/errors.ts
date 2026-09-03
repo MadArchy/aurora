@@ -6,7 +6,8 @@ export type SignalIntakeErrorCode =
   | 'PERSISTENCE_ERROR'
   | 'QUOTA_EXCEEDED'
   | 'SOURCE_NOT_FOUND'
-  | 'SOURCE_POLL_FAILED';
+  | 'SOURCE_POLL_FAILED'
+  | 'SIGNAL_NOT_FOUND';
 
 export class SignalIntakeError extends Error {
   readonly code: SignalIntakeErrorCode;

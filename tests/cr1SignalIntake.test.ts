@@ -26,6 +26,7 @@ vi.hoisted(() => {
 
 import {
   SignalIntakeError,
+  createDiscardSignal,
   createRegisterManualSignal,
   createRegisterSource,
   type SignalIntakePort,
@@ -34,6 +35,7 @@ import {
 } from '../src/application/signalIntake';
 import type { Signal, Source, User } from '../src/types';
 import {
+  discardSignal,
   registerSource,
   resetSignalIntakeConsumerForTest,
 } from '../src/services/signalIntakeConsumer';
@@ -108,8 +110,40 @@ function memorySignals() {
       store.unshift(created);
       return { signal: created, isDuplicate: false };
     },
+    getById(signalId) {
+      return store.find((s) => s.id === signalId);
+    },
+    decideManagerOutcome({ signalId, decision, reason }) {
+      const sig = store.find((s) => s.id === signalId);
+      if (!sig) throw new Error(`Signal not found: ${signalId}`);
+      sig.managerDecision = decision;
+      if (decision === 'DISCARDED') {
+        sig.status = 'DISCARDED';
+        sig.discardReason = reason;
+      }
+      if (decision === 'CONVERTED') sig.status = 'CONVERTED';
+      return { ...sig };
+    },
   };
   return { repo, store };
+}
+
+function seedSignal(overrides: Partial<Signal> & Pick<Signal, 'id'>): Signal {
+  return {
+    organizationId: 'org_trust',
+    clientId: 'client_trust',
+    title: 'Seed signal',
+    sourceType: 'MANUAL',
+    sourceName: 'test',
+    contentSnippet: 'snippet',
+    status: 'NEW',
+    aiStatus: 'PENDING_AI',
+    managerDecision: 'UNREVIEWED',
+    sourceQuality: 'UNASSESSED',
+    fingerprint: 'fp_seed',
+    detectedAt: '2026-08-28T18:00:00.000Z',
+    ...overrides,
+  };
 }
 
 describe('CR-1 Signal Intake — RegisterSource', () => {
@@ -392,14 +426,266 @@ describe('CR-1 Signal Intake consumer gate', () => {
   });
 });
 
+describe('CR-1 Signal Intake — DiscardSignal (#20)', () => {
+  it('ADMIN discards signal in own tenant with default legacy reason', () => {
+    const { repo, store } = memorySignals();
+    store.push(seedSignal({ id: 'sig_discard_1' }));
+    const discard = createDiscardSignal({ signals: repo });
+    const result = discard({ trusted: adminTrusted(), signalId: 'sig_discard_1' });
+    expect(result.signal.status).toBe('DISCARDED');
+    expect(result.signal.managerDecision).toBe('DISCARDED');
+    expect(result.signal.discardReason).toBe('Descartado por el manager en el radar.');
+    expect(store).toHaveLength(1);
+  });
+
+  it('authoritative reload rejects stale caller tenant claims', () => {
+    const { repo, store } = memorySignals();
+    store.push(seedSignal({ id: 'sig_stale', clientId: 'client_trust' }));
+    const discard = createDiscardSignal({ signals: repo });
+    expect(() =>
+      discard({
+        trusted: adminTrusted({ clientId: 'client_evil' }),
+        signalId: 'sig_stale',
+      })
+    ).toThrow(/client entitlement/i);
+    expect(store[0].status).toBe('NEW');
+  });
+
+  it('missing signal fails safely without persist', () => {
+    const calls: string[] = [];
+    const repo: SignalIntakePort = {
+      ...memorySignals().repo,
+      getById(id) {
+        calls.push(`get:${id}`);
+        return undefined;
+      },
+      decideManagerOutcome() {
+        calls.push('decide');
+        throw new Error('should not persist');
+      },
+    };
+    const discard = createDiscardSignal({ signals: repo });
+    expect(() => discard({ trusted: adminTrusted(), signalId: 'sig_missing' })).toThrow(
+      /not found/i
+    );
+    expect(calls).toEqual(['get:sig_missing']);
+  });
+
+  it('ATTACK: CLIENT role denied', () => {
+    const { repo, store } = memorySignals();
+    store.push(seedSignal({ id: 'sig_role' }));
+    const discard = createDiscardSignal({ signals: repo });
+    expect(() =>
+      discard({ trusted: adminTrusted({ actorRole: 'CLIENT' }), signalId: 'sig_role' })
+    ).toThrow(/ADMIN/);
+    expect(store[0].status).toBe('NEW');
+  });
+
+  it('ATTACK: cross-tenant organization denied', () => {
+    const { repo, store } = memorySignals();
+    store.push(seedSignal({ id: 'sig_org', organizationId: 'org_other' }));
+    const discard = createDiscardSignal({ signals: repo });
+    expect(() => discard({ trusted: adminTrusted(), signalId: 'sig_org' })).toThrow(
+      /organization/i
+    );
+    expect(store[0].status).toBe('NEW');
+  });
+
+  it('ATTACK: caller client spoof denied', () => {
+    const discard = createDiscardSignal({ signals: memorySignals().repo });
+    expect(() =>
+      discard({
+        trusted: adminTrusted(),
+        signalId: 'sig_x',
+        claimedClientId: 'client_evil',
+      })
+    ).toThrow(/clientId/i);
+  });
+
+  it('ATTACK: caller organization spoof denied', () => {
+    const discard = createDiscardSignal({ signals: memorySignals().repo });
+    expect(() =>
+      discard({
+        trusted: adminTrusted(),
+        signalId: 'sig_x',
+        claimedOrganizationId: 'org_evil',
+      })
+    ).toThrow(/organization/i);
+  });
+
+  it('repeat discard stays idempotent (single record, reason may update)', () => {
+    const { repo, store } = memorySignals();
+    store.push(seedSignal({ id: 'sig_dup' }));
+    const discard = createDiscardSignal({ signals: repo });
+    discard({ trusted: adminTrusted(), signalId: 'sig_dup' });
+    const again = discard({
+      trusted: adminTrusted(),
+      signalId: 'sig_dup',
+      reason: 'Updated discard reason',
+    });
+    expect(store).toHaveLength(1);
+    expect(again.signal.status).toBe('DISCARDED');
+    expect(again.signal.discardReason).toBe('Updated discard reason');
+  });
+
+  it('GATE_FIRST: unauthorized role denied before signal reload', () => {
+    const calls: string[] = [];
+    const repo: SignalIntakePort = {
+      add: memorySignals().repo.add,
+      getById() {
+        calls.push('getById');
+        return seedSignal({ id: 'sig_gate' });
+      },
+      decideManagerOutcome() {
+        calls.push('decideManagerOutcome');
+        throw new Error('should not persist');
+      },
+    };
+    const discard = createDiscardSignal({ signals: repo });
+    expect(() =>
+      discard({ trusted: adminTrusted({ actorRole: 'CLIENT' }), signalId: 'sig_gate' })
+    ).toThrow(/ADMIN/);
+    expect(calls).toEqual([]);
+  });
+
+  it('GATE_FIRST: cross-client denial before persist', () => {
+    const calls: string[] = [];
+    const repo: SignalIntakePort = {
+      add: memorySignals().repo.add,
+      getById() {
+        calls.push('getById');
+        return seedSignal({ id: 'sig_gate', clientId: 'client_other' });
+      },
+      decideManagerOutcome() {
+        calls.push('decideManagerOutcome');
+        throw new Error('should not persist');
+      },
+    };
+    const discard = createDiscardSignal({ signals: repo });
+    expect(() => discard({ trusted: adminTrusted(), signalId: 'sig_gate' })).toThrow(/client/i);
+    expect(calls).toEqual(['getById']);
+  });
+});
+
+describe('CR-1 Signal Intake consumer — DiscardSignal (#20)', () => {
+  beforeEach(() => {
+    resetSignalIntakeConsumerForTest();
+    vi.restoreAllMocks();
+  });
+
+  it('denies missing session', () => {
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue(null);
+    expect(() =>
+      discardSignal({ requestedClientId: 'c1', signalId: 'sig_1' })
+    ).toThrow(SignalIntakeError);
+  });
+
+  it('legitimate ADMIN discard via consumer persists DISCARDED', () => {
+    const admin: User = {
+      uid: 'u_admin',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId: 'org_sess',
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    };
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue(admin);
+    const client = dbService.createClient({
+      organizationId: 'org_sess',
+      primaryManagerId: 'u_admin',
+      firstName: 'A',
+      lastName: 'B',
+      displayName: 'A B',
+      primaryEmail: `discard_${Date.now()}@ex.com`,
+      onboardingStatus: 'IN_PROGRESS',
+      profileCompleteness: 20,
+      status: 'ACTIVE',
+      avatarUrl: '',
+      createdBy: 'u_admin',
+      updatedBy: 'u_admin',
+    });
+    const created = dbService.addSignal({
+      organizationId: 'org_sess',
+      clientId: client.id,
+      title: `Discard me ${Date.now()}`,
+      sourceType: 'MANUAL',
+      sourceName: 't',
+      contentSnippet: 'x',
+      status: 'NEW',
+    });
+    const result = discardSignal({
+      requestedClientId: client.id,
+      signalId: created.signal.id,
+    });
+    expect(result.signal.status).toBe('DISCARDED');
+    expect(result.signal.managerDecision).toBe('DISCARDED');
+    expect(dbService.getSignalById(created.signal.id)?.status).toBe('DISCARDED');
+  });
+
+  it('USER INTENT : CANONICAL INVOCATION = 1 : 1 (no duplicate dbService decide)', () => {
+    const admin: User = {
+      uid: 'u_admin',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId: 'org_sess',
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    };
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue(admin);
+    const client = dbService.createClient({
+      organizationId: 'org_sess',
+      primaryManagerId: 'u_admin',
+      firstName: 'A',
+      lastName: 'B',
+      displayName: 'A B',
+      primaryEmail: `discard2_${Date.now()}@ex.com`,
+      onboardingStatus: 'IN_PROGRESS',
+      profileCompleteness: 20,
+      status: 'ACTIVE',
+      avatarUrl: '',
+      createdBy: 'u_admin',
+      updatedBy: 'u_admin',
+    });
+    const created = dbService.addSignal({
+      organizationId: 'org_sess',
+      clientId: client.id,
+      title: `Discard me 2 ${Date.now()}`,
+      sourceType: 'MANUAL',
+      sourceName: 't',
+      contentSnippet: 'x',
+      status: 'NEW',
+    });
+    const decideSpy = vi.spyOn(dbService, 'decideSignal');
+    discardSignal({ requestedClientId: client.id, signalId: created.signal.id });
+    expect(decideSpy).toHaveBeenCalledTimes(1);
+    expect(decideSpy).toHaveBeenCalledWith(
+      created.signal.id,
+      'DISCARDED',
+      'Descartado por el manager en el radar.'
+    );
+  });
+});
+
 describe('CR-1 Signal Intake architecture', () => {
-  it('compose exposes RegisterSource, RegisterManualSignal, and poll commands', () => {
+  it('compose exposes RegisterSource, RegisterManualSignal, DiscardSignal, and poll commands', () => {
     const c = composeSignalIntake();
     expect(typeof c.registerSource).toBe('function');
     expect(typeof c.registerManualSignal).toBe('function');
+    expect(typeof c.discardSignal).toBe('function');
     expect(typeof c.pollRegisteredSource).toBe('function');
     expect(typeof c.pollAllActiveSources).toBe('function');
     expect(Object.keys(c).sort()).toEqual([
+      'discardSignal',
       'pollAllActiveSources',
       'pollRegisteredSource',
       'registerManualSignal',
@@ -429,6 +715,7 @@ describe('CR-1 Signal Intake architecture', () => {
     const files = [
       'src/application/signalIntake/RegisterSource.ts',
       'src/application/signalIntake/RegisterManualSignal.ts',
+      'src/application/signalIntake/DiscardSignal.ts',
       'src/application/signalIntake/PollRegisteredSource.ts',
     ];
     for (const file of files) {
@@ -442,11 +729,25 @@ describe('CR-1 Signal Intake architecture', () => {
     const files = [
       'src/application/signalIntake/RegisterSource.ts',
       'src/application/signalIntake/RegisterManualSignal.ts',
+      'src/application/signalIntake/DiscardSignal.ts',
       'src/services/signalIntakeConsumer.ts',
     ];
     for (const file of files) {
       const source = readFileSync(resolve(file), 'utf8');
       expect(source).not.toMatch(/SaveThesis|ApplyOnboardingStep|CreateClientWithInvite/);
     }
+  });
+
+  it('primary #20 radar discard delegates through signalIntakeConsumer (not direct dbService)', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/radarHandlers.ts'), 'utf8');
+    const discardBlock = source.match(/\.btn-discard-signal[\s\S]*?\}\);/);
+    expect(discardBlock).toBeTruthy();
+    expect(discardBlock![0]).toMatch(/discardSignal\s*\(/);
+    expect(discardBlock![0]).not.toMatch(/dbService\.decideSignal/);
+  });
+
+  it('#14 curation cascade discard remains legacy direct dbService (deferred wave)', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/curationHandlers.ts'), 'utf8');
+    expect(source).toMatch(/dbService\.decideSignal\([^)]*DISCARDED/);
   });
 });

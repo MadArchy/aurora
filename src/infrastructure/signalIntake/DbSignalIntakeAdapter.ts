@@ -33,5 +33,16 @@ export function createDbSignalIntakePort(): SignalIntakePort {
     add(signal) {
       return dbService.addSignal(signal);
     },
+    getById(signalId) {
+      return dbService.getSignalById(signalId);
+    },
+    decideManagerOutcome({ signalId, decision, reason }) {
+      dbService.decideSignal(signalId, decision, reason);
+      const updated = dbService.getSignalById(signalId);
+      if (!updated) {
+        throw new Error(`Signal not found after decide: ${signalId}`);
+      }
+      return updated;
+    },
   };
 }

@@ -9,6 +9,7 @@
 import type { SourceType } from '../types';
 import {
   SignalIntakeError,
+  type DiscardSignalResult,
   type PollAllActiveSourcesResult,
   type PollRegisteredSourceResult,
   type RegisterManualSignalResult,
@@ -205,5 +206,36 @@ export function registerManualSignal(
     return result;
   } catch (err) {
     mapError(err, 'No se pudo registrar la señal manual');
+  }
+}
+
+export interface DiscardSignalIntent {
+  requestedClientId: string | null | undefined;
+  signalId: string;
+  reason?: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}
+
+/** Registry #20 — manager discard on radar. */
+export function discardSignal(intent: DiscardSignalIntent): DiscardSignalResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    const result = useCases.discardSignal({
+      trusted: trustedFrom(g),
+      signalId: intent.signalId,
+      reason: intent.reason,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+    auditService.log(
+      authService.getCurrentUser(),
+      'SIGNAL_DISCARDED',
+      'Signal',
+      result.signal.id
+    );
+    return result;
+  } catch (err) {
+    mapError(err, 'No se pudo descartar la señal');
   }
 }

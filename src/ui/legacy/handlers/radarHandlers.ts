@@ -7,6 +7,7 @@ import { resolveThesisForSignalOperation } from '../../../domain/routedThesisCon
 import { StrategicRoutingError } from '../../../application/strategicSignalRouting';
 import { runResearchSignalsAgent } from '../../../services/researchSignalsAgent';
 import { registerSignalOutcomeIntent } from '../../../services/learningLoopConsumer';
+import { discardSignal } from '../../../services/signalIntakeConsumer';
 import { metricsService } from '../../../services/metrics';
 import type { ScoringContext } from '../../../services/scoring';
 import type { CurationDestination, DeliveryItemKind } from '../../../types';
@@ -211,8 +212,18 @@ export function bindRadarHandlers(host: RadarHandlerHost): void  {
     btn.addEventListener('click', (e) => {
       const id = (e.currentTarget as HTMLElement).getAttribute('data-signal-id');
       if (!id) return;
-      dbService.decideSignal(id, 'DISCARDED', 'Descartado por el manager en el radar.');
-      auditService.log(authService.getCurrentUser(), 'SIGNAL_DISCARDED', 'Signal', id);
+      const signal = dbService.getSignalById(id);
+      const clientId = host.resolveClientId(signal?.clientId);
+      if (!clientId) return;
+      try {
+        discardSignal({ requestedClientId: clientId, signalId: id });
+      } catch (error) {
+        host.showToast(
+          error instanceof Error ? error.message : 'No se pudo descartar la señal',
+          'warning'
+        );
+        return;
+      }
       host.showToast('Señal descartada', 'info');
       host.refreshMain();
     });

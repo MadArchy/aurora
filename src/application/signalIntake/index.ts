@@ -18,6 +18,12 @@ export {
   type RegisterManualSignalResult,
 } from './RegisterManualSignal';
 export {
+  createDiscardSignal,
+  type DiscardSignalDeps,
+  type DiscardSignalInput,
+  type DiscardSignalResult,
+} from './DiscardSignal';
+export {
   createPollAllActiveSources,
   createPollRegisteredSource,
   type PollAllActiveSourcesInput,
