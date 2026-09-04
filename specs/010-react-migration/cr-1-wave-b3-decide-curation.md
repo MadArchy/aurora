@@ -66,7 +66,7 @@
 | B3 human partial-failure approval | `9133d28fcc8a1dce3b2478046a3e42642483715e` |
 | B3 implementation | `745f642f07b60955378a4677a42e92ab717a5c43` |
 | B3 frozen content | `745f642f07b60955378a4677a42e92ab717a5c43` |
-| B3 formal acceptance / CR1 governance tip | *(recorded in acceptance commit)* |
+| B3 formal acceptance / CR1 governance tip | `5c347f77f120116d9169d4769e4917681bd72301` |
 
 ---
 
