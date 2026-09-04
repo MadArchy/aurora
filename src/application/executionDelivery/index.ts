@@ -58,6 +58,36 @@ export {
   type DecideCurationInput,
   type DecideCurationResult,
 } from './DecideCuration';
+export {
+  createEnsureDraftDelivery,
+  type EnsureDraftDeliveryDeps,
+  type EnsureDraftDeliveryInput,
+  type EnsureDraftDeliveryResult,
+} from './EnsureDraftDelivery';
+export {
+  createAddCurationToDelivery,
+  type AddCurationToDeliveryDeps,
+  type AddCurationToDeliveryInput,
+  type AddCurationToDeliveryResult,
+} from './AddCurationToDelivery';
+export {
+  createUpdateDeliveryPackageMetadata,
+  type UpdateDeliveryPackageMetadataDeps,
+  type UpdateDeliveryPackageMetadataInput,
+  type UpdateDeliveryPackageMetadataResult,
+} from './UpdateDeliveryPackageMetadata';
+export {
+  createRemoveDeliveryItemFromDelivery,
+  type RemoveDeliveryItemFromDeliveryDeps,
+  type RemoveDeliveryItemFromDeliveryInput,
+  type RemoveDeliveryItemFromDeliveryResult,
+} from './RemoveDeliveryItemFromDelivery';
+export {
+  createDiscardDraftDelivery,
+  type DiscardDraftDeliveryDeps,
+  type DiscardDraftDeliveryInput,
+  type DiscardDraftDeliveryResult,
+} from './DiscardDraftDelivery';
 export type { TaskRepository } from './ports/TaskRepository';
 export type {
   ContentDraftFields,
@@ -66,6 +96,7 @@ export type {
   ContentStrategicBriefGatePort,
 } from './ports/ContentRepository';
 export type { DeliverySendPort } from './ports/DeliverySendPort';
+export type { DeliveryAssemblyRepositoryPort } from './ports/DeliveryAssemblyRepositoryPort';
 export type { SignalReadPort } from './ports/SignalReadPort';
 export type { AdviceReadPort } from './ports/AdviceReadPort';
 export type {

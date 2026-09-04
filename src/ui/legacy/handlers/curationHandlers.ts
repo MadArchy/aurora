@@ -94,7 +94,7 @@ export function handleCurationFormSubmit(
     rationale,
   });
 
-  const queued = destination !== 'DISCARD' ? queueCurationInBriefing(curationId) : false;
+  const queued = destination !== 'DISCARD' ? queueCurationInBriefing(curationId, requestedClientId) : false;
   showCurationSuccessToast(host, destination, queued);
   host.render();
 }

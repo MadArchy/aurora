@@ -10,3 +10,4 @@ export {
   createDbSignalReadPort,
 } from './DbCurationAdapter';
 export { createDbAdviceReadPort } from './DbAdviceReadAdapter';
+export { createDbDeliveryAssemblyRepositoryPort } from './DbDeliveryAssemblyAdapter';

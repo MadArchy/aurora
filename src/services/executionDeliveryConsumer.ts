@@ -9,14 +9,19 @@ import type { ContentStatus, ContentType, CurationDestination } from '../types';
 import {
   ExecutionDeliveryError,
   type AddAdviceActionToCurationResult,
+  type AddCurationToDeliveryResult,
   type AddSignalToCurationResult,
   type ClientArticleReviewDecision,
   type ClientTaskTransitionIntent,
   type DecideCurationResult,
+  type DiscardDraftDeliveryResult,
+  type EnsureDraftDeliveryResult,
+  type RemoveDeliveryItemFromDeliveryResult,
   type ReviewClientArticleResult,
   type SaveContentDraftResult,
   type SendDeliveryPackageResult,
   type TransitionClientTaskResult,
+  type UpdateDeliveryPackageMetadataResult,
 } from '../application/executionDelivery';
 import { composeExecutionDelivery } from '../composition/executionDelivery/composeExecutionDelivery';
 import { requireTenantScope } from '../controllers/trustedTenant';
@@ -148,6 +153,110 @@ export function decideCuration(intent: {
     });
   } catch (err) {
     mapError(err, 'No se pudo decidir la curación');
+  }
+}
+
+/** Registry #17 — ensure/open client draft briefing. No composite audit. */
+export function ensureDraftDelivery(intent: {
+  requestedClientId: string | null | undefined;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): EnsureDraftDeliveryResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.ensureDraftDelivery({
+      trusted: trustedFrom(g),
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo crear el briefing');
+  }
+}
+
+/** Registry #17 — add decided curation to draft briefing (A2 attach-after-item). No composite audit. */
+export function addCurationToDelivery(intent: {
+  requestedClientId: string | null | undefined;
+  curationEntryId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): AddCurationToDeliveryResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.addCurationToDelivery({
+      trusted: trustedFrom(g),
+      curationEntryId: intent.curationEntryId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo añadir al briefing');
+  }
+}
+
+/** Registry #17 — update draft briefing metadata. No composite audit. */
+export function updateDeliveryPackageMetadata(intent: {
+  requestedClientId: string | null | undefined;
+  packageId: string;
+  title: string;
+  strategicNote: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): UpdateDeliveryPackageMetadataResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.updateDeliveryPackageMetadata({
+      trusted: trustedFrom(g),
+      packageId: intent.packageId,
+      title: intent.title,
+      strategicNote: intent.strategicNote,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo guardar la nota estratégica');
+  }
+}
+
+/** Registry #17 — remove item from draft briefing (R1 detach→remove). No composite audit. */
+export function removeDeliveryItemFromDelivery(intent: {
+  requestedClientId: string | null | undefined;
+  packageId: string;
+  itemId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): RemoveDeliveryItemFromDeliveryResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.removeDeliveryItemFromDelivery({
+      trusted: trustedFrom(g),
+      packageId: intent.packageId,
+      itemId: intent.itemId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo retirar el ítem del briefing');
+  }
+}
+
+/** Registry #17 — discard draft briefing. No composite audit. */
+export function discardDraftDelivery(intent: {
+  requestedClientId: string | null | undefined;
+  packageId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): DiscardDraftDeliveryResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.discardDraftDelivery({
+      trusted: trustedFrom(g),
+      packageId: intent.packageId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo descartar el borrador');
   }
 }
 

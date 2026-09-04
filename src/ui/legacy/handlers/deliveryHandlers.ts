@@ -1,14 +1,19 @@
-import { authService } from '../../../services/auth';
 import { dbService } from '../../../services/db';
 import { notifyManager } from '../../../services/notifications';
 import { sendDelivery as sendDeliveryCmd } from '../../../controllers/contentPipelineCommands';
+import {
+  discardDraftDelivery,
+  ensureDraftDelivery,
+  removeDeliveryItemFromDelivery,
+  updateDeliveryPackageMetadata,
+} from '../../../services/executionDeliveryConsumer';
 import { queueCurationInBriefing } from './radarHandlers';
 import type { DeliveryHandlerHost } from '../legacyAppHost';
 
 export function bindDeliveryHandlers(host: DeliveryHandlerHost): void  {
   document.getElementById('btn-create-delivery')?.addEventListener('click', (e) => {
     const clientId = (e.currentTarget as HTMLElement).getAttribute('data-client-id') || host.resolveClientId();
-    dbService.ensureDraftDelivery(clientId, authService.getCurrentUser()?.uid || 'user_admin_01');
+    ensureDraftDelivery({ requestedClientId: clientId });
     host.showToast('Briefing creado. Añade los ítems curados.', 'success');
     host.render();
   });
@@ -18,7 +23,9 @@ export function bindDeliveryHandlers(host: DeliveryHandlerHost): void  {
     e.preventDefault();
     const packageId = metaForm.getAttribute('data-package-id');
     if (!packageId) return;
-    dbService.updateDelivery(packageId, {
+    updateDeliveryPackageMetadata({
+      requestedClientId: host.resolveClientId(),
+      packageId,
       title: (document.getElementById('delivery-title') as HTMLInputElement).value,
       strategicNote: (document.getElementById('delivery-note') as HTMLTextAreaElement).value,
     });
@@ -28,9 +35,11 @@ export function bindDeliveryHandlers(host: DeliveryHandlerHost): void  {
 
   document.querySelectorAll('.btn-add-to-delivery').forEach((btn) => {
     btn.addEventListener('click', (e) => {
-      const curationId = (e.currentTarget as HTMLElement).getAttribute('data-curation-id');
+      const target = e.currentTarget as HTMLElement;
+      const curationId = target.getAttribute('data-curation-id');
       if (!curationId) return;
-      if (!queueCurationInBriefing(curationId)) {
+      const clientId = target.getAttribute('data-client-id') || host.resolveClientId();
+      if (!queueCurationInBriefing(curationId, clientId)) {
         host.showToast('Ese ítem ya está en un briefing.', 'info');
         return;
       }
@@ -46,10 +55,11 @@ export function bindDeliveryHandlers(host: DeliveryHandlerHost): void  {
       const itemId = target.getAttribute('data-item-id');
       if (!packageId || !itemId) return;
 
-      const pkg = dbService.getDeliveryById(packageId);
-      const item = pkg?.items.find((i) => i.id === itemId);
-      if (item?.refId) dbService.attachCurationToDelivery(item.refId, null);
-      dbService.removeDeliveryItem(packageId, itemId);
+      removeDeliveryItemFromDelivery({
+        requestedClientId: host.resolveClientId(),
+        packageId,
+        itemId,
+      });
       host.showToast('Ítem retirado del briefing', 'info');
       host.render();
     });
@@ -70,7 +80,7 @@ export function bindDeliveryHandlers(host: DeliveryHandlerHost): void  {
       const pkg = dbService.getDeliveryById(packageId);
       if (!pkg) return;
       if (!window.confirm(`¿Descartar el borrador «${pkg.title}»? Los ítems vuelven a la bandeja de listos.`)) return;
-      dbService.discardDraftDelivery(packageId);
+      discardDraftDelivery({ requestedClientId: host.resolveClientId(), packageId });
       host.showToast('Borrador descartado', 'info');
       host.render();
     });

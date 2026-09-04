@@ -177,12 +177,17 @@ describe('Stage B #18 SendDeliveryPackage', () => {
     expect(typeof c.sendDeliveryPackage).toBe('function');
     expect(Object.keys(c).sort()).toEqual([
       'addAdviceActionToCuration',
+      'addCurationToDelivery',
       'addSignalToCuration',
       'decideCuration',
+      'discardDraftDelivery',
+      'ensureDraftDelivery',
+      'removeDeliveryItemFromDelivery',
       'reviewClientArticle',
       'saveContentDraft',
       'sendDeliveryPackage',
       'transitionClientTask',
+      'updateDeliveryPackageMetadata',
     ]);
   });
 

@@ -29,28 +29,39 @@ import {
   classifyContentMutationAuthorization,
   contentHasAuthoritativeGenericProof,
   createAddAdviceActionToCuration,
+  createAddCurationToDelivery,
   createAddSignalToCuration,
   createDecideCuration,
+  createDiscardDraftDelivery,
+  createEnsureDraftDelivery,
+  createRemoveDeliveryItemFromDelivery,
   createReviewClientArticle,
   createSaveContentDraft,
   createTransitionClientTask,
+  createUpdateDeliveryPackageMetadata,
   type AdviceReadPort,
   type ContentPublicationGatePort,
   type ContentRepository,
   type ContentStrategicBriefGatePort,
   type CurationRepositoryPort,
+  type DeliveryAssemblyRepositoryPort,
   type SignalReadPort,
   type TaskRepository,
   type TrustedExecutionDeliveryContext,
 } from '../src/application/executionDelivery';
-import type { AdviceAction, ContentItem, CurationEntry, PositioningAdvice, Signal, Task } from '../src/types';
+import type { AdviceAction, Client, ContentItem, CurationEntry, DeliveryPackage, PositioningAdvice, Signal, Task } from '../src/types';
 import { composeExecutionDelivery } from '../src/composition/executionDelivery/composeExecutionDelivery';
 import { TASK_TRANSITIONS } from '../src/domain/stateMachine';
 import {
   addAdviceActionToCuration,
+  addCurationToDelivery,
   addSignalToCuration,
   decideCuration,
+  discardDraftDelivery,
+  ensureDraftDelivery,
+  removeDeliveryItemFromDelivery,
   resetExecutionDeliveryConsumerForTest,
+  updateDeliveryPackageMetadata,
 } from '../src/services/executionDeliveryConsumer';
 import * as executionDeliveryConsumer from '../src/services/executionDeliveryConsumer';
 import { SignalIntakeError } from '../src/application/signalIntake';
@@ -59,7 +70,7 @@ import { auditService } from '../src/services/audit';
 import { dbService } from '../src/services/db';
 import { handleAdviceToCurationClick } from '../src/ui/legacy/handlers/advisorHandlers';
 import { handleCurationFormSubmit } from '../src/ui/legacy/handlers/curationHandlers';
-import { handleSendToCurationClick } from '../src/ui/legacy/handlers/radarHandlers';
+import { handleSendToCurationClick, queueCurationInBriefing } from '../src/ui/legacy/handlers/radarHandlers';
 import type { AdvisorHandlerHost } from '../src/ui/legacy/legacyAppHost';
 import type { CurationHandlerHost } from '../src/ui/legacy/legacyAppHost';
 import type { RadarHandlerHost } from '../src/ui/legacy/legacyAppHost';
@@ -1927,8 +1938,449 @@ describe('CR-1 Wave B3 #14 — DecideCuration', () => {
   });
 });
 
+describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    resetExecutionDeliveryConsumerForTest();
+  });
+
+  function baseClient(overrides: Partial<Client> = {}): Client {
+    return {
+      id: 'client_ed',
+      organizationId: 'org_ed',
+      displayName: 'Client ED',
+      status: 'ACTIVE',
+      profileCompleteness: 80,
+      createdAt: '2026-08-28T20:00:00.000Z',
+      ...overrides,
+    } as Client;
+  }
+
+  function baseDraft(overrides: Partial<DeliveryPackage> = {}): DeliveryPackage {
+    return {
+      id: 'pkg_b4_1',
+      organizationId: 'org_ed',
+      clientId: 'client_ed',
+      title: 'Briefing draft',
+      strategicNote: '',
+      periodLabel: 'agosto 2026',
+      items: [],
+      status: 'DRAFT',
+      createdAt: '2026-08-28T20:00:00.000Z',
+      createdBy: 'admin_01',
+      ...overrides,
+    };
+  }
+
+  function baseCurationEntry(overrides: Partial<CurationEntry> = {}): CurationEntry {
+    return {
+      id: 'cur_b4_1',
+      organizationId: 'org_ed',
+      clientId: 'client_ed',
+      title: 'Curation item',
+      snippet: 'Snippet text',
+      destination: 'TASK_VIDEO',
+      managerRationale: 'Because it matters',
+      deliveryPackageId: null,
+      aiAngle: 'AI angle title',
+      sourceUrl: 'https://example.com',
+      strategicBriefId: 'brief_1',
+      createdAt: '2026-08-28T20:00:00.000Z',
+      createdBy: 'admin_01',
+      ...overrides,
+    };
+  }
+
+  function memoryB4Ports(options: {
+    entry?: CurationEntry;
+    draft?: DeliveryPackage | null;
+    client?: Client;
+  } = {}) {
+    const client = options.client ?? baseClient();
+    const curationStore = options.entry ? [{ ...options.entry }] : [];
+    let packages = options.draft === null ? [] : [baseDraft(options.draft ?? {})];
+    let nextItemId = 1;
+    const calls: string[] = [];
+
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration: () => false,
+      addToCuration: (input) => {
+        const created = {
+          destination: null,
+          managerRationale: '',
+          deliveryPackageId: null,
+          ...input,
+          id: `cur_${curationStore.length + 1}`,
+          createdAt: '2026-08-28T20:00:00.000Z',
+        } as CurationEntry;
+        curationStore.unshift(created);
+        return created;
+      },
+      getById(id) {
+        return curationStore.find((c) => c.id === id);
+      },
+      decideCuration() {
+        return null;
+      },
+    };
+
+    const assembly: DeliveryAssemblyRepositoryPort = {
+      getClientById(id) {
+        return id === client.id ? client : undefined;
+      },
+      getDraftByClientId(clientId) {
+        return packages.find((p) => p.clientId === clientId && p.status === 'DRAFT');
+      },
+      getPackageById(id) {
+        return packages.find((p) => p.id === id);
+      },
+      ensureDraft(clientId, createdBy) {
+        calls.push('ensureDraft');
+        const existing = packages.find((p) => p.clientId === clientId && p.status === 'DRAFT');
+        if (existing) return existing;
+        const pkg = baseDraft({
+          id: `pkg_${packages.length + 1}`,
+          clientId,
+          createdBy,
+        });
+        packages.unshift(pkg);
+        return pkg;
+      },
+      addDeliveryItem(packageId, item) {
+        calls.push('addDeliveryItem');
+        const pkg = packages.find((p) => p.id === packageId);
+        if (!pkg || pkg.status !== 'DRAFT') return null;
+        const created = { ...item, id: `ditem_${nextItemId++}` };
+        pkg.items = [...pkg.items, created];
+        return { ...pkg, items: [...pkg.items] };
+      },
+      removeDeliveryItem(packageId, itemId) {
+        calls.push('removeDeliveryItem');
+        const pkg = packages.find((p) => p.id === packageId);
+        if (!pkg || pkg.status !== 'DRAFT') return;
+        pkg.items = pkg.items.filter((i) => i.id !== itemId);
+      },
+      updateDraftMetadata(packageId, updates) {
+        calls.push('updateDraftMetadata');
+        const pkg = packages.find((p) => p.id === packageId);
+        if (!pkg || pkg.status !== 'DRAFT') return;
+        Object.assign(pkg, updates);
+      },
+      attachCurationToDelivery(curationId, packageId) {
+        calls.push(`attach:${curationId}:${packageId ?? 'null'}`);
+        const entry = curationStore.find((c) => c.id === curationId);
+        if (!entry) return;
+        entry.deliveryPackageId = packageId;
+      },
+      discardDraftDelivery(packageId) {
+        calls.push('discardDraftDelivery');
+        const pkg = packages.find((p) => p.id === packageId);
+        if (!pkg || pkg.status !== 'DRAFT') return false;
+        for (const item of pkg.items) {
+          if (item.refId) {
+            const entry = curationStore.find((c) => c.id === item.refId);
+            if (entry) entry.deliveryPackageId = null;
+          }
+        }
+        packages = packages.filter((p) => p.id !== packageId);
+        return true;
+      },
+    };
+
+    return { curation, assembly, calls, getPackages: () => packages, getCuration: () => curationStore };
+  }
+
+  function setupAdminGate(clientId = 'client_ed', organizationId = 'org_ed') {
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue({
+      uid: 'admin_01',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId,
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    } as ReturnType<typeof authService.getCurrentUser>);
+    vi.spyOn(dbService, 'getClientById').mockReturnValue({
+      id: clientId,
+      organizationId,
+    } as ReturnType<typeof dbService.getClientById>);
+  }
+
+  it('EnsureDraftDelivery reuses existing draft and uses trusted actorId on create', () => {
+    const ports = memoryB4Ports();
+    const ensure = createEnsureDraftDelivery({ assembly: ports.assembly });
+    const existing = ports.assembly.getDraftByClientId('client_ed')!;
+    const reused = ensure({ trusted: adminTrusted() });
+    expect(reused.created).toBe(false);
+    expect(reused.package.id).toBe(existing.id);
+
+    const newClientPorts = memoryB4Ports({
+      client: baseClient({ id: 'client_new' }),
+      draft: null,
+    });
+    const ensureNewClient = createEnsureDraftDelivery({ assembly: newClientPorts.assembly });
+    const created = ensureNewClient({ trusted: adminTrusted({ clientId: 'client_new' }) });
+    expect(created.created).toBe(true);
+    expect(created.package.createdBy).toBe('admin_01');
+    expect(created.package.clientId).toBe('client_new');
+  });
+
+  it('EnsureDraftDelivery denies wrong role and cross-tenant', () => {
+    const { assembly } = memoryB4Ports();
+    const ensure = createEnsureDraftDelivery({ assembly });
+    expect(() =>
+      ensure({ trusted: adminTrusted({ actorRole: 'CLIENT' }) })
+    ).toThrow(ExecutionDeliveryError);
+    expect(() =>
+      ensure({
+        trusted: adminTrusted(),
+        claimedClientId: 'other_client',
+      })
+    ).toThrow(ExecutionDeliveryError);
+  });
+
+  it('AddCurationToDelivery maps fields and applies A2 attach-after-item', () => {
+    const { assembly, curation, getPackages, getCuration } = memoryB4Ports({
+      entry: baseCurationEntry(),
+      draft: null,
+    });
+    const add = createAddCurationToDelivery({ assembly, curation });
+    const result = add({
+      trusted: adminTrusted(),
+      curationEntryId: 'cur_b4_1',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.item.refId).toBe('cur_b4_1');
+    expect(result.item.title).toBe('AI angle title');
+    expect(result.item.note).toBe('Snippet text');
+    expect(result.item.url).toBe('https://example.com');
+    expect(result.item.rationale).toBe('Because it matters');
+    expect(result.item.strategicBriefId).toBe('brief_1');
+    expect(result.item.kind).toBe('TASK');
+    expect(getCuration()[0].deliveryPackageId).toBe(getPackages()[0].id);
+  });
+
+  it('AddCurationToDelivery A2: add failure does not attach', () => {
+    const ports = memoryB4Ports({ entry: baseCurationEntry() });
+    vi.spyOn(ports.assembly, 'addDeliveryItem').mockReturnValue(null);
+    const attachSpy = vi.spyOn(ports.assembly, 'attachCurationToDelivery');
+    const add = createAddCurationToDelivery(ports);
+    expect(() =>
+      add({
+        trusted: adminTrusted(),
+        curationEntryId: 'cur_b4_1',
+      })
+    ).toThrow(ExecutionDeliveryError);
+    expect(attachSpy).not.toHaveBeenCalled();
+    expect(ports.getCuration()[0].deliveryPackageId).toBeNull();
+  });
+
+  it('AddCurationToDelivery returns ineligible compat for duplicate/missing/DISCARD/undecided', () => {
+    const ports = memoryB4Ports({ entry: baseCurationEntry({ deliveryPackageId: 'pkg_other' }) });
+    const add = createAddCurationToDelivery(ports);
+    expect(add({ trusted: adminTrusted(), curationEntryId: 'cur_b4_1' }).ok).toBe(false);
+
+    const missing = memoryB4Ports();
+    expect(
+      createAddCurationToDelivery(missing)({
+        trusted: adminTrusted(),
+        curationEntryId: 'cur_missing',
+      }).ok
+    ).toBe(false);
+
+    const discard = memoryB4Ports({ entry: baseCurationEntry({ destination: 'DISCARD' }) });
+    expect(
+      createAddCurationToDelivery(discard)({
+        trusted: adminTrusted(),
+        curationEntryId: 'cur_b4_1',
+      }).ok
+    ).toBe(false);
+
+    const undecided = memoryB4Ports({ entry: baseCurationEntry({ destination: null }) });
+    expect(
+      createAddCurationToDelivery(undecided)({
+        trusted: adminTrusted(),
+        curationEntryId: 'cur_b4_1',
+      }).ok
+    ).toBe(false);
+  });
+
+  it('AddCurationToDelivery attach failure after item leaves item without rollback', () => {
+    const ports = memoryB4Ports({ entry: baseCurationEntry() });
+    vi.spyOn(ports.assembly, 'attachCurationToDelivery').mockImplementation(() => {
+      throw new Error('attach failed');
+    });
+    const add = createAddCurationToDelivery(ports);
+    expect(() =>
+      add({
+        trusted: adminTrusted(),
+        curationEntryId: 'cur_b4_1',
+      })
+    ).toThrow(ExecutionDeliveryError);
+    expect(ports.getPackages()[0].items.length).toBe(1);
+    expect(ports.getCuration()[0].deliveryPackageId).toBeNull();
+  });
+
+  it('UpdateDeliveryPackageMetadata updates draft and no-ops missing/non-DRAFT', () => {
+    const ports = memoryB4Ports();
+    const update = createUpdateDeliveryPackageMetadata({ assembly: ports.assembly });
+    const ok = update({
+      trusted: adminTrusted(),
+      packageId: 'pkg_b4_1',
+      title: 'New title',
+      strategicNote: 'New note',
+    });
+    expect(ok.updated).toBe(true);
+    expect(ports.getPackages()[0].title).toBe('New title');
+    expect(
+      update({
+        trusted: adminTrusted(),
+        packageId: 'missing',
+        title: 'X',
+        strategicNote: 'Y',
+      }).updated
+    ).toBe(false);
+  });
+
+  it('RemoveDeliveryItemFromDelivery preserves R1 detach then remove order', () => {
+    const ports = memoryB4Ports({
+      draft: baseDraft({
+        items: [
+          {
+            id: 'ditem_1',
+            kind: 'TASK',
+            refId: 'cur_b4_1',
+            title: 'Item',
+          },
+        ],
+      }),
+      entry: baseCurationEntry({ deliveryPackageId: 'pkg_b4_1' }),
+    });
+    const remove = createRemoveDeliveryItemFromDelivery({ assembly: ports.assembly });
+    remove({
+      trusted: adminTrusted(),
+      packageId: 'pkg_b4_1',
+      itemId: 'ditem_1',
+    });
+    expect(ports.calls).toEqual(['attach:cur_b4_1:null', 'removeDeliveryItem']);
+    expect(ports.getPackages()[0].items).toHaveLength(0);
+    expect(ports.getCuration()[0].deliveryPackageId).toBeNull();
+  });
+
+  it('RemoveDeliveryItemFromDelivery skips detach when item has no refId', () => {
+    const ports = memoryB4Ports({
+      draft: baseDraft({
+        items: [{ id: 'ditem_1', kind: 'TASK', title: 'Item' }],
+      }),
+    });
+    const remove = createRemoveDeliveryItemFromDelivery({ assembly: ports.assembly });
+    remove({
+      trusted: adminTrusted(),
+      packageId: 'pkg_b4_1',
+      itemId: 'ditem_1',
+    });
+    expect(ports.calls).toEqual(['removeDeliveryItem']);
+  });
+
+  it('DiscardDraftDelivery detaches curations and deletes package in one mutation', () => {
+    const ports = memoryB4Ports({
+      draft: baseDraft({
+        items: [{ id: 'ditem_1', kind: 'TASK', refId: 'cur_b4_1', title: 'Item' }],
+      }),
+      entry: baseCurationEntry({ deliveryPackageId: 'pkg_b4_1' }),
+    });
+    const discard = createDiscardDraftDelivery({ assembly: ports.assembly });
+    const result = discard({ trusted: adminTrusted(), packageId: 'pkg_b4_1' });
+    expect(result.discarded).toBe(true);
+    expect(ports.getPackages()).toHaveLength(0);
+    expect(ports.getCuration()[0].deliveryPackageId).toBeNull();
+  });
+
+  it('assembly consumers emit zero audits', () => {
+    setupAdminGate();
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    const ports = memoryB4Ports({ entry: baseCurationEntry(), draft: null });
+    resetExecutionDeliveryConsumerForTest(
+      composeExecutionDelivery({
+        assembly: ports.assembly,
+        curation: ports.curation,
+      })
+    );
+    ensureDraftDelivery({ requestedClientId: 'client_ed' });
+    addCurationToDelivery({ requestedClientId: 'client_ed', curationEntryId: 'cur_b4_1' });
+    updateDeliveryPackageMetadata({
+      requestedClientId: 'client_ed',
+      packageId: ports.getPackages()[0].id,
+      title: 'T',
+      strategicNote: 'N',
+    });
+    removeDeliveryItemFromDelivery({
+      requestedClientId: 'client_ed',
+      packageId: ports.getPackages()[0].id,
+      itemId: ports.getPackages()[0].items[0]?.id ?? 'ditem_1',
+    });
+    discardDraftDelivery({ requestedClientId: 'client_ed', packageId: ports.getPackages()[0]?.id ?? 'pkg_b4_1' });
+    expect(auditSpy).not.toHaveBeenCalled();
+  });
+
+  it('queueCurationInBriefing delegates to canonical add without direct db assembly writes', () => {
+    setupAdminGate();
+    const addSpy = vi.spyOn(executionDeliveryConsumer, 'addCurationToDelivery').mockReturnValue({
+      ok: true,
+      package: baseDraft(),
+      item: { id: 'ditem_1', kind: 'TASK', title: 'Item' },
+      entry: baseCurationEntry({ deliveryPackageId: 'pkg_b4_1' }),
+    });
+    expect(queueCurationInBriefing('cur_b4_1', 'client_ed')).toBe(true);
+    expect(addSpy).toHaveBeenCalledWith({
+      requestedClientId: 'client_ed',
+      curationEntryId: 'cur_b4_1',
+    });
+    const source = readFileSync(resolve('src/ui/legacy/handlers/radarHandlers.ts'), 'utf8');
+    const block = source.match(/export function queueCurationInBriefing[\s\S]*?^}/m);
+    expect(block).toBeTruthy();
+    expect(block![0]).not.toMatch(/dbService\.(ensureDraftDelivery|addDeliveryItem|attachCurationToDelivery)/);
+  });
+
+  it('delivery handlers delegate assembly writes to consumer — no direct db assembly mutations', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/deliveryHandlers.ts'), 'utf8');
+    expect(source).toMatch(/ensureDraftDelivery\s*\(/);
+    expect(source).toMatch(/updateDeliveryPackageMetadata\s*\(/);
+    expect(source).toMatch(/removeDeliveryItemFromDelivery\s*\(/);
+    expect(source).toMatch(/discardDraftDelivery\s*\(/);
+    expect(source).not.toMatch(/dbService\.ensureDraftDelivery/);
+    expect(source).not.toMatch(/dbService\.addDeliveryItem/);
+    expect(source).not.toMatch(/dbService\.attachCurationToDelivery/);
+    expect(source).not.toMatch(/dbService\.removeDeliveryItem/);
+    expect(source).not.toMatch(/dbService\.updateDelivery/);
+    expect(source).not.toMatch(/dbService\.discardDraftDelivery/);
+    expect(source).not.toMatch(/user_admin_01/);
+  });
+
+  it('use cases do not invoke #18, AI, Brief, Planner, #27, #33', () => {
+    for (const file of [
+      'EnsureDraftDelivery.ts',
+      'AddCurationToDelivery.ts',
+      'UpdateDeliveryPackageMetadata.ts',
+      'RemoveDeliveryItemFromDelivery.ts',
+      'DiscardDraftDelivery.ts',
+    ]) {
+      const source = readFileSync(resolve(`src/application/executionDelivery/${file}`), 'utf8');
+      expect(source).not.toMatch(/SendDeliveryPackage|sendDeliveryPackage/);
+      expect(source).not.toMatch(/aiService|openai|fetch\(/);
+      expect(source).not.toMatch(/gateStrategicDownstream|requirePlannedAuthorization/);
+      expect(source).not.toMatch(/addTask|saveContent|materializeOpportunity/);
+    }
+  });
+});
+
 describe('CR-1 Execution Delivery architecture', () => {
-  it('compose exposes seven commands including decideCuration', () => {
+  it('compose exposes twelve commands including delivery assembly cluster', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.transitionClientTask).toBe('function');
     expect(typeof c.saveContentDraft).toBe('function');
@@ -1937,6 +2389,11 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(typeof c.addSignalToCuration).toBe('function');
     expect(typeof c.addAdviceActionToCuration).toBe('function');
     expect(typeof c.decideCuration).toBe('function');
+    expect(typeof c.ensureDraftDelivery).toBe('function');
+    expect(typeof c.addCurationToDelivery).toBe('function');
+    expect(typeof c.updateDeliveryPackageMetadata).toBe('function');
+    expect(typeof c.removeDeliveryItemFromDelivery).toBe('function');
+    expect(typeof c.discardDraftDelivery).toBe('function');
   });
 
   it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {

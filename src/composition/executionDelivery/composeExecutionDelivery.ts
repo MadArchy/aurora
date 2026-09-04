@@ -1,16 +1,22 @@
 import {
   createAddAdviceActionToCuration,
+  createAddCurationToDelivery,
   createAddSignalToCuration,
   createDecideCuration,
+  createDiscardDraftDelivery,
+  createEnsureDraftDelivery,
+  createRemoveDeliveryItemFromDelivery,
   createReviewClientArticle,
   createSaveContentDraft,
   createSendDeliveryPackage,
   createTransitionClientTask,
+  createUpdateDeliveryPackageMetadata,
   type AdviceReadPort,
   type ContentPublicationGatePort,
   type ContentRepository,
   type ContentStrategicBriefGatePort,
   type CurationRepositoryPort,
+  type DeliveryAssemblyRepositoryPort,
   type DeliverySendPort,
   type SignalReadPort,
   type TaskRepository,
@@ -21,6 +27,7 @@ import {
   createDbContentRepository,
   createDbContentStrategicBriefGate,
   createDbCurationRepositoryPort,
+  createDbDeliveryAssemblyRepositoryPort,
   createDbSignalReadPort,
   createDbDeliverySendPort,
   createDbTaskRepository,
@@ -35,6 +42,7 @@ export function composeExecutionDelivery(options: {
   signals?: SignalReadPort;
   curation?: CurationRepositoryPort;
   advice?: AdviceReadPort;
+  assembly?: DeliveryAssemblyRepositoryPort;
 } = {}) {
   const tasks = options.tasks ?? createDbTaskRepository();
   const contents = options.contents ?? createDbContentRepository();
@@ -44,6 +52,7 @@ export function composeExecutionDelivery(options: {
   const signals = options.signals ?? createDbSignalReadPort();
   const curation = options.curation ?? createDbCurationRepositoryPort();
   const advice = options.advice ?? createDbAdviceReadPort();
+  const assembly = options.assembly ?? createDbDeliveryAssemblyRepositoryPort();
   return {
     transitionClientTask: createTransitionClientTask({ tasks }),
     saveContentDraft: createSaveContentDraft({ contents, publicationGate, strategicBriefGate }),
@@ -52,5 +61,10 @@ export function composeExecutionDelivery(options: {
     addSignalToCuration: createAddSignalToCuration({ signals, curation }),
     addAdviceActionToCuration: createAddAdviceActionToCuration({ advice, curation }),
     decideCuration: createDecideCuration({ curation }),
+    ensureDraftDelivery: createEnsureDraftDelivery({ assembly }),
+    addCurationToDelivery: createAddCurationToDelivery({ assembly, curation }),
+    updateDeliveryPackageMetadata: createUpdateDeliveryPackageMetadata({ assembly }),
+    removeDeliveryItemFromDelivery: createRemoveDeliveryItemFromDelivery({ assembly }),
+    discardDraftDelivery: createDiscardDraftDelivery({ assembly }),
   };
 }

@@ -9,20 +9,11 @@ import { ExecutionDeliveryError } from '../../../application/executionDelivery';
 import { StrategicRoutingError } from '../../../application/strategicSignalRouting';
 import { runResearchSignalsAgent } from '../../../services/researchSignalsAgent';
 import { registerSignalOutcomeIntent } from '../../../services/learningLoopConsumer';
-import { addSignalToCuration } from '../../../services/executionDeliveryConsumer';
+import { addSignalToCuration, addCurationToDelivery } from '../../../services/executionDeliveryConsumer';
 import { discardSignal, markSignalSaved } from '../../../services/signalIntakeConsumer';
 import { metricsService } from '../../../services/metrics';
 import type { ScoringContext } from '../../../services/scoring';
-import type { CurationDestination, DeliveryItemKind } from '../../../types';
 import type { RadarHandlerHost } from '../legacyAppHost';
-
-const DESTINATION_TO_KIND: Record<Exclude<CurationDestination, 'DISCARD'>, DeliveryItemKind> = {
-TASK_VIDEO: 'TASK',
-TASK_ARTICLE: 'TASK',
-OPPORTUNITY: 'OPPORTUNITY',
-REFERENCE_READING: 'READING',
-EVIDENCE: 'FILE',
-};
 
 export function scoringContext(clientId: string): ScoringContext {
   const client = dbService.getClientById(clientId);
@@ -58,27 +49,12 @@ export function scoreSignal(host: RadarHandlerHost, signalId: string, clientId: 
   }
 }
 
-export function queueCurationInBriefing(curationId: string): boolean {
-  const entry = dbService.getCurationById(curationId);
-  if (!entry || !entry.destination || entry.destination === 'DISCARD' || entry.deliveryPackageId) {
-    return false;
-  }
-
-  const pkg = dbService.ensureDraftDelivery(
-    entry.clientId,
-    authService.getCurrentUser()?.uid || 'user_admin_01'
-  );
-  dbService.addDeliveryItem(pkg.id, {
-    kind: DESTINATION_TO_KIND[entry.destination],
-    refId: entry.id,
-    title: entry.aiAngle || entry.title,
-    note: entry.snippet,
-    url: entry.sourceUrl,
-    rationale: entry.managerRationale,
-    strategicBriefId: entry.strategicBriefId,
+export function queueCurationInBriefing(curationId: string, requestedClientId: string): boolean {
+  const result = addCurationToDelivery({
+    requestedClientId,
+    curationEntryId: curationId,
   });
-  dbService.attachCurationToDelivery(curationId, pkg.id);
-  return true;
+  return result.ok;
 }
 
 /**
