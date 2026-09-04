@@ -42,6 +42,7 @@ import {
   resetSignalIntakeConsumerForTest,
 } from '../src/services/signalIntakeConsumer';
 import * as signalIntakeConsumer from '../src/services/signalIntakeConsumer';
+import * as executionDeliveryConsumer from '../src/services/executionDeliveryConsumer';
 import { composeSignalIntake } from '../src/composition/signalIntake/composeSignalIntake';
 import { authService } from '../src/services/auth';
 import { auditService } from '../src/services/audit';
@@ -999,7 +1000,7 @@ describe('CR-1 Wave A2 #21b — send-to-curation composite compatibility', () =>
     vi.restoreAllMocks();
   });
 
-  it('executes addToCuration before markSignalSaved then audit, toast, refresh', () => {
+  it('executes addSignalToCuration before markSignalSaved then audit, toast, refresh', () => {
     const order: string[] = [];
     const host = radarHandlerHost();
     vi.spyOn(dbService, 'getSignalById').mockReturnValue({
@@ -1013,9 +1014,9 @@ describe('CR-1 Wave A2 #21b — send-to-curation composite compatibility', () =>
       status: 'NEW',
     } as Signal);
     vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
-    vi.spyOn(dbService, 'addToCuration').mockImplementation(() => {
-      order.push('addToCuration');
-      return { id: 'cur_1' } as ReturnType<typeof dbService.addToCuration>;
+    vi.spyOn(executionDeliveryConsumer, 'addSignalToCuration').mockImplementation(() => {
+      order.push('addSignalToCuration');
+      return { entry: { id: 'cur_1' } as import('../src/types').CurationEntry };
     });
     vi.spyOn(signalIntakeConsumer, 'markSignalSaved').mockImplementation(() => {
       order.push('markSignalSaved');
@@ -1027,7 +1028,7 @@ describe('CR-1 Wave A2 #21b — send-to-curation composite compatibility', () =>
 
     handleSendToCurationClick(host, 'sig_order');
 
-    expect(order).toEqual(['addToCuration', 'markSignalSaved', 'audit']);
+    expect(order).toEqual(['addSignalToCuration', 'markSignalSaved', 'audit']);
     expect(host.showToast).toHaveBeenCalledWith('Enviada a curación', 'success');
     expect(host.refreshMain).toHaveBeenCalledTimes(1);
     expect(auditSpy).toHaveBeenCalledWith(
@@ -1052,8 +1053,8 @@ describe('CR-1 Wave A2 #21b — send-to-curation composite compatibility', () =>
       status: 'NEW',
     } as Signal);
     vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
-    const addSpy = vi.spyOn(dbService, 'addToCuration').mockImplementation(() => {
-      return { id: 'cur_stale' } as ReturnType<typeof dbService.addToCuration>;
+    const addSpy = vi.spyOn(executionDeliveryConsumer, 'addSignalToCuration').mockImplementation(() => {
+      return { entry: { id: 'cur_stale' } as import('../src/types').CurationEntry };
     });
     vi.spyOn(signalIntakeConsumer, 'markSignalSaved').mockImplementation(() => {
       throw new SignalIntakeError('SIGNAL_NOT_FOUND', 'Signal not found: sig_stale_curation');
@@ -1089,8 +1090,8 @@ describe('CR-1 Wave A2 #21b — send-to-curation composite compatibility', () =>
       status: 'NEW',
     } as Signal);
     vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
-    const addSpy = vi.spyOn(dbService, 'addToCuration').mockImplementation(() => {
-      return { id: 'cur_denied' } as ReturnType<typeof dbService.addToCuration>;
+    const addSpy = vi.spyOn(executionDeliveryConsumer, 'addSignalToCuration').mockImplementation(() => {
+      return { entry: { id: 'cur_denied' } as import('../src/types').CurationEntry };
     });
     vi.spyOn(signalIntakeConsumer, 'markSignalSaved').mockImplementation(() => {
       throw new SignalIntakeError('ACTOR_NOT_AUTHORIZED', 'Denied');
@@ -1248,14 +1249,16 @@ describe('CR-1 Signal Intake architecture', () => {
     expect(source).toMatch(/dbService\.decideSignal\([^)]*DISCARDED/);
   });
 
-  it('primary #21b send-to-curation delegates markSignalSaved (not direct dbService SAVED)', () => {
+  it('primary #21 send-to-curation delegates addSignalToCuration and markSignalSaved (not direct dbService)', () => {
     const source = readFileSync(resolve('src/ui/legacy/handlers/radarHandlers.ts'), 'utf8');
     expect(source).toMatch(/handleSendToCurationClick/);
+    expect(source).toMatch(/addSignalToCuration\s*\(/);
     expect(source).toMatch(/markSignalSaved\s*\(/);
     expect(source).toMatch(/error\.code === 'SIGNAL_NOT_FOUND'/);
     const curationBlock = source.match(/\.btn-send-to-curation[\s\S]*?\}\);/);
     expect(curationBlock).toBeTruthy();
     expect(curationBlock![0]).toMatch(/handleSendToCurationClick\s*\(/);
     expect(curationBlock![0]).not.toMatch(/dbService\.decideSignal\([^)]*['"]SAVED['"]/);
+    expect(curationBlock![0]).not.toMatch(/dbService\.addToCuration/);
   });
 });

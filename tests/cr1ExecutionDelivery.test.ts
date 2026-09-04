@@ -2,7 +2,7 @@
  * CR-1 Workstream 5 — Execution Delivery Application tests.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -28,18 +28,32 @@ import {
   ExecutionDeliveryError,
   classifyContentMutationAuthorization,
   contentHasAuthoritativeGenericProof,
+  createAddSignalToCuration,
   createReviewClientArticle,
   createSaveContentDraft,
   createTransitionClientTask,
   type ContentPublicationGatePort,
   type ContentRepository,
   type ContentStrategicBriefGatePort,
+  type CurationRepositoryPort,
+  type SignalReadPort,
   type TaskRepository,
   type TrustedExecutionDeliveryContext,
 } from '../src/application/executionDelivery';
-import type { ContentItem, Task } from '../src/types';
+import type { ContentItem, CurationEntry, Signal, Task } from '../src/types';
 import { composeExecutionDelivery } from '../src/composition/executionDelivery/composeExecutionDelivery';
 import { TASK_TRANSITIONS } from '../src/domain/stateMachine';
+import {
+  addSignalToCuration,
+  resetExecutionDeliveryConsumerForTest,
+} from '../src/services/executionDeliveryConsumer';
+import * as executionDeliveryConsumer from '../src/services/executionDeliveryConsumer';
+import { authService } from '../src/services/auth';
+import { auditService } from '../src/services/audit';
+import { dbService } from '../src/services/db';
+import { handleSendToCurationClick } from '../src/ui/legacy/handlers/radarHandlers';
+import type { RadarHandlerHost } from '../src/ui/legacy/legacyAppHost';
+import * as signalIntakeConsumer from '../src/services/signalIntakeConsumer';
 
 function adminTrusted(
   overrides: Partial<TrustedExecutionDeliveryContext> = {}
@@ -666,13 +680,434 @@ describe('CR-1 Execution Delivery — ReviewClientArticle', () => {
   });
 });
 
+describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    resetExecutionDeliveryConsumerForTest();
+  });
+
+  function baseSignal(overrides: Partial<Signal> = {}): Signal {
+    return {
+      id: 'sig_b1',
+      organizationId: 'org_ed',
+      clientId: 'client_ed',
+      title: 'Signal title',
+      sourceType: 'MANUAL',
+      sourceName: 'Source',
+      sourceUrl: 'https://example.com',
+      contentSnippet: 'snippet text',
+      fingerprint: 'fp',
+      detectedAt: '2026-08-28T19:00:00.000Z',
+      status: 'NEW',
+      aiStatus: 'NONE',
+      managerDecision: 'PENDING',
+      relevanceScore: 82,
+      priorityBand: 'HIGH',
+      recommendedAction: 'MONITOR',
+      thesisId: 'thesis_1',
+      ...overrides,
+    };
+  }
+
+  function memoryB1Ports(seed: Signal[] = []) {
+    const signalStore = new Map(seed.map((s) => [s.id, { ...s }]));
+    const curationEntries: CurationEntry[] = [];
+    let persistCount = 0;
+    const signals: SignalReadPort = {
+      getById(id) {
+        return signalStore.get(id);
+      },
+    };
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration(clientId, signalId) {
+        return curationEntries.some((e) => e.clientId === clientId && e.signalId === signalId);
+      },
+      addToCuration(entry) {
+        persistCount += 1;
+        const created: CurationEntry = {
+          destination: null,
+          managerRationale: '',
+          deliveryPackageId: null,
+          ...entry,
+          id: `cur_${curationEntries.length + 1}`,
+          createdAt: '2026-08-28T20:00:00.000Z',
+        };
+        curationEntries.unshift(created);
+        return created;
+      },
+    };
+    return { signals, curation, signalStore, curationEntries, getPersistCount: () => persistCount };
+  }
+
+  function setupAdminGate(clientId = 'client_ed', organizationId = 'org_ed') {
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue({
+      uid: 'admin_01',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId,
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    } as ReturnType<typeof authService.getCurrentUser>);
+    vi.spyOn(dbService, 'getClientById').mockReturnValue({
+      id: clientId,
+      organizationId,
+    } as ReturnType<typeof dbService.getClientById>);
+  }
+
+  function radarHost(overrides: Partial<RadarHandlerHost> = {}): RadarHandlerHost {
+    return {
+      resolveClientId: () => 'client_ed',
+      showToast: vi.fn(),
+      refreshMain: vi.fn(),
+      ...overrides,
+    } as RadarHandlerHost;
+  }
+
+  it('valid trusted ADMIN normal add persists one CurationEntry from authoritative Signal', () => {
+    const { signals, curation } = memoryB1Ports([baseSignal()]);
+    const add = createAddSignalToCuration({ signals, curation });
+    const result = add({ trusted: adminTrusted(), signalId: 'sig_b1' });
+    expect(result.entry.signalId).toBe('sig_b1');
+    expect(result.entry.title).toBe('Signal title');
+    expect(result.entry.snippet).toBe('snippet text');
+    expect(result.entry.score).toBe(82);
+    expect(result.entry.createdBy).toBe('admin_01');
+  });
+
+  it('authoritative Signal reload — entry fields come from persisted Signal not caller snapshot', () => {
+    const { signals, curation, signalStore } = memoryB1Ports([baseSignal()]);
+    signalStore.set('sig_b1', baseSignal({ title: 'Authoritative title', relevanceScore: 91 }));
+    const add = createAddSignalToCuration({ signals, curation });
+    const result = add({ trusted: adminTrusted(), signalId: 'sig_b1' });
+    expect(result.entry.title).toBe('Authoritative title');
+    expect(result.entry.score).toBe(91);
+  });
+
+  it('caller snapshot authority = 0 — spoofed organizationId denied before persist', () => {
+    const { signals, curation, getPersistCount } = memoryB1Ports([baseSignal()]);
+    const add = createAddSignalToCuration({ signals, curation });
+    expect(() =>
+      add({
+        trusted: adminTrusted(),
+        signalId: 'sig_b1',
+        claimedOrganizationId: 'org_spoof',
+      })
+    ).toThrow(ExecutionDeliveryError);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('GATE_FIRST: reload then dedup then persist', () => {
+    const order: string[] = [];
+    const signals: SignalReadPort = {
+      getById() {
+        order.push('reload');
+        return baseSignal();
+      },
+    };
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration() {
+        order.push('dedup');
+        return false;
+      },
+      addToCuration() {
+        order.push('persist');
+        return {
+          id: 'cur_1',
+          organizationId: 'org_ed',
+          clientId: 'client_ed',
+          signalId: 'sig_b1',
+          title: 't',
+          snippet: 's',
+          destination: null,
+          managerRationale: '',
+          deliveryPackageId: null,
+          createdAt: '2026-08-28T20:00:00.000Z',
+          createdBy: 'admin_01',
+        };
+      },
+    };
+    createAddSignalToCuration({ signals, curation })({
+      trusted: adminTrusted(),
+      signalId: 'sig_b1',
+    });
+    expect(order).toEqual(['reload', 'dedup', 'persist']);
+  });
+
+  it('cross-tenant denial when Signal organization differs from trusted session', () => {
+    const { signals, curation, getPersistCount } = memoryB1Ports([
+      baseSignal({ organizationId: 'org_other' }),
+    ]);
+    const add = createAddSignalToCuration({ signals, curation });
+    expect(() => add({ trusted: adminTrusted(), signalId: 'sig_b1' })).toThrow(
+      /trusted organization/i
+    );
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('wrong-client denial when Signal clientId differs from trusted entitlement', () => {
+    const { signals, curation, getPersistCount } = memoryB1Ports([
+      baseSignal({ clientId: 'client_other' }),
+    ]);
+    const add = createAddSignalToCuration({ signals, curation });
+    expect(() => add({ trusted: adminTrusted(), signalId: 'sig_b1' })).toThrow(
+      /trusted client entitlement/i
+    );
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('unauthorized role — CLIENT denied', () => {
+    const { signals, curation, getPersistCount } = memoryB1Ports([baseSignal()]);
+    const add = createAddSignalToCuration({ signals, curation });
+    expect(() =>
+      add({ trusted: clientTrusted(), signalId: 'sig_b1' })
+    ).toThrow(/ADMIN role/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('missing session — empty actorId denied', () => {
+    const { signals, curation, getPersistCount } = memoryB1Ports([baseSignal()]);
+    const add = createAddSignalToCuration({ signals, curation });
+    expect(() =>
+      add({ trusted: adminTrusted({ actorId: '' }), signalId: 'sig_b1' })
+    ).toThrow(/actorId/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('missing authoritative Signal — fail closed INVALID_INPUT', () => {
+    const { signals, curation, getPersistCount } = memoryB1Ports([]);
+    const add = createAddSignalToCuration({ signals, curation });
+    try {
+      add({ trusted: adminTrusted(), signalId: 'sig_missing' });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExecutionDeliveryError);
+      expect((err as ExecutionDeliveryError).code).toBe('INVALID_INPUT');
+      expect((err as ExecutionDeliveryError).message).toMatch(/Signal not found/i);
+    }
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('existing duplicate — CURATION_ALREADY_EXISTS, no persist', () => {
+    const { signals, curation, getPersistCount } = memoryB1Ports([baseSignal()]);
+    curation.addToCuration({
+      organizationId: 'org_ed',
+      clientId: 'client_ed',
+      signalId: 'sig_b1',
+      title: 'existing',
+      snippet: 'x',
+      createdBy: 'admin_01',
+    });
+    const add = createAddSignalToCuration({ signals, curation });
+    try {
+      add({ trusted: adminTrusted(), signalId: 'sig_b1' });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExecutionDeliveryError);
+      expect((err as ExecutionDeliveryError).code).toBe('CURATION_ALREADY_EXISTS');
+    }
+    expect(getPersistCount()).toBe(1);
+  });
+
+  it('concurrent duplicate race — Application recheck blocks second write', () => {
+    const { signals, curation, getPersistCount } = memoryB1Ports([baseSignal()]);
+    curation.addToCuration({
+      organizationId: 'org_ed',
+      clientId: 'client_ed',
+      signalId: 'sig_b1',
+      title: 'race winner',
+      snippet: 'x',
+      createdBy: 'other',
+    });
+    const add = createAddSignalToCuration({ signals, curation });
+    expect(() => add({ trusted: adminTrusted(), signalId: 'sig_b1' })).toThrow(
+      ExecutionDeliveryError
+    );
+    expect(getPersistCount()).toBe(1);
+  });
+
+  it('persistence failure surfaces PERSISTENCE_ERROR', () => {
+    const signals: SignalReadPort = { getById: () => baseSignal() };
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration: () => false,
+      addToCuration: () => {
+        throw new Error('disk full');
+      },
+    };
+    const add = createAddSignalToCuration({ signals, curation });
+    try {
+      add({ trusted: adminTrusted(), signalId: 'sig_b1' });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExecutionDeliveryError);
+      expect((err as ExecutionDeliveryError).code).toBe('PERSISTENCE_ERROR');
+    }
+  });
+
+  it('no scoring inside use case', () => {
+    const source = readFileSync(
+      resolve('src/application/executionDelivery/AddSignalToCuration.ts'),
+      'utf8'
+    );
+    expect(source).not.toMatch(/scoreSignal|scoreAndRouteSignal|strategicRouting/);
+  });
+
+  it('no routing inside use case', () => {
+    const source = readFileSync(
+      resolve('src/application/executionDelivery/AddSignalToCuration.ts'),
+      'utf8'
+    );
+    expect(source).not.toMatch(/routingState|ResolveThesis|routeSignal/);
+  });
+
+  it('consumer addSignalToCuration performs no composite SIGNAL_TO_CURATION audit', () => {
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    resetExecutionDeliveryConsumerForTest(
+      composeExecutionDelivery({
+        signals: { getById: () => baseSignal() },
+        curation: {
+          isSignalInCuration: () => false,
+          addToCuration: (entry) =>
+            ({
+              id: 'cur_audit',
+              destination: null,
+              managerRationale: '',
+              deliveryPackageId: null,
+              createdAt: '2026-08-28T20:00:00.000Z',
+              ...entry,
+            }) as CurationEntry,
+        },
+      })
+    );
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue({
+      uid: 'admin_01',
+      role: 'ADMIN',
+      organizationId: 'org_ed',
+      clientId: null,
+    } as ReturnType<typeof authService.getCurrentUser>);
+    vi.spyOn(dbService, 'getClientById').mockReturnValue({
+      id: 'client_ed',
+      organizationId: 'org_ed',
+    } as ReturnType<typeof dbService.getClientById>);
+
+    addSignalToCuration({ requestedClientId: 'client_ed', signalId: 'sig_b1' });
+    expect(auditSpy).not.toHaveBeenCalled();
+    resetExecutionDeliveryConsumerForTest();
+  });
+
+  it('stale Signal TOCTOU: warning only, no write, no #21b, no audit, no refresh', () => {
+    setupAdminGate();
+    const host = radarHost();
+    let getCalls = 0;
+    vi.spyOn(dbService, 'getSignalById').mockImplementation(() => {
+      getCalls += 1;
+      if (getCalls === 1) {
+        return baseSignal({ id: 'sig_stale_toctou' }) as ReturnType<typeof dbService.getSignalById>;
+      }
+      return undefined;
+    });
+    vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
+    const markSavedSpy = vi.spyOn(signalIntakeConsumer, 'markSignalSaved');
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    const addSpy = vi.spyOn(dbService, 'addToCuration');
+
+    handleSendToCurationClick(host, 'sig_stale_toctou');
+
+    expect(addSpy).not.toHaveBeenCalled();
+    expect(markSavedSpy).not.toHaveBeenCalled();
+    expect(auditSpy).not.toHaveBeenCalled();
+    expect(host.showToast).toHaveBeenCalledWith(expect.stringMatching(/Signal not found/i), 'warning');
+    expect(host.showToast).not.toHaveBeenCalledWith('Enviada a curación', 'success');
+    expect(host.refreshMain).not.toHaveBeenCalled();
+  });
+
+  it('duplicate race at handler: info toast, no #21b, no audit, no refresh', () => {
+    setupAdminGate();
+    const host = radarHost();
+    vi.spyOn(dbService, 'getSignalById').mockReturnValue(
+      baseSignal({ id: 'sig_dup_race' }) as ReturnType<typeof dbService.getSignalById>
+    );
+    vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
+    vi.spyOn(executionDeliveryConsumer, 'addSignalToCuration').mockImplementation(() => {
+      throw new ExecutionDeliveryError(
+        'CURATION_ALREADY_EXISTS',
+        'Esta señal ya está en la mesa de curación.'
+      );
+    });
+    const markSavedSpy = vi.spyOn(signalIntakeConsumer, 'markSignalSaved');
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+
+    handleSendToCurationClick(host, 'sig_dup_race');
+
+    expect(host.showToast).toHaveBeenCalledWith(
+      'Esta señal ya está en la mesa de curación.',
+      'info'
+    );
+    expect(markSavedSpy).not.toHaveBeenCalled();
+    expect(auditSpy).not.toHaveBeenCalled();
+    expect(host.refreshMain).not.toHaveBeenCalled();
+  });
+
+  it('caller order: addSignalToCuration then markSignalSaved then audit then toast then refresh', () => {
+    setupAdminGate();
+    const order: string[] = [];
+    const host = radarHost();
+    vi.spyOn(dbService, 'getSignalById').mockReturnValue(
+      baseSignal({ id: 'sig_order_b1' }) as ReturnType<typeof dbService.getSignalById>
+    );
+    vi.spyOn(dbService, 'isSignalInCuration').mockReturnValue(false);
+    vi.spyOn(executionDeliveryConsumer, 'addSignalToCuration').mockImplementation(() => {
+      order.push('addSignalToCuration');
+      return { entry: { id: 'cur_order' } as CurationEntry };
+    });
+    vi.spyOn(signalIntakeConsumer, 'markSignalSaved').mockImplementation(() => {
+      order.push('markSignalSaved');
+      return { signal: baseSignal({ id: 'sig_order_b1' }) };
+    });
+    vi.spyOn(auditService, 'log').mockImplementation(() => {
+      order.push('audit');
+    });
+    vi.spyOn(host, 'showToast').mockImplementation((msg, kind) => {
+      if (kind === 'success') order.push('toast');
+    });
+    vi.spyOn(host, 'refreshMain').mockImplementation(() => {
+      order.push('refresh');
+    });
+
+    handleSendToCurationClick(host, 'sig_order_b1');
+
+    expect(order).toEqual([
+      'addSignalToCuration',
+      'markSignalSaved',
+      'audit',
+      'toast',
+      'refresh',
+    ]);
+  });
+
+  it('preload-missing Signal: silent return unchanged', () => {
+    const host = radarHost();
+    vi.spyOn(dbService, 'getSignalById').mockReturnValue(undefined);
+    const addSpy = vi.spyOn(executionDeliveryConsumer, 'addSignalToCuration');
+    handleSendToCurationClick(host, 'sig_preload_missing');
+    expect(addSpy).not.toHaveBeenCalled();
+    expect(host.showToast).not.toHaveBeenCalled();
+    expect(host.refreshMain).not.toHaveBeenCalled();
+  });
+});
+
 describe('CR-1 Execution Delivery architecture', () => {
-  it('compose exposes four commands including sendDeliveryPackage', () => {
+  it('compose exposes five commands including addSignalToCuration', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.transitionClientTask).toBe('function');
     expect(typeof c.saveContentDraft).toBe('function');
     expect(typeof c.reviewClientArticle).toBe('function');
     expect(typeof c.sendDeliveryPackage).toBe('function');
+    expect(typeof c.addSignalToCuration).toBe('function');
   });
 
   it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {
@@ -738,5 +1173,20 @@ describe('CR-1 Execution Delivery architecture', () => {
   it('does not reopen prior CR-1 workstreams', () => {
     const source = readFileSync(resolve('src/application/executionDelivery/TransitionClientTask.ts'), 'utf8');
     expect(source).not.toMatch(/SaveThesis|RegisterSource|ApplyOnboardingStep|CreateClientWithInvite/);
+  });
+
+  it('radar #21a delegates addSignalToCuration — no direct dbService.addToCuration', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/radarHandlers.ts'), 'utf8');
+    const fnBlock = source.match(
+      /export function handleSendToCurationClick[\s\S]*?^}/m
+    );
+    expect(fnBlock).toBeTruthy();
+    expect(fnBlock![0]).toMatch(/addSignalToCuration\s*\(/);
+    expect(fnBlock![0]).not.toMatch(/dbService\.addToCuration/);
+  });
+
+  it('advisor #21a remains legacy direct dbService.addToCuration (B2 deferred)', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/advisorHandlers.ts'), 'utf8');
+    expect(source).toMatch(/dbService\.addToCuration\s*\(/);
   });
 });

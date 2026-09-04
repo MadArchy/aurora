@@ -5,9 +5,11 @@ import { auditService } from '../../../services/audit';
 import { buildMergedProfileKeywords } from '../../../services/sourceDiscovery';
 import { resolveThesisForSignalOperation } from '../../../domain/routedThesisContext';
 import { SignalIntakeError } from '../../../application/signalIntake';
+import { ExecutionDeliveryError } from '../../../application/executionDelivery';
 import { StrategicRoutingError } from '../../../application/strategicSignalRouting';
 import { runResearchSignalsAgent } from '../../../services/researchSignalsAgent';
 import { registerSignalOutcomeIntent } from '../../../services/learningLoopConsumer';
+import { addSignalToCuration } from '../../../services/executionDeliveryConsumer';
 import { discardSignal, markSignalSaved } from '../../../services/signalIntakeConsumer';
 import { metricsService } from '../../../services/metrics';
 import type { ScoringContext } from '../../../services/scoring';
@@ -108,7 +110,7 @@ export function handleRadarDiscardSignalClick(host: RadarHandlerHost, signalId: 
 }
 
 /**
- * Primary #21 composite send-to-curation click — #21a legacy addToCuration then canonical #21b
+ * Primary #21 composite send-to-curation click — canonical #21a AddSignalToCuration then frozen #21b
  * with legacy missing-signal presentation compatibility (Wave A2).
  */
 export function handleSendToCurationClick(host: RadarHandlerHost, signalId: string): void {
@@ -124,22 +126,20 @@ export function handleSendToCurationClick(host: RadarHandlerHost, signalId: stri
   }
 
   if (signal.relevanceScore === undefined) scoreSignal(host, signalId, clientId);
-  const scored = dbService.getSignalById(signalId);
 
-  dbService.addToCuration({
-    organizationId: signal.organizationId,
-    clientId,
-    signalId,
-    thesisId: scored?.thesisId || signal.thesisId,
-    title: signal.title,
-    sourceName: signal.sourceName,
-    sourceUrl: signal.sourceUrl,
-    snippet: signal.contentSnippet,
-    score: scored?.relevanceScore,
-    priorityBand: scored?.priorityBand,
-    suggestedAction: scored?.recommendedAction,
-    createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
-  });
+  try {
+    addSignalToCuration({ requestedClientId: clientId, signalId });
+  } catch (error) {
+    if (error instanceof ExecutionDeliveryError && error.code === 'CURATION_ALREADY_EXISTS') {
+      host.showToast('Esta señal ya está en la mesa de curación.', 'info');
+      return;
+    }
+    host.showToast(
+      error instanceof Error ? error.message : 'No se pudo enviar a curación',
+      'warning'
+    );
+    return;
+  }
 
   try {
     markSignalSaved({ requestedClientId: clientId, signalId });

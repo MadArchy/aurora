@@ -8,6 +8,7 @@
 import type { ContentStatus, ContentType } from '../types';
 import {
   ExecutionDeliveryError,
+  type AddSignalToCurationResult,
   type ClientArticleReviewDecision,
   type ClientTaskTransitionIntent,
   type ReviewClientArticleResult,
@@ -81,6 +82,26 @@ export async function sendDeliveryPackage(intent: {
     return result;
   } catch (err) {
     mapError(err, 'No se pudo enviar el briefing');
+  }
+}
+
+/** Registry #21a — signal-backed add to curation (authoritative Signal reload). No composite audit. */
+export function addSignalToCuration(intent: {
+  requestedClientId: string | null | undefined;
+  signalId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): AddSignalToCurationResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.addSignalToCuration({
+      trusted: trustedFrom(g),
+      signalId: intent.signalId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo enviar a curación');
   }
 }
 

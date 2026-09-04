@@ -40,6 +40,12 @@ export {
   type SendDeliveryPackageInput,
   type SendDeliveryPackageResult,
 } from './SendDeliveryPackage';
+export {
+  createAddSignalToCuration,
+  type AddSignalToCurationDeps,
+  type AddSignalToCurationInput,
+  type AddSignalToCurationResult,
+} from './AddSignalToCuration';
 export type { TaskRepository } from './ports/TaskRepository';
 export type {
   ContentDraftFields,
@@ -48,3 +54,8 @@ export type {
   ContentStrategicBriefGatePort,
 } from './ports/ContentRepository';
 export type { DeliverySendPort } from './ports/DeliverySendPort';
+export type { SignalReadPort } from './ports/SignalReadPort';
+export type {
+  CurationEntryCreateInput,
+  CurationRepositoryPort,
+} from './ports/CurationRepositoryPort';

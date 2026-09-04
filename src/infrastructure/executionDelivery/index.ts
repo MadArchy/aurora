@@ -5,3 +5,7 @@ export {
   createDbTaskRepository,
 } from './DbExecutionDeliveryAdapter';
 export { createDbDeliverySendPort } from './DbDeliverySendAdapter';
+export {
+  createDbCurationRepositoryPort,
+  createDbSignalReadPort,
+} from './DbCurationAdapter';
