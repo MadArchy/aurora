@@ -112,7 +112,7 @@ Wave A2 `#21b` missing-signal compat shim (after successful `#21a`) remains **fr
 | Authorized start / human governance approval | `1dd61ee3bcc74e0a720e2fec857de9bd3e7496a8` |
 | B1 implementation | `0b5a50c87d09fe51a94552106eee05f7e01e5c2d` |
 | B1 frozen content | `0b5a50c87d09fe51a94552106eee05f7e01e5c2d` |
-| B1 formal acceptance / CR1 governance tip | `PLACEHOLDER_GOV` |
+| B1 formal acceptance / CR1 governance tip | `39a1e94716ec2fb80e34b16fa06516ebb7d6c651` |
 
 ---
 
