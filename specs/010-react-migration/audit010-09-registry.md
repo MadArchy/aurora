@@ -542,7 +542,7 @@ Per-row debt metadata (owner resolution does not change `CU?`):
 | 18 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-003/004/006/007 via adapter | **YES** | COMPLETE | REQUIRED | `SendDeliveryPackage` orchestration |
 | 19 | Execution Delivery | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | REQUIRED | Acknowledge delivery |
 | 20 | Signal Intake | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | **YES** | LEGACY_ISLAND | REQUIRED | `DiscardSignal` · Wave A1 **CANONICALIZED_AND_FROZEN** |
-| 21 | **COMPOSITE** Execution Delivery + Signal Intake | SPLIT_AUTHORITY | — | **NO** | LEGACY_ISLAND | REQUIRED | **#21a radar CANONICALIZED_AND_FROZEN** (Wave B1) · **#21a advisor DEFERRED** (B2) · **#21b CANONICALIZED_AND_FROZEN** (Wave A2) · row `CU?` stays NO until advisor #21a migrates |
+| 21 | **COMPOSITE** Execution Delivery + Signal Intake | SPLIT_AUTHORITY | — | **YES** | LEGACY_ISLAND | REQUIRED | **#21a radar CANONICALIZED_AND_FROZEN** (Wave B1) · **#21a advisor CANONICALIZED_AND_FROZEN** (Wave B2) · **#21b CANONICALIZED_AND_FROZEN** (Wave A2) · full composite canonical |
 | 22 | Signal Intake (recommendation only) | OWNER_RESOLVED | SPEC-001 routing | PARTIAL | LEGACY_ISLAND · PHASE6_REMOVE_LATER | PARTIAL | Retire or replace recommendation store |
 | 23 | POST_MVP_PRESENTATION_STATE | POST_MVP | — | NO | POST_MVP | NOT_REQUIRED | None required |
 | 25 | Signal Intake | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Source status / run record |
@@ -558,11 +558,11 @@ Per-row debt metadata (owner resolution does not change `CU?`):
 | Mutation | Owner | Status |
 |---|---|---|
 | `addToCuration(...)` radar `.btn-send-to-curation` | Execution Delivery Application | **CANONICALIZED_AND_FROZEN** (#21a Wave B1) |
-| `addToCuration(...)` advisor `.btn-advice-to-curation` | Execution Delivery Application | **DEFERRED** (#21a B2) |
+| `addToCuration(...)` advisor `.btn-advice-to-curation` | Execution Delivery Application | **CANONICALIZED_AND_FROZEN** (#21a Wave B2) |
 | `MarkSignalSaved` / `decideSignal(..., SAVED)` | Signal Intake Application | **CANONICALIZED_AND_FROZEN** (#21b) |
 
-Composite handler `.btn-send-to-curation` is **partially canonical** (#21a + #21b); advisor path remains legacy until B2.
-Do **not** set registry row #21 `CU? = YES` while advisor #21a deferred.
+Composite handler `.btn-send-to-curation` is **fully canonical** (#21a B1 + #21b A2). Advisor path **canonical** under B2.
+Registry row #21 `CU? = YES` — all #21a/#21b authoritative production paths migrated; infrastructure `DbCurationAdapter` retains sole legacy `dbService.addToCuration` seam.
 
 **#30 — verified flag:** legacy UI `verified: true` = **NONAUTHORITATIVE_LEGACY_METADATA**.
 Formal SPEC-006 Verification / `AuthorizePublication` authority **0**. Compatibility

@@ -13,10 +13,10 @@
 | Sub-intent | Status | Command / surface |
 |---|---|---|
 | **#21a radar** `addToCuration(...)` | **CANONICALIZED_AND_FROZEN** | `AddSignalToCuration` via `executionDeliveryConsumer.addSignalToCuration` · `.btn-send-to-curation` |
-| **#21a advisor** `addToCuration(...)` | **DEFERRED** (B2) | Legacy `dbService.addToCuration` · `.btn-advice-to-curation` |
+| **#21a advisor** `addToCuration(...)` | **CANONICALIZED_AND_FROZEN** (Wave B2) | `AddAdviceActionToCuration` · `.btn-advice-to-curation` |
 | **#21b** `MarkSignalSaved` | **CANONICALIZED_AND_FROZEN** (Wave A2) | unchanged |
 
-**Registry row #21 `CU?` remains NO** — advisor #21a deferred; full composite not fully canonical.
+**Registry row #21 `CU?` = YES** as of Wave B2 formal acceptance — advisor path canonicalized under B2.
 
 ---
 
