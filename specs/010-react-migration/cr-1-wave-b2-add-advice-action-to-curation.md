@@ -97,7 +97,7 @@ Repeat clicks: multiple writes/audits/toasts/navigation (legacy parity).
 | Authorized start | `546772cc44598c714dbbb6b704536a5889733e21` |
 | B2 implementation | `0803b637d0d02c856bf1e8feb4ca1552bc540a4f` |
 | B2 frozen content | `0803b637d0d02c856bf1e8feb4ca1552bc540a4f` |
-| B2 formal acceptance / CR1 governance tip | *(recorded in acceptance commit)* |
+| B2 formal acceptance / CR1 governance tip | `4b33f0f26e67dd444c7adf83e4d0ec4290983cdc` |
 
 ---
 
