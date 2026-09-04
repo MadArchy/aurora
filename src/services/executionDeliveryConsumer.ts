@@ -8,6 +8,7 @@
 import type { ContentStatus, ContentType } from '../types';
 import {
   ExecutionDeliveryError,
+  type AddAdviceActionToCurationResult,
   type AddSignalToCurationResult,
   type ClientArticleReviewDecision,
   type ClientTaskTransitionIntent,
@@ -97,6 +98,26 @@ export function addSignalToCuration(intent: {
     return useCases.addSignalToCuration({
       trusted: trustedFrom(g),
       signalId: intent.signalId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo enviar a curación');
+  }
+}
+
+/** Registry #21a advisor — advice-backed add to curation (authoritative Advice reload). No composite audit. */
+export function addAdviceActionToCuration(intent: {
+  requestedClientId: string | null | undefined;
+  adviceActionId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): AddAdviceActionToCurationResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.addAdviceActionToCuration({
+      trusted: trustedFrom(g),
+      adviceActionId: intent.adviceActionId,
       claimedOrganizationId: intent.claimedOrganizationId,
       claimedClientId: intent.claimedClientId,
     });

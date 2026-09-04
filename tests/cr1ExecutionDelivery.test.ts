@@ -28,10 +28,12 @@ import {
   ExecutionDeliveryError,
   classifyContentMutationAuthorization,
   contentHasAuthoritativeGenericProof,
+  createAddAdviceActionToCuration,
   createAddSignalToCuration,
   createReviewClientArticle,
   createSaveContentDraft,
   createTransitionClientTask,
+  type AdviceReadPort,
   type ContentPublicationGatePort,
   type ContentRepository,
   type ContentStrategicBriefGatePort,
@@ -40,10 +42,11 @@ import {
   type TaskRepository,
   type TrustedExecutionDeliveryContext,
 } from '../src/application/executionDelivery';
-import type { ContentItem, CurationEntry, Signal, Task } from '../src/types';
+import type { AdviceAction, ContentItem, CurationEntry, PositioningAdvice, Signal, Task } from '../src/types';
 import { composeExecutionDelivery } from '../src/composition/executionDelivery/composeExecutionDelivery';
 import { TASK_TRANSITIONS } from '../src/domain/stateMachine';
 import {
+  addAdviceActionToCuration,
   addSignalToCuration,
   resetExecutionDeliveryConsumerForTest,
 } from '../src/services/executionDeliveryConsumer';
@@ -51,7 +54,9 @@ import * as executionDeliveryConsumer from '../src/services/executionDeliveryCon
 import { authService } from '../src/services/auth';
 import { auditService } from '../src/services/audit';
 import { dbService } from '../src/services/db';
+import { handleAdviceToCurationClick } from '../src/ui/legacy/handlers/advisorHandlers';
 import { handleSendToCurationClick } from '../src/ui/legacy/handlers/radarHandlers';
+import type { AdvisorHandlerHost } from '../src/ui/legacy/legacyAppHost';
 import type { RadarHandlerHost } from '../src/ui/legacy/legacyAppHost';
 import * as signalIntakeConsumer from '../src/services/signalIntakeConsumer';
 
@@ -1100,14 +1105,444 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
   });
 });
 
+describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    resetExecutionDeliveryConsumerForTest();
+  });
+
+  function baseAdviceAction(overrides: Partial<AdviceAction> = {}): AdviceAction {
+    return {
+      id: 'adv_b2_1',
+      category: 'CONTENT',
+      horizon: 'DAYS_30',
+      title: 'Publish thought leadership',
+      why: 'Visibility gap.',
+      how: 'Draft LinkedIn article.',
+      effortMinutes: 45,
+      impact: 72,
+      ...overrides,
+    };
+  }
+
+  function basePositioningAdvice(overrides: Partial<PositioningAdvice> = {}): PositioningAdvice {
+    return {
+      id: 'advice_b2_1',
+      organizationId: 'org_ed',
+      clientId: 'client_ed',
+      summary: 'Summary',
+      diagnosis: {
+        authorityScore: 70,
+        consistencyScore: 65,
+        evidenceScore: 60,
+        visibilityScore: 55,
+        strengths: [],
+        gaps: [],
+        risks: [],
+      },
+      actions: [baseAdviceAction()],
+      usedLiveModel: false,
+      generatedAt: '2026-08-28T20:00:00.000Z',
+      generatedBy: 'admin_01',
+      ...overrides,
+    };
+  }
+
+  function memoryB2Ports(advice: PositioningAdvice | undefined = basePositioningAdvice()) {
+    let store = advice ? { ...advice, actions: advice.actions.map((a) => ({ ...a })) } : undefined;
+    let persistCount = 0;
+    const advicePort: AdviceReadPort = {
+      getLatestAdvice(clientId) {
+        return store?.clientId === clientId ? store : undefined;
+      },
+      findAdviceAction(clientId, adviceActionId) {
+        if (!store || store.clientId !== clientId) return undefined;
+        const action = store.actions.find((a) => a.id === adviceActionId);
+        return action ? { advice: store, action } : undefined;
+      },
+    };
+    const curationEntries: CurationEntry[] = [];
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration: () => false,
+      addToCuration(entry) {
+        persistCount += 1;
+        const created: CurationEntry = {
+          destination: null,
+          managerRationale: '',
+          deliveryPackageId: null,
+          ...entry,
+          id: `cur_${curationEntries.length + 1}`,
+          createdAt: '2026-08-28T20:00:00.000Z',
+        };
+        curationEntries.unshift(created);
+        return created;
+      },
+    };
+    return {
+      advicePort,
+      curation,
+      curationEntries,
+      getPersistCount: () => persistCount,
+      setAdvice(next: PositioningAdvice | undefined) {
+        store = next ? { ...next, actions: next.actions.map((a) => ({ ...a })) } : undefined;
+      },
+    };
+  }
+
+  function setupAdminGate(clientId = 'client_ed', organizationId = 'org_ed') {
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue({
+      uid: 'admin_01',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId,
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    } as ReturnType<typeof authService.getCurrentUser>);
+    vi.spyOn(dbService, 'getClientById').mockReturnValue({
+      id: clientId,
+      organizationId,
+    } as ReturnType<typeof dbService.getClientById>);
+  }
+
+  function advisorHost(overrides: Partial<AdvisorHandlerHost> = {}): AdvisorHandlerHost {
+    return {
+      resolveClientId: () => 'client_ed',
+      requireTenant: (_requested) =>
+        ({
+          ok: true,
+          clientId: 'client_ed',
+          organizationId: 'org_ed',
+          actorId: 'admin_01',
+          actorRole: 'ADMIN',
+        }) as ReturnType<AdvisorHandlerHost['requireTenant']>,
+      showToast: vi.fn(),
+      setTab: vi.fn(),
+      render: vi.fn(),
+      ...overrides,
+    } as AdvisorHandlerHost;
+  }
+
+  it('valid trusted ADMIN adds current AdviceAction with exact field mapping', () => {
+    const { advicePort, curation } = memoryB2Ports();
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    const result = add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
+    expect(result.entry.title).toBe('Publish thought leadership');
+    expect(result.entry.snippet).toBe('Visibility gap. Draft LinkedIn article.');
+    expect(result.entry.score).toBe(72);
+    expect(result.entry.aiAngle).toBe('Draft LinkedIn article.');
+    expect(result.entry.organizationId).toBe('org_ed');
+    expect(result.entry.clientId).toBe('client_ed');
+    expect(result.entry.createdBy).toBe('admin_01');
+    expect(result.entry.signalId).toBeUndefined();
+    expect(result.entry.thesisId).toBeUndefined();
+  });
+
+  it('authoritative PositioningAdvice reload — fields from persisted action not caller', () => {
+    const { advicePort, curation, setAdvice } = memoryB2Ports();
+    setAdvice(
+      basePositioningAdvice({
+        actions: [baseAdviceAction({ title: 'Authoritative title', impact: 91, how: 'Angle' })],
+      })
+    );
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    const result = add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
+    expect(result.entry.title).toBe('Authoritative title');
+    expect(result.entry.score).toBe(91);
+    expect(result.entry.aiAngle).toBe('Angle');
+  });
+
+  it('requestedClientId is lookup/scope only — spoofed client denied before persist', () => {
+    const { advicePort, curation, getPersistCount } = memoryB2Ports();
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    expect(() =>
+      add({
+        trusted: adminTrusted(),
+        adviceActionId: 'adv_b2_1',
+        claimedClientId: 'client_evil',
+      })
+    ).toThrow(ExecutionDeliveryError);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('GATE_FIRST: trusted context before advice reload before persist', () => {
+    const order: string[] = [];
+    const advicePort: AdviceReadPort = {
+      getLatestAdvice() {
+        order.push('reload');
+        return basePositioningAdvice();
+      },
+      findAdviceAction() {
+        order.push('lookup');
+        return { advice: basePositioningAdvice(), action: baseAdviceAction() };
+      },
+    };
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration: () => false,
+      addToCuration() {
+        order.push('persist');
+        return {
+          id: 'cur_1',
+          organizationId: 'org_ed',
+          clientId: 'client_ed',
+          title: 't',
+          snippet: 's',
+          destination: null,
+          managerRationale: '',
+          deliveryPackageId: null,
+          createdAt: '2026-08-28T20:00:00.000Z',
+          createdBy: 'admin_01',
+        };
+      },
+    };
+    createAddAdviceActionToCuration({ advice: advicePort, curation })({
+      trusted: adminTrusted(),
+      adviceActionId: 'adv_b2_1',
+    });
+    expect(order).toEqual(['lookup', 'persist']);
+  });
+
+  it('cross-tenant denial when advice organization differs from trusted session', () => {
+    const { advicePort, curation, getPersistCount } = memoryB2Ports(
+      basePositioningAdvice({ organizationId: 'org_other' })
+    );
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    expect(() => add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' })).toThrow(
+      /trusted organization/i
+    );
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('wrong-client denial when advice clientId differs from trusted entitlement', () => {
+    const advicePort: AdviceReadPort = {
+      getLatestAdvice: () => basePositioningAdvice({ clientId: 'client_other' }),
+      findAdviceAction: () => ({
+        advice: basePositioningAdvice({ clientId: 'client_other' }),
+        action: baseAdviceAction(),
+      }),
+    };
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration: () => false,
+      addToCuration: () => {
+        throw new Error('should not persist');
+      },
+    };
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    expect(() => add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' })).toThrow(
+      /trusted client entitlement/i
+    );
+  });
+
+  it('unauthorized role — CLIENT denied', () => {
+    const { advicePort, curation, getPersistCount } = memoryB2Ports();
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    expect(() =>
+      add({ trusted: clientTrusted(), adviceActionId: 'adv_b2_1' })
+    ).toThrow(/ADMIN role/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('missing session — empty actorId denied', () => {
+    const { advicePort, curation, getPersistCount } = memoryB2Ports();
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    expect(() =>
+      add({ trusted: adminTrusted({ actorId: '' }), adviceActionId: 'adv_b2_1' })
+    ).toThrow(/actorId/i);
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('missing PositioningAdvice or AdviceAction — ADVICE_ACTION_NOT_FOUND', () => {
+    const { advicePort, curation, getPersistCount, setAdvice } = memoryB2Ports(undefined);
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    try {
+      add({ trusted: adminTrusted(), adviceActionId: 'adv_missing' });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExecutionDeliveryError);
+      expect((err as ExecutionDeliveryError).code).toBe('ADVICE_ACTION_NOT_FOUND');
+    }
+    setAdvice(basePositioningAdvice());
+    try {
+      add({ trusted: adminTrusted(), adviceActionId: 'adv_missing' });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect((err as ExecutionDeliveryError).code).toBe('ADVICE_ACTION_NOT_FOUND');
+    }
+    expect(getPersistCount()).toBe(0);
+  });
+
+  it('no Signal, #21b, AI, scoring, routing, or dedup inside use case', () => {
+    const source = readFileSync(
+      resolve('src/application/executionDelivery/AddAdviceActionToCuration.ts'),
+      'utf8'
+    );
+    expect(source).not.toMatch(/scoreSignal|scoreAndRouteSignal|markSignalSaved|SignalReadPort/);
+    expect(source).not.toMatch(/isSignalInCuration|CURATION_ALREADY_EXISTS/);
+    expect(source).not.toMatch(/\bawait\b|async function|aiService|generatePositioningAdvice/);
+  });
+
+  it('repeat click creates two curation entries — no dedup', () => {
+    const { advicePort, curation, getPersistCount } = memoryB2Ports();
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
+    add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
+    expect(getPersistCount()).toBe(2);
+  });
+
+  it('persistence failure surfaces PERSISTENCE_ERROR', () => {
+    const advicePort: AdviceReadPort = {
+      getLatestAdvice: () => basePositioningAdvice(),
+      findAdviceAction: () => ({ advice: basePositioningAdvice(), action: baseAdviceAction() }),
+    };
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration: () => false,
+      addToCuration: () => {
+        throw new Error('disk full');
+      },
+    };
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
+    try {
+      add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect((err as ExecutionDeliveryError).code).toBe('PERSISTENCE_ERROR');
+    }
+  });
+
+  it('consumer performs no composite ADVICE_TO_CURATION audit', () => {
+    setupAdminGate();
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    resetExecutionDeliveryConsumerForTest(
+      composeExecutionDelivery({
+        advice: {
+          getLatestAdvice: () => basePositioningAdvice(),
+          findAdviceAction: () => ({
+            advice: basePositioningAdvice(),
+            action: baseAdviceAction(),
+          }),
+        },
+        curation: {
+          isSignalInCuration: () => false,
+          addToCuration: (entry) =>
+            ({
+              id: 'cur_b2',
+              destination: null,
+              managerRationale: '',
+              deliveryPackageId: null,
+              createdAt: '2026-08-28T20:00:00.000Z',
+              ...entry,
+            }) as CurationEntry,
+        },
+      })
+    );
+    addAdviceActionToCuration({ requestedClientId: 'client_ed', adviceActionId: 'adv_b2_1' });
+    expect(auditSpy).not.toHaveBeenCalled();
+  });
+
+  it('handler missing action: silent return, no audit/toast/navigation', () => {
+    setupAdminGate();
+    const host = advisorHost();
+    vi.spyOn(executionDeliveryConsumer, 'addAdviceActionToCuration').mockImplementation(() => {
+      throw new ExecutionDeliveryError('ADVICE_ACTION_NOT_FOUND', 'Advice action not found: adv_missing');
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    handleAdviceToCurationClick(host, 'client_ed', 'adv_missing');
+    expect(auditSpy).not.toHaveBeenCalled();
+    expect(host.showToast).not.toHaveBeenCalled();
+    expect(host.setTab).not.toHaveBeenCalled();
+  });
+
+  it('handler security failure: warning, no success audit/toast/navigation', () => {
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue(null);
+    vi.spyOn(dbService, 'getClientById').mockReturnValue({
+      id: 'client_ed',
+      organizationId: 'org_ed',
+    } as ReturnType<typeof dbService.getClientById>);
+    const host = advisorHost();
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    handleAdviceToCurationClick(host, 'client_ed', 'adv_b2_1');
+    expect(auditSpy).not.toHaveBeenCalled();
+    expect(host.showToast).toHaveBeenCalledWith('Sesión no disponible — acción cancelada.', 'warning');
+    expect(host.setTab).not.toHaveBeenCalled();
+  });
+
+  it('handler normal order: addAdviceActionToCuration then audit then toast then setTab', () => {
+    setupAdminGate();
+    const order: string[] = [];
+    const host = advisorHost({
+      showToast: vi.fn((msg, kind) => {
+        if (kind === 'success') order.push('toast');
+      }),
+      setTab: vi.fn(() => order.push('tab')),
+    });
+    vi.spyOn(executionDeliveryConsumer, 'addAdviceActionToCuration').mockImplementation(() => {
+      order.push('addAdviceActionToCuration');
+      return { entry: { id: 'cur_b2', clientId: 'client_ed' } as CurationEntry, adviceActionId: 'adv_b2_1' };
+    });
+    vi.spyOn(auditService, 'log').mockImplementation(() => {
+      order.push('audit');
+    });
+    handleAdviceToCurationClick(host, 'client_ed', 'adv_b2_1');
+    expect(order).toEqual(['addAdviceActionToCuration', 'audit', 'toast', 'tab']);
+  });
+
+  it('handler repeat: two writes, two audits, two toasts, two tabs', () => {
+    setupAdminGate();
+    const host = advisorHost();
+    const addSpy = vi.spyOn(executionDeliveryConsumer, 'addAdviceActionToCuration').mockImplementation(() => ({
+      entry: { id: 'cur_b2', clientId: 'client_ed' } as CurationEntry,
+      adviceActionId: 'adv_b2_1',
+    }));
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    handleAdviceToCurationClick(host, 'client_ed', 'adv_b2_1');
+    handleAdviceToCurationClick(host, 'client_ed', 'adv_b2_1');
+    expect(addSpy).toHaveBeenCalledTimes(2);
+    expect(auditSpy).toHaveBeenCalledTimes(2);
+    expect(host.showToast).toHaveBeenCalledTimes(2);
+    expect(host.setTab).toHaveBeenCalledTimes(2);
+  });
+
+  it('no async yield between authoritative AdviceAction lookup and persistence', () => {
+    const source = readFileSync(
+      resolve('src/application/executionDelivery/AddAdviceActionToCuration.ts'),
+      'utf8'
+    );
+    const fnBody = source.match(
+      /return function addAdviceActionToCuration[\s\S]*?^ {2}\};/m
+    );
+    expect(fnBody).toBeTruthy();
+    expect(fnBody![0]).not.toMatch(/\bawait\b|async function/);
+    const lookupIdx = fnBody![0].indexOf('findAdviceAction');
+    const persistIdx = fnBody![0].indexOf('addToCuration');
+    expect(lookupIdx).toBeGreaterThan(-1);
+    expect(persistIdx).toBeGreaterThan(lookupIdx);
+    expect(fnBody![0].slice(lookupIdx, persistIdx)).not.toMatch(/\bawait\b|setTimeout|Promise\./);
+  });
+
+  it('B1 AddSignalToCuration source unchanged', () => {
+    const source = readFileSync(
+      resolve('src/application/executionDelivery/AddSignalToCuration.ts'),
+      'utf8'
+    );
+    expect(source).toMatch(/CURATION_ALREADY_EXISTS/);
+    expect(source).toMatch(/SignalReadPort/);
+    expect(source).not.toMatch(/AdviceReadPort|ADVICE_ACTION_NOT_FOUND/);
+  });
+});
+
 describe('CR-1 Execution Delivery architecture', () => {
-  it('compose exposes five commands including addSignalToCuration', () => {
+  it('compose exposes six commands including addAdviceActionToCuration', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.transitionClientTask).toBe('function');
     expect(typeof c.saveContentDraft).toBe('function');
     expect(typeof c.reviewClientArticle).toBe('function');
     expect(typeof c.sendDeliveryPackage).toBe('function');
     expect(typeof c.addSignalToCuration).toBe('function');
+    expect(typeof c.addAdviceActionToCuration).toBe('function');
   });
 
   it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {
@@ -1185,8 +1620,22 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(fnBlock![0]).not.toMatch(/dbService\.addToCuration/);
   });
 
-  it('advisor #21a remains legacy direct dbService.addToCuration (B2 deferred)', () => {
+  it('advisor #21a delegates handleAdviceToCurationClick — no direct dbService.addToCuration', () => {
     const source = readFileSync(resolve('src/ui/legacy/handlers/advisorHandlers.ts'), 'utf8');
-    expect(source).toMatch(/dbService\.addToCuration\s*\(/);
+    const curationBlock = source.match(
+      /export function handleAdviceToCurationClick[\s\S]*?^}/m
+    );
+    expect(curationBlock).toBeTruthy();
+    expect(curationBlock![0]).toMatch(/addAdviceActionToCuration\s*\(/);
+    expect(curationBlock![0]).not.toMatch(/dbService\.addToCuration/);
+    expect(curationBlock![0]).not.toMatch(/getLatestAdvice/);
+    expect(source).not.toMatch(/user_admin_01/);
+  });
+
+  it('no production handler direct dbService.addToCuration remains', () => {
+    for (const file of ['src/ui/legacy/handlers/radarHandlers.ts', 'src/ui/legacy/handlers/advisorHandlers.ts']) {
+      const source = readFileSync(resolve(file), 'utf8');
+      expect(source).not.toMatch(/dbService\.addToCuration\s*\(/);
+    }
   });
 });

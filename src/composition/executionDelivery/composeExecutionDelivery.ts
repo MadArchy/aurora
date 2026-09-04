@@ -1,9 +1,11 @@
 import {
+  createAddAdviceActionToCuration,
   createAddSignalToCuration,
   createReviewClientArticle,
   createSaveContentDraft,
   createSendDeliveryPackage,
   createTransitionClientTask,
+  type AdviceReadPort,
   type ContentPublicationGatePort,
   type ContentRepository,
   type ContentStrategicBriefGatePort,
@@ -13,6 +15,7 @@ import {
   type TaskRepository,
 } from '../../application/executionDelivery';
 import {
+  createDbAdviceReadPort,
   createDbContentPublicationGate,
   createDbContentRepository,
   createDbContentStrategicBriefGate,
@@ -30,6 +33,7 @@ export function composeExecutionDelivery(options: {
   deliverySend?: DeliverySendPort;
   signals?: SignalReadPort;
   curation?: CurationRepositoryPort;
+  advice?: AdviceReadPort;
 } = {}) {
   const tasks = options.tasks ?? createDbTaskRepository();
   const contents = options.contents ?? createDbContentRepository();
@@ -38,11 +42,13 @@ export function composeExecutionDelivery(options: {
   const deliverySend = options.deliverySend ?? createDbDeliverySendPort();
   const signals = options.signals ?? createDbSignalReadPort();
   const curation = options.curation ?? createDbCurationRepositoryPort();
+  const advice = options.advice ?? createDbAdviceReadPort();
   return {
     transitionClientTask: createTransitionClientTask({ tasks }),
     saveContentDraft: createSaveContentDraft({ contents, publicationGate, strategicBriefGate }),
     reviewClientArticle: createReviewClientArticle({ contents, tasks, publicationGate }),
     sendDeliveryPackage: createSendDeliveryPackage({ delivery: deliverySend }),
     addSignalToCuration: createAddSignalToCuration({ signals, curation }),
+    addAdviceActionToCuration: createAddAdviceActionToCuration({ advice, curation }),
   };
 }

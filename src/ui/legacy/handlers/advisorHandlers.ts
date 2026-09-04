@@ -1,9 +1,40 @@
-import { dbService } from '../../../services/db';
 import { auditService } from '../../../services/audit';
 import { authService } from '../../../services/auth';
 import { runTopicAgent } from '../../../services/topicAgent';
 import { generatePositioningAdvice } from '../../../services/advisor';
+import { ExecutionDeliveryError } from '../../../application/executionDelivery';
+import { addAdviceActionToCuration } from '../../../services/executionDeliveryConsumer';
 import type { AdvisorHandlerHost } from '../legacyAppHost';
+
+/** CR-1 #21a advisor — canonical add-to-curation click handler (testable seam). */
+export function handleAdviceToCurationClick(
+  host: AdvisorHandlerHost,
+  requestedClientId: string,
+  adviceActionId: string
+): void {
+  if (!adviceActionId) return;
+
+  try {
+    const result = addAdviceActionToCuration({ requestedClientId, adviceActionId });
+    auditService.log(
+      authService.getCurrentUser(),
+      'ADVICE_TO_CURATION',
+      'Client',
+      result.entry.clientId,
+      { actionId: result.adviceActionId }
+    );
+    host.showToast('Acción enviada a la mesa de curación', 'success');
+    host.setTab('ws-curation');
+  } catch (error) {
+    if (error instanceof ExecutionDeliveryError && error.code === 'ADVICE_ACTION_NOT_FOUND') {
+      return;
+    }
+    host.showToast(
+      error instanceof Error ? error.message : 'No se pudo enviar a curación',
+      'warning'
+    );
+  }
+}
 
 export function bindAdvisorHandlers(host: AdvisorHandlerHost): void  {
   const adviceBtn = document.getElementById('btn-generate-advice');
@@ -54,30 +85,9 @@ export function bindAdvisorHandlers(host: AdvisorHandlerHost): void  {
   document.querySelectorAll('.btn-advice-to-curation').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       const target = e.currentTarget as HTMLElement;
-      const clientId = target.getAttribute('data-client-id') || host.resolveClientId();
-      const actionId = target.getAttribute('data-action-id');
-      const advice = dbService.getLatestAdvice(clientId);
-      const action = advice?.actions.find((a) => a.id === actionId);
-      if (!action) return;
-
-      const organizationId = host.resolveOrganizationId(clientId);
-      if (!organizationId) {
-        host.showToast('Cliente sin organizationId', 'warning');
-        return;
-      }
-      dbService.addToCuration({
-        organizationId,
-        clientId,
-        title: action.title,
-        snippet: `${action.why} ${action.how}`,
-        score: action.impact,
-        aiAngle: action.how,
-        createdBy: authService.getCurrentUser()?.uid || 'user_admin_01',
-      });
-
-      auditService.log(authService.getCurrentUser(), 'ADVICE_TO_CURATION', 'Client', clientId, { actionId });
-      host.showToast('Acción enviada a la mesa de curación', 'success');
-      host.setTab('ws-curation');
+      const requestedClientId = target.getAttribute('data-client-id') || host.resolveClientId();
+      const adviceActionId = target.getAttribute('data-action-id') || '';
+      handleAdviceToCurationClick(host, requestedClientId, adviceActionId);
     });
   });
 }

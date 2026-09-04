@@ -176,6 +176,7 @@ describe('Stage B #18 SendDeliveryPackage', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.sendDeliveryPackage).toBe('function');
     expect(Object.keys(c).sort()).toEqual([
+      'addAdviceActionToCuration',
       'addSignalToCuration',
       'reviewClientArticle',
       'saveContentDraft',

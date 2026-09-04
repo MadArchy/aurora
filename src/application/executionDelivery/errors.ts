@@ -9,6 +9,7 @@ export type ExecutionDeliveryErrorCode =
   | 'STRATEGIC_BRIEF_GATE_DENIED'
   | 'CONTENT_AUTHORIZATION_AMBIGUOUS'
   | 'CURATION_ALREADY_EXISTS'
+  | 'ADVICE_ACTION_NOT_FOUND'
   | 'PERSISTENCE_ERROR';
 
 export class ExecutionDeliveryError extends Error {
