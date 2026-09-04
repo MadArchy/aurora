@@ -1244,9 +1244,13 @@ describe('CR-1 Signal Intake architecture', () => {
     expect(discardBlock![0]).not.toMatch(/dbService\.decideSignal/);
   });
 
-  it('#14 curation cascade discard remains legacy direct dbService (deferred wave)', () => {
+  it('#14 curation cascade discard delegates discardSignalForCurationComposite (Wave B3)', () => {
     const source = readFileSync(resolve('src/ui/legacy/handlers/curationHandlers.ts'), 'utf8');
-    expect(source).toMatch(/dbService\.decideSignal\([^)]*DISCARDED/);
+    const block = source.match(/export function handleCurationFormSubmit[\s\S]*?^}/m);
+    expect(block).toBeTruthy();
+    expect(block![0]).toMatch(/discardSignalForCurationComposite\s*\(/);
+    expect(block![0]).not.toMatch(/dbService\.decideSignal/);
+    expect(block![0]).toMatch(/error\.code === 'SIGNAL_NOT_FOUND'/);
   });
 
   it('primary #21 send-to-curation delegates addSignalToCuration and markSignalSaved (not direct dbService)', () => {

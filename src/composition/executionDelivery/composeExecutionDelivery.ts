@@ -1,6 +1,7 @@
 import {
   createAddAdviceActionToCuration,
   createAddSignalToCuration,
+  createDecideCuration,
   createReviewClientArticle,
   createSaveContentDraft,
   createSendDeliveryPackage,
@@ -50,5 +51,6 @@ export function composeExecutionDelivery(options: {
     sendDeliveryPackage: createSendDeliveryPackage({ delivery: deliverySend }),
     addSignalToCuration: createAddSignalToCuration({ signals, curation }),
     addAdviceActionToCuration: createAddAdviceActionToCuration({ advice, curation }),
+    decideCuration: createDecideCuration({ curation }),
   };
 }

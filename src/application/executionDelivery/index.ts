@@ -52,6 +52,12 @@ export {
   type AddAdviceActionToCurationInput,
   type AddAdviceActionToCurationResult,
 } from './AddAdviceActionToCuration';
+export {
+  createDecideCuration,
+  type DecideCurationDeps,
+  type DecideCurationInput,
+  type DecideCurationResult,
+} from './DecideCuration';
 export type { TaskRepository } from './ports/TaskRepository';
 export type {
   ContentDraftFields,
@@ -63,6 +69,7 @@ export type { DeliverySendPort } from './ports/DeliverySendPort';
 export type { SignalReadPort } from './ports/SignalReadPort';
 export type { AdviceReadPort } from './ports/AdviceReadPort';
 export type {
+  CurationDecisionInput,
   CurationEntryCreateInput,
   CurationRepositoryPort,
 } from './ports/CurationRepositoryPort';

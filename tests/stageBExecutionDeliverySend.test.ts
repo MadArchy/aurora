@@ -178,6 +178,7 @@ describe('Stage B #18 SendDeliveryPackage', () => {
     expect(Object.keys(c).sort()).toEqual([
       'addAdviceActionToCuration',
       'addSignalToCuration',
+      'decideCuration',
       'reviewClientArticle',
       'saveContentDraft',
       'sendDeliveryPackage',

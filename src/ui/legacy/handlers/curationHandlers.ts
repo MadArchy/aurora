@@ -1,15 +1,103 @@
+import { ExecutionDeliveryError } from '../../../application/executionDelivery';
+import { SignalIntakeError } from '../../../application/signalIntake';
+import { auditService } from '../../../services/audit';
 import { authService } from '../../../services/auth';
 import { dbService } from '../../../services/db';
-import { auditService } from '../../../services/audit';
 import { proposeAngle } from '../../../services/advisor';
 import {
   approveStrategicBrief,
   createBriefFromCurationEntry,
   getStrategicBrief,
 } from '../../../services/strategicBriefConsumer';
+import { decideCuration } from '../../../services/executionDeliveryConsumer';
+import { discardSignalForCurationComposite } from '../../../services/signalIntakeConsumer';
 import type { CurationDestination } from '../../../types';
 import { queueCurationInBriefing } from './radarHandlers';
 import type { CurationHandlerHost } from '../legacyAppHost';
+
+const DISCARD_PARTIAL_FAILURE_MESSAGE =
+  'La decisión de curación se guardó, pero no se pudo descartar la señal vinculada.';
+
+function showCurationSuccessToast(
+  host: CurationHandlerHost,
+  destination: CurationDestination,
+  queued: boolean
+): void {
+  host.showToast(
+    destination === 'DISCARD'
+      ? 'Ítem descartado con justificación'
+      : queued
+        ? 'Destino confirmado y añadido al briefing'
+        : 'Destino confirmado. Añádelo al briefing cuando quieras.',
+    'success'
+  );
+}
+
+/** CR-1 #14 — canonical curation form submit (testable seam). */
+export function handleCurationFormSubmit(
+  host: CurationHandlerHost,
+  curationId: string,
+  destination: CurationDestination,
+  rationale: string
+): void {
+  const requestedClientId = host.resolveClientId();
+
+  let entry;
+  try {
+    entry = decideCuration({
+      requestedClientId,
+      curationEntryId: curationId,
+      destination,
+      rationale,
+    }).entry;
+  } catch (error) {
+    if (error instanceof ExecutionDeliveryError && error.code === 'CURATION_NOT_FOUND') {
+      auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
+        destination,
+        rationale,
+      });
+      showCurationSuccessToast(host, destination, false);
+      host.render();
+      return;
+    }
+    host.showToast(
+      error instanceof Error ? error.message : 'No se pudo decidir la curación',
+      'warning'
+    );
+    return;
+  }
+
+  if (entry.signalId && destination === 'DISCARD') {
+    try {
+      discardSignalForCurationComposite({
+        requestedClientId: entry.clientId,
+        signalId: entry.signalId,
+        reason: rationale,
+      });
+    } catch (error) {
+      if (error instanceof SignalIntakeError && error.code === 'SIGNAL_NOT_FOUND') {
+        // Legacy-compatible success continuation after successful #14 DISCARD.
+      } else {
+        auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
+          destination,
+          rationale,
+        });
+        host.showToast(DISCARD_PARTIAL_FAILURE_MESSAGE, 'warning');
+        host.render();
+        return;
+      }
+    }
+  }
+
+  auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
+    destination,
+    rationale,
+  });
+
+  const queued = destination !== 'DISCARD' ? queueCurationInBriefing(curationId) : false;
+  showCurationSuccessToast(host, destination, queued);
+  host.render();
+}
 
 export function bindCurationHandlers(host: CurationHandlerHost): void  {
   document.querySelectorAll('.curation-form').forEach((form) => {
@@ -19,7 +107,8 @@ export function bindCurationHandlers(host: CurationHandlerHost): void  {
       const curationId = el.getAttribute('data-curation-id');
       if (!curationId) return;
 
-      const destination = (el.querySelector('[name="destination"]') as HTMLSelectElement).value as CurationDestination;
+      const destination = (el.querySelector('[name="destination"]') as HTMLSelectElement)
+        .value as CurationDestination;
       const rationale = (el.querySelector('[name="rationale"]') as HTMLTextAreaElement).value.trim();
 
       if (!destination) {
@@ -31,36 +120,7 @@ export function bindCurationHandlers(host: CurationHandlerHost): void  {
         return;
       }
 
-      const entry = dbService.decideCuration(
-        curationId,
-        destination,
-        rationale,
-        authService.getCurrentUser()?.uid || 'user_admin_01'
-      );
-
-      if (entry?.signalId && destination === 'DISCARD') {
-        dbService.decideSignal(entry.signalId, 'DISCARDED', rationale);
-      }
-
-      auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
-        destination,
-        rationale,
-      });
-
-      // Curación y entrega son una sola sesión: al decidir, el ítem entra al briefing.
-        const queued = entry && destination !== 'DISCARD'
-          ? queueCurationInBriefing(curationId)
-          : false;
-
-      host.showToast(
-        destination === 'DISCARD'
-          ? 'Ítem descartado con justificación'
-          : queued
-            ? 'Destino confirmado y añadido al briefing'
-            : 'Destino confirmado. Añádelo al briefing cuando quieras.',
-        'success'
-      );
-      host.render();
+      handleCurationFormSubmit(host, curationId, destination, rationale);
     });
   });
 

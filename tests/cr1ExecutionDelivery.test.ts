@@ -30,6 +30,7 @@ import {
   contentHasAuthoritativeGenericProof,
   createAddAdviceActionToCuration,
   createAddSignalToCuration,
+  createDecideCuration,
   createReviewClientArticle,
   createSaveContentDraft,
   createTransitionClientTask,
@@ -48,15 +49,19 @@ import { TASK_TRANSITIONS } from '../src/domain/stateMachine';
 import {
   addAdviceActionToCuration,
   addSignalToCuration,
+  decideCuration,
   resetExecutionDeliveryConsumerForTest,
 } from '../src/services/executionDeliveryConsumer';
 import * as executionDeliveryConsumer from '../src/services/executionDeliveryConsumer';
+import { SignalIntakeError } from '../src/application/signalIntake';
 import { authService } from '../src/services/auth';
 import { auditService } from '../src/services/audit';
 import { dbService } from '../src/services/db';
 import { handleAdviceToCurationClick } from '../src/ui/legacy/handlers/advisorHandlers';
+import { handleCurationFormSubmit } from '../src/ui/legacy/handlers/curationHandlers';
 import { handleSendToCurationClick } from '../src/ui/legacy/handlers/radarHandlers';
 import type { AdvisorHandlerHost } from '../src/ui/legacy/legacyAppHost';
+import type { CurationHandlerHost } from '../src/ui/legacy/legacyAppHost';
 import type { RadarHandlerHost } from '../src/ui/legacy/legacyAppHost';
 import * as signalIntakeConsumer from '../src/services/signalIntakeConsumer';
 
@@ -740,6 +745,12 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
         curationEntries.unshift(created);
         return created;
       },
+      getById() {
+        return undefined;
+      },
+      decideCuration() {
+        return null;
+      },
     };
     return { signals, curation, signalStore, curationEntries, getPersistCount: () => persistCount };
   }
@@ -835,6 +846,8 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
           createdBy: 'admin_01',
         };
       },
+      getById: () => undefined,
+      decideCuration: () => null,
     };
     createAddSignalToCuration({ signals, curation })({
       trusted: adminTrusted(),
@@ -942,6 +955,8 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
       addToCuration: () => {
         throw new Error('disk full');
       },
+      getById: () => undefined,
+      decideCuration: () => null,
     };
     const add = createAddSignalToCuration({ signals, curation });
     try {
@@ -985,6 +1000,8 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
               createdAt: '2026-08-28T20:00:00.000Z',
               ...entry,
             }) as CurationEntry,
+          getById: () => undefined,
+          decideCuration: () => null,
         },
       })
     );
@@ -1177,6 +1194,12 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
         curationEntries.unshift(created);
         return created;
       },
+      getById() {
+        return undefined;
+      },
+      decideCuration() {
+        return null;
+      },
     };
     return {
       advicePort,
@@ -1298,6 +1321,8 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
           createdBy: 'admin_01',
         };
       },
+      getById: () => undefined,
+      decideCuration: () => null,
     };
     createAddAdviceActionToCuration({ advice: advicePort, curation })({
       trusted: adminTrusted(),
@@ -1330,6 +1355,8 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
       addToCuration: () => {
         throw new Error('should not persist');
       },
+      getById: () => undefined,
+      decideCuration: () => null,
     };
     const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
     expect(() => add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' })).toThrow(
@@ -1403,6 +1430,8 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
       addToCuration: () => {
         throw new Error('disk full');
       },
+      getById: () => undefined,
+      decideCuration: () => null,
     };
     const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
     try {
@@ -1436,6 +1465,8 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
               createdAt: '2026-08-28T20:00:00.000Z',
               ...entry,
             }) as CurationEntry,
+          getById: () => undefined,
+          decideCuration: () => null,
         },
       })
     );
@@ -1534,8 +1565,370 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
   });
 });
 
+describe('CR-1 Wave B3 #14 — DecideCuration', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    resetExecutionDeliveryConsumerForTest();
+  });
+
+  function baseCurationEntry(overrides: Partial<CurationEntry> = {}): CurationEntry {
+    return {
+      id: 'cur_b3_1',
+      organizationId: 'org_ed',
+      clientId: 'client_ed',
+      signalId: 'sig_b3_1',
+      title: 'Curation item',
+      snippet: 'Snippet text',
+      destination: null,
+      managerRationale: '',
+      deliveryPackageId: null,
+      createdAt: '2026-08-28T20:00:00.000Z',
+      createdBy: 'admin_01',
+      ...overrides,
+    };
+  }
+
+  function memoryB3Ports(entry: CurationEntry | undefined = baseCurationEntry()) {
+    const store = entry ? [{ ...entry }] : [];
+    let decideCount = 0;
+    const curation: CurationRepositoryPort = {
+      isSignalInCuration: () => false,
+      addToCuration: (input) => {
+        const created = {
+          destination: null,
+          managerRationale: '',
+          deliveryPackageId: null,
+          ...input,
+          id: `cur_${store.length + 1}`,
+          createdAt: '2026-08-28T20:00:00.000Z',
+        } as CurationEntry;
+        store.unshift(created);
+        return created;
+      },
+      getById(id) {
+        return store.find((c) => c.id === id);
+      },
+      decideCuration(input) {
+        decideCount += 1;
+        const item = store.find((c) => c.id === input.id);
+        if (!item) return null;
+        item.destination = input.destination;
+        item.managerRationale = input.managerRationale;
+        item.decidedBy = input.decidedBy;
+        item.decidedAt = input.decidedAt;
+        return { ...item };
+      },
+    };
+    return { curation, store, getDecideCount: () => decideCount };
+  }
+
+  function setupAdminGate(clientId = 'client_ed', organizationId = 'org_ed') {
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue({
+      uid: 'admin_01',
+      email: 'a@x.com',
+      displayName: 'Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      organizationId,
+      clientId: null,
+      mustCompleteOnboarding: false,
+      aiKeyManagementAllowed: false,
+      locale: 'es',
+      timezone: 'UTC',
+    } as ReturnType<typeof authService.getCurrentUser>);
+    vi.spyOn(dbService, 'getClientById').mockReturnValue({
+      id: clientId,
+      organizationId,
+    } as ReturnType<typeof dbService.getClientById>);
+  }
+
+  function curationHost(overrides: Partial<CurationHandlerHost> = {}): CurationHandlerHost {
+    return {
+      resolveClientId: () => 'client_ed',
+      showToast: vi.fn(),
+      render: vi.fn(),
+      ...overrides,
+    } as CurationHandlerHost;
+  }
+
+  it('valid trusted ADMIN decides with exact four-field mutation and trusted decidedBy', () => {
+    const { curation } = memoryB3Ports();
+    const decide = createDecideCuration({ curation });
+    const result = decide({
+      trusted: adminTrusted(),
+      curationEntryId: 'cur_b3_1',
+      destination: 'TASK_VIDEO',
+      rationale: 'Valid rationale text',
+    });
+    expect(result.entry.destination).toBe('TASK_VIDEO');
+    expect(result.entry.managerRationale).toBe('Valid rationale text');
+    expect(result.entry.decidedBy).toBe('admin_01');
+    expect(result.entry.decidedAt).toBe('2026-08-28T20:00:00.000Z');
+  });
+
+  it('authoritative reload — entry fields from persisted CurationEntry not caller snapshot', () => {
+    const { curation } = memoryB3Ports(
+      baseCurationEntry({ organizationId: 'org_ed', clientId: 'client_ed' })
+    );
+    const decide = createDecideCuration({ curation });
+    const result = decide({
+      trusted: adminTrusted(),
+      curationEntryId: 'cur_b3_1',
+      destination: 'EVIDENCE',
+      rationale: 'Persisted authoritative entry',
+    });
+    expect(result.entry.organizationId).toBe('org_ed');
+    expect(result.entry.clientId).toBe('client_ed');
+  });
+
+  it('cross-tenant denial when entry organization differs from trusted session', () => {
+    const { curation, getDecideCount } = memoryB3Ports(
+      baseCurationEntry({ organizationId: 'org_other' })
+    );
+    const decide = createDecideCuration({ curation });
+    expect(() =>
+      decide({
+        trusted: adminTrusted(),
+        curationEntryId: 'cur_b3_1',
+        destination: 'TASK_VIDEO',
+        rationale: 'Valid rationale text',
+      })
+    ).toThrow(/trusted organization/i);
+    expect(getDecideCount()).toBe(0);
+  });
+
+  it('missing CurationEntry — CURATION_NOT_FOUND', () => {
+    const { curation, getDecideCount } = memoryB3Ports(undefined);
+    const decide = createDecideCuration({ curation });
+    try {
+      decide({
+        trusted: adminTrusted(),
+        curationEntryId: 'cur_missing',
+        destination: 'TASK_VIDEO',
+        rationale: 'Valid rationale text',
+      });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect((err as ExecutionDeliveryError).code).toBe('CURATION_NOT_FOUND');
+    }
+    expect(getDecideCount()).toBe(0);
+  });
+
+  it('repeat decision overwrites mutable decision fields', () => {
+    const { curation } = memoryB3Ports();
+    const decide = createDecideCuration({ curation });
+    decide({
+      trusted: adminTrusted(),
+      curationEntryId: 'cur_b3_1',
+      destination: 'TASK_VIDEO',
+      rationale: 'First rationale text',
+    });
+    const second = decide({
+      trusted: adminTrusted({ actorId: 'admin_02' }),
+      curationEntryId: 'cur_b3_1',
+      destination: 'DISCARD',
+      rationale: 'Second rationale text',
+    });
+    expect(second.entry.destination).toBe('DISCARD');
+    expect(second.entry.managerRationale).toBe('Second rationale text');
+    expect(second.entry.decidedBy).toBe('admin_02');
+  });
+
+  it('use case does not invoke Signal, #20, AI, or downstream materialization', () => {
+    const source = readFileSync(
+      resolve('src/application/executionDelivery/DecideCuration.ts'),
+      'utf8'
+    );
+    expect(source).not.toMatch(/discardSignal|DiscardSignal|SignalReadPort|decideSignal/);
+    expect(source).not.toMatch(/queueCurationInBriefing|ensureDraftDelivery|aiService/);
+  });
+
+  it('consumer performs no composite CURATION_DECIDED audit', () => {
+    setupAdminGate();
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    resetExecutionDeliveryConsumerForTest(
+      composeExecutionDelivery({
+        curation: memoryB3Ports().curation,
+      })
+    );
+    decideCuration({
+      requestedClientId: 'client_ed',
+      curationEntryId: 'cur_b3_1',
+      destination: 'TASK_VIDEO',
+      rationale: 'Valid rationale text',
+    });
+    expect(auditSpy).not.toHaveBeenCalled();
+  });
+
+  it('handler missing curation: legacy-compatible audit, success toast, render', () => {
+    setupAdminGate();
+    const host = curationHost();
+    vi.spyOn(executionDeliveryConsumer, 'decideCuration').mockImplementation(() => {
+      throw new ExecutionDeliveryError('CURATION_NOT_FOUND', 'Curation entry not found: cur_missing');
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    handleCurationFormSubmit(host, 'cur_missing', 'TASK_VIDEO', 'Valid rationale text');
+    expect(auditSpy).toHaveBeenCalledWith(
+      authService.getCurrentUser(),
+      'CURATION_DECIDED',
+      'CurationEntry',
+      'cur_missing',
+      expect.objectContaining({ destination: 'TASK_VIDEO' })
+    );
+    expect(host.showToast).toHaveBeenCalledWith(
+      'Destino confirmado. Añádelo al briefing cuando quieras.',
+      'success'
+    );
+    expect(host.render).toHaveBeenCalled();
+  });
+
+  it('handler normal DISCARD order: DecideCuration → discardSignalForCurationComposite → audit → toast → render', () => {
+    setupAdminGate();
+    const order: string[] = [];
+    const host = curationHost({
+      showToast: vi.fn((_msg, kind) => {
+        if (kind === 'success') order.push('toast');
+      }),
+      render: vi.fn(() => order.push('render')),
+    });
+    vi.spyOn(executionDeliveryConsumer, 'decideCuration').mockImplementation(() => {
+      order.push('decideCuration');
+      return {
+        entry: baseCurationEntry({ signalId: 'sig_b3_1' }),
+      };
+    });
+    vi.spyOn(signalIntakeConsumer, 'discardSignalForCurationComposite').mockImplementation(() => {
+      order.push('discardSignalForCurationComposite');
+      return { signal: { id: 'sig_b3_1' } as import('../src/types').Signal };
+    });
+    vi.spyOn(auditService, 'log').mockImplementation(() => {
+      order.push('audit');
+    });
+    handleCurationFormSubmit(host, 'cur_b3_1', 'DISCARD', 'Valid rationale text');
+    expect(order).toEqual([
+      'decideCuration',
+      'discardSignalForCurationComposite',
+      'audit',
+      'toast',
+      'render',
+    ]);
+  });
+
+  it('handler DISCARD SIGNAL_NOT_FOUND compat: success toast, no SIGNAL_DISCARDED audit', () => {
+    setupAdminGate();
+    const host = curationHost();
+    vi.spyOn(executionDeliveryConsumer, 'decideCuration').mockReturnValue({
+      entry: baseCurationEntry({ signalId: 'sig_stale' }),
+    });
+    vi.spyOn(signalIntakeConsumer, 'discardSignalForCurationComposite').mockImplementation(() => {
+      throw new SignalIntakeError('SIGNAL_NOT_FOUND', 'Signal not found: sig_stale');
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    handleCurationFormSubmit(host, 'cur_b3_1', 'DISCARD', 'Valid rationale text');
+    expect(auditSpy).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledWith(
+      authService.getCurrentUser(),
+      'CURATION_DECIDED',
+      'CurationEntry',
+      'cur_b3_1',
+      expect.any(Object)
+    );
+    expect(auditSpy).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'SIGNAL_DISCARDED',
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    );
+    expect(host.showToast).toHaveBeenCalledWith('Ítem descartado con justificación', 'success');
+  });
+
+  it('handler DISCARD non-not-found failure: partial warning, CURATION_DECIDED only', () => {
+    setupAdminGate();
+    const host = curationHost();
+    vi.spyOn(executionDeliveryConsumer, 'decideCuration').mockReturnValue({
+      entry: baseCurationEntry({ signalId: 'sig_b3_1' }),
+    });
+    vi.spyOn(signalIntakeConsumer, 'discardSignalForCurationComposite').mockImplementation(() => {
+      throw new SignalIntakeError('ACTOR_NOT_AUTHORIZED', 'Denied');
+    });
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    handleCurationFormSubmit(host, 'cur_b3_1', 'DISCARD', 'Valid rationale text');
+    expect(auditSpy).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledWith(
+      authService.getCurrentUser(),
+      'CURATION_DECIDED',
+      'CurationEntry',
+      'cur_b3_1',
+      expect.any(Object)
+    );
+    expect(host.showToast).toHaveBeenCalledWith(
+      'La decisión de curación se guardó, pero no se pudo descartar la señal vinculada.',
+      'warning'
+    );
+    expect(host.showToast).not.toHaveBeenCalledWith(expect.any(String), 'success');
+    expect(host.render).toHaveBeenCalled();
+  });
+
+  it('handler DISCARD without signalId skips #20', () => {
+    setupAdminGate();
+    const host = curationHost();
+    const discardSpy = vi.spyOn(signalIntakeConsumer, 'discardSignalForCurationComposite');
+    vi.spyOn(executionDeliveryConsumer, 'decideCuration').mockReturnValue({
+      entry: baseCurationEntry({ signalId: undefined }),
+    });
+    handleCurationFormSubmit(host, 'cur_b3_1', 'DISCARD', 'Valid rationale text');
+    expect(discardSpy).not.toHaveBeenCalled();
+    expect(host.showToast).toHaveBeenCalledWith('Ítem descartado con justificación', 'success');
+  });
+
+  it('handler security failure: warning, no success audit', () => {
+    vi.spyOn(authService, 'getCurrentUser').mockReturnValue(null);
+    vi.spyOn(dbService, 'getClientById').mockReturnValue({
+      id: 'client_ed',
+      organizationId: 'org_ed',
+    } as ReturnType<typeof dbService.getClientById>);
+    const host = curationHost();
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    handleCurationFormSubmit(host, 'cur_b3_1', 'TASK_VIDEO', 'Valid rationale text');
+    expect(auditSpy).not.toHaveBeenCalled();
+    expect(host.showToast).toHaveBeenCalledWith('Sesión no disponible — acción cancelada.', 'warning');
+    expect(host.render).not.toHaveBeenCalled();
+  });
+
+  it('discardSignalForCurationComposite performs no SIGNAL_DISCARDED audit', () => {
+    setupAdminGate();
+    const auditSpy = vi.spyOn(auditService, 'log').mockImplementation(() => undefined);
+    vi.spyOn(signalIntakeConsumer, 'discardSignalForCurationComposite').mockImplementation(() => ({
+      signal: { id: 'sig_b3_1' } as import('../src/types').Signal,
+    }));
+    handleCurationFormSubmit(
+      curationHost(),
+      'cur_b3_1',
+      'DISCARD',
+      'Valid rationale text'
+    );
+    expect(auditSpy).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'SIGNAL_DISCARDED',
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('B1/B2 use cases unchanged', () => {
+    expect(readFileSync(resolve('src/application/executionDelivery/AddSignalToCuration.ts'), 'utf8')).toMatch(
+      /CURATION_ALREADY_EXISTS/
+    );
+    expect(readFileSync(resolve('src/application/executionDelivery/AddAdviceActionToCuration.ts'), 'utf8')).toMatch(
+      /ADVICE_ACTION_NOT_FOUND/
+    );
+  });
+});
+
 describe('CR-1 Execution Delivery architecture', () => {
-  it('compose exposes six commands including addAdviceActionToCuration', () => {
+  it('compose exposes seven commands including decideCuration', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.transitionClientTask).toBe('function');
     expect(typeof c.saveContentDraft).toBe('function');
@@ -1543,6 +1936,7 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(typeof c.sendDeliveryPackage).toBe('function');
     expect(typeof c.addSignalToCuration).toBe('function');
     expect(typeof c.addAdviceActionToCuration).toBe('function');
+    expect(typeof c.decideCuration).toBe('function');
   });
 
   it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {
@@ -1629,6 +2023,17 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(curationBlock![0]).toMatch(/addAdviceActionToCuration\s*\(/);
     expect(curationBlock![0]).not.toMatch(/dbService\.addToCuration/);
     expect(curationBlock![0]).not.toMatch(/getLatestAdvice/);
+    expect(source).not.toMatch(/user_admin_01/);
+  });
+
+  it('curation #14 delegates handleCurationFormSubmit — no direct dbService.decideCuration/decideSignal', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/curationHandlers.ts'), 'utf8');
+    const block = source.match(/export function handleCurationFormSubmit[\s\S]*?^}/m);
+    expect(block).toBeTruthy();
+    expect(block![0]).toMatch(/decideCuration\s*\(/);
+    expect(block![0]).toMatch(/discardSignalForCurationComposite\s*\(/);
+    expect(block![0]).not.toMatch(/dbService\.decideCuration/);
+    expect(block![0]).not.toMatch(/dbService\.decideSignal/);
     expect(source).not.toMatch(/user_admin_01/);
   });
 

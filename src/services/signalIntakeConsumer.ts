@@ -241,6 +241,24 @@ export function discardSignal(intent: DiscardSignalIntent): DiscardSignalResult 
   }
 }
 
+/** #14 DISCARD composite — frozen #20 authority without consumer SIGNAL_DISCARDED audit. */
+export function discardSignalForCurationComposite(
+  intent: DiscardSignalIntent
+): DiscardSignalResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.discardSignal({
+      trusted: trustedFrom(g),
+      signalId: intent.signalId,
+      reason: intent.reason,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo descartar la señal vinculada');
+  }
+}
+
 export interface MarkSignalSavedIntent {
   requestedClientId: string | null | undefined;
   signalId: string;

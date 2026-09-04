@@ -24,5 +24,16 @@ export function createDbCurationRepositoryPort(): CurationRepositoryPort {
     addToCuration(entry) {
       return dbService.addToCuration(entry);
     },
+    getById(id) {
+      return dbService.getCurationById(id);
+    },
+    decideCuration(input) {
+      return dbService.decideCuration(
+        input.id,
+        input.destination,
+        input.managerRationale,
+        input.decidedBy
+      );
+    },
   };
 }

@@ -5,13 +5,14 @@
  * SPEC-006 gate is consumed, not owned. No SPEC-008 learning. No providers.
  */
 
-import type { ContentStatus, ContentType } from '../types';
+import type { ContentStatus, ContentType, CurationDestination } from '../types';
 import {
   ExecutionDeliveryError,
   type AddAdviceActionToCurationResult,
   type AddSignalToCurationResult,
   type ClientArticleReviewDecision,
   type ClientTaskTransitionIntent,
+  type DecideCurationResult,
   type ReviewClientArticleResult,
   type SaveContentDraftResult,
   type SendDeliveryPackageResult,
@@ -123,6 +124,30 @@ export function addAdviceActionToCuration(intent: {
     });
   } catch (err) {
     mapError(err, 'No se pudo enviar a curación');
+  }
+}
+
+/** Registry #14 — curation decision (authoritative CurationEntry reload). No composite audit. */
+export function decideCuration(intent: {
+  requestedClientId: string | null | undefined;
+  curationEntryId: string;
+  destination: CurationDestination;
+  rationale: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): DecideCurationResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.decideCuration({
+      trusted: trustedFrom(g),
+      curationEntryId: intent.curationEntryId,
+      destination: intent.destination,
+      rationale: intent.rationale,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo decidir la curación');
   }
 }
 

@@ -172,7 +172,7 @@ export interface TasksHandlerHost extends AppHost, LegacyModalHost, LegacyScopeH
   readonly teleprompter: TeleprompterHandlerHost['teleprompter'];
 }
 
-export type CurationHandlerHost = AppHost;
+export interface CurationHandlerHost extends AppHost, LegacyScopeHost {}
 
 export interface AdvisorHandlerHost extends AppHost, LegacyScopeHost {}
 
