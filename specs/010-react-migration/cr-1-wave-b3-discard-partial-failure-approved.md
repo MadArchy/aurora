@@ -2,6 +2,7 @@
 
 **Class:** `GOVERNANCE_COMPATIBILITY_POLICY`  
 **Status:** `HUMAN_APPROVED` · **B3 IMPLEMENTATION = NOT AUTHORIZED**  
+**Human governance approval SHA:** `9133d28fcc8a1dce3b2478046a3e42642483715e`  
 **Authorized base checkpoint:** `1a08eb26ca589db1fb5109fee15437bc53f2ee20`  
 **Wave scope:** **#14 DecideCuration** · DISCARD cascade to frozen **#20 DiscardSignal** only  
 **Timezone:** America/Bogota
