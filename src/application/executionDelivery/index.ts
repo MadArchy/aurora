@@ -109,6 +109,13 @@ export {
   type ReopenCurationInput,
   type ReopenCurationResult,
 } from './ReopenCuration';
+export {
+  createAcknowledgeDelivery,
+  type AcknowledgeDeliveryCompat,
+  type AcknowledgeDeliveryDeps,
+  type AcknowledgeDeliveryInput,
+  type AcknowledgeDeliveryResult,
+} from './AcknowledgeDelivery';
 export type { TaskRepository } from './ports/TaskRepository';
 export type {
   ContentDraftFields,
@@ -128,6 +135,7 @@ export type {
 export type { CurationAnglePersistencePort } from './ports/CurationAnglePersistencePort';
 export type { CurationRemovalPersistencePort } from './ports/CurationRemovalPersistencePort';
 export type { CurationReopenPersistencePort } from './ports/CurationReopenPersistencePort';
+export type { DeliveryAcknowledgementPersistencePort } from './ports/DeliveryAcknowledgementPersistencePort';
 export type { CurationStrategicBriefReadPort } from './ports/CurationStrategicBriefReadPort';
 export type { CurationThesisReadPort } from './ports/CurationThesisReadPort';
 export type {

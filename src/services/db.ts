@@ -2589,12 +2589,16 @@ class DataService {
     this.saveAll();
   }
 
-  public acknowledgeDelivery(packageId: string, clientAckNote?: string): DeliveryPackage | null {
+  public acknowledgeDelivery(
+    packageId: string,
+    clientAckNote?: string,
+    acknowledgedAt?: string
+  ): DeliveryPackage | null {
     const pkg = this.deliveries.find((d) => d.id === packageId);
     if (!pkg) return null;
     assertTransition(pkg.status, 'ACKNOWLEDGED', DELIVERY_TRANSITIONS, 'DELIVERY');
     pkg.status = 'ACKNOWLEDGED';
-    pkg.acknowledgedAt = new Date().toISOString();
+    pkg.acknowledgedAt = acknowledgedAt ?? new Date().toISOString();
     if (clientAckNote?.trim()) pkg.clientAckNote = clientAckNote.trim();
     this.saveAll();
     return pkg;

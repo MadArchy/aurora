@@ -21,3 +21,4 @@ export {
   createDbCurationRemovalPersistencePort,
   createDbCurationReopenPersistencePort,
 } from './DbRemoveReopenCurationAdapters';
+export { createDbDeliveryAcknowledgementPersistencePort } from './DbAcknowledgeDeliveryAdapter';

@@ -1,5 +1,6 @@
 import { dbService } from '../../../services/db';
 import { notifyManager } from '../../../services/notifications';
+import { acknowledgeDelivery as acknowledgeDeliveryCmd } from '../../../services/executionDeliveryConsumer';
 import { sendDelivery as sendDeliveryCmd } from '../../../controllers/contentPipelineCommands';
 import {
   discardDraftDelivery,
@@ -124,7 +125,16 @@ export function bindDeliveryHandlers(host: DeliveryHandlerHost): void  {
       if (!id) return;
       const noteEl = document.querySelector(`.input-ack-note[data-package-id="${id}"]`) as HTMLTextAreaElement | null;
       const note = noteEl?.value.trim();
-      const pkg = dbService.acknowledgeDelivery(id, note);
+      const result = acknowledgeDeliveryCmd({
+        requestedClientId: host.resolveClientId(),
+        packageId: id,
+        clientAckNote: note || undefined,
+      });
+      if (!result.ok) {
+        host.showToast('No se pudo marcar el briefing', 'warning');
+        return;
+      }
+      const pkg = dbService.getDeliveryById(result.packageId);
       if (!pkg) {
         host.showToast('No se pudo marcar el briefing', 'warning');
         return;

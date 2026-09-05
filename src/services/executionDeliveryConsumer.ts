@@ -11,6 +11,7 @@ import {
   type AddAdviceActionToCurationResult,
   type AddCurationToDeliveryResult,
   type AddSignalToCurationResult,
+  type AcknowledgeDeliveryResult,
   type ClientArticleReviewDecision,
   type ClientTaskTransitionIntent,
   type DecideCurationResult,
@@ -92,6 +93,28 @@ export async function sendDeliveryPackage(intent: {
     return result;
   } catch (err) {
     mapError(err, 'No se pudo enviar el briefing');
+  }
+}
+
+/** Registry #19 — client delivery read receipt (authoritative DeliveryPackage reload). No audit. */
+export function acknowledgeDelivery(intent: {
+  requestedClientId: string | null | undefined;
+  packageId: string;
+  clientAckNote?: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): AcknowledgeDeliveryResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.acknowledgeDelivery({
+      trusted: trustedFrom(g),
+      packageId: intent.packageId,
+      clientAckNote: intent.clientAckNote,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo marcar el briefing');
   }
 }
 

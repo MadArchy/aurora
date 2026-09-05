@@ -2,6 +2,7 @@ import {
   createAddAdviceActionToCuration,
   createAddCurationToDelivery,
   createAddSignalToCuration,
+  createAcknowledgeDelivery,
   createDecideCuration,
   createDiscardDraftDelivery,
   createEnsureDraftDelivery,
@@ -25,6 +26,7 @@ import {
   type CurationRepositoryPort,
   type CurationStrategicBriefReadPort,
   type CurationThesisReadPort,
+  type DeliveryAcknowledgementPersistencePort,
   type DeliveryAssemblyRepositoryPort,
   type DeliverySendPort,
   type SignalReadPort,
@@ -43,6 +45,7 @@ import {
   createDbCurationStrategicBriefReadPort,
   createDbCurationThesisReadPort,
   createDbDeliveryAssemblyRepositoryPort,
+  createDbDeliveryAcknowledgementPersistencePort,
   createDbSignalReadPort,
   createDbDeliverySendPort,
   createDbTaskRepository,
@@ -64,6 +67,7 @@ export function composeExecutionDelivery(options: {
   angles?: CurationAnglePersistencePort;
   removal?: CurationRemovalPersistencePort;
   reopen?: CurationReopenPersistencePort;
+  acknowledgement?: DeliveryAcknowledgementPersistencePort;
 } = {}) {
   const tasks = options.tasks ?? createDbTaskRepository();
   const contents = options.contents ?? createDbContentRepository();
@@ -80,6 +84,7 @@ export function composeExecutionDelivery(options: {
   const angles = options.angles ?? createDbCurationAnglePersistencePort();
   const removal = options.removal ?? createDbCurationRemovalPersistencePort();
   const reopen = options.reopen ?? createDbCurationReopenPersistencePort();
+  const acknowledgement = options.acknowledgement ?? createDbDeliveryAcknowledgementPersistencePort();
   return {
     transitionClientTask: createTransitionClientTask({ tasks }),
     saveContentDraft: createSaveContentDraft({ contents, publicationGate, strategicBriefGate }),
@@ -103,5 +108,6 @@ export function composeExecutionDelivery(options: {
     }),
     removeCuration: createRemoveCuration({ curation, removal }),
     reopenCuration: createReopenCuration({ curation, reopen }),
+    acknowledgeDelivery: createAcknowledgeDelivery({ assembly, acknowledgement }),
   };
 }
