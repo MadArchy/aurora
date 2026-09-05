@@ -79,7 +79,7 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 30 | `Modals` add-evidence | Add evidence item | `dbService.addEvidenceItem` | evidence vault | **NO** | `KEEP_LEGACY` | **CR-1 Master Profile Application** · SPEC-006 publication gate only | 4 |
 | 31 | `Modals` content-editor | Save content | `saveContentDraft` → Application `SaveContentDraft` (SPEC-003 Brief gate for strategic content + Domain `contentPipeline` + SPEC-006 gate consumption) | content record | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
 | 32 | `Modals` article-review | Save / approve / reject article | `reviewClientArticle` → Application `ReviewClientArticle` (Domain `articleReviewCore` + `contentPipeline`) | content + pipeline | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
-| 33 | `Modals` generate-content | Generate draft | provider call, then `dbService.saveContent` | content record | **NO** | `READ_ONLY_REACT` | **CR-1 Execution Delivery Application** · SPEC-003 auth · SPEC-005 AI · create ≠ `SaveContentDraft` | 4 |
+| 33 | `Modals` generate-content | Generate draft | `createContentDraft` → Application `CreateContentDraft` (legacy symbols: `aiService.generateContentDraft`, `dbService.saveContent`) | content record | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** · SPEC-003 auth · SPEC-005 AI · create ≠ `SaveContentDraft` | 4 |
 | 34 | `ManagerCockpit` / `Modals` create-client | Create client + invite | `createClientWithInvite` → Application `CreateClientWithInvite` (legacy symbols: `createClient`, `createInvitation`, `createPendingAccount`) | tenancy + identity | **YES** | `KEEP_LEGACY` (legacy UI invokes canonical consumer) | **CR-1 Client Lifecycle Application** (SPEC-009 remains authz/RBAC only) | 4 |
 
 Items 18 and 22 are recorded as `CU? PARTIAL` deliberately: their *authorization*
@@ -549,7 +549,7 @@ Per-row debt metadata (owner resolution does not change `CU?`):
 | 27 | Execution Delivery | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | REQUIRED | Assign / cancel task |
 | 29 | Master Profile | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | PARTIAL | Toggle evidence ↔ thesis |
 | 30 | Master Profile | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-006 publication only | NO | LEGACY_ISLAND | PARTIAL | Add evidence vault item |
-| 33 | Execution Delivery | OWNER_RESOLVED (ratified) | SPEC-003 · SPEC-005 · create ≠ SaveContentDraft | NO | LEGACY_ISLAND | REQUIRED | New ContentItem create use case |
+| 33 | Execution Delivery | OWNER_RESOLVED (ratified) | SPEC-003 · SPEC-005 · create ≠ SaveContentDraft | **YES** | LEGACY_ISLAND | REQUIRED | **CANONICALIZED_AND_FROZEN** (Wave B9) |
 
 ### Special representations
 
@@ -569,7 +569,8 @@ Formal SPEC-006 Verification / `AuthorizePublication` authority **0**. Compatibi
 advisory readers (`claimSafetyCore`, `thesisStrengthCore`) may use the flag
 heuristically only.
 
-**#33 — create path:** `SaveContentDraft` contract **not expanded** to cover new
-ContentItem creation. Future Execution Delivery create use case required.
+**#33 — create path:** `CreateContentDraft` (Wave B9) covers all three initial-create
+presentation intents (`FORM_GENERATE`, `SCIENTIFIC_ARTICLE`, `RECOMMENDATION_TASK_SCRIPT`).
+`SaveContentDraft` contract **not expanded** — remains edit-existing only (#31 frozen).
 
 **NEXT ACTION (post-ratification):** `IMPLEMENT_CR2`
