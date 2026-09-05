@@ -5,6 +5,7 @@ import {
   createDecideCuration,
   createDiscardDraftDelivery,
   createEnsureDraftDelivery,
+  createProposeAngle,
   createRemoveDeliveryItemFromDelivery,
   createReviewClientArticle,
   createSaveContentDraft,
@@ -12,10 +13,14 @@ import {
   createTransitionClientTask,
   createUpdateDeliveryPackageMetadata,
   type AdviceReadPort,
+  type AdvisorCurationAnglePort,
   type ContentPublicationGatePort,
   type ContentRepository,
   type ContentStrategicBriefGatePort,
+  type CurationAnglePersistencePort,
   type CurationRepositoryPort,
+  type CurationStrategicBriefReadPort,
+  type CurationThesisReadPort,
   type DeliveryAssemblyRepositoryPort,
   type DeliverySendPort,
   type SignalReadPort,
@@ -23,10 +28,14 @@ import {
 } from '../../application/executionDelivery';
 import {
   createDbAdviceReadPort,
+  createDbAdvisorCurationAnglePort,
   createDbContentPublicationGate,
   createDbContentRepository,
   createDbContentStrategicBriefGate,
+  createDbCurationAnglePersistencePort,
   createDbCurationRepositoryPort,
+  createDbCurationStrategicBriefReadPort,
+  createDbCurationThesisReadPort,
   createDbDeliveryAssemblyRepositoryPort,
   createDbSignalReadPort,
   createDbDeliverySendPort,
@@ -43,6 +52,10 @@ export function composeExecutionDelivery(options: {
   curation?: CurationRepositoryPort;
   advice?: AdviceReadPort;
   assembly?: DeliveryAssemblyRepositoryPort;
+  strategicBriefs?: CurationStrategicBriefReadPort;
+  theses?: CurationThesisReadPort;
+  advisor?: AdvisorCurationAnglePort;
+  angles?: CurationAnglePersistencePort;
 } = {}) {
   const tasks = options.tasks ?? createDbTaskRepository();
   const contents = options.contents ?? createDbContentRepository();
@@ -53,6 +66,10 @@ export function composeExecutionDelivery(options: {
   const curation = options.curation ?? createDbCurationRepositoryPort();
   const advice = options.advice ?? createDbAdviceReadPort();
   const assembly = options.assembly ?? createDbDeliveryAssemblyRepositoryPort();
+  const strategicBriefs = options.strategicBriefs ?? createDbCurationStrategicBriefReadPort();
+  const theses = options.theses ?? createDbCurationThesisReadPort();
+  const advisor = options.advisor ?? createDbAdvisorCurationAnglePort();
+  const angles = options.angles ?? createDbCurationAnglePersistencePort();
   return {
     transitionClientTask: createTransitionClientTask({ tasks }),
     saveContentDraft: createSaveContentDraft({ contents, publicationGate, strategicBriefGate }),
@@ -66,5 +83,13 @@ export function composeExecutionDelivery(options: {
     updateDeliveryPackageMetadata: createUpdateDeliveryPackageMetadata({ assembly }),
     removeDeliveryItemFromDelivery: createRemoveDeliveryItemFromDelivery({ assembly }),
     discardDraftDelivery: createDiscardDraftDelivery({ assembly }),
+    proposeAngle: createProposeAngle({
+      curation,
+      strategicBriefs,
+      signals,
+      theses,
+      advisor,
+      angles,
+    }),
   };
 }

@@ -3,13 +3,11 @@ import { SignalIntakeError } from '../../../application/signalIntake';
 import { auditService } from '../../../services/audit';
 import { authService } from '../../../services/auth';
 import { dbService } from '../../../services/db';
-import { proposeAngle } from '../../../services/advisor';
 import {
   approveStrategicBrief,
   createBriefFromCurationEntry,
-  getStrategicBrief,
 } from '../../../services/strategicBriefConsumer';
-import { decideCuration } from '../../../services/executionDeliveryConsumer';
+import { decideCuration, proposeAngle } from '../../../services/executionDeliveryConsumer';
 import { discardSignalForCurationComposite } from '../../../services/signalIntakeConsumer';
 import type { CurationDestination } from '../../../types';
 import { queueCurationInBriefing } from './radarHandlers';
@@ -99,6 +97,44 @@ export function handleCurationFormSubmit(
   host.render();
 }
 
+export const THESIS_NOT_RESOLVED_MESSAGE =
+  'Routing must be resolved first — create a Strategic Brief or ensure CLEAR governed routing.';
+
+/** CR-1 #15 — canonical propose-angle click (testable seam). */
+export async function handleProposeAngleClick(
+  host: CurationHandlerHost,
+  target: HTMLButtonElement,
+  curationId: string
+): Promise<void> {
+  target.disabled = true;
+  target.textContent = 'Pensando…';
+  try {
+    const result = await proposeAngle({
+      requestedClientId: host.resolveClientId(),
+      curationEntryId: curationId,
+    });
+    if (!result.ok) {
+      if (result.compat === 'CURATION_NOT_FOUND') {
+        target.disabled = false;
+        target.textContent = 'Proponer ángulo';
+        return;
+      }
+      if (result.compat === 'THESIS_NOT_RESOLVED') {
+        host.showToast(THESIS_NOT_RESOLVED_MESSAGE, 'warning');
+        return;
+      }
+    } else {
+      host.showToast(
+        result.usedLiveModel ? 'Ángulo propuesto con modelo' : 'Ángulo propuesto con reglas locales',
+        'success'
+      );
+    }
+  } catch (error) {
+    host.showToast(error instanceof Error ? error.message : 'No se pudo proponer el ángulo', 'warning');
+  }
+  host.render();
+}
+
 export function bindCurationHandlers(host: CurationHandlerHost): void  {
   document.querySelectorAll('.curation-form').forEach((form) => {
     form.addEventListener('submit', (e) => {
@@ -129,38 +165,7 @@ export function bindCurationHandlers(host: CurationHandlerHost): void  {
       const target = e.currentTarget as HTMLButtonElement;
       const curationId = target.getAttribute('data-curation-id');
       if (!curationId) return;
-
-      const entry = dbService.getCurationById(curationId);
-      if (!entry) return;
-
-      target.disabled = true;
-      target.textContent = 'Pensando…';
-      try {
-        const brief = entry.strategicBriefId
-          ? getStrategicBrief(entry.strategicBriefId, entry.clientId)
-          : undefined;
-        const signal = entry.signalId ? dbService.getSignalById(entry.signalId) : undefined;
-        const thesisId =
-          brief?.thesisId ?? signal?.routingDecision?.selectedThesisId;
-        if (!thesisId) {
-          host.showToast(
-            'Routing must be resolved first — create a Strategic Brief or ensure CLEAR governed routing.',
-            'warning'
-          );
-          return;
-        }
-        const { angle, usedLiveModel } = await proposeAngle({
-          clientId: entry.clientId,
-          title: entry.title,
-          snippet: entry.snippet,
-          thesisId,
-        });
-        dbService.setCurationAngle(curationId, angle);
-        host.showToast(usedLiveModel ? 'Ángulo propuesto con modelo' : 'Ángulo propuesto con reglas locales', 'success');
-      } catch (error) {
-        host.showToast(error instanceof Error ? error.message : 'No se pudo proponer el ángulo', 'warning');
-      }
-      host.render();
+      await handleProposeAngleClick(host, target, curationId);
     });
   });
 

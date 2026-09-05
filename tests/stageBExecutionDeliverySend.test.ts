@@ -182,6 +182,7 @@ describe('Stage B #18 SendDeliveryPackage', () => {
       'decideCuration',
       'discardDraftDelivery',
       'ensureDraftDelivery',
+      'proposeAngle',
       'removeDeliveryItemFromDelivery',
       'reviewClientArticle',
       'saveContentDraft',

@@ -2380,7 +2380,7 @@ describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
 });
 
 describe('CR-1 Execution Delivery architecture', () => {
-  it('compose exposes twelve commands including delivery assembly cluster', () => {
+  it('compose exposes thirteen commands including ProposeAngle', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.transitionClientTask).toBe('function');
     expect(typeof c.saveContentDraft).toBe('function');
@@ -2394,6 +2394,7 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(typeof c.updateDeliveryPackageMetadata).toBe('function');
     expect(typeof c.removeDeliveryItemFromDelivery).toBe('function');
     expect(typeof c.discardDraftDelivery).toBe('function');
+    expect(typeof c.proposeAngle).toBe('function');
   });
 
   it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {
@@ -2492,6 +2493,15 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(block![0]).not.toMatch(/dbService\.decideCuration/);
     expect(block![0]).not.toMatch(/dbService\.decideSignal/);
     expect(source).not.toMatch(/user_admin_01/);
+  });
+
+  it('curation #15 delegates handleProposeAngleClick — no direct setCurationAngle or advisor proposeAngle', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/curationHandlers.ts'), 'utf8');
+    const block = source.match(/export async function handleProposeAngleClick[\s\S]*?^}/m);
+    expect(block).toBeTruthy();
+    expect(block![0]).toMatch(/proposeAngle\s*\(/);
+    expect(block![0]).not.toMatch(/dbService\.setCurationAngle/);
+    expect(source).not.toMatch(/from ['"].*\/services\/advisor['"]/);
   });
 
   it('no production handler direct dbService.addToCuration remains', () => {

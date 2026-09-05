@@ -11,3 +11,9 @@ export {
 } from './DbCurationAdapter';
 export { createDbAdviceReadPort } from './DbAdviceReadAdapter';
 export { createDbDeliveryAssemblyRepositoryPort } from './DbDeliveryAssemblyAdapter';
+export {
+  createDbAdvisorCurationAnglePort,
+  createDbCurationAnglePersistencePort,
+  createDbCurationStrategicBriefReadPort,
+  createDbCurationThesisReadPort,
+} from './DbProposeAngleAdapters';

@@ -16,6 +16,7 @@ import {
   type DecideCurationResult,
   type DiscardDraftDeliveryResult,
   type EnsureDraftDeliveryResult,
+  type ProposeAngleResult,
   type RemoveDeliveryItemFromDeliveryResult,
   type ReviewClientArticleResult,
   type SaveContentDraftResult,
@@ -153,6 +154,26 @@ export function decideCuration(intent: {
     });
   } catch (err) {
     mapError(err, 'No se pudo decidir la curación');
+  }
+}
+
+/** Registry #15 — propose curation angle (authoritative CurationEntry reload). No audit. */
+export async function proposeAngle(intent: {
+  requestedClientId: string | null | undefined;
+  curationEntryId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): Promise<ProposeAngleResult> {
+  const g = gate(intent.requestedClientId);
+  try {
+    return await useCases.proposeAngle({
+      trusted: trustedFrom(g),
+      curationEntryId: intent.curationEntryId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo proponer el ángulo');
   }
 }
 

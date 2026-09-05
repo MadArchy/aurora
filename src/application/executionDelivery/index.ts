@@ -88,6 +88,13 @@ export {
   type DiscardDraftDeliveryInput,
   type DiscardDraftDeliveryResult,
 } from './DiscardDraftDelivery';
+export {
+  createProposeAngle,
+  type ProposeAngleCompat,
+  type ProposeAngleDeps,
+  type ProposeAngleInput,
+  type ProposeAngleResult,
+} from './ProposeAngle';
 export type { TaskRepository } from './ports/TaskRepository';
 export type {
   ContentDraftFields,
@@ -104,3 +111,10 @@ export type {
   CurationEntryCreateInput,
   CurationRepositoryPort,
 } from './ports/CurationRepositoryPort';
+export type { CurationAnglePersistencePort } from './ports/CurationAnglePersistencePort';
+export type { CurationStrategicBriefReadPort } from './ports/CurationStrategicBriefReadPort';
+export type { CurationThesisReadPort } from './ports/CurationThesisReadPort';
+export type {
+  AdvisorCurationAnglePort,
+  AdvisorCurationAngleResult,
+} from './ports/AdvisorCurationAnglePort';
