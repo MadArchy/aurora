@@ -33,14 +33,39 @@ const ROLLBACK_VOLATILE_KEYS = new Set([
   'postura_source_automation_v1',
 ]);
 
-export function rollbackStableSnapshot(page: Page) {
-  return businessSnapshot(page).then((snapshot) => {
-    const stable: Record<string, string> = {};
-    for (const [key, value] of Object.entries(snapshot)) {
-      if (!ROLLBACK_VOLATILE_KEYS.has(key)) stable[key] = value;
+function canonicalizeJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeJsonValue);
+  }
+  if (value !== null && typeof value === 'object') {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      sorted[key] = canonicalizeJsonValue((value as Record<string, unknown>)[key]);
     }
-    return stable;
-  });
+    return sorted;
+  }
+  return value;
+}
+
+/** T508 Decision B — canonical JSON object-key order for stable rollback comparison only. */
+export function canonicalizeJsonStorageValue(raw: string): string {
+  try {
+    return JSON.stringify(canonicalizeJsonValue(JSON.parse(raw)));
+  } catch {
+    return raw;
+  }
+}
+
+export function canonicalizeRollbackStableSnapshot(snapshot: Record<string, string>): Record<string, string> {
+  const stable: Record<string, string> = {};
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (!ROLLBACK_VOLATILE_KEYS.has(key)) stable[key] = canonicalizeJsonStorageValue(value);
+  }
+  return stable;
+}
+
+export function rollbackStableSnapshot(page: Page) {
+  return businessSnapshot(page).then(canonicalizeRollbackStableSnapshot);
 }
 
 export async function visibleRoots(page: Page) {

@@ -53,7 +53,9 @@
 
 Minimal deterministic harness: `e2e/helpers/spec010Auth.ts` — demo credentials from `docs/ops/pilot.md`, `loginAsManager`, `loginAsClientJuan/Elena`, workspace navigation, `rollbackStableSnapshot` (excludes presentation-only scheduler cache keys unrelated to UI-mode rollback).
 
-Mid-journey rollback harness stabilization (test-only): extended timeout + `authService.ready` wait after reload — storage parity assertions unchanged.
+**T508 rollback representation (Decision B):** stable JSON localStorage values compare after recursive object-key canonicalization; array order and all field values remain exact. Non-JSON stable values remain raw string-equal. See `t-010-508-rollback-stable-storage-amendment.md`. Focused comparator: `tests/e2eRollbackStableSnapshot.test.ts`.
+
+Mid-journey rollback harness stabilization (test-only): extended timeout + `authService.ready` wait after reload — business-state parity assertions unchanged; representation comparison amended only for JSON object property order.
 
 ## Threat ledger (T-510 capstone)
 
