@@ -2,9 +2,21 @@
 
 **Human decision:** `DECISION B = AUTHORIZE_CANONICAL_JSON_OBJECT_KEY_NORMALIZATION`  
 **Classification:** `NARROW T508 GOVERNANCE AMENDMENT` (not a test flake fix)  
-**Starting checkpoint:** `34b5660a3440ad2d1d88c5d25ed57fa2b297ab7c`
+**Starting checkpoint:** `34b5660a3440ad2d1d88c5d25ed57fa2b297ab7c`  
+**T508 stability patch SHA:** `1f6bab09b1a52e6a3c9f97ed224bfecf0b709b3b`
 
 ---
+
+## Post-amendment evidence (@ patch SHA)
+
+| Gate | Result |
+|------|--------|
+| Focused comparator (`tests/e2eRollbackStableSnapshot.test.ts`) | **13/13 PASS** |
+| Isolated T508 rollback test (previously failing) | **1/1 PASS** |
+| Full T508 Playwright | **10/10 PASS** |
+| Combined Stage-B + T508 | **21/21 PASS** |
+
+**Production files modified:** **0**
 
 ## Frozen business invariant (unchanged)
 
