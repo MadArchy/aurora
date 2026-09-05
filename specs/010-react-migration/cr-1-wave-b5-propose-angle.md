@@ -118,4 +118,4 @@ Removes direct `dbService.setCurationAngle` and direct handler `services/advisor
 
 ## Next action
 
-`CR1_WAVE_B6_REMOVE_REOPEN_CURATION_AUTHORIZATION_REVIEW` — do **not** auto-implement #16.
+`CR1_WAVE_B6_REMOVE_REOPEN_CURATION` — completed; see `cr-1-wave-b6-remove-reopen-curation.md`.
