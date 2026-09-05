@@ -82,4 +82,4 @@ Removes six direct `dbService` assembly write symbols from `deliveryHandlers.ts`
 
 ## Next action
 
-`CR1_WAVE_B6_REMOVE_REOPEN_CURATION_AUTHORIZATION_REVIEW` — do **not** auto-implement #16.
+`CR1_WAVE_B7_ACKNOWLEDGE_DELIVERY_AUTHORIZATION_REVIEW` — do **not** auto-implement #19.

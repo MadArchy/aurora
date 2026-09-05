@@ -71,7 +71,7 @@
 | B6 starting checkpoint | `fb4c99f5dd65c66903b4e249accdb0441f60b0e0` |
 | B6 implementation | `7d33ee4c90c687db1bc9f0998e2638acc6fc36d1` |
 | B6 frozen content | `7d33ee4c90c687db1bc9f0998e2638acc6fc36d1` |
-| B6 formal acceptance / CR1 governance tip | *(this governance commit — branch tip after acceptance)* |
+| B6 formal acceptance / CR1 governance tip | `2b07af7da7bca288f375553a22675a8bab0b9c83` |
 
 Implementation and formal acceptance are **separate commits**.
 
