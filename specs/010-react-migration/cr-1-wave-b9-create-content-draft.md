@@ -51,7 +51,7 @@
 | PLAYWRIGHT Stage-B + T508 | **21** | **21/21 PASS** | `e2e/t010403-stage-b-seam.spec.ts` + `e2e/t010508-phase5-parity.spec.ts` |
 | SPEC-010 PHASE5 FOCUSED | **73** | **73/73 PASS** | nine adversarial files |
 | ATTACK | **5** | **5/5 PASS** | `tests/t010510ThreatCapstone.test.ts` |
-| ROLE REACHABILITY GUARDS | **1** | **1/1 PASS** | within `tests/cr1WaveB9CreateContentDraft.test.ts` |
+| ROLE REACHABILITY GUARDS | **4** (B9-specific) | **4/4 PASS** | 1 presentation architecture + 3 application core-authority role tests · frozen B5/B6 architecture guards **8/8 PASS** · see `cr-1-wave-b9-role-guard-reconciliation.md` |
 | FULL CHECK | **2167** | **2167/2167 PASS** | `npm run check` (+18 B9 tests vs B7 acceptance baseline 2149) |
 | RULES | **91** | **91/91 PASS** | `npm run test:rules` |
 | BUILD | — | **PASS** | `npm run build` |
@@ -77,7 +77,8 @@
 |------|-----|
 | B9 starting checkpoint | `68e469560e648a2485faff58e5162199fc16c7b9` |
 | B9 implementation / frozen content | `1b4864d7abb315b2e47a1b6273fc2df25c61d9b7` |
-| B9 formal acceptance / CR1 governance tip | `fd77e13a079281c54ae7fc0ec35b5c0d9b13201d` |
+| B9 formal acceptance / CR1 governance tip | `fd77e13a079281c54ae7fc0ec35b5c0d9b13201d` (premature label — preserved) |
+| B9 role-guard reconciliation / final acceptance tip | see `cr-1-wave-b9-role-guard-reconciliation.md` |
 
 Implementation and formal acceptance are **separate commits**.
 
