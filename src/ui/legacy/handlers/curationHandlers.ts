@@ -2,12 +2,11 @@ import { ExecutionDeliveryError } from '../../../application/executionDelivery';
 import { SignalIntakeError } from '../../../application/signalIntake';
 import { auditService } from '../../../services/audit';
 import { authService } from '../../../services/auth';
-import { dbService } from '../../../services/db';
 import {
   approveStrategicBrief,
   createBriefFromCurationEntry,
 } from '../../../services/strategicBriefConsumer';
-import { decideCuration, proposeAngle } from '../../../services/executionDeliveryConsumer';
+import { decideCuration, proposeAngle, removeCuration, reopenCuration } from '../../../services/executionDeliveryConsumer';
 import { discardSignalForCurationComposite } from '../../../services/signalIntakeConsumer';
 import type { CurationDestination } from '../../../types';
 import { queueCurationInBriefing } from './radarHandlers';
@@ -135,6 +134,43 @@ export async function handleProposeAngleClick(
   host.render();
 }
 
+/** CR-1 #16-R — canonical remove-curation click (testable seam). */
+export function handleRemoveCurationClick(host: CurationHandlerHost, curationId: string): void {
+  try {
+    removeCuration({
+      requestedClientId: host.resolveClientId(),
+      curationEntryId: curationId,
+    });
+  } catch (error) {
+    host.showToast(
+      error instanceof Error ? error.message : 'No se pudo retirar el ítem',
+      'warning'
+    );
+    return;
+  }
+  auditService.log(authService.getCurrentUser(), 'CURATION_REMOVED', 'CurationEntry', curationId);
+  host.showToast('Ítem retirado de la mesa', 'info');
+  host.render();
+}
+
+/** CR-1 #16-O — canonical reopen-curation click (testable seam). */
+export function handleReopenCurationClick(host: CurationHandlerHost, curationId: string): void {
+  try {
+    reopenCuration({
+      requestedClientId: host.resolveClientId(),
+      curationEntryId: curationId,
+    });
+  } catch (error) {
+    host.showToast(
+      error instanceof Error ? error.message : 'No se pudo reabrir el ítem',
+      'warning'
+    );
+    return;
+  }
+  host.showToast('Ítem reabierto para volver a decidir', 'info');
+  host.render();
+}
+
 export function bindCurationHandlers(host: CurationHandlerHost): void  {
   document.querySelectorAll('.curation-form').forEach((form) => {
     form.addEventListener('submit', (e) => {
@@ -173,10 +209,7 @@ export function bindCurationHandlers(host: CurationHandlerHost): void  {
     btn.addEventListener('click', (e) => {
       const id = (e.currentTarget as HTMLElement).getAttribute('data-curation-id');
       if (!id) return;
-      dbService.removeCuration(id);
-      auditService.log(authService.getCurrentUser(), 'CURATION_REMOVED', 'CurationEntry', id);
-      host.showToast('Ítem retirado de la mesa', 'info');
-      host.render();
+      handleRemoveCurationClick(host, id);
     });
   });
 
@@ -184,9 +217,7 @@ export function bindCurationHandlers(host: CurationHandlerHost): void  {
     btn.addEventListener('click', (e) => {
       const id = (e.currentTarget as HTMLElement).getAttribute('data-curation-id');
       if (!id) return;
-      dbService.reopenCuration(id);
-      host.showToast('Ítem reabierto para volver a decidir', 'info');
-      host.render();
+      handleReopenCurationClick(host, id);
     });
   });
 

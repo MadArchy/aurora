@@ -17,3 +17,7 @@ export {
   createDbCurationStrategicBriefReadPort,
   createDbCurationThesisReadPort,
 } from './DbProposeAngleAdapters';
+export {
+  createDbCurationRemovalPersistencePort,
+  createDbCurationReopenPersistencePort,
+} from './DbRemoveReopenCurationAdapters';

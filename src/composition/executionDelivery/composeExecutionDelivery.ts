@@ -6,6 +6,8 @@ import {
   createDiscardDraftDelivery,
   createEnsureDraftDelivery,
   createProposeAngle,
+  createRemoveCuration,
+  createReopenCuration,
   createRemoveDeliveryItemFromDelivery,
   createReviewClientArticle,
   createSaveContentDraft,
@@ -18,6 +20,8 @@ import {
   type ContentRepository,
   type ContentStrategicBriefGatePort,
   type CurationAnglePersistencePort,
+  type CurationRemovalPersistencePort,
+  type CurationReopenPersistencePort,
   type CurationRepositoryPort,
   type CurationStrategicBriefReadPort,
   type CurationThesisReadPort,
@@ -33,6 +37,8 @@ import {
   createDbContentRepository,
   createDbContentStrategicBriefGate,
   createDbCurationAnglePersistencePort,
+  createDbCurationRemovalPersistencePort,
+  createDbCurationReopenPersistencePort,
   createDbCurationRepositoryPort,
   createDbCurationStrategicBriefReadPort,
   createDbCurationThesisReadPort,
@@ -56,6 +62,8 @@ export function composeExecutionDelivery(options: {
   theses?: CurationThesisReadPort;
   advisor?: AdvisorCurationAnglePort;
   angles?: CurationAnglePersistencePort;
+  removal?: CurationRemovalPersistencePort;
+  reopen?: CurationReopenPersistencePort;
 } = {}) {
   const tasks = options.tasks ?? createDbTaskRepository();
   const contents = options.contents ?? createDbContentRepository();
@@ -70,6 +78,8 @@ export function composeExecutionDelivery(options: {
   const theses = options.theses ?? createDbCurationThesisReadPort();
   const advisor = options.advisor ?? createDbAdvisorCurationAnglePort();
   const angles = options.angles ?? createDbCurationAnglePersistencePort();
+  const removal = options.removal ?? createDbCurationRemovalPersistencePort();
+  const reopen = options.reopen ?? createDbCurationReopenPersistencePort();
   return {
     transitionClientTask: createTransitionClientTask({ tasks }),
     saveContentDraft: createSaveContentDraft({ contents, publicationGate, strategicBriefGate }),
@@ -91,5 +101,7 @@ export function composeExecutionDelivery(options: {
       advisor,
       angles,
     }),
+    removeCuration: createRemoveCuration({ curation, removal }),
+    reopenCuration: createReopenCuration({ curation, reopen }),
   };
 }

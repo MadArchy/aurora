@@ -95,6 +95,20 @@ export {
   type ProposeAngleInput,
   type ProposeAngleResult,
 } from './ProposeAngle';
+export {
+  createRemoveCuration,
+  type RemoveCurationCompat,
+  type RemoveCurationDeps,
+  type RemoveCurationInput,
+  type RemoveCurationResult,
+} from './RemoveCuration';
+export {
+  createReopenCuration,
+  type ReopenCurationCompat,
+  type ReopenCurationDeps,
+  type ReopenCurationInput,
+  type ReopenCurationResult,
+} from './ReopenCuration';
 export type { TaskRepository } from './ports/TaskRepository';
 export type {
   ContentDraftFields,
@@ -112,6 +126,8 @@ export type {
   CurationRepositoryPort,
 } from './ports/CurationRepositoryPort';
 export type { CurationAnglePersistencePort } from './ports/CurationAnglePersistencePort';
+export type { CurationRemovalPersistencePort } from './ports/CurationRemovalPersistencePort';
+export type { CurationReopenPersistencePort } from './ports/CurationReopenPersistencePort';
 export type { CurationStrategicBriefReadPort } from './ports/CurationStrategicBriefReadPort';
 export type { CurationThesisReadPort } from './ports/CurationThesisReadPort';
 export type {

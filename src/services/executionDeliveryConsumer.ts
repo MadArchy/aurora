@@ -17,6 +17,8 @@ import {
   type DiscardDraftDeliveryResult,
   type EnsureDraftDeliveryResult,
   type ProposeAngleResult,
+  type RemoveCurationResult,
+  type ReopenCurationResult,
   type RemoveDeliveryItemFromDeliveryResult,
   type ReviewClientArticleResult,
   type SaveContentDraftResult,
@@ -174,6 +176,46 @@ export async function proposeAngle(intent: {
     });
   } catch (err) {
     mapError(err, 'No se pudo proponer el ángulo');
+  }
+}
+
+/** Registry #16-R — remove curation (authoritative CurationEntry reload). Audit at handler seam. */
+export function removeCuration(intent: {
+  requestedClientId: string | null | undefined;
+  curationEntryId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): RemoveCurationResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.removeCuration({
+      trusted: trustedFrom(g),
+      curationEntryId: intent.curationEntryId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo retirar el ítem');
+  }
+}
+
+/** Registry #16-O — reopen curation (authoritative CurationEntry reload). No audit. */
+export function reopenCuration(intent: {
+  requestedClientId: string | null | undefined;
+  curationEntryId: string;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): ReopenCurationResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.reopenCuration({
+      trusted: trustedFrom(g),
+      curationEntryId: intent.curationEntryId,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo reabrir el ítem');
   }
 }
 

@@ -2380,7 +2380,7 @@ describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
 });
 
 describe('CR-1 Execution Delivery architecture', () => {
-  it('compose exposes thirteen commands including ProposeAngle', () => {
+  it('compose exposes fifteen commands including RemoveCuration and ReopenCuration', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.transitionClientTask).toBe('function');
     expect(typeof c.saveContentDraft).toBe('function');
@@ -2395,6 +2395,8 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(typeof c.removeDeliveryItemFromDelivery).toBe('function');
     expect(typeof c.discardDraftDelivery).toBe('function');
     expect(typeof c.proposeAngle).toBe('function');
+    expect(typeof c.removeCuration).toBe('function');
+    expect(typeof c.reopenCuration).toBe('function');
   });
 
   it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {
@@ -2502,6 +2504,16 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(block![0]).toMatch(/proposeAngle\s*\(/);
     expect(block![0]).not.toMatch(/dbService\.setCurationAngle/);
     expect(source).not.toMatch(/from ['"].*\/services\/advisor['"]/);
+  });
+
+  it('curation #16-R/#16-O delegate remove/reopen — no direct dbService remove/reopen', () => {
+    const source = readFileSync(resolve('src/ui/legacy/handlers/curationHandlers.ts'), 'utf8');
+    const removeBlock = source.match(/export function handleRemoveCurationClick[\s\S]*?^}/m);
+    const reopenBlock = source.match(/export function handleReopenCurationClick[\s\S]*?^}/m);
+    expect(removeBlock![0]).toMatch(/removeCuration\s*\(/);
+    expect(removeBlock![0]).not.toMatch(/dbService\.removeCuration/);
+    expect(reopenBlock![0]).toMatch(/reopenCuration\s*\(/);
+    expect(reopenBlock![0]).not.toMatch(/dbService\.reopenCuration/);
   });
 
   it('no production handler direct dbService.addToCuration remains', () => {
