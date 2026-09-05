@@ -83,7 +83,7 @@ B6 formal acceptance was blocked pending T508 rollback parity. Human Decision B 
 | Premature governance closure (historical; preserved) | `2b07af7da7bca288f375553a22675a8bab0b9c83` |
 | Premature metadata pin (historical; preserved) | `34b5660a3440ad2d1d88c5d25ed57fa2b297ab7c` |
 | T508 stability patch (Decision B) | `1f6bab09b1a52e6a3c9f97ed224bfecf0b709b3b` |
-| B6 formal acceptance / CR1 governance tip | *(this governance commit — branch tip after acceptance)* |
+| B6 formal acceptance / CR1 governance tip | `e9eeb401065eda5e0d06ca4161c3c1c96be32ddc` |
 
 Implementation, T508 amendment, and formal acceptance are **separate commits**.
 
