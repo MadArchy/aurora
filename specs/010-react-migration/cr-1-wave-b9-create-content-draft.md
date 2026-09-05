@@ -77,7 +77,7 @@
 |------|-----|
 | B9 starting checkpoint | `68e469560e648a2485faff58e5162199fc16c7b9` |
 | B9 implementation / frozen content | `1b4864d7abb315b2e47a1b6273fc2df25c61d9b7` |
-| B9 formal acceptance / CR1 governance tip | `GOVERNANCE_TIP_SHA` |
+| B9 formal acceptance / CR1 governance tip | `fd77e13a079281c54ae7fc0ec35b5c0d9b13201d` |
 
 Implementation and formal acceptance are **separate commits**.
 
