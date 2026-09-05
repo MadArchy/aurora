@@ -76,7 +76,7 @@
 | B7 starting checkpoint | `75b8986b17ae5fe16df730cfc155f41ed1dc9939` |
 | B7 implementation | `3ddcea7b9feffdf056ce1727f5ec9dc60e64965e` |
 | B7 frozen content | `3ddcea7b9feffdf056ce1727f5ec9dc60e64965e` |
-| B7 formal acceptance / CR1 governance tip | *(pinned in acceptance metadata commit)* |
+| B7 formal acceptance / CR1 governance tip | `65414d236036da300e36908ff4fedc679b88a185` |
 
 Implementation and formal acceptance are **separate commits**.
 
