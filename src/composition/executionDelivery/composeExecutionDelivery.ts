@@ -3,6 +3,7 @@ import {
   createAddCurationToDelivery,
   createAddSignalToCuration,
   createAcknowledgeDelivery,
+  createCreateContentDraft,
   createDecideCuration,
   createDiscardDraftDelivery,
   createEnsureDraftDelivery,
@@ -46,6 +47,11 @@ import {
   createDbCurationThesisReadPort,
   createDbDeliveryAssemblyRepositoryPort,
   createDbDeliveryAcknowledgementPersistencePort,
+  createDbContentBriefListPort,
+  createDbContentCreationPersistencePort,
+  createDbContentDraftGenerationPort,
+  createDbContentStrategicDownstreamGatePort,
+  createDbRecommendationReadPort,
   createDbSignalReadPort,
   createDbDeliverySendPort,
   createDbTaskRepository,
@@ -68,6 +74,11 @@ export function composeExecutionDelivery(options: {
   removal?: CurationRemovalPersistencePort;
   reopen?: CurationReopenPersistencePort;
   acknowledgement?: DeliveryAcknowledgementPersistencePort;
+  draftGeneration?: import('../../application/executionDelivery').ContentDraftGenerationPort;
+  contentCreation?: import('../../application/executionDelivery').ContentCreationPersistencePort;
+  downstreamGate?: import('../../application/executionDelivery').ContentStrategicDownstreamGatePort;
+  contentBriefs?: import('../../application/executionDelivery').ContentBriefListPort;
+  recommendations?: import('../../application/executionDelivery').RecommendationReadPort;
 } = {}) {
   const tasks = options.tasks ?? createDbTaskRepository();
   const contents = options.contents ?? createDbContentRepository();
@@ -85,6 +96,11 @@ export function composeExecutionDelivery(options: {
   const removal = options.removal ?? createDbCurationRemovalPersistencePort();
   const reopen = options.reopen ?? createDbCurationReopenPersistencePort();
   const acknowledgement = options.acknowledgement ?? createDbDeliveryAcknowledgementPersistencePort();
+  const draftGeneration = options.draftGeneration ?? createDbContentDraftGenerationPort();
+  const contentCreation = options.contentCreation ?? createDbContentCreationPersistencePort();
+  const downstreamGate = options.downstreamGate ?? createDbContentStrategicDownstreamGatePort();
+  const contentBriefs = options.contentBriefs ?? createDbContentBriefListPort();
+  const recommendations = options.recommendations ?? createDbRecommendationReadPort();
   return {
     transitionClientTask: createTransitionClientTask({ tasks }),
     saveContentDraft: createSaveContentDraft({ contents, publicationGate, strategicBriefGate }),
@@ -109,5 +125,15 @@ export function composeExecutionDelivery(options: {
     removeCuration: createRemoveCuration({ curation, removal }),
     reopenCuration: createReopenCuration({ curation, reopen }),
     acknowledgeDelivery: createAcknowledgeDelivery({ assembly, acknowledgement }),
+    createContentDraft: createCreateContentDraft({
+      generation: draftGeneration,
+      creation: contentCreation,
+      downstreamGate,
+      briefs: contentBriefs,
+      theses,
+      recommendations,
+      contents,
+      publicationGate,
+    }),
   };
 }

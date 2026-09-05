@@ -3,9 +3,7 @@ import { dbService } from '../../../services/db';
 import { aiService } from '../../../services/ai';
 import { auditService } from '../../../services/audit';
 import { notifyManager } from '../../../services/notifications';
-import { createId } from '../../../lib/id';
-import { listStrategicBriefs, findApprovedBriefForSignal } from '../../../services/strategicBriefConsumer';
-import { reviewClientArticle, saveContentDraft } from '../../../services/executionDeliveryConsumer';
+import { createContentDraft, reviewClientArticle, saveContentDraft } from '../../../services/executionDeliveryConsumer';
 import type { ContentPipelineAction } from '../../../domain/contentPublishCore';
 import type { LegacyHandlerHost } from '../legacyAppHost';
 
@@ -33,17 +31,6 @@ export function bindContentHandlers(host: LegacyHandlerHost): void {
       e.preventDefault();
       const clientId = formGenerate.getAttribute('data-client-id') || host.resolveClientId();
       const briefId = (document.getElementById('generate-strategic-brief') as HTMLSelectElement | null)?.value;
-      const gate = host.gateStrategicDownstream(clientId, briefId, 'CREATE_CONTENT');
-      if (!gate.ok) {
-        host.showToast(gate.message, 'warning');
-        return;
-      }
-      const thesis = dbService.getThesisById(clientId, gate.thesisId);
-      if (!thesis) {
-        host.showToast('Approved Brief thesis not found.', 'warning');
-        return;
-      }
-
       const topic = (document.getElementById('generate-topic') as HTMLTextAreaElement | null)?.value.trim() || '';
       if (!topic) {
         host.showToast('Indica el tema del borrador.', 'warning');
@@ -59,19 +46,16 @@ export function bindContentHandlers(host: LegacyHandlerHost): void {
         submit.textContent = 'Redactando…';
       }
       try {
-        const draft = await aiService.generateContentDraft(thesis, topic, format, angle ? { angle } : undefined);
-        const contentId = createId('cnt');
-        dbService.saveContent({
-          ...draft,
-          id: contentId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          strategicBriefId: gate.briefId,
-          strategicBriefVersion: gate.version,
-          signalIds: gate.signalIds,
-          supportingEvidenceIds: gate.evidenceIds,
+        await createContentDraft({
+          requestedClientId: clientId,
+          intent: {
+            kind: 'FORM_GENERATE',
+            strategicBriefId: briefId ?? '',
+            topic,
+            format,
+            angle: angle || undefined,
+          },
         });
-        host.syncContentToPipelineStatus(contentId, draft.status);
         host.showToast('Borrador creado. Revísalo antes de enviarlo al cliente.', 'success');
         host.closeModal();
       } catch (error) {
@@ -91,58 +75,21 @@ export function bindContentHandlers(host: LegacyHandlerHost): void {
         const why = target.getAttribute('data-sci-why') || '';
         const venue = target.getAttribute('data-sci-venue') || 'Working paper';
         const role = target.getAttribute('data-sci-role') || '';
-        const approved = listStrategicBriefs(clientId).filter(
-          (b) =>
-            b.status === 'APPROVED' &&
-            !b.supersededByBriefId &&
-            b.decision.authorizedAction === 'CREATE_CONTENT'
-        );
-        const thesisFilter = host.filterState.thesisId;
-        const scoped = thesisFilter
-          ? approved.filter((b) => b.thesisId === thesisFilter)
-          : approved;
-        // No first-match planner authority — require explicit unique Brief.
-        if (scoped.length !== 1) {
-          host.showToast(
-            scoped.length === 0
-              ? 'No approved CREATE_CONTENT Strategic Brief for this context.'
-              : 'Multiple approved Briefs match — select an explicit thesis/Brief before generating.',
-            'warning'
-          );
-          return;
-        }
-        const brief = scoped[0];
-        const gate = host.gateStrategicDownstream(clientId, brief.id, 'CREATE_CONTENT');
-        if (!gate.ok) {
-          host.showToast(gate.message, 'warning');
-          return;
-        }
-        const thesis = dbService.getThesisById(clientId, gate.thesisId);
-        if (!thesis) {
-          host.showToast('Approved Brief thesis not found.', 'warning');
-          return;
-        }
         if (!topic.trim()) return;
         target.disabled = true;
         target.textContent = 'Redactando…';
         try {
-          const draft = await aiService.generateContentDraft(thesis, topic.trim(), 'ACADEMIC_PAPER', {
-            roleAngle: role,
-            venueLabel: venue,
-            why,
+          await createContentDraft({
+            requestedClientId: clientId,
+            intent: {
+              kind: 'SCIENTIFIC_ARTICLE',
+              thesisScopeId: host.filterState.thesisId || undefined,
+              title: topic.trim(),
+              why,
+              venue,
+              roleAngle: role,
+            },
           });
-          const contentId = createId('cnt');
-          dbService.saveContent({
-            ...draft,
-            id: contentId,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            strategicBriefId: gate.briefId,
-            strategicBriefVersion: gate.version,
-            signalIds: gate.signalIds,
-            supportingEvidenceIds: gate.evidenceIds,
-          });
-          host.syncContentToPipelineStatus(contentId, draft.status);
           host.showToast('Borrador científico creado. Revísalo: no publiques citas no verificadas.', 'success');
         } catch (error) {
           host.showToast(error instanceof Error ? error.message : 'No se pudo generar el paper', 'warning');
@@ -377,76 +324,46 @@ export function bindContentHandlers(host: LegacyHandlerHost): void {
         const rec = dbService.getRecommendations().find((r) => r.id === recId);
         if (!rec) return;
 
-        const brief =
-          (rec.signalId
-            ? findApprovedBriefForSignal({
-                clientId: rec.clientId,
-                signalId: rec.signalId,
-                action: 'CREATE_TASK',
-              })
-            : undefined) ??
-          (() => {
-            const matches = listStrategicBriefs(rec.clientId).filter(
-              (b) =>
-                b.status === 'APPROVED' &&
-                !b.supersededByBriefId &&
-                b.decision.authorizedAction === 'CREATE_TASK' &&
-                b.thesisId === rec.thesisId
-            );
-            // Fail closed on multi-Brief ambiguity — no first-match authority.
-            return matches.length === 1 ? matches[0] : undefined;
-          })();
-        const gate = host.gateStrategicDownstream(rec.clientId, brief?.id, 'CREATE_TASK');
-        if (!gate.ok) {
-          host.showToast(gate.message, 'warning');
-          return;
-        }
-        const thesis = dbService.getThesisById(rec.clientId, gate.thesisId);
-        if (!thesis) {
-          host.showToast('Approved Brief thesis not found.', 'warning');
-          return;
-        }
-
-        const draft = await aiService.generateContentDraft(thesis, rec.proposedAngle, 'VIDEO_SCRIPT');
-        const contentId = createId('cnt');
-        const advanced = host.saveContentWithClaimGate(
-          {
-            ...draft,
-            id: contentId,
-            status: 'AI_GENERATED',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+        try {
+          const result = await createContentDraft({
+            requestedClientId: rec.clientId,
+            intent: {
+              kind: 'RECOMMENDATION_TASK_SCRIPT',
+              recommendationId: rec.id,
+            },
+          });
+          const { content, gate, advanced, recommendation } = result;
+          const thesis = dbService.getThesisById(rec.clientId, gate.thesisId);
+          if (!thesis) {
+            host.showToast('Approved Brief thesis not found.', 'warning');
+            return;
+          }
+          dbService.addTask({
+            organizationId: thesis.organizationId,
+            clientId: thesis.clientId,
+            thesisId: thesis.id,
+            type: 'RECORD_VIDEO',
+            title: `Grabar: ${(recommendation?.proposedAngle ?? rec.proposedAngle).substring(0, 60)}`,
+            description: 'Guion redactado según tu tesis. Usa el teleprompter.',
+            estimatedMinutes: 15,
+            status: 'ASSIGNED',
+            contentItemId: content.id,
+            scriptPayload: content.teleprompterScript,
             strategicBriefId: gate.briefId,
             strategicBriefVersion: gate.version,
-            signalIds: gate.signalIds,
-            supportingEvidenceIds: gate.evidenceIds,
-          },
-          'CLIENT_REVIEW',
-          'Tarea desde recomendación'
-        );
-        dbService.addTask({
-          organizationId: thesis.organizationId,
-          clientId: thesis.clientId,
-          thesisId: thesis.id,
-          type: 'RECORD_VIDEO',
-          title: `Grabar: ${rec.proposedAngle.substring(0, 60)}`,
-          description: 'Guion redactado según tu tesis. Usa el teleprompter.',
-          estimatedMinutes: 15,
-          status: 'ASSIGNED',
-          contentItemId: contentId,
-          scriptPayload: draft.teleprompterScript,
-          strategicBriefId: gate.briefId,
-          strategicBriefVersion: gate.version,
-          signalId: gate.signalIds[0] ?? rec.signalId,
-        });
-        dbService.updateRecommendationStatus(rec.id, 'CONVERTED_TO_TASK');
-        host.showToast(
-          advanced
-            ? 'Guion y tarea generados'
-            : 'Tarea creada; el guion quedó en borrador por Claim Safety',
-          advanced ? 'success' : 'warning'
-        );
-        host.setTab('ws-production');
+            signalId: recommendation?.signalId ?? gate.signalIds[0] ?? rec.signalId,
+          });
+          dbService.updateRecommendationStatus(rec.id, 'CONVERTED_TO_TASK');
+          host.showToast(
+            advanced
+              ? 'Guion y tarea generados'
+              : 'Tarea creada; el guion quedó en borrador por Claim Safety',
+            advanced ? 'success' : 'warning'
+          );
+          host.setTab('ws-production');
+        } catch (error) {
+          host.showToast(error instanceof Error ? error.message : 'No se pudo generar el guion', 'warning');
+        }
       });
     });
 

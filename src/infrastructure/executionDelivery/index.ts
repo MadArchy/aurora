@@ -22,3 +22,10 @@ export {
   createDbCurationReopenPersistencePort,
 } from './DbRemoveReopenCurationAdapters';
 export { createDbDeliveryAcknowledgementPersistencePort } from './DbAcknowledgeDeliveryAdapter';
+export {
+  createDbContentBriefListPort,
+  createDbContentCreationPersistencePort,
+  createDbContentDraftGenerationPort,
+  createDbContentStrategicDownstreamGatePort,
+  createDbRecommendationReadPort,
+} from './DbCreateContentDraftAdapters';

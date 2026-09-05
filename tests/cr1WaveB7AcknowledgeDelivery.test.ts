@@ -325,10 +325,11 @@ describe('CR-1 Wave B7 #19 — handler and presentation guards', () => {
 });
 
 describe('CR-1 Wave B7 #19 — architecture guards', () => {
-  it('compose exposes sixteen commands including AcknowledgeDelivery', () => {
+  it('compose exposes seventeen commands including AcknowledgeDelivery', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.acknowledgeDelivery).toBe('function');
-    expect(Object.keys(c)).toHaveLength(16);
+    expect(typeof c.createContentDraft).toBe('function');
+    expect(Object.keys(c)).toHaveLength(17);
   });
 
   it('single production persistence authority remains dbService.acknowledgeDelivery via adapter only', () => {

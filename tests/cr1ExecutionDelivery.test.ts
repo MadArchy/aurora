@@ -2380,7 +2380,7 @@ describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
 });
 
 describe('CR-1 Execution Delivery architecture', () => {
-  it('compose exposes sixteen commands including RemoveCuration, ReopenCuration, and AcknowledgeDelivery', () => {
+  it('compose exposes seventeen commands including RemoveCuration, ReopenCuration, AcknowledgeDelivery, and CreateContentDraft', () => {
     const c = composeExecutionDelivery();
     expect(typeof c.transitionClientTask).toBe('function');
     expect(typeof c.saveContentDraft).toBe('function');
@@ -2398,6 +2398,7 @@ describe('CR-1 Execution Delivery architecture', () => {
     expect(typeof c.removeCuration).toBe('function');
     expect(typeof c.reopenCuration).toBe('function');
     expect(typeof c.acknowledgeDelivery).toBe('function');
+    expect(typeof c.createContentDraft).toBe('function');
   });
 
   it('main.ts adopts executionDeliveryConsumer for #18/#28/#31/#32', () => {

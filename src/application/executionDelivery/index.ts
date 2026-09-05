@@ -116,6 +116,14 @@ export {
   type AcknowledgeDeliveryInput,
   type AcknowledgeDeliveryResult,
 } from './AcknowledgeDelivery';
+export {
+  createCreateContentDraft,
+  type CreateContentDraftDeps,
+  type CreateContentDraftGateSnapshot,
+  type CreateContentDraftInput,
+  type CreateContentDraftIntent,
+  type CreateContentDraftResult,
+} from './CreateContentDraft';
 export type { TaskRepository } from './ports/TaskRepository';
 export type {
   ContentDraftFields,
@@ -142,3 +150,15 @@ export type {
   AdvisorCurationAnglePort,
   AdvisorCurationAngleResult,
 } from './ports/AdvisorCurationAnglePort';
+export type {
+  ContentDraftFormat,
+  ContentDraftGenerationExtras,
+  ContentDraftGenerationPort,
+} from './ports/ContentDraftGenerationPort';
+export type { ContentCreationPersistencePort } from './ports/ContentCreationPersistencePort';
+export type {
+  ContentStrategicDownstreamGatePort,
+  ContentStrategicDownstreamGateResult,
+} from './ports/ContentStrategicDownstreamGatePort';
+export type { ContentBriefListPort } from './ports/ContentBriefListPort';
+export type { RecommendationReadPort } from './ports/RecommendationReadPort';

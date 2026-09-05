@@ -14,6 +14,8 @@ import {
   type AcknowledgeDeliveryResult,
   type ClientArticleReviewDecision,
   type ClientTaskTransitionIntent,
+  type CreateContentDraftIntent,
+  type CreateContentDraftResult,
   type DecideCurationResult,
   type DiscardDraftDeliveryResult,
   type EnsureDraftDeliveryResult,
@@ -343,6 +345,34 @@ export function discardDraftDelivery(intent: {
     });
   } catch (err) {
     mapError(err, 'No se pudo descartar el borrador');
+  }
+}
+
+/** Registry #33 — initial ContentItem creation (authoritative gate + generation + persist). No audit. */
+export async function createContentDraft(intent: {
+  requestedClientId: string | null | undefined;
+  intent: CreateContentDraftIntent;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+  claimedStrategicBriefId?: string;
+  claimedThesisId?: string;
+  claimedStatus?: string;
+  claimedContentId?: string;
+}): Promise<CreateContentDraftResult> {
+  const g = gate(intent.requestedClientId);
+  try {
+    return await useCases.createContentDraft({
+      trusted: trustedFrom(g),
+      intent: intent.intent,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+      claimedStrategicBriefId: intent.claimedStrategicBriefId,
+      claimedThesisId: intent.claimedThesisId,
+      claimedStatus: intent.claimedStatus,
+      claimedContentId: intent.claimedContentId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo generar el borrador');
   }
 }
 
