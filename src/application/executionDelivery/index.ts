@@ -124,7 +124,23 @@ export {
   type CreateContentDraftIntent,
   type CreateContentDraftResult,
 } from './CreateContentDraft';
+export {
+  createAssignClientTask,
+  type AssignClientTaskDeps,
+  type AssignClientTaskInput,
+  type AssignClientTaskOrigin,
+  type AssignClientTaskResult,
+} from './AssignClientTask';
+export {
+  createCancelClientTask,
+  type CancelClientTaskCompat,
+  type CancelClientTaskDeps,
+  type CancelClientTaskInput,
+  type CancelClientTaskResult,
+} from './CancelClientTask';
 export type { TaskRepository } from './ports/TaskRepository';
+export type { TaskAssignmentPersistencePort } from './ports/TaskAssignmentPersistencePort';
+export type { ClientExecutionReadPort } from './ports/ClientExecutionReadPort';
 export type {
   ContentDraftFields,
   ContentPublicationGatePort,

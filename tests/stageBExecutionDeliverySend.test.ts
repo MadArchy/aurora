@@ -180,6 +180,8 @@ describe('Stage B #18 SendDeliveryPackage', () => {
       'addAdviceActionToCuration',
       'addCurationToDelivery',
       'addSignalToCuration',
+      'assignClientTask',
+      'cancelClientTask',
       'createContentDraft',
       'decideCuration',
       'discardDraftDelivery',

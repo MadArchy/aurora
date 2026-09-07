@@ -3,6 +3,8 @@ import {
   createAddCurationToDelivery,
   createAddSignalToCuration,
   createAcknowledgeDelivery,
+  createAssignClientTask,
+  createCancelClientTask,
   createCreateContentDraft,
   createDecideCuration,
   createDiscardDraftDelivery,
@@ -32,6 +34,8 @@ import {
   type DeliverySendPort,
   type SignalReadPort,
   type TaskRepository,
+  type TaskAssignmentPersistencePort,
+  type ClientExecutionReadPort,
 } from '../../application/executionDelivery';
 import {
   createDbAdviceReadPort,
@@ -55,6 +59,8 @@ import {
   createDbSignalReadPort,
   createDbDeliverySendPort,
   createDbTaskRepository,
+  createDbClientExecutionReadPort,
+  createDbTaskAssignmentPersistencePort,
 } from '../../infrastructure/executionDelivery';
 
 export function composeExecutionDelivery(options: {
@@ -79,8 +85,12 @@ export function composeExecutionDelivery(options: {
   downstreamGate?: import('../../application/executionDelivery').ContentStrategicDownstreamGatePort;
   contentBriefs?: import('../../application/executionDelivery').ContentBriefListPort;
   recommendations?: import('../../application/executionDelivery').RecommendationReadPort;
+  clients?: ClientExecutionReadPort;
+  taskAssignment?: TaskAssignmentPersistencePort;
 } = {}) {
   const tasks = options.tasks ?? createDbTaskRepository();
+  const clients = options.clients ?? createDbClientExecutionReadPort();
+  const taskAssignment = options.taskAssignment ?? createDbTaskAssignmentPersistencePort();
   const contents = options.contents ?? createDbContentRepository();
   const publicationGate = options.publicationGate ?? createDbContentPublicationGate();
   const strategicBriefGate = options.strategicBriefGate ?? createDbContentStrategicBriefGate();
@@ -135,5 +145,7 @@ export function composeExecutionDelivery(options: {
       contents,
       publicationGate,
     }),
+    assignClientTask: createAssignClientTask({ clients, theses, assignment: taskAssignment }),
+    cancelClientTask: createCancelClientTask({ tasks }),
   };
 }

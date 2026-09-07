@@ -1,7 +1,7 @@
 /**
  * CR-1 Workstream 5 — Execution Delivery consumer facade.
  *
- * #18 SendDeliveryPackage · #28 TransitionClientTask · #31 SaveContentDraft · #32 ReviewClientArticle
+ * #18 SendDeliveryPackage · #27 AssignClientTask / CancelClientTask · #28 TransitionClientTask · #31 SaveContentDraft · #32 ReviewClientArticle
  * SPEC-006 gate is consumed, not owned. No SPEC-008 learning. No providers.
  */
 
@@ -12,6 +12,9 @@ import {
   type AddCurationToDeliveryResult,
   type AddSignalToCurationResult,
   type AcknowledgeDeliveryResult,
+  type AssignClientTaskOrigin,
+  type AssignClientTaskResult,
+  type CancelClientTaskResult,
   type ClientArticleReviewDecision,
   type ClientTaskTransitionIntent,
   type CreateContentDraftIntent,
@@ -30,7 +33,7 @@ import {
   type UpdateDeliveryPackageMetadataResult,
 } from '../application/executionDelivery';
 import { composeExecutionDelivery } from '../composition/executionDelivery/composeExecutionDelivery';
-import { requireTenantScope } from '../controllers/trustedTenant';
+import { requireTenantScope, requireAdminActor } from '../controllers/trustedTenant';
 import { authService } from './auth';
 import { auditService } from './audit';
 import { dbService } from './db';
@@ -373,6 +376,58 @@ export async function createContentDraft(intent: {
     });
   } catch (err) {
     mapError(err, 'No se pudo generar el borrador');
+  }
+}
+
+/** Registry #27 — assign task to client (ADMIN). MANUAL audit stays in presentation. */
+export function assignClientTask(intent: {
+  requestedClientId: string | null | undefined;
+  origin: AssignClientTaskOrigin;
+  claimedOrganizationId?: string;
+  claimedClientId?: string;
+}): AssignClientTaskResult {
+  const g = gate(intent.requestedClientId);
+  try {
+    return useCases.assignClientTask({
+      trusted: trustedFrom(g),
+      origin: intent.origin,
+      claimedOrganizationId: intent.claimedOrganizationId,
+      claimedClientId: intent.claimedClientId,
+    });
+  } catch (err) {
+    mapError(err, 'No se pudo asignar la tarea');
+  }
+}
+
+/** Registry #27 — manager cancel task (ADMIN). */
+export function cancelClientTask(intent: { taskId: string }): CancelClientTaskResult {
+  const taskId = intent.taskId?.trim();
+  if (!taskId) {
+    throw new ExecutionDeliveryError('INVALID_INPUT', 'taskId is required.');
+  }
+
+  const existing = dbService.getAllTasks().find((t) => t.id === taskId);
+  if (!existing) {
+    const adminGate = requireAdminActor({
+      getCurrentUser: () => authService.getCurrentUser(),
+    });
+    if (!adminGate.ok) {
+      throw new ExecutionDeliveryError('ACTOR_NOT_AUTHORIZED', adminGate.message);
+    }
+    auditService.log(authService.getCurrentUser(), 'CANCEL_TASK', 'Task', taskId);
+    return { ok: false, compat: 'TASK_NOT_FOUND' };
+  }
+
+  const g = gate(existing.clientId);
+  try {
+    const result = useCases.cancelClientTask({
+      trusted: trustedFrom(g),
+      taskId,
+    });
+    auditService.log(authService.getCurrentUser(), 'CANCEL_TASK', 'Task', taskId);
+    return result;
+  } catch (err) {
+    mapError(err, 'No se pudo cancelar la tarea');
   }
 }
 

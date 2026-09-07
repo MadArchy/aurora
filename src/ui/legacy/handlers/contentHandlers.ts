@@ -3,7 +3,7 @@ import { dbService } from '../../../services/db';
 import { aiService } from '../../../services/ai';
 import { auditService } from '../../../services/audit';
 import { notifyManager } from '../../../services/notifications';
-import { createContentDraft, reviewClientArticle, saveContentDraft } from '../../../services/executionDeliveryConsumer';
+import { createContentDraft, reviewClientArticle, saveContentDraft, assignClientTask } from '../../../services/executionDeliveryConsumer';
 import type { ContentPipelineAction } from '../../../domain/contentPublishCore';
 import type { LegacyHandlerHost } from '../legacyAppHost';
 
@@ -333,25 +333,19 @@ export function bindContentHandlers(host: LegacyHandlerHost): void {
             },
           });
           const { content, gate, advanced, recommendation } = result;
-          const thesis = dbService.getThesisById(rec.clientId, gate.thesisId);
-          if (!thesis) {
-            host.showToast('Approved Brief thesis not found.', 'warning');
-            return;
-          }
-          dbService.addTask({
-            organizationId: thesis.organizationId,
-            clientId: thesis.clientId,
-            thesisId: thesis.id,
-            type: 'RECORD_VIDEO',
-            title: `Grabar: ${(recommendation?.proposedAngle ?? rec.proposedAngle).substring(0, 60)}`,
-            description: 'Guion redactado según tu tesis. Usa el teleprompter.',
-            estimatedMinutes: 15,
-            status: 'ASSIGNED',
-            contentItemId: content.id,
-            scriptPayload: content.teleprompterScript,
-            strategicBriefId: gate.briefId,
-            strategicBriefVersion: gate.version,
-            signalId: recommendation?.signalId ?? gate.signalIds[0] ?? rec.signalId,
+          assignClientTask({
+            requestedClientId: rec.clientId,
+            origin: {
+              kind: 'FROM_RECOMMENDATION',
+              thesisId: gate.thesisId,
+              contentItemId: content.id,
+              scriptPayload: content.teleprompterScript,
+              strategicBriefId: gate.briefId,
+              strategicBriefVersion: gate.version,
+              signalId: recommendation?.signalId ?? gate.signalIds[0] ?? rec.signalId,
+              title: `Grabar: ${(recommendation?.proposedAngle ?? rec.proposedAngle).substring(0, 60)}`,
+              description: 'Guion redactado según tu tesis. Usa el teleprompter.',
+            },
           });
           dbService.updateRecommendationStatus(rec.id, 'CONVERTED_TO_TASK');
           host.showToast(

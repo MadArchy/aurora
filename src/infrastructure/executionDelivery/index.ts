@@ -29,3 +29,7 @@ export {
   createDbContentStrategicDownstreamGatePort,
   createDbRecommendationReadPort,
 } from './DbCreateContentDraftAdapters';
+export {
+  createDbClientExecutionReadPort,
+  createDbTaskAssignmentPersistencePort,
+} from './DbTaskAssignmentAdapters';

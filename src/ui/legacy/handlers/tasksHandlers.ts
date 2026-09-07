@@ -2,7 +2,11 @@ import { authService } from '../../../services/auth';
 import { dbService } from '../../../services/db';
 import { auditService } from '../../../services/audit';
 import { notifyClient } from '../../../services/notifications';
-import { transitionClientTask } from '../../../services/executionDeliveryConsumer';
+import {
+  assignClientTask,
+  cancelClientTask,
+  transitionClientTask,
+} from '../../../services/executionDeliveryConsumer';
 import type { TaskType } from '../../../types';
 import type { TasksHandlerHost } from '../legacyAppHost';
 
@@ -101,23 +105,25 @@ export function bindTasksHandlers(host: TasksHandlerHost): void  {
     const estimatedMinutes = parseInt((document.getElementById('task-minutes') as HTMLInputElement).value || '15', 10);
     const deadlineRaw = (document.getElementById('task-deadline') as HTMLInputElement).value;
 
-    const organizationId = host.resolveOrganizationId(clientId);
-    if (!organizationId) {
-      host.showToast('Cliente sin organizationId — no se puede crear la tarea', 'warning');
+    let created;
+    try {
+      const result = assignClientTask({
+        requestedClientId: clientId,
+        origin: {
+          kind: 'MANUAL',
+          thesisId,
+          type,
+          title,
+          description,
+          estimatedMinutes,
+          deadline: deadlineRaw ? new Date(deadlineRaw).toISOString() : undefined,
+        },
+      });
+      created = result.task;
+    } catch (error) {
+      host.showToast(error instanceof Error ? error.message : 'No se pudo asignar la tarea', 'warning');
       return;
     }
-
-    const created = dbService.addTask({
-      organizationId,
-      clientId,
-      thesisId,
-      type,
-      title,
-      description,
-      estimatedMinutes,
-      deadline: deadlineRaw ? new Date(deadlineRaw).toISOString() : undefined,
-      status: 'ASSIGNED',
-    });
 
     const notified = notifyClient(clientId, {
       type: 'TASK_ASSIGNED',
@@ -142,8 +148,12 @@ export function bindTasksHandlers(host: TasksHandlerHost): void  {
       const taskId = (e.currentTarget as HTMLElement).getAttribute('data-task-id');
       if (!taskId) return;
       if (!confirm('¿Cancelar esta tarea? El cliente dejará de verla como pendiente.')) return;
-      dbService.updateTaskStatus(taskId, 'CANCELLED');
-      auditService.log(authService.getCurrentUser(), 'CANCEL_TASK', 'Task', taskId);
+      try {
+        cancelClientTask({ taskId });
+      } catch (error) {
+        host.showToast(error instanceof Error ? error.message : 'No se pudo cancelar la tarea', 'warning');
+        return;
+      }
       host.showToast('Tarea cancelada', 'info');
       host.render();
     });
