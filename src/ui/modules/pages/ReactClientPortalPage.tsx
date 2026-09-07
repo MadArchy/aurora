@@ -12,14 +12,14 @@
  *   canonical      (SPEC-007) opportunities, via `readClientOpportunityCards`
  *   compatibility  tasks, content, theses, KPI results, latest client briefing
  *
- * BLOCKED, left legacy (AUDIT010-09): open/complete/request-changes on a task
- * (`updateTaskStatus`), approve or reject content (`addFeedbackEvent`, `saveContent`),
- * add evidence (`addEvidenceItem`).
+ * BLOCKED, left legacy (AUDIT010-09): video teleprompter (`start` / video `complete`),
+ * article review (#32), attach_evidence (ClientWorkspace re-upload), add evidence vault (#30).
  *
- * CANONICAL COMMANDS migrated (7): accept / decline / toggle-checklist / submit
- * an Opportunity, register a consultation result, acknowledge a briefing
- * (`AcknowledgeDelivery` via `deliveryAckCommands`), and decide thesis client review
- * (`DecideThesisClientReview` via `thesisLifecycleCommands.decideClientReview`).
+ * CANONICAL COMMANDS migrated: accept / decline / toggle-checklist / submit an Opportunity,
+ * register a consultation result, acknowledge a briefing (`AcknowledgeDelivery`),
+ * decide thesis client review (`DecideThesisClientReview`), and generic ClientPortal task
+ * transitions (`TransitionClientTask` view / complete / request_changes for non-video,
+ * non-article tasks — P3A partial #28 parity).
  *
  * MULTI-THESIS: the legacy portal selects `awaiting[0] || ACTIVE || theses[0]`
  * and that implicit pick feeds the approve/request-changes buttons' thesis id.
@@ -35,6 +35,7 @@ import {
   useClientLatestBriefing,
   useClientTasks,
   useDecideThesisClientReview,
+  useTransitionClientTask,
   useThesisDetail,
   useThesisOptions,
 } from '../../hooks/useWave3Data';
@@ -46,6 +47,180 @@ import { ReactProofWallPanel } from '../ProofWall/ReactProofWallPanel';
 import { LegacyHandoff, PanelState } from './LegacyHandoff';
 
 export type ClientPortalTab = 'home' | 'tasks' | 'content' | 'opportunities' | 'thesis' | 'results';
+
+function isGenericClientTaskType(type: string): boolean {
+  return type !== 'RECORD_VIDEO' && type !== 'REVIEW_ARTICLE';
+}
+
+function TaskSpecializedHandoff({ task }: { task: { id: string; type: string } }) {
+  if (task.type === 'RECORD_VIDEO') {
+    return (
+      <LegacyHandoff
+        actions={['grabar vídeo con el teleprompter']}
+        testId={`react-portal-task-handoff-video-${task.id}`}
+      />
+    );
+  }
+  if (task.type === 'REVIEW_ARTICLE') {
+    return (
+      <LegacyHandoff
+        actions={['revisar el artículo', 'aprobar el artículo']}
+        testId={`react-portal-task-handoff-article-${task.id}`}
+      />
+    );
+  }
+  return null;
+}
+
+function GenericTaskActions({
+  task,
+}: {
+  task: { id: string; status: string; title: string };
+}) {
+  const { tenantScope } = useSession();
+  const transition = useTransitionClientTask(tenantScope);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [statusMessage, setStatusMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(
+    null
+  );
+
+  const canView = task.status === 'ASSIGNED' || task.status === 'DRAFT';
+
+  const runTransition = (
+    intent: 'view' | 'complete' | 'request_changes',
+    clientNotes?: string,
+    successText?: string,
+    errorFallback?: string
+  ) => {
+    setStatusMessage(null);
+    transition.mutate(
+      { taskId: task.id, intent, clientNotes },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({
+              kind: 'error',
+              text: result.message || errorFallback || 'No se pudo actualizar la tarea',
+            });
+            return;
+          }
+          if (successText) {
+            setStatusMessage({ kind: 'success', text: successText });
+          }
+          if (intent === 'request_changes') {
+            setNotes('');
+            setFeedbackOpen(false);
+          }
+        },
+        onError: () => {
+          setStatusMessage({
+            kind: 'error',
+            text: errorFallback || 'No se pudo actualizar la tarea',
+          });
+        },
+      }
+    );
+  };
+
+  return (
+    <div className="task-actions" data-testid={`react-portal-task-actions-${task.id}`}>
+      <div className="btn-row">
+        {canView ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid={`react-portal-task-view-${task.id}`}
+            disabled={transition.isPending}
+            onClick={() => runTransition('view')}
+          >
+            Abrir acción
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          data-testid={`react-portal-task-request-changes-${task.id}`}
+          disabled={transition.isPending}
+          onClick={() => {
+            setStatusMessage(null);
+            setFeedbackOpen(true);
+          }}
+        >
+          Solicitar Ajustes
+        </button>
+        <button
+          type="button"
+          className="btn btn-success btn-sm"
+          data-testid={`react-portal-task-complete-${task.id}`}
+          disabled={transition.isPending}
+          onClick={() => runTransition('complete', undefined, 'Tarea completada')}
+        >
+          Aprobar y Marcar como Listo
+        </button>
+      </div>
+
+      {feedbackOpen ? (
+        <div className="task-feedback" data-testid={`react-portal-task-feedback-${task.id}`}>
+          <label className="form-label" htmlFor={`react-task-feedback-${task.id}`}>
+            Observaciones para tu Brand Manager
+          </label>
+          <textarea
+            id={`react-task-feedback-${task.id}`}
+            className="form-textarea"
+            rows={3}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            data-testid={`react-portal-task-feedback-notes-${task.id}`}
+          />
+          <div className="btn-row">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              data-testid={`react-portal-task-feedback-cancel-${task.id}`}
+              onClick={() => {
+                setFeedbackOpen(false);
+                setNotes('');
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              data-testid={`react-portal-task-feedback-submit-${task.id}`}
+              disabled={transition.isPending || !notes.trim()}
+              onClick={() =>
+                runTransition(
+                  'request_changes',
+                  notes.trim(),
+                  'Observaciones enviadas a tu Brand Manager',
+                  'No se pudo actualizar la tarea'
+                )
+              }
+            >
+              Enviar observaciones
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {statusMessage ? (
+        <p
+          className={statusMessage.kind === 'success' ? 'form-success' : 'form-error'}
+          data-testid={
+            statusMessage.kind === 'success'
+              ? `react-portal-task-success-${task.id}`
+              : `react-portal-task-failure-${task.id}`
+          }
+          role="status"
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function TasksPanel() {
   const { tenantScope } = useSession();
@@ -72,7 +247,7 @@ function TasksPanel() {
       {open.length ? (
         <ul className="task-list">
           {open.map((task) => (
-            <li className="task-row" key={task.id}>
+            <li className="task-row" key={task.id} data-testid={`react-portal-task-row-${task.id}`}>
               <div>
                 <strong>{task.title}</strong>
                 {task.description ? <p className="muted small">{task.description}</p> : null}
@@ -81,7 +256,14 @@ function TasksPanel() {
                   {task.deadline ? ` · vence ${task.deadline}` : ''}
                 </p>
               </div>
-              <span className="badge badge-progress">{task.status}</span>
+              <span className="badge badge-progress" data-testid={`react-portal-task-status-${task.id}`}>
+                {task.status}
+              </span>
+              {isGenericClientTaskType(task.type) ? (
+                <GenericTaskActions task={task} />
+              ) : (
+                <TaskSpecializedHandoff task={task} />
+              )}
             </li>
           ))}
         </ul>
@@ -90,11 +272,6 @@ function TasksPanel() {
           No tienes acciones pendientes.
         </p>
       )}
-
-      <LegacyHandoff
-        actions={['abrir una acción', 'grabar vídeo', 'aprobarla', 'pedir ajustes']}
-        testId="react-portal-tasks-handoff"
-      />
     </div>
   );
 }

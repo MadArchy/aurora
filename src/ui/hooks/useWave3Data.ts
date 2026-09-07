@@ -38,7 +38,15 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, signalOutcomeCommands, thesisLifecycleCommands, type CommandResult, type ThesisClientReviewCommandResult } from '../commands/commandSeam';
+import {
+  briefCommands,
+  deliveryAckCommands,
+  executionDeliveryCommands,
+  signalOutcomeCommands,
+  thesisLifecycleCommands,
+  type CommandResult,
+  type ThesisClientReviewCommandResult,
+} from '../commands/commandSeam';
 
 const DISABLED = ['disabled'] as const;
 
@@ -194,6 +202,30 @@ export function useAcknowledgeDelivery(scope: TrustedTenantScope | null) {
     mutationFn: async (params) => {
       if (!scope) return { ok: false, message: 'Sesión sin contexto de organización' };
       return deliveryAckCommands.acknowledge(scope, params.packageId, params.clientAckNote);
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
+    },
+  });
+}
+
+/** CR-1 #28 TransitionClientTask — P3A generic ClientPortal task actions (view / complete / request_changes). */
+export function useTransitionClientTask(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    CommandResult,
+    Error,
+    { taskId: string; intent: 'view' | 'complete' | 'request_changes'; clientNotes?: string }
+  >({
+    mutationFn: async (params) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.transitionClientTask({
+        requestedClientId: scope.clientId,
+        taskId: params.taskId,
+        intent: params.intent,
+        clientNotes: params.clientNotes,
+      });
     },
     onSuccess: (result) => {
       if (!scope || !result.ok) return;
