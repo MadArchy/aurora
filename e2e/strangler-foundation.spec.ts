@@ -23,7 +23,7 @@ test.describe('strangler foundation', () => {
 
     // Legacy rollback remains available but is hidden in normal Stage-B mode.
     await expect(page.locator('#app')).toBeHidden();
-    await expect(page.locator('[data-testid="react-shell"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="react-shell"]')).toBeVisible();
   });
 
   test('the React island mounts when the toggle is set', async ({ page }) => {
