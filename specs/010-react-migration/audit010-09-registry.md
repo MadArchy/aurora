@@ -73,7 +73,7 @@ READ_ONLY rather than a full cutover. Grouped by capability:
 | 24 | `ClientWorkspace` sources | Register source (activate/pause remain legacy) | `registerSource` → Application `RegisterSource` (same command as #8) | source registry | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 4 |
 | 25 | `ClientWorkspace` sources | Pause / reactivate / archive / test feed | `dbService.updateSourceStatus`, `recordSourceRun` | source state | **NO** | `READ_ONLY_REACT` | **CR-1 Signal Intake Application** · OWNER_RESOLVED_EXISTING | 4 |
 | 26 | `ClientWorkspace` sources | Manual signal | `registerManualSignal` → Application `RegisterManualSignal` (persistence: `dbService.addSignal` via adapter) | signal record | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Signal Intake Application** | 4 |
-| 27 | `ClientWorkspace` tasks | Assign / cancel task | `dbService.addTask`, `updateTaskStatus` | task record | **NO** | `READ_ONLY_REACT` | **CR-1 Execution Delivery Application** · OWNER_RESOLVED_EXISTING | 4 |
+| 27 | `ClientWorkspace` tasks | Assign / cancel task | `assignClientTask` · `cancelClientTask` → Application (legacy symbols: `dbService.addTask`, `updateTaskStatus` via adapters) | task record | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** · `#27 CANONICALIZED_AND_FROZEN` (Wave B10) | 4 |
 | 28 | `ClientPortal` feed | Open / complete / request changes on a task | `transitionClientTask` → Application `TransitionClientTask` (Domain `TASK_TRANSITIONS`; persistence via adapter) | task state + evidence | **YES** | `READ_ONLY_REACT` (legacy UI invokes canonical consumer) | **CR-1 Execution Delivery Application** | 4 |
 | 29 | `ClientWorkspace` positioning | Assign evidence to thesis | `dbService.toggleEvidenceThesis` | evidence assignment | **NO** | `DISPLAY_ONLY_REACT` | **CR-1 Master Profile Application** · OWNER_RESOLVED_BY_CURRENT_EVIDENCE | 4 |
 | 30 | `Modals` add-evidence | Add evidence item | `dbService.addEvidenceItem` | evidence vault | **NO** | `KEEP_LEGACY` | **CR-1 Master Profile Application** · SPEC-006 publication gate only | 4 |
@@ -546,7 +546,7 @@ Per-row debt metadata (owner resolution does not change `CU?`):
 | 22 | Signal Intake (recommendation only) | OWNER_RESOLVED | SPEC-001 routing | PARTIAL | LEGACY_ISLAND · PHASE6_REMOVE_LATER | PARTIAL | Retire or replace recommendation store |
 | 23 | POST_MVP_PRESENTATION_STATE | POST_MVP | — | NO | POST_MVP | NOT_REQUIRED | None required |
 | 25 | Signal Intake | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | PARTIAL | Source status / run record |
-| 27 | Execution Delivery | OWNER_RESOLVED_EXISTING | — | NO | LEGACY_ISLAND | REQUIRED | Assign / cancel task |
+| 27 | Execution Delivery | `#27` canonical | — | **YES** | LEGACY_ISLAND | REQUIRED | `AssignClientTask` / `CancelClientTask` · Wave B10 **CANONICALIZED_AND_FROZEN** |
 | 29 | Master Profile | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | — | NO | LEGACY_ISLAND | PARTIAL | Toggle evidence ↔ thesis |
 | 30 | Master Profile | OWNER_RESOLVED_BY_CURRENT_EVIDENCE | SPEC-006 publication only | NO | LEGACY_ISLAND | PARTIAL | Add evidence vault item |
 | 33 | Execution Delivery | OWNER_RESOLVED (ratified) | SPEC-003 · SPEC-005 · create ≠ SaveContentDraft | **YES** | LEGACY_ISLAND | REQUIRED | **CANONICALIZED_AND_FROZEN** (Wave B9) |
