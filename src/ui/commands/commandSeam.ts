@@ -63,6 +63,7 @@ import {
   reviewClientArticle,
   saveContentDraft,
   transitionClientTask,
+  acknowledgeDelivery as acknowledgeDeliveryConsumer,
 } from '../../services/executionDeliveryConsumer';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
@@ -72,6 +73,8 @@ import { ExecutionDeliveryError } from '../../application/executionDelivery';
 import type { ContentStatus, ContentType, SourceType, ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
+import { notifyManagerBriefingAcknowledged } from '../presentation/briefingAckNotification';
+import { readBriefingAckNotificationContext } from '../data/compatibilityReads';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
 
@@ -572,6 +575,48 @@ export const executionDeliveryCommands = {
           err instanceof ExecutionDeliveryError || err instanceof Error
             ? err.message
             : 'No se pudo registrar la revisión',
+      };
+    }
+  },
+} as const;
+
+/**
+ * CR-1 Execution Delivery (#19 AcknowledgeDelivery) — P1 React parity.
+ *
+ * Delegates to `executionDeliveryConsumer.acknowledgeDelivery` (frozen Application
+ * command). Manager notification is presentation-only compatibility after success.
+ */
+export const deliveryAckCommands = {
+  acknowledge(scope: TrustedTenantScope, packageId: string, clientAckNote?: string): CommandResult {
+    if (!scope.clientId) return { ok: false, message: 'Cliente no resuelto' };
+    const trimmedNote = clientAckNote?.trim() || undefined;
+    try {
+      const result = acknowledgeDeliveryConsumer({
+        requestedClientId: scope.clientId,
+        packageId,
+        clientAckNote: trimmedNote,
+      });
+      if (!result.ok) {
+        return { ok: false, message: 'No se pudo marcar el briefing' };
+      }
+      const ctx = readBriefingAckNotificationContext(scope, result.packageId);
+      if (ctx) {
+        try {
+          notifyManagerBriefingAcknowledged(
+            ctx.clientId,
+            ctx.packageTitle,
+            ctx.clientDisplayName,
+            trimmedNote
+          );
+        } catch {
+          // Best-effort compatibility — acknowledgement already persisted.
+        }
+      }
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : 'No se pudo marcar el briefing',
       };
     }
   },

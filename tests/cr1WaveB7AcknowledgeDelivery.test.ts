@@ -296,10 +296,13 @@ describe('CR-1 Wave B7 #19 — handler and presentation guards', () => {
     expect(acknowledged).toMatch(/Leído/);
   });
 
-  it('React client portal home documents blocked acknowledgeDelivery authority', () => {
+  it('React client portal home exposes P1 acknowledgeDelivery parity via command seam', () => {
     const source = readFileSync(resolve('src/ui/modules/pages/ReactClientPortalPage.tsx'), 'utf8');
-    expect(source).toMatch(/acknowledgeDelivery/);
+    expect(source).toMatch(/useAcknowledgeDelivery/);
+    expect(source).toMatch(/react-portal-briefing-ack/);
     expect(source).not.toMatch(/btn-acknowledge-delivery/);
+    expect(source).not.toMatch(/\bdbService\b/);
+    expect(source).not.toMatch(/\backnowledgeDelivery\s*\(/);
   });
 
   it('handler performs manager notification after successful ack only', () => {

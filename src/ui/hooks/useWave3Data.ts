@@ -22,6 +22,7 @@ import type { TrustedTenantScope } from '../query/tenantScope';
 import {
   readAiCenter,
   readClientContent,
+  readClientLatestBriefing,
   readClientTasks,
   readContentDetail,
   readPortfolioOverview,
@@ -37,7 +38,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, signalOutcomeCommands, type CommandResult } from '../commands/commandSeam';
+import { briefCommands, deliveryAckCommands, signalOutcomeCommands, type CommandResult } from '../commands/commandSeam';
 
 const DISABLED = ['disabled'] as const;
 
@@ -174,6 +175,30 @@ export function useSignalOutcomes(scope: TrustedTenantScope | null) {
     queryKey: scope ? tenantQueryKey(scope, 'canonical', 'signal-outcomes') : DISABLED,
     queryFn: () => readSignalOutcomes(scope!),
     enabled: scope !== null && scope.clientId !== null,
+  });
+}
+
+/** READ SOURCE: compatibility — T-010-304 client portal home briefing (P1 #19). */
+export function useClientLatestBriefing(scope: TrustedTenantScope | null) {
+  return useQuery({
+    queryKey: scope ? tenantQueryKey(scope, 'compatibility', 'client-latest-briefing') : DISABLED,
+    queryFn: () => readClientLatestBriefing(scope!),
+    enabled: scope !== null && scope.clientId !== null,
+  });
+}
+
+/** CR-1 #19 AcknowledgeDelivery — P1 React parity command seam. */
+export function useAcknowledgeDelivery(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<CommandResult, Error, { packageId: string; clientAckNote?: string }>({
+    mutationFn: async (params) => {
+      if (!scope) return { ok: false, message: 'Sesión sin contexto de organización' };
+      return deliveryAckCommands.acknowledge(scope, params.packageId, params.clientAckNote);
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
+    },
   });
 }
 

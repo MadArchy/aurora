@@ -10,16 +10,16 @@
  *
  * READ SOURCES — one declared per panel:
  *   canonical      (SPEC-007) opportunities, via `readClientOpportunityCards`
- *   compatibility  tasks, content, theses, KPI results
- *
- * CANONICAL COMMANDS migrated (5): accept / decline / toggle-checklist / submit
- * an Opportunity, and register a consultation result. Each reaches the same
- * consumer the legacy handler reaches.
+ *   compatibility  tasks, content, theses, KPI results, latest client briefing
  *
  * BLOCKED, left legacy (AUDIT010-09): approve or request changes on a thesis
  * (`saveThesis`), open/complete/request-changes on a task (`updateTaskStatus`),
- * approve or reject content (`addFeedbackEvent`, `saveContent`), acknowledge a
- * briefing (`acknowledgeDelivery`), add evidence (`addEvidenceItem`).
+ * approve or reject content (`addFeedbackEvent`, `saveContent`), add evidence
+ * (`addEvidenceItem`).
+ *
+ * CANONICAL COMMANDS migrated (6): accept / decline / toggle-checklist / submit
+ * an Opportunity, register a consultation result, and acknowledge a briefing
+ * (`AcknowledgeDelivery` via `deliveryAckCommands`).
  *
  * MULTI-THESIS: the legacy portal selects `awaiting[0] || ACTIVE || theses[0]`
  * and that implicit pick feeds the approve/request-changes buttons' thesis id.
@@ -29,7 +29,14 @@
 
 import { useState } from 'react';
 import { useSession } from '../../providers/SessionProvider';
-import { useClientContent, useClientTasks, useThesisDetail, useThesisOptions } from '../../hooks/useWave3Data';
+import {
+  useAcknowledgeDelivery,
+  useClientContent,
+  useClientLatestBriefing,
+  useClientTasks,
+  useThesisDetail,
+  useThesisOptions,
+} from '../../hooks/useWave3Data';
 import { ReactOpportunityPanel } from '../Opportunity/ReactOpportunityPanel';
 import { ReactKpiWeeklyChart } from '../Kpi/ReactKpiWeeklyChart';
 import { ReactClientProfilePanel } from '../ClientProfile/ReactClientProfilePanel';
@@ -87,6 +94,173 @@ function TasksPanel() {
         testId="react-portal-tasks-handoff"
       />
     </div>
+  );
+}
+
+function BriefingPanel() {
+  const { tenantScope } = useSession();
+  const { data, isLoading, isError } = useClientLatestBriefing(tenantScope);
+  const acknowledge = useAcknowledgeDelivery(tenantScope);
+  const [note, setNote] = useState('');
+  const [statusMessage, setStatusMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(
+    null
+  );
+
+  if (isLoading) {
+    return (
+      <PanelState kind="loading" message="Cargando briefing…" testId="react-portal-briefing-loading" />
+    );
+  }
+  if (isError) {
+    return (
+      <PanelState
+        kind="error"
+        message="No se pudo cargar tu briefing."
+        testId="react-portal-briefing-error"
+      />
+    );
+  }
+
+  if (!data) {
+    return (
+      <section className="card" data-testid="react-portal-briefing">
+        <div className="section-heading">
+          <div className="section-heading-copy">
+            <p className="section-kicker">Contexto</p>
+            <h2>Último briefing</h2>
+            <p>La selección más reciente de tu Brand Manager y por qué importa.</p>
+          </div>
+        </div>
+        <p className="empty-state" data-testid="react-portal-briefing-empty">
+          Tu Brand Manager aún no te ha enviado un briefing.
+        </p>
+      </section>
+    );
+  }
+
+  const isSent = data.status === 'SENT';
+  const isAcknowledged = data.status === 'ACKNOWLEDGED';
+
+  return (
+    <section className="card" data-testid="react-portal-briefing">
+      <div className="section-heading">
+        <div className="section-heading-copy">
+          <p className="section-kicker">Contexto</p>
+          <h2>Último briefing</h2>
+          <p>La selección más reciente de tu Brand Manager y por qué importa.</p>
+        </div>
+        {isSent ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="react-portal-briefing-ack"
+            disabled={acknowledge.isPending}
+            onClick={() => {
+              setStatusMessage(null);
+              const trimmedNote = note.trim() || undefined;
+              acknowledge.mutate(
+                { packageId: data.id, clientAckNote: trimmedNote },
+                {
+                  onSuccess: (result) => {
+                    if (result.ok) {
+                      setNote('');
+                      setStatusMessage({ kind: 'success', text: 'Briefing marcado como visto' });
+                    } else {
+                      setStatusMessage({
+                        kind: 'error',
+                        text: result.message || 'No se pudo marcar el briefing',
+                      });
+                    }
+                  },
+                  onError: () => {
+                    setStatusMessage({ kind: 'error', text: 'No se pudo marcar el briefing' });
+                  },
+                }
+              );
+            }}
+          >
+            Marcar como leído
+          </button>
+        ) : isAcknowledged ? (
+          <span className="badge badge-ready" data-testid="react-portal-briefing-read">
+            Leído
+          </span>
+        ) : null}
+      </div>
+
+      <article className="briefing-card" data-testid="react-portal-briefing-card">
+        <header className="briefing-card-header">
+          <div>
+            <h3>{data.title}</h3>
+            <p className="muted small">
+              {data.periodLabel ? `${data.periodLabel} · ` : ''}
+              {data.itemCount} {data.itemCount === 1 ? 'elemento' : 'elementos'} · {data.statusLabel}
+            </p>
+          </div>
+        </header>
+
+        {data.strategicNote ? (
+          <blockquote className="briefing-note">{data.strategicNote}</blockquote>
+        ) : null}
+
+        <ul className="briefing-items">
+          {data.items.map((item) => (
+            <li key={item.id}>
+              <span className="badge badge-progress">{item.kindLabel}</span>
+              <strong>{item.title}</strong>
+              {item.rationale ? (
+                <details className="briefing-rationale">
+                  <summary>Por qué se incluyó</summary>
+                  <p className="muted small">{item.rationale}</p>
+                </details>
+              ) : null}
+              {item.url ? (
+                <a href={item.url} target="_blank" rel="noopener noreferrer">
+                  Ver fuente
+                </a>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+
+        {isSent ? (
+          <div className="briefing-ack-note">
+            <label className="form-label" htmlFor={`react-ack-note-${data.id}`}>
+              Nota para tu Brand Manager (opcional)
+            </label>
+            <textarea
+              id={`react-ack-note-${data.id}`}
+              className="form-textarea"
+              rows={2}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Ej. Lo reviso el jueves / necesito más contexto en el punto 2"
+              data-testid="react-portal-briefing-note"
+            />
+          </div>
+        ) : null}
+
+        {data.clientAckNote ? (
+          <p className="muted small">
+            <em>Tu nota: {data.clientAckNote}</em>
+          </p>
+        ) : null}
+      </article>
+
+      {statusMessage ? (
+        <p
+          className={statusMessage.kind === 'success' ? 'form-success' : 'form-error'}
+          data-testid={
+            statusMessage.kind === 'success'
+              ? 'react-portal-briefing-success'
+              : 'react-portal-briefing-failure'
+          }
+          role="status"
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -268,6 +442,7 @@ export function ReactClientPortalPage({ tab = 'home' }: { tab?: ClientPortalTab 
       {tab === 'home' ? (
         <>
           <TasksPanel />
+          <BriefingPanel />
           <ReactOpportunityPanel />
         </>
       ) : null}

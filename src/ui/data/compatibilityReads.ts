@@ -45,6 +45,7 @@ import {
 } from '../../domain/thesisModelCore';
 import { canActivateThesis, thesesAwaitingClientAction } from '../../domain/thesisRevisionCore';
 import { computeThesisStrength } from '../../domain/thesisStrengthCore';
+import { deliveryItemKindLabel, deliveryStatusLabel } from '../../domain/deliveryCore';
 import { deriveWorkStage } from '../../domain/workPipeline';
 import { countUnhealthySources } from '../../domain/sourceHealthActionsCore';
 import { summarizeSourceHealth } from '../../services/sourceHealth';
@@ -797,6 +798,73 @@ export function readClientTasks(scope: TrustedTenantScope): readonly ClientTaskR
     estimatedMinutes: task.estimatedMinutes,
     thesisId: task.thesisId ?? null,
   }));
+}
+
+export interface ClientBriefingItemRead {
+  readonly id: string;
+  readonly kindLabel: string;
+  readonly title: string;
+  readonly rationale: string | null;
+  readonly url: string | null;
+}
+
+/** T-010-P1 · latest sent briefing for client portal home (limit 1, most recent first). */
+export interface ClientLatestBriefingRead {
+  readonly id: string;
+  readonly title: string;
+  readonly periodLabel: string | null;
+  readonly itemCount: number;
+  readonly status: string;
+  readonly statusLabel: string;
+  readonly strategicNote: string | null;
+  readonly clientAckNote: string | null;
+  readonly items: readonly ClientBriefingItemRead[];
+}
+
+/** T-010-P1 · mirrors legacy `renderReceivedBriefings(clientId, 1)` ordering. */
+export function readClientLatestBriefing(scope: TrustedTenantScope): ClientLatestBriefingRead | null {
+  const clientId = requireClient(scope);
+  if (!clientId) return null;
+
+  const latest = dbService.getSentDeliveriesByClient(clientId)[0];
+  if (!latest) return null;
+
+  return {
+    id: latest.id,
+    title: latest.title,
+    periodLabel: latest.periodLabel ?? null,
+    itemCount: latest.items.length,
+    status: latest.status,
+    statusLabel: deliveryStatusLabel(latest.status),
+    strategicNote: latest.strategicNote ?? null,
+    clientAckNote: latest.clientAckNote ?? null,
+    items: latest.items.map((item) => ({
+      id: item.id,
+      kindLabel: deliveryItemKindLabel(item.kind),
+      title: item.title,
+      rationale: item.rationale ?? null,
+      url: item.url ?? null,
+    })),
+  };
+}
+
+/** T-010-P1 · display-only context for post-ack manager notification (not authorization). */
+export function readBriefingAckNotificationContext(
+  scope: TrustedTenantScope,
+  packageId: string
+): { clientId: string; packageTitle: string; clientDisplayName: string } | null {
+  const clientId = requireClient(scope);
+  if (!clientId) return null;
+
+  const pkg = dbService.getDeliveryById(packageId);
+  if (!pkg || pkg.clientId !== clientId) return null;
+
+  const client = dbService.getClientById(clientId);
+  return {
+    clientId,
+    packageTitle: pkg.title,
+    clientDisplayName: client?.displayName || 'Cliente',
+  };
 }
 
 export interface ContentRowRead {
