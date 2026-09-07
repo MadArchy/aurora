@@ -38,7 +38,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, signalOutcomeCommands, type CommandResult } from '../commands/commandSeam';
+import { briefCommands, deliveryAckCommands, signalOutcomeCommands, thesisLifecycleCommands, type CommandResult, type ThesisClientReviewCommandResult } from '../commands/commandSeam';
 
 const DISABLED = ['disabled'] as const;
 
@@ -194,6 +194,30 @@ export function useAcknowledgeDelivery(scope: TrustedTenantScope | null) {
     mutationFn: async (params) => {
       if (!scope) return { ok: false, message: 'Sesión sin contexto de organización' };
       return deliveryAckCommands.acknowledge(scope, params.packageId, params.clientAckNote);
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
+    },
+  });
+}
+
+/** CR-1 #13 DecideThesisClientReview — P2 React parity command seam. */
+export function useDecideThesisClientReview(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    ThesisClientReviewCommandResult,
+    Error,
+    { thesisId: string; decision: 'approve' | 'request_changes'; feedback?: string }
+  >({
+    mutationFn: async (params) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return thesisLifecycleCommands.decideClientReview({
+        requestedClientId: scope.clientId,
+        thesisId: params.thesisId,
+        decision: params.decision,
+        feedback: params.feedback,
+      });
     },
     onSuccess: (result) => {
       if (!scope || !result.ok) return;

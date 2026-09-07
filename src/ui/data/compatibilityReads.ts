@@ -43,7 +43,12 @@ import {
   validateWeights,
   VOICE_DIMENSION_LABELS,
 } from '../../domain/thesisModelCore';
-import { canActivateThesis, thesesAwaitingClientAction } from '../../domain/thesisRevisionCore';
+import {
+  canActivateThesis,
+  thesesAwaitingClientAction,
+  thesisForClientReview,
+} from '../../domain/thesisRevisionCore';
+import type { PositioningThesis } from '../../types';
 import { computeThesisStrength } from '../../domain/thesisStrengthCore';
 import { deliveryItemKindLabel, deliveryStatusLabel } from '../../domain/deliveryCore';
 import { deriveWorkStage } from '../../domain/workPipeline';
@@ -655,6 +660,10 @@ export interface ThesisDetailRead {
   readonly title: string;
   readonly status: string;
   readonly clientApprovalStatus: string;
+  readonly needsAction: boolean;
+  readonly hasPendingRevision: boolean;
+  readonly clientFeedback: string;
+  readonly proofPoints: readonly string[];
   readonly identityCurrent: string;
   readonly expertIdentity: string;
   readonly perceptionTarget: string;
@@ -677,12 +686,25 @@ export interface ThesisDetailRead {
   readonly assignedEvidence: number;
 }
 
+/** Legacy ClientPortal visibility — presentation compatibility only. */
+function legacyThesisNeedsAction(thesis: PositioningThesis): boolean {
+  return Boolean(
+    thesis &&
+      ((thesis.status === 'UNDER_REVIEW' && thesis.clientApprovalStatus === 'PENDING') ||
+        (thesis.pendingRevision && thesis.clientApprovalStatus === 'PENDING'))
+  );
+}
+
 const UNRESOLVED_THESIS: ThesisDetailRead = {
   resolved: false,
   id: '',
   title: '',
   status: '',
   clientApprovalStatus: '',
+  needsAction: false,
+  hasPendingRevision: false,
+  clientFeedback: '',
+  proofPoints: [],
   identityCurrent: '',
   expertIdentity: '',
   perceptionTarget: '',
@@ -727,7 +749,8 @@ export function readThesisDetail(
   const thesis = dbService.getThesesByClient(clientId).find((t) => t.id === thesisId);
   if (!thesis) return UNRESOLVED_THESIS;
 
-  const normalized = normalizeThesis(thesis);
+  const reviewThesis = thesisForClientReview(thesis);
+  const normalized = normalizeThesis(reviewThesis);
   const completeness = thesisCompleteness(thesis);
   const readiness = assertThesisReadyForReview(thesis);
   const activation = canActivateThesis(thesis);
@@ -738,16 +761,20 @@ export function readThesisDetail(
   return {
     resolved: true,
     id: thesis.id,
-    title: thesis.title,
+    title: reviewThesis.title,
     status: thesis.status,
     clientApprovalStatus: thesis.clientApprovalStatus,
-    identityCurrent: thesis.identityCurrent ?? '',
-    expertIdentity: thesis.expertIdentity ?? '',
-    perceptionTarget: normalized.perceptionTarget ?? '',
-    differentiator: thesis.differentiator ?? '',
-    domain: thesis.domain ?? '',
-    audiences: (thesis.audiences ?? []).map((a) => ({ label: a.name, tier: a.tier })),
-    territories: (thesis.territories ?? []).map((t) => t.name),
+    needsAction: legacyThesisNeedsAction(thesis),
+    hasPendingRevision: Boolean(thesis.pendingRevision),
+    clientFeedback: thesis.clientFeedback ?? '',
+    proofPoints: [...(reviewThesis.proofPoints ?? [])],
+    identityCurrent: reviewThesis.identityCurrent ?? '',
+    expertIdentity: reviewThesis.expertIdentity ?? '',
+    perceptionTarget: normalized.perceptionTarget ?? reviewThesis.objective ?? '',
+    differentiator: reviewThesis.differentiator ?? '',
+    domain: reviewThesis.domain ?? '',
+    audiences: (reviewThesis.audiences ?? []).map((a) => ({ label: a.name, tier: a.tier })),
+    territories: (reviewThesis.territories ?? []).map((t) => t.name),
     objectives: (thesis.objectives ?? []).map((o) => ({
       label: OBJECTIVE_KIND_LABELS[o.kind] ?? o.kind,
       weight: o.weight,

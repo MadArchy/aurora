@@ -16,13 +16,17 @@ const REACT_WORKSPACE_TABS = new Set([
   'ws-positioning',
 ]);
 
-const REACT_PORTAL_TABS = new Set(['client-home', 'client-feed', 'client-content']);
+const REACT_PORTAL_TABS = new Set([
+  'client-home',
+  'client-feed',
+  'client-content',
+  'client-thesis',
+]);
 
 const REACT_WAVE2_TABS = new Set([
   'client-opps',
   'client-results',
   'client-profile',
-  'client-thesis',
   'ws-sources',
 ]);
 

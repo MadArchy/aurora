@@ -74,11 +74,24 @@ import type { ContentStatus, ContentType, SourceType, ThesisEditableFields } fro
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
 import { notifyManagerBriefingAcknowledged } from '../presentation/briefingAckNotification';
+import {
+  notifyManagerThesisChangesRequested,
+  notifyManagerThesisClientApproved,
+} from '../presentation/thesisClientReviewNotification';
 import { readBriefingAckNotificationContext } from '../data/compatibilityReads';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
 
 export type CommandResult = { ok: true } | { ok: false; message: string };
+
+export type ThesisClientReviewCommandResult =
+  | {
+      ok: true;
+      decision: 'approve' | 'request_changes';
+      appliedRevision: boolean;
+      awaitsManagerActivation: boolean;
+    }
+  | { ok: false; message: string };
 
 /**
  * Wraps a canonical call so a rejection reaches the UI as a message instead of
@@ -437,17 +450,39 @@ export const thesisLifecycleCommands = {
     thesisId: string;
     decision: 'approve' | 'request_changes';
     feedback?: string;
-  }): CommandResult {
+  }): ThesisClientReviewCommandResult {
+    const fallback =
+      intent.decision === 'approve'
+        ? 'No se pudo aprobar la tesis'
+        : 'No se pudo solicitar cambios';
     try {
-      decideThesisClientReview(intent);
-      return { ok: true };
+      const result = decideThesisClientReview(intent);
+      try {
+        if (result.decision === 'approve' && result.awaitsManagerActivation) {
+          notifyManagerThesisClientApproved(result.thesis.clientId, result.thesis.title);
+        } else if (result.decision === 'request_changes') {
+          notifyManagerThesisChangesRequested(
+            result.thesis.clientId,
+            result.thesis.title,
+            intent.feedback
+          );
+        }
+      } catch {
+        // Best-effort compatibility — review decision already persisted.
+      }
+      return {
+        ok: true,
+        decision: result.decision,
+        appliedRevision: result.appliedRevision,
+        awaitsManagerActivation: result.awaitsManagerActivation,
+      };
     } catch (err) {
       return {
         ok: false,
         message:
           err instanceof ThesisLifecycleError || err instanceof Error
             ? err.message
-            : 'No se pudo registrar la decisión',
+            : fallback,
       };
     }
   },

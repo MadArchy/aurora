@@ -46,7 +46,6 @@ const WAVE2_BY_TAB: Record<string, Wave2Group> = {
   'client-opps': 'opportunities',
   'client-results': 'results',
   'client-profile': 'profile',
-  'client-thesis': 'dossier',
   'ws-sources': 'sources',
 };
 
@@ -74,6 +73,7 @@ const PORTAL_TAB_BY_ID: Record<string, ClientPortalTab> = {
   'client-home': 'home',
   'client-feed': 'tasks',
   'client-content': 'content',
+  'client-thesis': 'thesis',
 };
 
 const COCKPIT_TABS = new Set(['dashboard', 'clients', 'ai-center']);

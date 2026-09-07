@@ -12,14 +12,14 @@
  *   canonical      (SPEC-007) opportunities, via `readClientOpportunityCards`
  *   compatibility  tasks, content, theses, KPI results, latest client briefing
  *
- * BLOCKED, left legacy (AUDIT010-09): approve or request changes on a thesis
- * (`saveThesis`), open/complete/request-changes on a task (`updateTaskStatus`),
- * approve or reject content (`addFeedbackEvent`, `saveContent`), add evidence
- * (`addEvidenceItem`).
+ * BLOCKED, left legacy (AUDIT010-09): open/complete/request-changes on a task
+ * (`updateTaskStatus`), approve or reject content (`addFeedbackEvent`, `saveContent`),
+ * add evidence (`addEvidenceItem`).
  *
- * CANONICAL COMMANDS migrated (6): accept / decline / toggle-checklist / submit
- * an Opportunity, register a consultation result, and acknowledge a briefing
- * (`AcknowledgeDelivery` via `deliveryAckCommands`).
+ * CANONICAL COMMANDS migrated (7): accept / decline / toggle-checklist / submit
+ * an Opportunity, register a consultation result, acknowledge a briefing
+ * (`AcknowledgeDelivery` via `deliveryAckCommands`), and decide thesis client review
+ * (`DecideThesisClientReview` via `thesisLifecycleCommands.decideClientReview`).
  *
  * MULTI-THESIS: the legacy portal selects `awaiting[0] || ACTIVE || theses[0]`
  * and that implicit pick feeds the approve/request-changes buttons' thesis id.
@@ -34,9 +34,11 @@ import {
   useClientContent,
   useClientLatestBriefing,
   useClientTasks,
+  useDecideThesisClientReview,
   useThesisDetail,
   useThesisOptions,
 } from '../../hooks/useWave3Data';
+import { ReactMasterDossierPanel } from '../MasterDossier/ReactMasterDossierPanel';
 import { ReactOpportunityPanel } from '../Opportunity/ReactOpportunityPanel';
 import { ReactKpiWeeklyChart } from '../Kpi/ReactKpiWeeklyChart';
 import { ReactClientProfilePanel } from '../ClientProfile/ReactClientProfilePanel';
@@ -334,8 +336,13 @@ function ContentPanel() {
 function ThesisReviewPanel() {
   const { tenantScope } = useSession();
   const [thesisId, setThesisId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [statusMessage, setStatusMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(
+    null
+  );
   const options = useThesisOptions(tenantScope);
   const detail = useThesisDetail(tenantScope, thesisId);
+  const decideReview = useDecideThesisClientReview(tenantScope);
 
   if (options.isLoading) {
     return <PanelState kind="loading" message="Cargando tesis…" testId="react-portal-thesis-loading" />;
@@ -352,6 +359,47 @@ function ThesisReviewPanel() {
 
   const theses = options.data ?? [];
   const awaiting = theses.filter((thesis) => thesis.awaitingClientAction);
+  const resolved = detail.data?.resolved ? detail.data : null;
+
+  const handleDecision = (decision: 'approve' | 'request_changes') => {
+    if (!thesisId) return;
+    setStatusMessage(null);
+    const fallback =
+      decision === 'approve' ? 'No se pudo aprobar la tesis' : 'No se pudo solicitar cambios';
+    decideReview.mutate(
+      {
+        thesisId,
+        decision,
+        feedback: decision === 'request_changes' ? feedback : undefined,
+      },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({ kind: 'error', text: result.message || fallback });
+            return;
+          }
+          if (result.decision === 'approve') {
+            setStatusMessage({
+              kind: 'success',
+              text: result.appliedRevision
+                ? 'Revisión aplicada. La tesis activa queda actualizada.'
+                : result.awaitsManagerActivation
+                  ? 'Tesis aprobada. Tu Brand Manager la activará.'
+                  : 'Tesis aprobada.',
+            });
+          } else {
+            setStatusMessage({ kind: 'success', text: 'Cambios solicitados al manager' });
+          }
+          if (decision === 'request_changes') {
+            setFeedback('');
+          }
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: fallback });
+        },
+      }
+    );
+  };
 
   return (
     <div data-testid="react-portal-thesis">
@@ -372,7 +420,10 @@ function ThesisReviewPanel() {
             id="react-portal-thesis-select"
             className="form-select"
             value={thesisId ?? ''}
-            onChange={(event) => setThesisId(event.target.value || null)}
+            onChange={(event) => {
+              setThesisId(event.target.value || null);
+              setStatusMessage(null);
+            }}
             data-testid="react-portal-thesis-select"
           >
             <option value="">Selecciona una tesis…</option>
@@ -390,21 +441,87 @@ function ThesisReviewPanel() {
         </p>
       )}
 
-      {thesisId && detail.data?.resolved ? (
-        <div data-testid="react-portal-thesis-detail">
-          <h4>{detail.data.title}</h4>
-          <p className="muted small">
-            {detail.data.status} · tu decisión: {detail.data.clientApprovalStatus}
-          </p>
-          {detail.data.expertIdentity ? <p className="small">{detail.data.expertIdentity}</p> : null}
-          {detail.data.differentiator ? (
-            <p className="small">
-              <strong>Diferenciador:</strong> {detail.data.differentiator}
+      {thesisId && resolved ? (
+        <div className="card" data-testid="react-portal-thesis-detail">
+          <div className="card-header">
+            <div>
+              <h3>
+                {resolved.status === 'UNDER_REVIEW'
+                  ? 'Tesis en revisión'
+                  : 'Tu tesis de posicionamiento'}
+              </h3>
+            </div>
+            <span className="badge badge-pending">
+              {resolved.status} · {resolved.clientApprovalStatus}
+            </span>
+          </div>
+
+          {resolved.hasPendingRevision ? (
+            <p className="warn-strip" data-testid="react-portal-thesis-pending-revision">
+              Hay una revisión pendiente propuesta por tu Brand Manager.
             </p>
           ) : null}
-          {detail.data.audiences.length ? (
+
+          <h4>{resolved.title}</h4>
+          {resolved.expertIdentity ? <p className="small">{resolved.expertIdentity}</p> : null}
+          {resolved.differentiator ? (
+            <p className="small">
+              <strong>Diferenciador:</strong> {resolved.differentiator}
+            </p>
+          ) : null}
+          {resolved.audiences.length ? (
             <p className="muted small">
-              Audiencias: {detail.data.audiences.map((a) => a.label).join(' · ')}
+              Audiencias: {resolved.audiences.map((a) => a.label).join(' · ')}
+            </p>
+          ) : null}
+          {resolved.proofPoints.length ? (
+            <ul className="policy-list" data-testid="react-portal-thesis-proof-points">
+              {resolved.proofPoints.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+          ) : null}
+
+          {resolved.needsAction ? (
+            <>
+              <div className="form-group">
+                <label className="form-label" htmlFor="react-portal-thesis-change-notes">
+                  Si pides cambios, indica qué debe ajustar el manager
+                </label>
+                <textarea
+                  id="react-portal-thesis-change-notes"
+                  className="form-textarea"
+                  rows={2}
+                  value={feedback}
+                  onChange={(event) => setFeedback(event.target.value)}
+                  placeholder="Ej. La audiencia comercial está demasiado amplia."
+                  data-testid="react-portal-thesis-change-notes"
+                />
+              </div>
+              <div className="row-actions">
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  data-testid="react-portal-thesis-approve"
+                  disabled={decideReview.isPending}
+                  onClick={() => handleDecision('approve')}
+                >
+                  Aprobar tesis
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  data-testid="react-portal-thesis-request-changes"
+                  disabled={decideReview.isPending}
+                  onClick={() => handleDecision('request_changes')}
+                >
+                  Pedir cambios
+                </button>
+              </div>
+            </>
+          ) : resolved.status === 'UNDER_REVIEW' && resolved.clientApprovalStatus === 'APPROVED' ? (
+            <p className="info-strip" data-testid="react-portal-thesis-approved-info">
+              Aprobaste esta tesis. Tu Brand Manager la activará para el radar y el contenido.
             </p>
           ) : null}
         </div>
@@ -414,12 +531,28 @@ function ThesisReviewPanel() {
         </p>
       ) : null}
 
+      {statusMessage ? (
+        <p
+          className={statusMessage.kind === 'success' ? 'form-success' : 'form-error'}
+          data-testid={
+            statusMessage.kind === 'success'
+              ? 'react-portal-thesis-success'
+              : 'react-portal-thesis-failure'
+          }
+          role="status"
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
+
       <ReactProofWallPanel />
 
       <LegacyHandoff
-        actions={['aprobar la tesis', 'pedir cambios', 'añadir evidencia al vault']}
+        actions={['añadir evidencia al vault']}
         testId="react-portal-thesis-handoff"
       />
+
+      <ReactMasterDossierPanel />
     </div>
   );
 }
