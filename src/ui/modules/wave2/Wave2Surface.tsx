@@ -37,8 +37,7 @@ const GROUP_META: Record<Wave2Group, { title: string; subtitle: string }> = {
   },
   profile: {
     title: 'Mi perfil',
-    subtitle:
-      'Cobertura, facts y onboarding en presentación. La edición y el guardado siguen en la interfaz anterior.',
+    subtitle: 'Cobertura, facts y onboarding. El guardado de pasos usa ApplyOnboardingStep canónico.',
   },
   dossier: {
     title: 'Dossier maestro',

@@ -383,13 +383,11 @@ describe('§13 / §14 — blocked actions are delegated, not silently dropped', 
 });
 
 /*
-  T-010-205 migrates a component the Phase-0 matrix records as 2 compatibility
-  reads and 0 writes. The onboarding step is applied by the legacy controller,
-  whose extraction is Phase 4, so the migrated scope is presentation + reads and
-  these tests pin exactly that: the presentation exists, and no command followed
-  it across the seam.
+  T-010-205 / P6 — onboarding presentation writes only through the frozen
+  ApplyOnboardingStep seam (via useApplyOnboardingStep). Schemas stay shape-only.
+  Legacy wizard remains for postura_ui_mode=legacy rollback.
 */
-describe('T-010-205 / A13 / A18 — onboarding presentation carries no command', () => {
+describe('T-010-205 / A13 / A18 / P6 — onboarding write via frozen seam', () => {
   const wizard = 'src/ui/modules/Onboarding/ReactOnboardingWizard.tsx';
   const schemas = 'src/ui/modules/Onboarding/onboardingStepSchemas.ts';
 
@@ -398,25 +396,25 @@ describe('T-010-205 / A13 / A18 — onboarding presentation carries no command',
     expect(statSync(join(ROOT, 'src/components/OnboardingWizard.ts')).isFile()).toBe(true);
   });
 
-  it('it invokes no onboarding write and no command seam mutation', () => {
+  it('writes via useApplyOnboardingStep only — no direct consumer or dbService', () => {
     const source = code(join(ROOT, wizard));
-    expect(source).not.toMatch(/applyOnboardingStep/);
-    expect(source).not.toMatch(/useMutation|mutate\(|Commands\./);
+    expect(source).toMatch(/useApplyOnboardingStep/);
+    expect(source).not.toMatch(/from\s+['"][^'"]*masterProfileConsumer['"]/);
+    expect(source).not.toMatch(/from\s+['"][^'"]*services\/db['"]/);
     expect(source).not.toMatch(/from\s+['"][^'"]*commands\/commandSeam['"]/);
   });
 
-  it('its only data path is the declared compatibility read', () => {
+  it('its read path remains the declared compatibility read', () => {
     const source = code(join(ROOT, wizard));
     expect(source).toContain('useOnboardingContext');
     expect(source).not.toMatch(/from\s+['"][^'"]*services\/db['"]/);
   });
 
-  it('saving is disabled for its real reason and handed to the retained legacy surface', () => {
+  it('save control is enabled for canonical #10 parity', () => {
     const source = read(join(ROOT, wizard));
-    expect(source).toContain('AUDIT010-09');
-    expect(source).toContain('interfaz anterior');
-    expect(source).toContain('applyUiMode');
-    expect(source).toContain('data-authority="PRESENTATION_ONLY"');
+    expect(source).toContain('react-onboarding-save');
+    expect(source).not.toContain('react-onboarding-save-disabled');
+    expect(source).toContain('data-authority="PRESENTATION"');
   });
 
   it('the Zod schemas validate input shape only — no business or identity field', () => {

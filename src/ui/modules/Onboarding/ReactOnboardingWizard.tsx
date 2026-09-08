@@ -1,37 +1,22 @@
 /**
- * SPEC-010 · React OnboardingWizard (wave 2, T-010-205).
+ * SPEC-010 · React OnboardingWizard (wave 2 + P6 #10 write parity).
  *
- * Scope per the Phase-0 migration matrix, which records this component as
- * **2 compatibility reads and 0 writes**: the wizard is a form surface, and the
- * onboarding step is applied by the legacy controller (`main.ts`), which the
- * matrix lists as the owner of *all* UI-originated commands and whose extraction
- * belongs to Phase 4. Migrating this component therefore means migrating its
- * presentation and reads, not a command it never held.
+ * Authority: presentation only.
  *
- * READ SOURCE: compatibility (`readOnboardingContext`). The suggested step and
- * coverage figures are computed by `domain/profileCoverage` inside the facade, so
- * no completion rule or threshold is evaluated here (threat T-010-19).
+ * READ SOURCE: compatibility (`readOnboardingContext`).
  *
- * COMMAND: none in this React surface. Persistence authority for registry #10 is
- * CR-1 Master Profile Application (canonical consumer invoked from the retained
- * legacy form via `main.ts`). Wrapping that write here remains out of this
- * component's presentation scope (AUDIT010-09 disposition `DISPLAY_ONLY_REACT`).
+ * COMMAND: #10 ApplyOnboardingStep via `masterProfileCommands.applyOnboardingStep`.
+ * Form field names map to frozen canonical write keys before the seam call.
  *
- * Because saving is not available here, the submit control is disabled with its
- * real reason and the user is handed to the legacy wizard, which is still served.
- * The notice appears **before** any field, so nobody can type a long answer
- * believing it will be stored. Capability is preserved at system level and the
- * limitation is stated rather than hidden.
- *
- * FORMS: React Hook Form + Zod, input shape only (acceptance A13). No tenant,
- * actor or role value is present in any schema or field (acceptance A18).
+ * Post-complete thesis hop: presentation-owned navigation to `client-thesis`
+ * after canonical `completed` (no AI generateProposal; no #11/#12/#13 writes).
  */
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useSession } from '../../providers/SessionProvider';
-import { useOnboardingContext } from '../../hooks/useWave2Data';
-import { applyUiMode } from '../../mount';
+import { useApplyOnboardingStep, useOnboardingContext } from '../../hooks/useWave2Data';
+import { publishShellNavigation } from '../../legacy/navigationBridge';
 import { ONBOARDING_STEPS, onboardingSchemaForStep } from './onboardingStepSchemas';
 import type { OnboardingContextRead } from '../../data/compatibilityReads';
 
@@ -84,7 +69,64 @@ function defaultsForStep(step: number, context: OnboardingContextRead): StepFiel
   }
 }
 
-function StepForm({ step, context }: { step: number; context: OnboardingContextRead }) {
+/**
+ * Map presentation field names → frozen ApplyOnboardingStep write keys.
+ * Presentation owns labels; Application owns persistence keys.
+ */
+function toCanonicalFields(step: number, values: StepFields): Record<string, string> {
+  const trim = (key: string) => (values[key] ?? '').trim();
+  if (step === 1) {
+    return {
+      displayName: trim('displayName'),
+      selfDescription: trim('selfDescription'),
+      profession: trim('profession'),
+      role: trim('currentRole'),
+      company: trim('company'),
+    };
+  }
+  if (step === 2) {
+    return {
+      primaryGoal: trim('primaryGoal'),
+      secondaryGoals: trim('secondaryGoals'),
+    };
+  }
+  if (step === 3) {
+    return {
+      targetAudience: trim('targetAudience'),
+      industries: trim('industries'),
+      countries: trim('countries'),
+    };
+  }
+  if (step === 4) {
+    return {
+      education: trim('education'),
+      highlights: trim('highlights'),
+    };
+  }
+  if (step === 5) {
+    return {
+      linkedin: trim('linkedin'),
+      website: trim('website'),
+    };
+  }
+  return {
+    tone: trim('tone'),
+    avoid: trim('topicsToAvoid'),
+    compliance: trim('complianceGuidelines'),
+  };
+}
+
+function StepForm({
+  step,
+  context,
+  busy,
+  onSave,
+}: {
+  step: number;
+  context: OnboardingContextRead;
+  busy: boolean;
+  onSave: (fields: Record<string, string>) => void;
+}) {
   const schema = onboardingSchemaForStep(step);
   const {
     register,
@@ -92,7 +134,6 @@ function StepForm({ step, context }: { step: number; context: OnboardingContextR
     formState: { errors },
   } = useForm<StepFields>({
     defaultValues: defaultsForStep(step, context),
-    // Zod validates the shape of what was typed. It is not a gate on anything.
     resolver: async (values) => {
       const parsed = schema.safeParse(values);
       if (parsed.success) return { values, errors: {} };
@@ -142,15 +183,27 @@ function StepForm({ step, context }: { step: number; context: OnboardingContextR
     );
   }
 
+  const runSave = () => {
+    void handleSubmit(
+      (values) => {
+        setShapeOk(true);
+        onSave(toCanonicalFields(step, values));
+      },
+      () => setShapeOk(false)
+    )();
+  };
+
   return (
     <form
       data-testid="react-onboarding-form"
-      /*
-        Submitting validates the shape and reports the result. It performs no
-        write, because the write has no canonical use case. This is the honest
-        end of the migrated scope, not a stubbed-out save.
-      */
-      onSubmit={handleSubmit(() => setShapeOk(true), () => setShapeOk(false))}
+      data-onboarding-step={step}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleSubmit(
+          () => setShapeOk(true),
+          () => setShapeOk(false)
+        )();
+      }}
     >
       {step === 1 ? (
         <>
@@ -250,25 +303,20 @@ function StepForm({ step, context }: { step: number; context: OnboardingContextR
         >
           Revisar este paso
         </button>
-
-        {/*
-          Disabled for its real reason: this React surface is presentation-only
-          (AUDIT010-09 DISPLAY_ONLY_REACT). Persistence runs on the legacy form.
-        */}
         <button
           type="button"
           className="btn btn-primary"
-          disabled
-          title="Guardar requiere la interfaz anterior (AUDIT010-09)"
-          data-testid="react-onboarding-save-disabled"
+          disabled={busy}
+          data-testid="react-onboarding-save"
+          onClick={runSave}
         >
-          Guardar
+          {step === 6 ? 'Finalizar y crear tesis' : 'Guardar y continuar'}
         </button>
       </div>
 
       {shapeOk === true ? (
         <p className="muted small" role="status" data-testid="react-onboarding-shape-ok">
-          Formato correcto. Guardar sigue haciéndose en la interfaz anterior.
+          Formato correcto.
         </p>
       ) : null}
       {shapeOk === false ? (
@@ -283,7 +331,12 @@ function StepForm({ step, context }: { step: number; context: OnboardingContextR
 export function ReactOnboardingWizard() {
   const { tenantScope } = useSession();
   const { data, isLoading, isError } = useOnboardingContext(tenantScope);
+  const applyStep = useApplyOnboardingStep(tenantScope);
   const [step, setStep] = useState<number | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{
+    kind: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   if (!tenantScope) {
     return (
@@ -309,15 +362,46 @@ export function ReactOnboardingWizard() {
     );
   }
 
-  // The domain's suggested step is the default; changing step is presentation.
   const effectiveStep = step ?? data.suggestedStep;
   const meta = ONBOARDING_STEPS[effectiveStep - 1] ?? ONBOARDING_STEPS[0];
+
+  const handleSave = (fields: Record<string, string>) => {
+    setStatusMessage(null);
+    applyStep.mutate(
+      { step: effectiveStep, fields },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({
+              kind: 'error',
+              text: result.message || 'No se pudo guardar el onboarding',
+            });
+            return;
+          }
+          if (result.completed) {
+            setStatusMessage({
+              kind: 'success',
+              text: result.message || 'Onboarding completado. Abriendo propuesta de tesis…',
+            });
+            // Presentation hop only — no AI generateProposal, no #11/#12/#13 writes.
+            publishShellNavigation({ tab: 'client-thesis' });
+            return;
+          }
+          setStatusMessage({ kind: 'success', text: 'Paso guardado.' });
+          setStep(Math.min(6, effectiveStep + 1));
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: 'No se pudo guardar el onboarding' });
+        },
+      }
+    );
+  };
 
   return (
     <section
       className="card onboarding-card"
       data-testid="react-onboarding-wizard"
-      data-authority="PRESENTATION_ONLY"
+      data-authority="PRESENTATION"
     >
       <div className="card-header">
         <div>
@@ -333,15 +417,6 @@ export function ReactOnboardingWizard() {
         </div>
       </div>
 
-      {/* Stated before any field, so no answer is typed in the belief it will be stored. */}
-      <div className="warn-strip" data-testid="react-onboarding-delegation">
-        <strong>Esta vista todavía no guarda.</strong> Puedes revisar y validar el formato de cada
-        paso, pero guardar el onboarding se sigue haciendo en la interfaz anterior.{' '}
-        <button type="button" className="link-btn" onClick={() => void applyUiMode('legacy')}>
-          Abrir interfaz anterior
-        </button>
-      </div>
-
       <div className="onboarding-coverage-grid">
         {data.coverageSections.map((section, index) => (
           <button
@@ -350,7 +425,10 @@ export function ReactOnboardingWizard() {
             className={`onboarding-coverage-chip ${section.complete ? 'is-complete' : ''} ${
               effectiveStep === index + 1 ? 'is-active' : ''
             }`}
-            onClick={() => setStep(index + 1)}
+            onClick={() => {
+              setStep(index + 1);
+              setStatusMessage(null);
+            }}
           >
             {section.complete ? '✓' : '○'} {section.label}
           </button>
@@ -366,8 +444,25 @@ export function ReactOnboardingWizard() {
         ))}
       </div>
 
-      {/* Remounted per step so each step's defaults and schema apply cleanly. */}
-      <StepForm key={effectiveStep} step={effectiveStep} context={data} />
+      <StepForm
+        key={effectiveStep}
+        step={effectiveStep}
+        context={data}
+        busy={applyStep.isPending}
+        onSave={handleSave}
+      />
+
+      {statusMessage ? (
+        <p
+          className={statusMessage.kind === 'error' ? 'form-error' : 'form-success'}
+          role="status"
+          data-testid={
+            statusMessage.kind === 'error' ? 'react-onboarding-error-msg' : 'react-onboarding-success'
+          }
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
 
       <div className="onboarding-nav">
         <button

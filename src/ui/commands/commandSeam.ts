@@ -87,6 +87,15 @@ import type { TrustedTenantScope } from '../query/tenantScope';
 
 export type CommandResult = { ok: true; message?: string } | { ok: false; message: string };
 
+export type OnboardingStepCommandResult =
+  | {
+      ok: true;
+      completed: boolean;
+      step: number;
+      message?: string;
+    }
+  | { ok: false; message: string };
+
 export type ThesisSaveCommandResult =
   | {
       ok: true;
@@ -404,15 +413,33 @@ export const masterProfileCommands = {
     requestedClientId: string | null | undefined;
     step: number;
     fields: Record<string, string>;
-    claimedOrganizationId?: string;
-    claimedClientId?: string;
-    claimedProfileCompleteness?: number;
-    claimedOnboardingStatus?: string;
-    claimedClientStatus?: string;
-  }): CommandResult {
+  }): OnboardingStepCommandResult {
     try {
-      applyOnboardingStep(intent);
-      return { ok: true };
+      const result = applyOnboardingStep(intent);
+      if (result.completed) {
+        try {
+          notifyManager(result.profile.clientId, {
+            type: 'ONBOARDING',
+            title: 'Perfil listo para revisión',
+            body: 'El cliente completó el onboarding.',
+          });
+        } catch {
+          // Best-effort compatibility — completion already persisted.
+        }
+        try {
+          authService.clearOnboardingFlag();
+        } catch {
+          // Presentation flag only.
+        }
+      }
+      return {
+        ok: true,
+        completed: result.completed,
+        step: result.step,
+        message: result.completed
+          ? 'Onboarding completado. Abriendo propuesta de tesis…'
+          : undefined,
+      };
     } catch (err) {
       if (err instanceof MasterProfileError) {
         return { ok: false, message: err.message };

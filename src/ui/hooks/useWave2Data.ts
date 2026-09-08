@@ -32,7 +32,7 @@ import {
   readSources,
 } from '../data/compatibilityReads';
 import { readClientOpportunityCards } from '../data/canonicalReads';
-import { opportunityCommands, resultCommands, type CommandResult } from '../commands/commandSeam';
+import { opportunityCommands, resultCommands, masterProfileCommands, type CommandResult, type OnboardingStepCommandResult } from '../commands/commandSeam';
 
 const DISABLED = ['disabled'] as const;
 
@@ -75,14 +75,36 @@ export function useProfileOverview(scope: TrustedTenantScope | null) {
 /**
  * READ SOURCE: compatibility — T-010-205.
  *
- * Read-only: the onboarding step is applied by the legacy controller, so this
- * hook exposes no mutation (AUDIT010-09 #10).
+ * Read-only projection. Writes go through `useApplyOnboardingStep` (P6 #10).
  */
 export function useOnboardingContext(scope: TrustedTenantScope | null) {
   return useQuery({
     queryKey: scope ? tenantQueryKey(scope, 'compatibility', 'onboarding-context') : DISABLED,
     queryFn: () => readOnboardingContext(scope!),
     enabled: scope !== null && scope.clientId !== null,
+  });
+}
+
+/** CR-1 #10 ApplyOnboardingStep — P6 React onboarding write parity. */
+export function useApplyOnboardingStep(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    OnboardingStepCommandResult,
+    Error,
+    { step: number; fields: Record<string, string> }
+  >({
+    mutationFn: async (params) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return masterProfileCommands.applyOnboardingStep({
+        requestedClientId: scope.clientId,
+        step: params.step,
+        fields: params.fields,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
+    },
   });
 }
 
