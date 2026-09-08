@@ -38,15 +38,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import {
-  briefCommands,
-  deliveryAckCommands,
-  executionDeliveryCommands,
-  signalOutcomeCommands,
-  thesisLifecycleCommands,
-  type CommandResult,
-  type ThesisClientReviewCommandResult,
-} from '../commands/commandSeam';
+import { briefCommands, deliveryAckCommands, executionDeliveryCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type ThesisClientReviewCommandResult } from '../commands/commandSeam';
 
 const DISABLED = ['disabled'] as const;
 
@@ -225,6 +217,59 @@ export function useTransitionClientTask(scope: TrustedTenantScope | null) {
         taskId: params.taskId,
         intent: params.intent,
         clientNotes: params.clientNotes,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
+    },
+  });
+}
+
+/** CR-1 #32 ReviewClientArticle — P4 React client article-review parity. */
+export function useReviewClientArticle(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    ArticleReviewCommandResult,
+    Error,
+    {
+      contentId: string;
+      decision: 'save_revision' | 'approve' | 'request_changes';
+      title?: string;
+      body?: string;
+      reason?: string;
+      taskId?: string;
+    }
+  >({
+    mutationFn: async (params) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.reviewClientArticle({
+        requestedClientId: scope.clientId,
+        contentId: params.contentId,
+        decision: params.decision,
+        title: params.title,
+        body: params.body,
+        reason: params.reason,
+        taskId: params.taskId,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
+    },
+  });
+}
+
+/** P4 — REVIEW_ARTICLE open: narrow #28 start + compatibility pipeline (presentation only). */
+export function useOpenClientArticleReview(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<CommandResult, Error, { contentId: string; taskId?: string }>({
+    mutationFn: async (params) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.openClientArticleReview({
+        requestedClientId: scope.clientId,
+        contentId: params.contentId,
+        taskId: params.taskId,
       });
     },
     onSuccess: (result) => {

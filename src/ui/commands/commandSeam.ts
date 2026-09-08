@@ -73,16 +73,18 @@ import { ExecutionDeliveryError } from '../../application/executionDelivery';
 import type { ContentStatus, ContentType, SourceType, ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
+import { notifyManager } from '../../services/notifications';
 import { notifyManagerBriefingAcknowledged } from '../presentation/briefingAckNotification';
 import {
   notifyManagerThesisChangesRequested,
   notifyManagerThesisClientApproved,
 } from '../presentation/thesisClientReviewNotification';
+import { openClientArticleReviewPresentation } from '../../services/articleReviewOpen';
 import { readBriefingAckNotificationContext } from '../data/compatibilityReads';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
 
-export type CommandResult = { ok: true } | { ok: false; message: string };
+export type CommandResult = { ok: true; message?: string } | { ok: false; message: string };
 
 export type ThesisClientReviewCommandResult =
   | {
@@ -90,6 +92,15 @@ export type ThesisClientReviewCommandResult =
       decision: 'approve' | 'request_changes';
       appliedRevision: boolean;
       awaitsManagerActivation: boolean;
+    }
+  | { ok: false; message: string };
+
+export type ArticleReviewCommandResult =
+  | {
+      ok: true;
+      decision: 'save_revision' | 'approve' | 'request_changes';
+      message: string;
+      hadRevisionEvent: boolean;
     }
   | { ok: false; message: string };
 
@@ -599,19 +610,80 @@ export const executionDeliveryCommands = {
     body?: string;
     reason?: string;
     taskId?: string;
-  }): CommandResult {
+  }): ArticleReviewCommandResult {
+    const fallback =
+      intent.decision === 'save_revision'
+        ? 'No se pudo guardar la revisión'
+        : intent.decision === 'approve'
+          ? 'No se pudo aprobar el artículo'
+          : 'No se pudo rechazar el artículo';
     try {
-      reviewClientArticle(intent);
-      return { ok: true };
+      const result = reviewClientArticle(intent);
+      try {
+        if (result.decision === 'save_revision' && result.feedbackEvent) {
+          notifyManager(result.content.clientId, {
+            type: 'CONTENT_REVIEW',
+            title: 'Cliente editó borrador',
+            body: `«${result.content.title}»: +${result.feedbackEvent.diffSummary?.added ?? 0}/−${result.feedbackEvent.diffSummary?.removed ?? 0} líneas`,
+            href: 'ws-production',
+            targetId: result.content.id,
+          });
+        } else if (result.decision === 'approve') {
+          notifyManager(result.content.clientId, {
+            type: 'CONTENT_REVIEW',
+            title: 'Artículo aprobado por el cliente',
+            body: `«${result.content.title}» está listo para finalizar.`,
+            href: 'ws-production',
+          });
+        } else if (result.decision === 'request_changes') {
+          notifyManager(result.content.clientId, {
+            type: 'CONTENT_REVIEW',
+            title: 'Artículo rechazado por el cliente',
+            body: (intent.reason || '').trim(),
+            href: 'ws-production',
+          });
+        }
+      } catch {
+        // Best-effort compatibility — review decision already persisted.
+      }
+
+      const message =
+        result.decision === 'save_revision'
+          ? result.feedbackEvent
+            ? 'Cambios guardados. Tu manager verá el diff.'
+            : 'Sin cambios respecto al borrador original.'
+          : result.decision === 'approve'
+            ? 'Artículo aprobado y enviado al manager'
+            : 'Rechazo enviado con tu motivo';
+
+      return {
+        ok: true,
+        decision: result.decision,
+        message,
+        hadRevisionEvent: Boolean(result.feedbackEvent),
+      };
     } catch (err) {
       return {
         ok: false,
         message:
           err instanceof ExecutionDeliveryError || err instanceof Error
             ? err.message
-            : 'No se pudo registrar la revisión',
+            : fallback,
       };
     }
+  },
+
+  /**
+   * P4 presentation open for REVIEW_ARTICLE only.
+   * Mirrors legacy `markArticleReviewStarted`: narrow #28 start when applicable,
+   * then compatibility pipeline steps. Not a generic start surface.
+   */
+  openClientArticleReview(intent: {
+    requestedClientId: string | null | undefined;
+    contentId: string;
+    taskId?: string;
+  }): CommandResult {
+    return openClientArticleReviewPresentation(intent);
   },
 } as const;
 

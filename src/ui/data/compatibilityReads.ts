@@ -809,6 +809,8 @@ export interface ClientTaskRead {
   readonly deadline: string | null;
   readonly estimatedMinutes: number | null;
   readonly thesisId: string | null;
+  /** Linked content for REVIEW_ARTICLE / RECORD_VIDEO — display/open only. */
+  readonly contentItemId: string | null;
 }
 
 /** T-010-304 · client task queue. Opening a task is a legacy write, so this is read-only. */
@@ -824,6 +826,7 @@ export function readClientTasks(scope: TrustedTenantScope): readonly ClientTaskR
     deadline: task.deadline ?? null,
     estimatedMinutes: task.estimatedMinutes,
     thesisId: task.thesisId ?? null,
+    contentItemId: task.contentItemId ?? null,
   }));
 }
 
@@ -936,6 +939,10 @@ export interface ContentDetailRead {
   readonly platform: string;
   readonly type: string;
   readonly status: string;
+  /** Raw legacy status (e.g. CLIENT_REVIEW) for client article-review gating. */
+  readonly legacyStatus: string;
+  readonly managerNotes: string | null;
+  readonly clientFeedback: string | null;
   readonly wordCount: number;
   readonly hasSectionMarkers: boolean;
   readonly claimVerdict: string | null;
@@ -967,6 +974,9 @@ export function readContentDetail(
     platform: '',
     type: '',
     status: '',
+    legacyStatus: '',
+    managerNotes: null,
+    clientFeedback: null,
     wordCount: 0,
     hasSectionMarkers: false,
     claimVerdict: null,
@@ -977,6 +987,7 @@ export function readContentDetail(
 
   const content = dbService.getContentById(contentId);
   if (!content) return empty;
+  if (content.clientId !== requireClient(scope)) return empty;
 
   return {
     resolved: true,
@@ -986,6 +997,9 @@ export function readContentDetail(
     platform: content.targetPlatform,
     type: content.type,
     status: mapLegacyContentStatus(content.status),
+    legacyStatus: content.status,
+    managerNotes: content.managerNotes?.trim() ? content.managerNotes : null,
+    clientFeedback: content.clientFeedback?.trim() ? content.clientFeedback : null,
     wordCount: (content.body ?? '').trim().split(/\s+/).filter(Boolean).length,
     hasSectionMarkers: hasArticleSectionMarkers(content.body ?? ''),
     claimVerdict: content.claimSafety?.verdict ?? null,

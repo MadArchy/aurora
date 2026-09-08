@@ -223,11 +223,12 @@ describe('P3A §10–§12 — specialized legacy handoffs', () => {
     expect(portal).toMatch(/react-portal-task-handoff-video-/);
   });
 
-  it('REVIEW_ARTICLE retains article-review legacy handoff', () => {
+  it('REVIEW_ARTICLE uses native React article review (P4)', () => {
     const portal = read('src/ui/modules/pages/ReactClientPortalPage.tsx');
     expect(portal).toMatch(/task\.type === 'REVIEW_ARTICLE'/);
-    expect(portal).toMatch(/revisar el artículo/);
-    expect(portal).toMatch(/react-portal-task-handoff-article-/);
+    expect(portal).toMatch(/useReviewClientArticle/);
+    expect(portal).toMatch(/react-portal-article-task-open-/);
+    expect(portal).not.toMatch(/react-portal-task-handoff-article-/);
   });
 
   it('removes panel-level blanket task LegacyHandoff', () => {

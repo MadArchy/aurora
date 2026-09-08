@@ -13,13 +13,13 @@
  *   compatibility  tasks, content, theses, KPI results, latest client briefing
  *
  * BLOCKED, left legacy (AUDIT010-09): video teleprompter (`start` / video `complete`),
- * article review (#32), attach_evidence (ClientWorkspace re-upload), add evidence vault (#30).
+ * attach_evidence (ClientWorkspace re-upload), add evidence vault (#30).
  *
  * CANONICAL COMMANDS migrated: accept / decline / toggle-checklist / submit an Opportunity,
  * register a consultation result, acknowledge a briefing (`AcknowledgeDelivery`),
- * decide thesis client review (`DecideThesisClientReview`), and generic ClientPortal task
+ * decide thesis client review (`DecideThesisClientReview`), generic ClientPortal task
  * transitions (`TransitionClientTask` view / complete / request_changes for non-video,
- * non-article tasks — P3A partial #28 parity).
+ * non-article tasks — P3A), and client article review (`ReviewClientArticle` — P4 #32).
  *
  * MULTI-THESIS: the legacy portal selects `awaiting[0] || ACTIVE || theses[0]`
  * and that implicit pick feeds the approve/request-changes buttons' thesis id.
@@ -27,17 +27,20 @@
  * (threat T-010-15).
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from '../../providers/SessionProvider';
 import {
   useAcknowledgeDelivery,
   useClientContent,
   useClientLatestBriefing,
   useClientTasks,
+  useContentDetail,
   useDecideThesisClientReview,
-  useTransitionClientTask,
+  useOpenClientArticleReview,
+  useReviewClientArticle,
   useThesisDetail,
   useThesisOptions,
+  useTransitionClientTask,
 } from '../../hooks/useWave3Data';
 import { ReactMasterDossierPanel } from '../MasterDossier/ReactMasterDossierPanel';
 import { ReactOpportunityPanel } from '../Opportunity/ReactOpportunityPanel';
@@ -52,7 +55,362 @@ function isGenericClientTaskType(type: string): boolean {
   return type !== 'RECORD_VIDEO' && type !== 'REVIEW_ARTICLE';
 }
 
-function TaskSpecializedHandoff({ task }: { task: { id: string; type: string } }) {
+function ArticleReviewPanel({
+  contentId,
+  taskId,
+  onClose,
+}: {
+  contentId: string;
+  taskId?: string;
+  onClose: () => void;
+}) {
+  const { tenantScope } = useSession();
+  const detail = useContentDetail(tenantScope, contentId);
+  const review = useReviewClientArticle(tenantScope);
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [reason, setReason] = useState('');
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(
+    null
+  );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (detail.data?.resolved && !hydrated) {
+      setTitle(detail.data.title);
+      setBody(detail.data.body);
+      setHydrated(true);
+    }
+  }, [detail.data, hydrated]);
+
+  if (detail.isLoading || !hydrated) {
+    return (
+      <PanelState kind="loading" message="Cargando artículo…" testId="react-portal-article-review-loading" />
+    );
+  }
+  if (detail.isError || !detail.data?.resolved) {
+    return (
+      <PanelState
+        kind="error"
+        message="No se pudo cargar el artículo."
+        testId="react-portal-article-review-error"
+      />
+    );
+  }
+
+  const article = detail.data;
+
+  const runDecision = (
+    decision: 'save_revision' | 'approve' | 'request_changes',
+    opts?: { reason?: string }
+  ) => {
+    setStatusMessage(null);
+    const fallback =
+      decision === 'save_revision'
+        ? 'No se pudo guardar la revisión'
+        : decision === 'approve'
+          ? 'No se pudo aprobar el artículo'
+          : 'No se pudo rechazar el artículo';
+    review.mutate(
+      {
+        contentId,
+        decision,
+        title: decision === 'request_changes' ? undefined : title,
+        body: decision === 'request_changes' ? undefined : body,
+        reason: opts?.reason,
+        taskId,
+      },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({ kind: 'error', text: result.message || fallback });
+            return;
+          }
+          const kind =
+            result.decision === 'save_revision' && !result.hadRevisionEvent ? 'info' : 'success';
+          setStatusMessage({ kind, text: result.message });
+          if (decision === 'request_changes') {
+            setReason('');
+            setRejectOpen(false);
+          }
+          if (decision === 'save_revision') {
+            setHydrated(false);
+          }
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: fallback });
+        },
+      }
+    );
+  };
+
+  return (
+    <div className="card article-review-modal" data-testid="react-portal-article-review">
+      <header className="article-review-header">
+        <div>
+          <h3>Revisar artículo en tu voz</h3>
+          <p className="muted small">
+            {article.title} · {article.platform} · ~{article.wordCount} palabras
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          data-testid="react-portal-article-review-close"
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </header>
+
+      {article.managerNotes ? (
+        <div className="article-review-notes" data-testid="react-portal-article-manager-notes">
+          <strong>Indicaciones del manager</strong>
+          <p className="muted small">{article.managerNotes}</p>
+        </div>
+      ) : null}
+
+      <div className="form-group">
+        <label className="form-label" htmlFor="react-article-review-title">
+          Título
+        </label>
+        <input
+          id="react-article-review-title"
+          className="form-input"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          data-testid="react-portal-article-review-title"
+        />
+      </div>
+
+      <div className="form-group">
+        <label className="form-label" htmlFor="react-article-review-body">
+          Cuerpo del artículo
+        </label>
+        {article.hasSectionMarkers ? (
+          <p className="muted small article-section-hint">
+            Guion estructurado: conserva los bloques [GANCHO], [DESARROLLO] y [CIERRE] si aplican.
+          </p>
+        ) : null}
+        <textarea
+          id="react-article-review-body"
+          className="form-textarea article-review-body"
+          rows={16}
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          data-testid="react-portal-article-review-body"
+        />
+        <p className="muted small">
+          Edita el borrador para que suene a ti. Al guardar registramos los cambios para tu Brand Manager.
+        </p>
+      </div>
+
+      <div className="article-review-actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          data-testid="react-portal-article-review-reject-open"
+          disabled={review.isPending}
+          onClick={() => {
+            setStatusMessage(null);
+            setRejectOpen(true);
+          }}
+        >
+          Rechazar con motivo
+        </button>
+        <div className="article-review-actions-main">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            data-testid="react-portal-article-review-save"
+            disabled={review.isPending || !title.trim() || !body.trim()}
+            onClick={() => runDecision('save_revision')}
+          >
+            Guardar cambios
+          </button>
+          <button
+            type="button"
+            className="btn btn-success"
+            data-testid="react-portal-article-review-approve"
+            disabled={review.isPending}
+            onClick={() => runDecision('approve')}
+          >
+            Aprobar y enviar
+          </button>
+        </div>
+      </div>
+
+      {rejectOpen ? (
+        <div className="task-feedback" data-testid="react-portal-article-review-reject">
+          <label className="form-label" htmlFor="react-article-review-reason">
+            Motivo del rechazo
+          </label>
+          <textarea
+            id="react-article-review-reason"
+            className="form-textarea"
+            rows={3}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            data-testid="react-portal-article-review-reason"
+          />
+          <div className="btn-row">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              data-testid="react-portal-article-review-reject-cancel"
+              onClick={() => {
+                setRejectOpen(false);
+                setReason('');
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              data-testid="react-portal-article-review-reject-submit"
+              disabled={review.isPending || !reason.trim()}
+              onClick={() => runDecision('request_changes', { reason: reason.trim() })}
+            >
+              Enviar rechazo
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {statusMessage ? (
+        <p
+          className={
+            statusMessage.kind === 'error'
+              ? 'form-error'
+              : statusMessage.kind === 'info'
+                ? 'muted small'
+                : 'form-success'
+          }
+          data-testid={
+            statusMessage.kind === 'error'
+              ? 'react-portal-article-review-failure'
+              : 'react-portal-article-review-success'
+          }
+          role="status"
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ArticleTaskActions({
+  task,
+  onOpenReview,
+}: {
+  task: { id: string; status: string; contentItemId: string | null };
+  onOpenReview: (contentId: string, taskId: string) => void;
+}) {
+  const { tenantScope } = useSession();
+  const review = useReviewClientArticle(tenantScope);
+  const openReview = useOpenClientArticleReview(tenantScope);
+  const [statusMessage, setStatusMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(
+    null
+  );
+
+  const openNative = () => {
+    setStatusMessage(null);
+    if (!task.contentItemId) {
+      setStatusMessage({ kind: 'info', text: 'No hay borrador vinculado. Revisa Producción.' });
+      return;
+    }
+    openReview.mutate(
+      { contentId: task.contentItemId, taskId: task.id },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({
+              kind: 'error',
+              text: result.message || 'No se pudo abrir la revisión del artículo',
+            });
+            return;
+          }
+          onOpenReview(task.contentItemId!, task.id);
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: 'No se pudo abrir la revisión del artículo' });
+        },
+      }
+    );
+  };
+
+  const approveWithoutEdits = () => {
+    setStatusMessage(null);
+    if (!task.contentItemId) {
+      setStatusMessage({ kind: 'info', text: 'No hay borrador vinculado. Revisa Producción.' });
+      return;
+    }
+    review.mutate(
+      { contentId: task.contentItemId, decision: 'approve', taskId: task.id },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({ kind: 'error', text: result.message || 'No se pudo aprobar el artículo' });
+            return;
+          }
+          setStatusMessage({ kind: 'success', text: result.message });
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: 'No se pudo aprobar el artículo' });
+        },
+      }
+    );
+  };
+
+  return (
+    <div className="task-actions" data-testid={`react-portal-article-task-actions-${task.id}`}>
+      <div className="btn-row">
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          data-testid={`react-portal-article-task-open-${task.id}`}
+          disabled={openReview.isPending || review.isPending}
+          onClick={openNative}
+        >
+          Revisar artículo
+        </button>
+        <button
+          type="button"
+          className="btn btn-success btn-sm"
+          data-testid={`react-portal-article-task-approve-${task.id}`}
+          disabled={openReview.isPending || review.isPending || !task.contentItemId}
+          onClick={approveWithoutEdits}
+        >
+          Aprobar sin cambios
+        </button>
+      </div>
+      {statusMessage ? (
+        <p
+          className={statusMessage.kind === 'error' ? 'form-error' : 'form-success'}
+          data-testid={
+            statusMessage.kind === 'error'
+              ? `react-portal-article-task-failure-${task.id}`
+              : `react-portal-article-task-success-${task.id}`
+          }
+          role="status"
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function TaskSpecializedHandoff({
+  task,
+  onOpenArticleReview,
+}: {
+  task: { id: string; type: string; status: string; contentItemId: string | null };
+  onOpenArticleReview: (contentId: string, taskId: string) => void;
+}) {
   if (task.type === 'RECORD_VIDEO') {
     return (
       <LegacyHandoff
@@ -62,12 +420,7 @@ function TaskSpecializedHandoff({ task }: { task: { id: string; type: string } }
     );
   }
   if (task.type === 'REVIEW_ARTICLE') {
-    return (
-      <LegacyHandoff
-        actions={['revisar el artículo', 'aprobar el artículo']}
-        testId={`react-portal-task-handoff-article-${task.id}`}
-      />
-    );
+    return <ArticleTaskActions task={task} onOpenReview={onOpenArticleReview} />;
   }
   return null;
 }
@@ -222,7 +575,11 @@ function GenericTaskActions({
   );
 }
 
-function TasksPanel() {
+function TasksPanel({
+  onOpenArticleReview,
+}: {
+  onOpenArticleReview: (contentId: string, taskId: string) => void;
+}) {
   const { tenantScope } = useSession();
   const { data, isLoading, isError } = useClientTasks(tenantScope);
 
@@ -262,7 +619,7 @@ function TasksPanel() {
               {isGenericClientTaskType(task.type) ? (
                 <GenericTaskActions task={task} />
               ) : (
-                <TaskSpecializedHandoff task={task} />
+                <TaskSpecializedHandoff task={task} onOpenArticleReview={onOpenArticleReview} />
               )}
             </li>
           ))}
@@ -443,9 +800,19 @@ function BriefingPanel() {
   );
 }
 
-function ContentPanel() {
+function ContentPanel({
+  onOpenArticleReview,
+}: {
+  onOpenArticleReview: (contentId: string, taskId?: string) => void;
+}) {
   const { tenantScope } = useSession();
   const { data, isLoading, isError } = useClientContent(tenantScope);
+  const tasks = useClientTasks(tenantScope);
+  const openReview = useOpenClientArticleReview(tenantScope);
+  const review = useReviewClientArticle(tenantScope);
+  const [statusMessage, setStatusMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(
+    null
+  );
 
   if (isLoading) {
     return (
@@ -465,13 +832,64 @@ function ContentPanel() {
   const pending = data?.pending ?? [];
   const decided = data?.decided ?? [];
 
+  const linkedTaskId = (contentId: string) =>
+    (tasks.data ?? []).find(
+      (task) =>
+        task.type === 'REVIEW_ARTICLE' &&
+        task.contentItemId === contentId &&
+        task.status !== 'COMPLETED' &&
+        task.status !== 'CANCELLED'
+    )?.id;
+
+  const openItem = (contentId: string) => {
+    setStatusMessage(null);
+    const taskId = linkedTaskId(contentId);
+    openReview.mutate(
+      { contentId, taskId },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({
+              kind: 'error',
+              text: result.message || 'No se pudo abrir la revisión del artículo',
+            });
+            return;
+          }
+          onOpenArticleReview(contentId, taskId);
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: 'No se pudo abrir la revisión del artículo' });
+        },
+      }
+    );
+  };
+
+  const approveItem = (contentId: string) => {
+    setStatusMessage(null);
+    review.mutate(
+      { contentId, decision: 'approve', taskId: linkedTaskId(contentId) },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({ kind: 'error', text: result.message || 'No se pudo aprobar el artículo' });
+            return;
+          }
+          setStatusMessage({ kind: 'success', text: result.message });
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: 'No se pudo aprobar el artículo' });
+        },
+      }
+    );
+  };
+
   return (
     <div data-testid="react-portal-content">
       <h4 className="small">Pendiente de tu revisión</h4>
       {pending.length ? (
         <ul className="content-list">
           {pending.map((item) => (
-            <li className="content-row" key={item.id}>
+            <li className="content-row" key={item.id} data-testid={`react-portal-content-row-${item.id}`}>
               <div>
                 <strong>{item.title}</strong>
                 <p className="muted small">
@@ -479,6 +897,35 @@ function ContentPanel() {
                 </p>
               </div>
               <span className="badge badge-pending">{item.status}</span>
+              <div className="btn-row">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  data-testid={`react-portal-content-edit-${item.id}`}
+                  disabled={openReview.isPending || review.isPending}
+                  onClick={() => openItem(item.id)}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-success btn-sm"
+                  data-testid={`react-portal-content-approve-${item.id}`}
+                  disabled={openReview.isPending || review.isPending}
+                  onClick={() => approveItem(item.id)}
+                >
+                  Aprobar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  data-testid={`react-portal-content-reject-${item.id}`}
+                  disabled={openReview.isPending || review.isPending}
+                  onClick={() => openItem(item.id)}
+                >
+                  Rechazar
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -502,10 +949,19 @@ function ContentPanel() {
         </details>
       ) : null}
 
-      <LegacyHandoff
-        actions={['aprobar contenido', 'pedir cambios', 'editar el artículo']}
-        testId="react-portal-content-handoff"
-      />
+      {statusMessage ? (
+        <p
+          className={statusMessage.kind === 'error' ? 'form-error' : 'form-success'}
+          data-testid={
+            statusMessage.kind === 'error'
+              ? 'react-portal-content-failure'
+              : 'react-portal-content-success'
+          }
+          role="status"
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -736,6 +1192,9 @@ function ThesisReviewPanel() {
 
 export function ReactClientPortalPage({ tab = 'home' }: { tab?: ClientPortalTab }) {
   const { tenantScope } = useSession();
+  const [articleReview, setArticleReview] = useState<{ contentId: string; taskId?: string } | null>(
+    null
+  );
 
   if (!tenantScope) {
     return (
@@ -747,18 +1206,30 @@ export function ReactClientPortalPage({ tab = 'home' }: { tab?: ClientPortalTab 
     );
   }
 
+  const openArticleReview = (contentId: string, taskId?: string) => {
+    setArticleReview({ contentId, taskId });
+  };
+
   return (
     <div className="page-content" data-testid="react-client-portal" data-portal-tab={tab}>
+      {articleReview ? (
+        <ArticleReviewPanel
+          contentId={articleReview.contentId}
+          taskId={articleReview.taskId}
+          onClose={() => setArticleReview(null)}
+        />
+      ) : null}
+
       {tab === 'home' ? (
         <>
-          <TasksPanel />
+          <TasksPanel onOpenArticleReview={openArticleReview} />
           <BriefingPanel />
           <ReactOpportunityPanel />
         </>
       ) : null}
 
-      {tab === 'tasks' ? <TasksPanel /> : null}
-      {tab === 'content' ? <ContentPanel /> : null}
+      {tab === 'tasks' ? <TasksPanel onOpenArticleReview={openArticleReview} /> : null}
+      {tab === 'content' ? <ContentPanel onOpenArticleReview={openArticleReview} /> : null}
       {tab === 'opportunities' ? <ReactOpportunityPanel /> : null}
       {tab === 'thesis' ? <ThesisReviewPanel /> : null}
 
