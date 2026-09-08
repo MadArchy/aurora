@@ -38,7 +38,9 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, executionDeliveryCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type ThesisClientReviewCommandResult } from '../commands/commandSeam';
+import { briefCommands, deliveryAckCommands, executionDeliveryCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
+import type { ThesisEditableFields } from '../../types';
+import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 
 const DISABLED = ['disabled'] as const;
 
@@ -294,6 +296,48 @@ export function useDecideThesisClientReview(scope: TrustedTenantScope | null) {
         thesisId: params.thesisId,
         decision: params.decision,
         feedback: params.feedback,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
+    },
+  });
+}
+
+/** CR-1 #11 SaveThesis — P5 React manager thesis save parity. */
+export function useSaveThesis(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    ThesisSaveCommandResult,
+    Error,
+    { thesisId: string; intent: ThesisSaveIntent; fields: ThesisEditableFields }
+  >({
+    mutationFn: async (params) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return thesisLifecycleCommands.saveThesis({
+        requestedClientId: scope.clientId,
+        thesisId: params.thesisId,
+        intent: params.intent,
+        fields: params.fields,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
+    },
+  });
+}
+
+/** CR-1 #12 ActivateThesis — P5 React manager thesis activate parity. */
+export function useActivateThesis(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<CommandResult, Error, { thesisId: string }>({
+    mutationFn: async (params) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return thesisLifecycleCommands.activateThesis({
+        requestedClientId: scope.clientId,
+        thesisId: params.thesisId,
       });
     },
     onSuccess: (result) => {

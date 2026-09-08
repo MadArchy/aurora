@@ -1,44 +1,38 @@
 /**
- * SPEC-010 · React thesis editor (wave 3, T-010-301) — DISPLAY_ONLY_REACT.
+ * SPEC-010 · React thesis editor (wave 3 + P5 manager write parity).
  *
  * Authority: presentation only.
  *
  * READ SOURCE: compatibility (`readThesisOptions`, `readThesisDetail`).
  *
- * COMMAND: none on this React surface. CR-1 Thesis Lifecycle owns
- * `SaveThesis` (#11); the legacy editor invokes `thesisLifecycleConsumer`
- * via `main.ts`. React does not call the consumer or mutate lifecycle state
- * (AUDIT010-09 disposition unchanged — presentation cutover still blocked).
+ * COMMAND: #11 SaveThesis + #12 ActivateThesis via `thesisLifecycleCommands`
+ * (draft | submit_review | activate). AI proposal and stress-test remain legacy.
  *
- * MULTI-THESIS — the point of this task. The thesis is chosen by explicit id and
- * nothing else:
- *   - the selector lists every thesis with its status, and starts unselected;
- *   - there is no `[0]`, no "primary", no highest-priority election;
- *   - `priority` is displayed as data, never used to pick;
- *   - an unresolved id renders an explicit error instead of silently becoming a
- *     new thesis, which is what the legacy editor does
- *     (`ThesisEditorModal.ts:126-128`). That legacy quirk is deliberately not
- *     reproduced; the deviation is recorded in `tasks.md`.
- *
- * FORMS: React Hook Form + Zod validate the shape of the review fields only.
- * Completeness, weight validation and review readiness are all computed by
- * `domain/thesisModelCore` inside the read facade, so no readiness rule exists
- * here (threat T-010-19). A passing Zod parse is never permission to save —
- * there is no save.
+ * MULTI-THESIS — explicit id selection only:
+ *   - selector starts unselected; no silent winner;
+ *   - mutations always target the selected thesisId;
+ *   - unresolved id is an error, never a silent create.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useSession } from '../../providers/SessionProvider';
-import { useThesisDetail, useThesisOptions } from '../../hooks/useWave3Data';
+import {
+  useActivateThesis,
+  useSaveThesis,
+  useThesisDetail,
+  useThesisOptions,
+} from '../../hooks/useWave3Data';
+import { narrowToClient } from '../../query/tenantScope';
+import type { ThesisEditableFields } from '../../../types';
+import type { ThesisSaveIntent } from '../../../domain/thesisRevisionCore';
 import { LegacyHandoff, PanelState } from './LegacyHandoff';
 
 /**
  * Input-shape schema for the editable review fields.
  *
- * AUTHORITY: NONE. It carries no tenant, actor, role, status or lifecycle field,
- * and no completeness threshold — the domain owns all of those.
+ * AUTHORITY: NONE. Completeness / readiness / activation remain Domain-owned.
  */
 const thesisReviewSchema = z.object({
   title: z.string().trim().min(1, 'El título es obligatorio'),
@@ -57,17 +51,45 @@ function CompletenessBar({ score }: { score: number }) {
   );
 }
 
+function mergeEditableFields(
+  base: ThesisEditableFields,
+  form: ThesisReviewFields
+): ThesisEditableFields {
+  return {
+    ...base,
+    title: form.title.trim(),
+    expertIdentity: form.expertIdentity.trim(),
+    differentiator: form.differentiator?.trim() || undefined,
+    perceptionTarget: form.perceptionTarget?.trim() || undefined,
+  };
+}
+
 function ThesisReviewForm({
-  defaults,
+  thesisId,
+  editableFields,
+  canActivate,
+  busy,
+  onSave,
+  onActivate,
 }: {
-  defaults: ThesisReviewFields;
+  thesisId: string;
+  editableFields: ThesisEditableFields;
+  canActivate: boolean;
+  busy: boolean;
+  onSave: (intent: ThesisSaveIntent, fields: ThesisEditableFields) => void;
+  onActivate: () => void;
 }) {
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<ThesisReviewFields>({
-    defaultValues: defaults,
+    defaultValues: {
+      title: editableFields.title,
+      expertIdentity: editableFields.expertIdentity,
+      differentiator: editableFields.differentiator ?? '',
+      perceptionTarget: editableFields.perceptionTarget ?? '',
+    },
     resolver: async (values) => {
       const parsed = thesisReviewSchema.safeParse(values);
       if (parsed.success) return { values, errors: {} };
@@ -82,6 +104,16 @@ function ThesisReviewForm({
 
   const [shapeOk, setShapeOk] = useState<boolean | null>(null);
   const error = (name: keyof ThesisReviewFields) => errors[name]?.message;
+
+  const runSave = (intent: ThesisSaveIntent) => {
+    void handleSubmit(
+      (values) => {
+        setShapeOk(true);
+        onSave(intent, mergeEditableFields(editableFields, values));
+      },
+      () => setShapeOk(false)
+    )();
+  };
 
   const field = (
     name: keyof ThesisReviewFields,
@@ -122,10 +154,14 @@ function ThesisReviewForm({
   return (
     <form
       data-testid="react-thesis-form"
-      onSubmit={handleSubmit(
-        () => setShapeOk(true),
-        () => setShapeOk(false)
-      )}
+      data-thesis-id={thesisId}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleSubmit(
+          () => setShapeOk(true),
+          () => setShapeOk(false)
+        )();
+      }}
     >
       {field('title', 'Título de la tesis')}
       {field('expertIdentity', 'Identidad experta', 'textarea')}
@@ -136,30 +172,40 @@ function ThesisReviewForm({
         <button type="submit" className="btn btn-secondary" data-testid="react-thesis-validate">
           Revisar formato
         </button>
-        {/* Disabled for its real reason: thesis persistence has no canonical use case. */}
         <button
           type="button"
           className="btn btn-primary"
-          disabled
-          title="Guardar la tesis requiere la interfaz anterior (AUDIT010-09)"
-          data-testid="react-thesis-save-disabled"
+          disabled={busy}
+          data-testid="react-thesis-save"
+          onClick={() => runSave('draft')}
         >
           Guardar borrador
         </button>
         <button
           type="button"
           className="btn btn-primary"
-          disabled
-          title="Enviar al cliente requiere la interfaz anterior (AUDIT010-09)"
-          data-testid="react-thesis-submit-disabled"
+          disabled={busy}
+          data-testid="react-thesis-submit"
+          onClick={() => runSave('submit_review')}
         >
           Enviar al cliente
         </button>
+        {canActivate ? (
+          <button
+            type="button"
+            className="btn btn-success"
+            disabled={busy}
+            data-testid="react-thesis-activate"
+            onClick={onActivate}
+          >
+            Activar tesis
+          </button>
+        ) : null}
       </div>
 
       {shapeOk === true ? (
         <p className="muted small" role="status" data-testid="react-thesis-shape-ok">
-          Formato correcto. Guardar y enviar siguen en la interfaz anterior.
+          Formato correcto.
         </p>
       ) : null}
       {shapeOk === false ? (
@@ -171,13 +217,36 @@ function ThesisReviewForm({
   );
 }
 
-export function ReactThesisEditorPage() {
+export function ReactThesisEditorPage({
+  workspaceClientId = null,
+}: {
+  /** Shell-selected client for ADMIN workspace; CLIENT sessions already carry clientId. */
+  workspaceClientId?: string | null;
+}) {
   const { tenantScope } = useSession();
-  // Starts unselected on purpose: no thesis is elected for the user.
-  const [thesisId, setThesisId] = useState<string | null>(null);
+  const scope = useMemo(() => {
+    if (!tenantScope) return null;
+    if (tenantScope.clientId) return tenantScope;
+    const requested = workspaceClientId?.trim();
+    if (!requested || requested === 'all') return null;
+    try {
+      return narrowToClient(tenantScope, requested);
+    } catch {
+      return null;
+    }
+  }, [tenantScope, workspaceClientId]);
 
-  const options = useThesisOptions(tenantScope);
-  const detail = useThesisDetail(tenantScope, thesisId);
+  const [thesisId, setThesisId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{
+    kind: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
+
+  const options = useThesisOptions(scope);
+  const detail = useThesisDetail(scope, thesisId);
+  const saveThesis = useSaveThesis(scope);
+  const activateThesis = useActivateThesis(scope);
+  const busy = saveThesis.isPending || activateThesis.isPending;
 
   if (!tenantScope) {
     return (
@@ -185,6 +254,16 @@ export function ReactThesisEditorPage() {
         kind="no-scope"
         message="Sesión sin contexto de organización — no se muestran tesis."
         testId="react-thesis-editor-no-scope"
+      />
+    );
+  }
+
+  if (!scope) {
+    return (
+      <PanelState
+        kind="no-scope"
+        message="Selecciona un cliente en el workspace para editar tesis."
+        testId="react-thesis-editor-no-client"
       />
     );
   }
@@ -206,12 +285,64 @@ export function ReactThesisEditorPage() {
   }
 
   const theses = options.data ?? [];
+  const canActivate =
+    Boolean(detail.data?.resolved) && (detail.data?.activationBlockers.length ?? 1) === 0;
+
+  const handleSave = (intent: ThesisSaveIntent, fields: ThesisEditableFields) => {
+    if (!thesisId) return;
+    setStatusMessage(null);
+    saveThesis.mutate(
+      { thesisId, intent, fields },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({ kind: 'error', text: result.message || 'No se pudo guardar la tesis' });
+            return;
+          }
+          setStatusMessage({
+            kind: result.notifySkipped ? 'info' : 'success',
+            text: result.message,
+          });
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: 'No se pudo guardar la tesis' });
+        },
+      }
+    );
+  };
+
+  const handleActivate = () => {
+    if (!thesisId) return;
+    setStatusMessage(null);
+    activateThesis.mutate(
+      { thesisId },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setStatusMessage({
+              kind: 'error',
+              text: result.message || 'No se pudo activar la tesis',
+            });
+            return;
+          }
+          setStatusMessage({
+            kind: 'success',
+            text: result.message || 'Tesis activada. El radar y el scoring ya la usan.',
+          });
+        },
+        onError: () => {
+          setStatusMessage({ kind: 'error', text: 'No se pudo activar la tesis' });
+        },
+      }
+    );
+  };
 
   return (
     <section
       className="card thesis-editor-card"
       data-testid="react-thesis-editor"
-      data-authority="DISPLAY_ONLY"
+      data-authority="PRESENTATION"
+      data-workspace-client={scope.clientId ?? ''}
     >
       <div className="card-header">
         <div>
@@ -234,7 +365,10 @@ export function ReactThesisEditorPage() {
             id="react-thesis-select"
             className="form-select"
             value={thesisId ?? ''}
-            onChange={(event) => setThesisId(event.target.value || null)}
+            onChange={(event) => {
+              setThesisId(event.target.value || null);
+              setStatusMessage(null);
+            }}
             data-testid="react-thesis-select"
           >
             <option value="">Selecciona una tesis…</option>
@@ -264,8 +398,7 @@ export function ReactThesisEditorPage() {
         <p className="muted" role="alert" data-testid="react-thesis-detail-error">
           No se pudo cargar la tesis.
         </p>
-      ) : !detail.data?.resolved ? (
-        /* An unknown id is an error here, never a new empty thesis. */
+      ) : !detail.data?.resolved || !detail.data.editableFields ? (
         <p className="muted" role="alert" data-testid="react-thesis-unresolved">
           Esa tesis no existe para este cliente. No se ha creado ninguna tesis nueva.
         </p>
@@ -377,28 +510,44 @@ export function ReactThesisEditorPage() {
                 ))}
               </ul>
             </div>
-          ) : null}
+          ) : (
+            <p className="muted small" data-testid="react-thesis-activation-ready">
+              Elegible para activación según el dominio (el comando decide).
+            </p>
+          )}
 
           <ThesisReviewForm
             key={detail.data.id}
-            defaults={{
-              title: detail.data.title,
-              expertIdentity: detail.data.expertIdentity,
-              differentiator: detail.data.differentiator,
-              perceptionTarget: detail.data.perceptionTarget,
-            }}
+            thesisId={detail.data.id}
+            editableFields={detail.data.editableFields}
+            canActivate={canActivate}
+            busy={busy}
+            onSave={handleSave}
+            onActivate={handleActivate}
           />
         </div>
       )}
 
+      {statusMessage ? (
+        <p
+          className={
+            statusMessage.kind === 'error'
+              ? 'form-error'
+              : statusMessage.kind === 'info'
+                ? 'muted small'
+                : 'form-success'
+          }
+          role="status"
+          data-testid={
+            statusMessage.kind === 'error' ? 'react-thesis-error' : 'react-thesis-success'
+          }
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
+
       <LegacyHandoff
-        actions={[
-          'guardar la tesis',
-          'enviarla al cliente',
-          'activarla',
-          'el stress-test',
-          'generar propuesta con IA',
-        ]}
+        actions={['el stress-test', 'generar propuesta con IA']}
         testId="react-thesis-editor-handoff"
       />
     </section>

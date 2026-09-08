@@ -421,7 +421,7 @@ export function ReactAppShell() {
           />
         ) : null}
         {workspaceTab && activeClientId !== 'all' ? (
-          <ReactClientWorkspacePage tab={workspaceTab} />
+          <ReactClientWorkspacePage tab={workspaceTab} clientId={activeClientId} />
         ) : null}
         {portalTab ? <ReactClientPortalPage tab={portalTab} /> : null}
         {wave2Group ? <Wave2Surface group={wave2Group} /> : null}

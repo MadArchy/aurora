@@ -45,11 +45,13 @@ describe('T-010-509 — accessibility evidence', () => {
     }
   });
 
-  it('thesis editor exposes labelled select and disabled save controls', () => {
+  it('thesis editor exposes labelled select and native save controls', () => {
     const source = read(join(ROOT, 'src/ui/modules/pages/ReactThesisEditorPage.tsx'));
     expect(source).toMatch(/htmlFor=|aria-label=/);
-    expect(source).toMatch(/react-thesis-save-disabled/);
+    expect(source).toMatch(/react-thesis-save/);
+    expect(source).toMatch(/react-thesis-submit/);
     expect(source).toMatch(/react-thesis-select/);
+    expect(source).not.toMatch(/react-thesis-save-disabled/);
   });
 
   it('shell logout and mode controls are keyboard-operable buttons', () => {

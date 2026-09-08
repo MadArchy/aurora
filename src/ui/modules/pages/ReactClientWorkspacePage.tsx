@@ -535,7 +535,14 @@ function TasksPanel() {
  * Page
  * ------------------------------------------------------------------ */
 
-export function ReactClientWorkspacePage({ tab = 'radar' }: { tab?: WorkspaceTab }) {
+export function ReactClientWorkspacePage({
+  tab = 'radar',
+  clientId = null,
+}: {
+  tab?: WorkspaceTab;
+  /** Shell-selected workspace client — narrowed via trusted tenant scope, never forged. */
+  clientId?: string | null;
+}) {
   const { tenantScope, isAdmin } = useSession();
 
   if (!tenantScope) {
@@ -565,7 +572,7 @@ export function ReactClientWorkspacePage({ tab = 'radar' }: { tab?: WorkspaceTab
       {tab === 'results' ? <ReactKpiWeeklyChart title="Resultados registrados" /> : null}
       {tab === 'positioning' ? (
         <>
-          <ReactThesisEditorPage />
+          <ReactThesisEditorPage workspaceClientId={clientId} />
           <ReactMasterDossierPanel />
         </>
       ) : null}

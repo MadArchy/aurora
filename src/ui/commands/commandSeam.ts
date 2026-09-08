@@ -79,12 +79,24 @@ import {
   notifyManagerThesisChangesRequested,
   notifyManagerThesisClientApproved,
 } from '../presentation/thesisClientReviewNotification';
+import { notifyClientThesisManagerSave } from '../presentation/thesisManagerSaveNotification';
 import { openClientArticleReviewPresentation } from '../../services/articleReviewOpen';
 import { readBriefingAckNotificationContext } from '../data/compatibilityReads';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
 
 export type CommandResult = { ok: true; message?: string } | { ok: false; message: string };
+
+export type ThesisSaveCommandResult =
+  | {
+      ok: true;
+      toast: string;
+      message: string;
+      notifyClient: boolean;
+      intent: ThesisSaveIntent;
+      notifySkipped?: boolean;
+    }
+  | { ok: false; message: string };
 
 export type ThesisClientReviewCommandResult =
   | {
@@ -423,10 +435,34 @@ export const thesisLifecycleCommands = {
     thesisId: string;
     intent: ThesisSaveIntent;
     fields: ThesisEditableFields;
-  }): CommandResult {
+  }): ThesisSaveCommandResult {
     try {
-      saveThesis(intent);
-      return { ok: true };
+      const result = saveThesis(intent);
+      let message = result.toast;
+      let notifySkipped = false;
+      if (result.notifyClient) {
+        try {
+          const notified = notifyClientThesisManagerSave(
+            result.thesis.clientId,
+            result.thesis.title,
+            result.thesis.status
+          );
+          if (!notified) {
+            notifySkipped = true;
+            message = 'Tesis guardada. El cliente aún no tiene cuenta para recibir aviso.';
+          }
+        } catch {
+          // Best-effort compatibility — save already persisted.
+        }
+      }
+      return {
+        ok: true,
+        toast: result.toast,
+        message,
+        notifyClient: result.notifyClient,
+        intent: result.intent,
+        ...(notifySkipped ? { notifySkipped: true } : {}),
+      };
     } catch (err) {
       return {
         ok: false,
@@ -444,7 +480,10 @@ export const thesisLifecycleCommands = {
   }): CommandResult {
     try {
       activateThesis(intent);
-      return { ok: true };
+      return {
+        ok: true,
+        message: 'Tesis activada. El radar y el scoring ya la usan.',
+      };
     } catch (err) {
       return {
         ok: false,

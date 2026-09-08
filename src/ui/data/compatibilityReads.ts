@@ -45,10 +45,11 @@ import {
 } from '../../domain/thesisModelCore';
 import {
   canActivateThesis,
+  extractEditableFields,
   thesesAwaitingClientAction,
   thesisForClientReview,
 } from '../../domain/thesisRevisionCore';
-import type { PositioningThesis } from '../../types';
+import type { PositioningThesis, ThesisEditableFields } from '../../types';
 import { computeThesisStrength } from '../../domain/thesisStrengthCore';
 import { deliveryItemKindLabel, deliveryStatusLabel } from '../../domain/deliveryCore';
 import { deriveWorkStage } from '../../domain/workPipeline';
@@ -682,6 +683,8 @@ export interface ThesisDetailRead {
   readonly readyForReview: boolean;
   readonly readinessBlockers: readonly string[];
   readonly activationBlockers: readonly string[];
+  /** Factual editable snapshot for manager save merge — Domain extractEditableFields. */
+  readonly editableFields: ThesisEditableFields | null;
   readonly strengthScore: number | null;
   readonly assignedEvidence: number;
 }
@@ -723,6 +726,7 @@ const UNRESOLVED_THESIS: ThesisDetailRead = {
   readyForReview: false,
   readinessBlockers: [],
   activationBlockers: [],
+  editableFields: null,
   strengthScore: null,
   assignedEvidence: 0,
 };
@@ -794,6 +798,7 @@ export function readThesisDetail(
     readyForReview: readiness.ready,
     readinessBlockers: [...readiness.blockers],
     activationBlockers: activation.ok ? [] : [...activation.blockers],
+    editableFields: extractEditableFields(thesis),
     strengthScore: strength.authorityScore,
     assignedEvidence: evidence.filter((item) => item.associatedThesesIds?.includes(thesis.id))
       .length,
