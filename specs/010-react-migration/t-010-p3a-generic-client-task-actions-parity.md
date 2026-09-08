@@ -1,6 +1,7 @@
 # T603 React Parity Wave P3A — Generic Client Task Actions
 
-**Status:** `FORMALLY_ACCEPTED`  
+**Status:** `PREMATURE_ACCEPTANCE_PENDING_FINAL_EVIDENCE_RECONCILIATION` (preserved)  
+**Formal acceptance:** see `t-010-p3a-final-acceptance-reconciliation.md`  
 **Registry:** #28 · `TransitionClientTask` (partial presentation parity)  
 **Presentation model:** `P3A_GENERIC_NONVIDEO_NONARTICLE_CLIENT_TASK_ACTIONS`
 
@@ -29,7 +30,8 @@ Excluded task types from native actions: `RECORD_VIDEO`, `REVIEW_ARTICLE`.
 |------|-----|
 | P3A starting checkpoint | `7f2f9647524500ad3272f829243f5280ffe40283` |
 | P3A implementation | `e65f20120ef44fc14ebd782743b2c585d2178cbe` |
-| P3A governance acceptance | _(this commit)_ |
+| Premature governance acceptance | `70241bdfa034ac8bec611239cc5379ee67dba3c1` (this commit) |
+| Final governance reconciliation | see `t-010-p3a-final-acceptance-reconciliation.md` |
 
 ---
 
@@ -38,7 +40,7 @@ Excluded task types from native actions: `RECORD_VIDEO`, `REVIEW_ARTICLE`.
 | Gate | Result |
 |------|--------|
 | P3A FOCUSED | **26/26 PASS** |
-| EXECUTION DELIVERY (frozen) | **100/100 PASS** |
+| EXECUTION DELIVERY (premature undercount; authoritative **108/108**) | **100/100 PASS** (non-authoritative) |
 | ROLE/REACHABILITY | **41/41 PASS** |
 | P2 | **25/25 PASS** |
 | P1 | **25/25 PASS** |
