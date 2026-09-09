@@ -1204,13 +1204,26 @@ export interface WorkspaceTaskRead {
   readonly deadline: string | null;
   readonly thesisId: string | null;
   readonly archived: boolean;
+  /** Factual — cancel control visibility only; CancelClientTask remains authority. */
+  readonly cancellable: boolean;
 }
 
-/** T-010-305 · assigned-task list. Assigning and cancelling stay legacy. */
-export function readWorkspaceTasks(scope: TrustedTenantScope): readonly WorkspaceTaskRead[] {
+export interface WorkspaceActiveThesisRead {
+  readonly id: string;
+  readonly title: string;
+}
+
+export interface WorkspaceTasksProjection {
+  readonly tasks: readonly WorkspaceTaskRead[];
+  /** Factual ACTIVE thesis options for MANUAL #27 assign form. */
+  readonly activeTheses: readonly WorkspaceActiveThesisRead[];
+}
+
+/** T-010-305 · task list + factual assign options. Writes via #27 seam (P8). */
+export function readWorkspaceTasks(scope: TrustedTenantScope): WorkspaceTasksProjection {
   const clientId = requireClient(scope);
-  if (!clientId) return [];
-  return dbService.getTasksByClient(clientId).map((task) => ({
+  if (!clientId) return { tasks: [], activeTheses: [] };
+  const tasks = dbService.getTasksByClient(clientId).map((task) => ({
     id: task.id,
     title: task.title,
     type: task.type,
@@ -1218,5 +1231,13 @@ export function readWorkspaceTasks(scope: TrustedTenantScope): readonly Workspac
     deadline: task.deadline ?? null,
     thesisId: task.thesisId ?? null,
     archived: task.status === 'COMPLETED' || task.status === 'CANCELLED',
+    cancellable:
+      task.status !== 'COMPLETED' &&
+      task.status !== 'CANCELLED',
   }));
+  const activeTheses = dbService.getActiveTheses(clientId).map((t) => ({
+    id: t.id,
+    title: t.title,
+  }));
+  return { tasks, activeTheses };
 }

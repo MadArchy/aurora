@@ -60,6 +60,8 @@ import {
   registerSource,
 } from '../../services/signalIntakeConsumer';
 import {
+  assignClientTask,
+  cancelClientTask,
   reviewClientArticle,
   saveContentDraft,
   sendDeliveryPackage,
@@ -71,7 +73,13 @@ import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
 import { SignalIntakeError } from '../../application/signalIntake';
 import { ExecutionDeliveryError } from '../../application/executionDelivery';
-import type { ContentStatus, ContentType, SourceType, ThesisEditableFields } from '../../types';
+import type {
+  ContentStatus,
+  ContentType,
+  SourceType,
+  TaskType,
+  ThesisEditableFields,
+} from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
 import { notifyClient, notifyManager } from '../../services/notifications';
@@ -629,12 +637,109 @@ export const signalIntakeCommands = {
   },
 } as const;
 
+export type TaskAssignCommandResult =
+  | { ok: true; taskId: string; message: string; notifySkipped?: boolean }
+  | { ok: false; message: string };
+
+export type TaskCancelCommandResult =
+  | { ok: true; message: string; compatMissing?: boolean }
+  | { ok: false; message: string };
+
 /**
- * CR-1 Execution Delivery (#18 SendDeliveryPackage, #28 TransitionClientTask,
- * #31 SaveContentDraft, #32 ReviewClientArticle).
+ * CR-1 Execution Delivery (#18 SendDeliveryPackage, #27 Assign/CancelClientTask,
+ * #28 TransitionClientTask, #31 SaveContentDraft, #32 ReviewClientArticle).
  * Seam authority = 0. Claim safety / learning / providers not owned here.
  */
 export const executionDeliveryCommands = {
+  /**
+   * Registry #27 — AssignClientTask (MANUAL origin only).
+   * Recommendation→task composite remains #33 presentation (legacy).
+   * Notify + ASSIGN_TASK audit are presentation compatibility (mirrors tasksHandlers).
+   */
+  assignClientTaskManual(intent: {
+    requestedClientId: string | null | undefined;
+    thesisId: string;
+    type: TaskType;
+    title: string;
+    description: string;
+    estimatedMinutes: number;
+    deadline?: string;
+  }): TaskAssignCommandResult {
+    try {
+      const result = assignClientTask({
+        requestedClientId: intent.requestedClientId,
+        origin: {
+          kind: 'MANUAL',
+          thesisId: intent.thesisId,
+          type: intent.type,
+          title: intent.title,
+          description: intent.description,
+          estimatedMinutes: intent.estimatedMinutes,
+          deadline: intent.deadline,
+        },
+      });
+      let message = 'Tarea asignada. El cliente la verá en su portal.';
+      let notifySkipped = false;
+      try {
+        const notified = notifyClient(result.task.clientId, {
+          type: 'TASK_ASSIGNED',
+          title: 'Nueva tarea asignada',
+          body: result.task.title,
+          href: 'client-home',
+          targetId: result.task.id,
+        });
+        if (!notified) {
+          notifySkipped = true;
+          message = 'Tarea guardada. El cliente no tiene cuenta vinculada para avisos.';
+        }
+      } catch {
+        // Best-effort compatibility — assign already persisted.
+      }
+      try {
+        auditService.log(authService.getCurrentUser(), 'ASSIGN_TASK', 'Task', result.task.clientId, {
+          title: result.task.title,
+          type: result.task.type,
+        });
+      } catch {
+        // Best-effort compatibility.
+      }
+      return { ok: true, taskId: result.task.id, message, notifySkipped };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ExecutionDeliveryError || err instanceof Error
+            ? err.message
+            : 'No se pudo asignar la tarea',
+      };
+    }
+  },
+
+  /**
+   * Registry #27 — CancelClientTask.
+   * CANCEL_TASK audit is consumer-owned. Missing-task compat mirrors legacy toast success.
+   */
+  cancelClientTask(intent: { taskId: string }): TaskCancelCommandResult {
+    try {
+      const result = cancelClientTask({ taskId: intent.taskId });
+      if (!result.ok && result.compat === 'TASK_NOT_FOUND') {
+        return { ok: true, message: 'Tarea cancelada', compatMissing: true };
+      }
+      if (!result.ok) {
+        return { ok: false, message: 'No se pudo cancelar la tarea' };
+      }
+      return { ok: true, message: 'Tarea cancelada' };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ExecutionDeliveryError || err instanceof Error
+            ? err.message
+            : 'No se pudo cancelar la tarea',
+      };
+    }
+  },
+
   /**
    * Registry #18 — SendDeliveryPackage.
    * Public input only. Client BRIEFING notify is presentation compatibility
