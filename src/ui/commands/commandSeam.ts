@@ -56,10 +56,13 @@ import {
   saveThesis,
 } from '../../services/thesisLifecycleConsumer';
 import {
+  discardSignal as discardSignalConsumer,
+  markSignalSaved as markSignalSavedConsumer,
   registerManualSignal,
   registerSource,
 } from '../../services/signalIntakeConsumer';
 import {
+  addSignalToCuration as addSignalToCurationConsumer,
   assignClientTask,
   cancelClientTask,
   reviewClientArticle,
@@ -68,11 +71,14 @@ import {
   transitionClientTask,
   acknowledgeDelivery as acknowledgeDeliveryConsumer,
 } from '../../services/executionDeliveryConsumer';
+import { createStrategicSignalRoutingUseCases } from '../../composition/strategicSignalRouting/composeStrategicSignalRouting';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
 import { SignalIntakeError } from '../../application/signalIntake';
 import { ExecutionDeliveryError } from '../../application/executionDelivery';
+import { StrategicRoutingError } from '../../application/strategicSignalRouting';
+import { dbService } from '../../services/db';
 import type {
   ContentStatus,
   ContentType,
@@ -634,6 +640,168 @@ export const signalIntakeCommands = {
             : 'No se pudo registrar la señal',
       };
     }
+  },
+} as const;
+
+export type RadarDiscardCommandResult =
+  | { ok: true; message: string; compatMissing?: boolean }
+  | { ok: false; message: string };
+
+export type RadarSendToCurationCommandResult =
+  | { ok: true; message: string; alreadyInCuration?: boolean; preScored?: boolean }
+  | { ok: false; message: string };
+
+/**
+ * P9 — Radar #20 DiscardSignal + #21 radar send-to-curation composite.
+ *
+ * Seam authority = 0. Mirrors `radarHandlers` presentation composite exactly:
+ * optional frozen ScoreAndRouteSignal pre-score when authoritative relevanceScore
+ * is undefined, then AddSignalToCuration (#21a), then MarkSignalSaved (#21b),
+ * then presentation SIGNAL_TO_CURATION audit.
+ *
+ * Advisor AddAdviceActionToCuration is NOT exposed here (#21 non-radar residual).
+ * #22 score/investigate/addRecommendation UI is NOT exposed.
+ */
+export const radarCommands = {
+  /** Registry #20 — DiscardSignal. Consumer owns SIGNAL_DISCARDED on success. */
+  discardSignal(intent: {
+    requestedClientId: string | null | undefined;
+    signalId: string;
+  }): RadarDiscardCommandResult {
+    try {
+      discardSignalConsumer({
+        requestedClientId: intent.requestedClientId,
+        signalId: intent.signalId,
+      });
+      return { ok: true, message: 'Señal descartada' };
+    } catch (err) {
+      if (err instanceof SignalIntakeError && err.code === 'SIGNAL_NOT_FOUND') {
+        try {
+          auditService.log(
+            authService.getCurrentUser(),
+            'SIGNAL_DISCARDED',
+            'Signal',
+            intent.signalId
+          );
+        } catch {
+          // Best-effort A1 presentation compatibility.
+        }
+        return { ok: true, message: 'Señal descartada', compatMissing: true };
+      }
+      return {
+        ok: false,
+        message:
+          err instanceof SignalIntakeError || err instanceof Error
+            ? err.message
+            : 'No se pudo descartar la señal',
+      };
+    }
+  },
+
+  /**
+   * Registry #21 radar composite — AddSignalToCuration then MarkSignalSaved.
+   * Pre-score via frozen ScoreAndRouteSignal only when authoritative signal is unscored.
+   */
+  sendToCuration(intent: {
+    requestedClientId: string | null | undefined;
+    signalId: string;
+  }): RadarSendToCurationCommandResult {
+    const signalId = intent.signalId?.trim();
+    if (!signalId) {
+      return { ok: false, message: 'Señal no resuelta' };
+    }
+    const requestedClientId = intent.requestedClientId;
+
+    const signal = dbService.getSignalById(signalId);
+    if (!signal) {
+      return { ok: false, message: 'Señal no encontrada.' };
+    }
+
+    const clientId =
+      (typeof requestedClientId === 'string' && requestedClientId.trim()) || signal.clientId;
+    if (!clientId) {
+      return { ok: false, message: 'Cliente no resuelto' };
+    }
+
+    if (dbService.isSignalInCuration(clientId, signalId)) {
+      return {
+        ok: true,
+        message: 'Esta señal ya está en la mesa de curación.',
+        alreadyInCuration: true,
+      };
+    }
+
+    let preScored = false;
+    if (signal.relevanceScore === undefined) {
+      const organizationId =
+        dbService.getClientById(clientId)?.organizationId?.trim() ||
+        authService.getCurrentUser()?.organizationId?.trim() ||
+        null;
+      if (organizationId) {
+        try {
+          createStrategicSignalRoutingUseCases().scoreAndRouteSignal({
+            signalId,
+            clientId,
+            organizationId,
+          });
+          preScored = true;
+        } catch (error) {
+          if (!(error instanceof StrategicRoutingError && error.code === 'SIGNAL_NOT_FOUND')) {
+            return {
+              ok: false,
+              message:
+                error instanceof Error ? error.message : 'No se pudo puntuar la señal',
+            };
+          }
+        }
+      }
+    }
+
+    try {
+      addSignalToCurationConsumer({ requestedClientId: clientId, signalId });
+    } catch (error) {
+      if (error instanceof ExecutionDeliveryError && error.code === 'CURATION_ALREADY_EXISTS') {
+        return {
+          ok: true,
+          message: 'Esta señal ya está en la mesa de curación.',
+          alreadyInCuration: true,
+          preScored,
+        };
+      }
+      return {
+        ok: false,
+        message:
+          error instanceof ExecutionDeliveryError || error instanceof Error
+            ? error.message
+            : 'No se pudo enviar a curación',
+      };
+    }
+
+    try {
+      markSignalSavedConsumer({ requestedClientId: clientId, signalId });
+    } catch (error) {
+      if (error instanceof SignalIntakeError && error.code === 'SIGNAL_NOT_FOUND') {
+        // #21a already persisted — A2 presentation continues to audit/toast.
+      } else {
+        return {
+          ok: false,
+          message:
+            error instanceof SignalIntakeError || error instanceof Error
+              ? error.message
+              : 'No se pudo marcar la señal como guardada',
+        };
+      }
+    }
+
+    try {
+      auditService.log(authService.getCurrentUser(), 'SIGNAL_TO_CURATION', 'Signal', signalId, {
+        clientId,
+      });
+    } catch {
+      // Best-effort presentation compatibility — curation already persisted.
+    }
+
+    return { ok: true, message: 'Enviada a curación', preScored };
   },
 } as const;
 

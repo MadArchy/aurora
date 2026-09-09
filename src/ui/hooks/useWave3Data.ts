@@ -38,7 +38,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, executionDeliveryCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type DeliverySendCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
+import { briefCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type DeliverySendCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
 import type { TaskType } from '../../types';
 import type { ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
@@ -124,6 +124,49 @@ export function useWorkspaceRadar(scope: TrustedTenantScope | null) {
     queryKey: scope ? tenantQueryKey(scope, 'compatibility', 'workspace-radar') : DISABLED,
     queryFn: () => readWorkspaceRadar(scope!),
     enabled: scope !== null && scope.clientId !== null,
+  });
+}
+
+/** CR-1 #20 DiscardSignal — P9 React radar discard parity. */
+export function useDiscardRadarSignal(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<RadarDiscardCommandResult, Error, { signalId: string }>({
+    mutationFn: async ({ signalId }) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return radarCommands.discardSignal({
+        requestedClientId: scope.clientId,
+        signalId,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+    },
+  });
+}
+
+/**
+ * CR-1 #21 radar composite — AddSignalToCuration + MarkSignalSaved (+ optional ScoreAndRouteSignal).
+ * Advisor AddAdviceActionToCuration is not exposed.
+ */
+export function useSendSignalToCuration(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<RadarSendToCurationCommandResult, Error, { signalId: string }>({
+    mutationFn: async ({ signalId }) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return radarCommands.sendToCuration({
+        requestedClientId: scope.clientId,
+        signalId,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+    },
   });
 }
 

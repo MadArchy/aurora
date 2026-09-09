@@ -16,17 +16,19 @@
  *   - approve Strategic Brief   → `approveStrategicBrief` (SPEC-003)
  *   - #18 send delivery package → `SendDeliveryPackage` (P7)
  *   - #27 assign/cancel task    → `AssignClientTask` / `CancelClientTask` (P8 MANUAL)
- * Outcome/brief/#18/#27 change the caller only. #14–#17 assembly, #33 composite
+ *   - #20 discard signal        → `DiscardSignal` (P9)
+ *   - #21 radar send-to-curation → `AddSignalToCuration` + `MarkSignalSaved` (P9)
+ * Outcome/brief/#18/#27/#20/#21-radar change the caller only. #14–#17 assembly,
+ * #21 advisor AddAdviceActionToCuration, #22 score/investigate, #33 composite
  * recommendation→task path, and recordings remain legacy.
  *
- * BLOCKED, left legacy — the large majority. Scoring/routing runs through a
- * canonical use case but is followed by direct `dbService` writes; curation
- * decisions, delivery *assembly* (not send), source registration and ingestion,
- * #33 recommendation→task composite, evidence assignment and content generation
- * all write business state with no React parity yet (AUDIT010-09). Brief *creation*
- * is blocked for a different reason, recorded separately: its canonical consumer
- * requires the caller to pass the whole `CurationEntry` aggregate, which would
- * give the UI snapshot authority.
+ * BLOCKED, left legacy — the large majority. #22 bulk/per-signal score UI and
+ * investigate agents remain; curation decisions, delivery *assembly* (not send),
+ * source registration and ingestion, #33 recommendation→task composite, evidence
+ * assignment and content generation all write business state with no React parity
+ * yet (AUDIT010-09). Brief *creation* is blocked for a different reason, recorded
+ * separately: its canonical consumer requires the caller to pass the whole
+ * `CurationEntry` aggregate, which would give the UI snapshot authority.
  *
  * DELIBERATELY NOT REPRODUCED — the legacy radar and sources tabs call
  * `runSourceDiscoveryAgent` during render (`ClientWorkspace:1983`, `:2247`), so
@@ -41,7 +43,9 @@ import {
   useApproveBrief,
   useAssignClientTaskManual,
   useCancelClientTask,
+  useDiscardRadarSignal,
   useRegisterSignalOutcome,
+  useSendSignalToCuration,
   useSignalOutcomes,
   useStrategicBriefs,
   useWorkspaceDeliver,
@@ -72,15 +76,40 @@ const TASK_TYPE_OPTIONS: { value: TaskType; label: string }[] = [
   { value: 'SUBMIT_INFO', label: 'Enviar información' },
 ];
 /* ------------------------------------------------------------------ *
- * Radar — compatibility read + ONE canonical command
+ * Radar — compatibility read + signal outcome + #20/#21 radar writes (P9)
  * ------------------------------------------------------------------ */
 
-function RadarPanel() {
+function RadarPanel({ workspaceClientId = null }: { workspaceClientId?: string | null }) {
   const { tenantScope } = useSession();
-  const radar = useWorkspaceRadar(tenantScope);
-  const outcomes = useSignalOutcomes(tenantScope);
-  const register = useRegisterSignalOutcome(tenantScope);
-  const [message, setMessage] = useState<string | null>(null);
+  const scope = useMemo(() => {
+    if (!tenantScope) return null;
+    if (tenantScope.clientId) return tenantScope;
+    const requested = workspaceClientId?.trim();
+    if (!requested || requested === 'all') return null;
+    try {
+      return narrowToClient(tenantScope, requested);
+    } catch {
+      return null;
+    }
+  }, [tenantScope, workspaceClientId]);
+  const radar = useWorkspaceRadar(scope);
+  const outcomes = useSignalOutcomes(scope);
+  const register = useRegisterSignalOutcome(scope);
+  const discard = useDiscardRadarSignal(scope);
+  const sendToCuration = useSendSignalToCuration(scope);
+  const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(
+    null
+  );
+
+  if (!scope) {
+    return (
+      <PanelState
+        kind="no-scope"
+        message="Selecciona un cliente en el workspace para ver el radar."
+        testId="react-ws-radar-no-client"
+      />
+    );
+  }
 
   if (radar.isLoading) {
     return <PanelState kind="loading" message="Cargando radar…" testId="react-ws-radar-loading" />;
@@ -99,6 +128,7 @@ function RadarPanel() {
     newSignals: 0,
   };
   const outcomeBySignal = new Map((outcomes.data ?? []).map((o) => [o.signalId, o]));
+  const busy = register.isPending || discard.isPending || sendToCuration.isPending;
 
   const submit = async (
     signalId: string,
@@ -106,7 +136,29 @@ function RadarPanel() {
     thesisId: string | null
   ) => {
     const result = await register.mutateAsync({ signalId, kind, thesisId });
-    setMessage(result.ok ? 'Resultado registrado.' : result.message);
+    setMessage(
+      result.ok
+        ? { kind: 'success', text: 'Resultado registrado.' }
+        : { kind: 'error', text: result.message }
+    );
+  };
+
+  const onDiscard = async (signalId: string) => {
+    const result = await discard.mutateAsync({ signalId });
+    setMessage(
+      result.ok
+        ? { kind: 'success', text: result.message }
+        : { kind: 'error', text: result.message }
+    );
+  };
+
+  const onSendToCuration = async (signalId: string) => {
+    const result = await sendToCuration.mutateAsync({ signalId });
+    setMessage(
+      result.ok
+        ? { kind: 'success', text: result.message }
+        : { kind: 'error', text: result.message }
+    );
   };
 
   return (
@@ -161,6 +213,31 @@ function RadarPanel() {
                   ) : null}
                 </div>
 
+                <div className="signal-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy}
+                    onClick={() => void onDiscard(signal.id)}
+                    data-testid={`react-ws-discard-${signal.id}`}
+                  >
+                    Descartar
+                  </button>
+                  {signal.inCuration ? (
+                    <span className="badge badge-ready">En preparación</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={busy}
+                      onClick={() => void onSendToCuration(signal.id)}
+                      data-testid={`react-ws-send-curation-${signal.id}`}
+                    >
+                      Añadir a entrega
+                    </button>
+                  )}
+                </div>
+
                 <div className="signal-outcome-controls">
                   {outcome ? (
                     <span className="badge badge-ready" data-testid={`react-ws-outcome-${signal.id}`}>
@@ -172,7 +249,7 @@ function RadarPanel() {
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
-                        disabled={register.isPending}
+                        disabled={busy}
                         onClick={() => void submit(signal.id, 'USEFUL', signal.thesisId)}
                         data-testid={`react-ws-useful-${signal.id}`}
                       >
@@ -181,7 +258,7 @@ function RadarPanel() {
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
-                        disabled={register.isPending}
+                        disabled={busy}
                         onClick={() => void submit(signal.id, 'NOT_USEFUL', signal.thesisId)}
                       >
                         No
@@ -200,19 +277,19 @@ function RadarPanel() {
       )}
 
       {message ? (
-        <p className="muted small" role="status" data-testid="react-ws-radar-message">
-          {message}
+        <p
+          className={message.kind === 'error' ? 'form-error' : 'form-success'}
+          role="status"
+          data-testid={
+            message.kind === 'error' ? 'react-ws-radar-error-msg' : 'react-ws-radar-success'
+          }
+        >
+          {message.text}
         </p>
       ) : null}
 
       <LegacyHandoff
-        actions={[
-          'puntuar señales',
-          'descartarlas',
-          'investigarlas',
-          'añadirlas a una entrega',
-          'las fuentes recomendadas',
-        ]}
+        actions={['puntuar señales', 'investigarlas', 'las fuentes recomendadas']}
         testId="react-ws-radar-handoff"
       />
     </div>
@@ -923,7 +1000,7 @@ export function ReactClientWorkspacePage({
 
   return (
     <div className="page-content" data-testid="react-client-workspace" data-workspace-tab={tab}>
-      {tab === 'radar' ? <RadarPanel /> : null}
+      {tab === 'radar' ? <RadarPanel workspaceClientId={clientId} /> : null}
       {tab === 'deliver' ? <DeliverPanel workspaceClientId={clientId} /> : null}
       {tab === 'briefs' ? <BriefsPanel /> : null}
       {tab === 'sources' ? <SourcesPanel /> : null}
