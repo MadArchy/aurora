@@ -38,7 +38,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, executionDeliveryCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
+import { briefCommands, deliveryAckCommands, executionDeliveryCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type DeliverySendCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
 import type { ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 
@@ -132,6 +132,26 @@ export function useWorkspaceDeliver(scope: TrustedTenantScope | null) {
     queryKey: scope ? tenantQueryKey(scope, 'compatibility', 'workspace-deliver') : DISABLED,
     queryFn: () => readWorkspaceDeliver(scope!),
     enabled: scope !== null && scope.clientId !== null,
+  });
+}
+
+/** CR-1 #18 SendDeliveryPackage — P7 React delivery send parity. */
+export function useSendDeliveryPackage(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<DeliverySendCommandResult, Error, { packageId: string }>({
+    mutationFn: async ({ packageId }) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.sendDeliveryPackage({
+        requestedClientId: scope.clientId,
+        packageId,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+    },
   });
 }
 

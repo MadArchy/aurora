@@ -11,7 +11,7 @@
  *   ReactChallengeModal         pure props, navigation intents only
  *   ReactContentPreviewModal    compatibility read, no command
  *   ReactContentDiffModal       compatibility read, no command, ADMIN-gated
- *   ReactDeliveryPreviewModal   compatibility read, send stays legacy
+ *   ReactDeliveryPreviewModal   compatibility read + #18 SendDeliveryPackage (P7)
  *   ReactFeedbackModal          ONE canonical branch migrated (see below)
  *   ReactBriefSelectionModal    canonical brief read, generation stays legacy
  *
@@ -27,11 +27,13 @@
  * generate-content modal's `approvedBriefs[0]` pre-selection.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSession } from '../../../providers/SessionProvider';
+import { narrowToClient } from '../../../query/tenantScope';
 import {
   useContentAuthorizingBriefs,
   useContentDetail,
+  useSendDeliveryPackage,
   useWorkspaceDeliver,
 } from '../../../hooks/useWave3Data';
 import { useOpportunityCommands } from '../../../hooks/useWave2Data';
@@ -49,7 +51,7 @@ function ModalShell({
   subtitle?: string;
   onClose: () => void;
   testId: string;
-  authority: 'READ_ONLY' | 'DISPLAY_ONLY' | 'PRESENTATION_ONLY' | 'INTENT_ONLY';
+  authority: 'READ_ONLY' | 'DISPLAY_ONLY' | 'PRESENTATION_ONLY' | 'INTENT_ONLY' | 'PRESENTATION';
   children: React.ReactNode;
 }) {
   return (
@@ -360,25 +362,42 @@ export function ReactContentDiffModal({
 }
 
 /* ------------------------------------------------------------------ *
- * 5. Delivery preview — compatibility read, send stays legacy
+ * 5. Delivery preview — #18 SendDeliveryPackage (P7)
  * ------------------------------------------------------------------ */
 
 /**
  * READ SOURCE: compatibility (`readWorkspaceDeliver`).
- * COMMAND: none. Sending a briefing runs a canonical authorization gate and then
- * a series of `dbService` writes plus notifications (`main.ts:3020+`). The gate
- * is canonical but the writes are not, so the whole action stays legacy: a
- * partially-canonical command is not a migratable command.
+ * COMMAND: #18 SendDeliveryPackage via `executionDeliveryCommands.sendDeliveryPackage`.
+ * Assembly (#14–#17) stays legacy; this modal only sends an already-prepared draft.
  */
 export function ReactDeliveryPreviewModal({
   packageId,
   onClose,
+  onSent,
+  workspaceClientId = null,
 }: {
   packageId: string;
   onClose: () => void;
+  onSent?: (message: string) => void;
+  /** Shell-selected client for ADMIN workspace narrowing. */
+  workspaceClientId?: string | null;
 }) {
   const { tenantScope } = useSession();
-  const { data, isLoading, isError } = useWorkspaceDeliver(tenantScope);
+  const scope = useMemo(() => {
+    if (!tenantScope) return null;
+    if (tenantScope.clientId) return tenantScope;
+    const requested = workspaceClientId?.trim();
+    if (!requested || requested === 'all') return null;
+    try {
+      return narrowToClient(tenantScope, requested);
+    } catch {
+      return null;
+    }
+  }, [tenantScope, workspaceClientId]);
+  const { data, isLoading, isError } = useWorkspaceDeliver(scope);
+  const send = useSendDeliveryPackage(scope);
+  const [confirming, setConfirming] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!tenantScope) {
     return (
@@ -386,6 +405,15 @@ export function ReactDeliveryPreviewModal({
         kind="no-scope"
         message="Sesión sin contexto de organización."
         testId="react-delivery-preview-no-scope"
+      />
+    );
+  }
+  if (!scope) {
+    return (
+      <PanelState
+        kind="no-scope"
+        message="Selecciona un cliente en el workspace."
+        testId="react-delivery-preview-no-client"
       />
     );
   }
@@ -404,7 +432,33 @@ export function ReactDeliveryPreviewModal({
     );
   }
 
-  const pkg = (data?.sentDeliveries ?? []).find((item) => item.id === packageId);
+  const draft =
+    data?.draftPackage?.id === packageId ? data.draftPackage : null;
+  const sent = (data?.sentDeliveries ?? []).find((item) => item.id === packageId);
+  const pkg = draft ?? sent ?? null;
+  const canSend = Boolean(draft && draft.status === 'DRAFT' && draft.itemCount > 0);
+
+  const runSend = () => {
+    setErrorMessage(null);
+    send.mutate(
+      { packageId },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setErrorMessage(result.message || 'No se pudo enviar el briefing');
+            setConfirming(false);
+            return;
+          }
+          onSent?.(result.message);
+          onClose();
+        },
+        onError: () => {
+          setErrorMessage('No se pudo enviar el briefing');
+          setConfirming(false);
+        },
+      }
+    );
+  };
 
   return (
     <ModalShell
@@ -412,22 +466,73 @@ export function ReactDeliveryPreviewModal({
       subtitle={pkg ? `${pkg.itemCount} elementos · ${pkg.status}` : 'Briefing no encontrado'}
       onClose={onClose}
       testId="react-delivery-preview-modal"
-      authority="READ_ONLY"
+      authority="PRESENTATION"
     >
       {pkg ? (
-        <p className="small" data-testid="react-delivery-preview-body">
-          {pkg.title || 'Sin título'}
-          {pkg.sentAt ? ` · enviado ${pkg.sentAt}` : ''}
-        </p>
+        <div data-testid="react-delivery-preview-body">
+          <p className="small">
+            {pkg.title || 'Sin título'}
+            {pkg.sentAt ? ` · enviado ${pkg.sentAt}` : ''}
+          </p>
+          {pkg.itemTitles?.length ? (
+            <ul className="muted small" data-testid="react-delivery-preview-items">
+              {pkg.itemTitles.map((title, index) => (
+                <li key={`${index}-${title}`}>{title}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : (
         <p className="empty-state" data-testid="react-delivery-preview-empty">
           Ese briefing no está disponible en esta vista.
         </p>
       )}
-      <LegacyHandoff
-        actions={['enviar el briefing al cliente']}
-        testId="react-delivery-preview-handoff"
-      />
+
+      {canSend ? (
+        <div className="onboarding-footer" data-testid="react-delivery-preview-send-bar">
+          {!confirming ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              data-testid="react-delivery-preview-send"
+              disabled={send.isPending}
+              onClick={() => setConfirming(true)}
+            >
+              Enviar al cliente
+            </button>
+          ) : (
+            <>
+              <p className="small" role="status" data-testid="react-delivery-preview-confirm">
+                ¿Confirmas el envío? Se materializarán tareas y se avisará al cliente.
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                data-testid="react-delivery-preview-confirm-send"
+                disabled={send.isPending}
+                onClick={runSend}
+              >
+                Confirmar y enviar
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-testid="react-delivery-preview-cancel-send"
+                disabled={send.isPending}
+                onClick={() => setConfirming(false)}
+              >
+                Cancelar
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {errorMessage ? (
+        <p className="form-error" role="alert" data-testid="react-delivery-preview-error-msg">
+          {errorMessage}
+        </p>
+      ) : null}
     </ModalShell>
   );
 }

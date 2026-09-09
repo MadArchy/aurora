@@ -11,17 +11,19 @@
  *   canonical      (SPEC-008) signal outcomes · (SPEC-003) strategic briefs
  *   compatibility  radar signals, curation/delivery, sources, tasks
  *
- * CANONICAL COMMANDS migrated (2):
+ * CANONICAL COMMANDS migrated:
  *   - signal outcome "¿sirvió?" → `registerSignalOutcomeIntent` (SPEC-008)
  *   - approve Strategic Brief   → `approveStrategicBrief` (SPEC-003)
- * Both are canonical in the legacy controller too, so the migration changes the
- * caller and nothing else.
+ *   - #18 send delivery package → `SendDeliveryPackage` (P7)
+ * Both outcome/brief are canonical in the legacy controller too, so the migration
+ * changes the caller and nothing else. #18 send is presentation-only over the
+ * frozen consumer; #14–#17 assembly remains legacy.
  *
  * BLOCKED, left legacy — the large majority. Scoring/routing runs through a
  * canonical use case but is followed by direct `dbService` writes; curation
- * decisions, delivery assembly and sending, source registration and ingestion,
+ * decisions, delivery *assembly* (not send), source registration and ingestion,
  * task assignment, evidence assignment and content generation all write business
- * state with no canonical Application use case (AUDIT010-09). Brief *creation*
+ * state with no React parity yet (AUDIT010-09). Brief *creation*
  * is blocked for a different reason, recorded separately: its canonical consumer
  * requires the caller to pass the whole `CurationEntry` aggregate, which would
  * give the UI snapshot authority.
@@ -32,8 +34,9 @@
  * migrated, and the recommendation/discovery surfaces stay legacy-only.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSession } from '../../providers/SessionProvider';
+import { narrowToClient } from '../../query/tenantScope';
 import {
   useApproveBrief,
   useRegisterSignalOutcome,
@@ -47,6 +50,7 @@ import {
 import { ReactKpiWeeklyChart } from '../Kpi/ReactKpiWeeklyChart';
 import { ReactMasterDossierPanel } from '../MasterDossier/ReactMasterDossierPanel';
 import { ReactThesisEditorPage } from './ReactThesisEditorPage';
+import { ReactDeliveryPreviewModal } from './modals/ReactModals';
 import { LegacyHandoff, PanelState } from './LegacyHandoff';
 
 export type WorkspaceTab =
@@ -207,12 +211,38 @@ function RadarPanel() {
 }
 
 /* ------------------------------------------------------------------ *
- * Deliver — compatibility read, all commands legacy
+ * Deliver — #18 send native (P7); #14–#17 assembly remains legacy
  * ------------------------------------------------------------------ */
 
-function DeliverPanel() {
+function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string | null }) {
   const { tenantScope } = useSession();
-  const { data, isLoading, isError } = useWorkspaceDeliver(tenantScope);
+  const scope = useMemo(() => {
+    if (!tenantScope) return null;
+    if (tenantScope.clientId) return tenantScope;
+    const requested = workspaceClientId?.trim();
+    if (!requested || requested === 'all') return null;
+    try {
+      return narrowToClient(tenantScope, requested);
+    } catch {
+      return null;
+    }
+  }, [tenantScope, workspaceClientId]);
+  const { data, isLoading, isError } = useWorkspaceDeliver(scope);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{
+    kind: 'success' | 'error';
+    text: string;
+  } | null>(null);
+
+  if (!scope) {
+    return (
+      <PanelState
+        kind="no-scope"
+        message="Selecciona un cliente en el workspace para ver entregas."
+        testId="react-ws-deliver-no-client"
+      />
+    );
+  }
 
   if (isLoading) {
     return <PanelState kind="loading" message="Cargando entregas…" testId="react-ws-deliver-loading" />;
@@ -227,7 +257,27 @@ function DeliverPanel() {
     );
   }
 
-  const deliver = data ?? { pending: [], ready: 0, draftItems: 0, sentDeliveries: [] };
+  const deliver = data ?? {
+    pending: [],
+    ready: 0,
+    draftItems: 0,
+    draftPackage: null,
+    sentDeliveries: [],
+  };
+
+  if (previewOpen && deliver.draftPackage) {
+    return (
+      <ReactDeliveryPreviewModal
+        packageId={deliver.draftPackage.id}
+        workspaceClientId={workspaceClientId}
+        onClose={() => setPreviewOpen(false)}
+        onSent={(message) => {
+          setPreviewOpen(false);
+          setStatusMessage({ kind: 'success', text: message });
+        }}
+      />
+    );
+  }
 
   return (
     <div data-testid="react-ws-deliver">
@@ -268,6 +318,36 @@ function DeliverPanel() {
         </p>
       )}
 
+      {deliver.draftPackage ? (
+        <div className="card" data-testid="react-ws-draft-package" data-authority="PRESENTATION">
+          <p className="small">
+            <strong>{deliver.draftPackage.title || 'Briefing en borrador'}</strong>
+            {' · '}
+            {deliver.draftPackage.itemCount} elementos · {deliver.draftPackage.status}
+          </p>
+          <ul className="muted small" data-testid="react-ws-draft-items">
+            {deliver.draftPackage.itemTitles.map((title, index) => (
+              <li key={`${index}-${title}`}>{title}</li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-testid="react-ws-deliver-preview-send"
+            onClick={() => {
+              setStatusMessage(null);
+              setPreviewOpen(true);
+            }}
+          >
+            Vista previa y enviar
+          </button>
+        </div>
+      ) : (
+        <p className="muted small" data-testid="react-ws-draft-empty">
+          No hay briefing en borrador listo para enviar.
+        </p>
+      )}
+
       {deliver.sentDeliveries.length ? (
         <details data-testid="react-ws-sent-list">
           <summary className="small">Enviadas ({deliver.sentDeliveries.length})</summary>
@@ -281,12 +361,24 @@ function DeliverPanel() {
         </details>
       ) : null}
 
+      {statusMessage ? (
+        <p
+          className={statusMessage.kind === 'error' ? 'form-error' : 'form-success'}
+          role="status"
+          data-testid={
+            statusMessage.kind === 'error' ? 'react-ws-deliver-error-msg' : 'react-ws-deliver-success'
+          }
+        >
+          {statusMessage.text}
+        </p>
+      ) : null}
+
       <LegacyHandoff
         actions={[
           'decidir el destino',
           'proponer ángulo',
           'crear el Strategic Brief',
-          'montar y enviar el briefing',
+          'montar el briefing',
         ]}
         testId="react-ws-deliver-handoff"
       />
@@ -565,7 +657,7 @@ export function ReactClientWorkspacePage({
   return (
     <div className="page-content" data-testid="react-client-workspace" data-workspace-tab={tab}>
       {tab === 'radar' ? <RadarPanel /> : null}
-      {tab === 'deliver' ? <DeliverPanel /> : null}
+      {tab === 'deliver' ? <DeliverPanel workspaceClientId={clientId} /> : null}
       {tab === 'briefs' ? <BriefsPanel /> : null}
       {tab === 'sources' ? <SourcesPanel /> : null}
       {tab === 'tasks' ? <TasksPanel /> : null}

@@ -1073,6 +1073,15 @@ export function readWorkspaceRadar(scope: TrustedTenantScope): WorkspaceRadarRea
   };
 }
 
+export interface WorkspaceDeliverPackageRead {
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+  readonly sentAt: string | null;
+  readonly itemCount: number;
+  readonly itemTitles: readonly string[];
+}
+
 export interface WorkspaceDeliverRead {
   readonly pending: readonly {
     readonly id: string;
@@ -1084,19 +1093,17 @@ export interface WorkspaceDeliverRead {
   }[];
   readonly ready: number;
   readonly draftItems: number;
-  readonly sentDeliveries: readonly {
-    readonly id: string;
-    readonly title: string;
-    readonly status: string;
-    readonly sentAt: string | null;
-    readonly itemCount: number;
-  }[];
+  /** Current DRAFT package for #18 send preview — factual read only. */
+  readonly draftPackage: WorkspaceDeliverPackageRead | null;
+  readonly sentDeliveries: readonly WorkspaceDeliverPackageRead[];
 }
 
-/** T-010-305 · curation inbox and delivery history. Every write here stays legacy. */
+/** T-010-305 · curation inbox and delivery history. #18 send is React-native (P7). */
 export function readWorkspaceDeliver(scope: TrustedTenantScope): WorkspaceDeliverRead {
   const clientId = requireClient(scope);
-  if (!clientId) return { pending: [], ready: 0, draftItems: 0, sentDeliveries: [] };
+  if (!clientId) {
+    return { pending: [], ready: 0, draftItems: 0, draftPackage: null, sentDeliveries: [] };
+  }
 
   const draft = dbService.getDraftDelivery(clientId);
   const pending = dbService.getPendingCurationByClient(clientId).map((entry) => {
@@ -1113,18 +1120,32 @@ export function readWorkspaceDeliver(scope: TrustedTenantScope): WorkspaceDelive
     };
   });
 
+  const toPackageRead = (pkg: NonNullable<typeof draft>): WorkspaceDeliverPackageRead => ({
+    id: pkg.id,
+    title: pkg.title ?? '',
+    status: pkg.status,
+    sentAt: pkg.sentAt ?? null,
+    itemCount: pkg.items.length,
+    itemTitles: pkg.items.map((item) => item.title),
+  });
+
   return {
     pending,
     ready: dbService.getReadyCurationByClient(clientId).length,
     draftItems: draft?.items.length ?? 0,
-    sentDeliveries: dbService.getSentDeliveriesByClient(clientId).map((pkg) => ({
-      id: pkg.id,
-      title: pkg.title ?? '',
-      status: pkg.status,
-      sentAt: pkg.sentAt ?? null,
-      itemCount: pkg.items.length,
-    })),
+    draftPackage: draft ? toPackageRead(draft) : null,
+    sentDeliveries: dbService.getSentDeliveriesByClient(clientId).map(toPackageRead),
   };
+}
+
+/** P7 presentation notify facts after canonical #18 success (title/body only). */
+export function readDeliverySentNotifyFacts(packageId: string): {
+  readonly title: string;
+  readonly itemCount: number;
+} | null {
+  const pkg = dbService.getDeliveryById(packageId);
+  if (!pkg) return null;
+  return { title: pkg.title ?? '', itemCount: pkg.items.length };
 }
 
 export interface WorkspaceSourcesRead {

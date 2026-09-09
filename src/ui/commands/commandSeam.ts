@@ -62,6 +62,7 @@ import {
 import {
   reviewClientArticle,
   saveContentDraft,
+  sendDeliveryPackage,
   transitionClientTask,
   acknowledgeDelivery as acknowledgeDeliveryConsumer,
 } from '../../services/executionDeliveryConsumer';
@@ -73,7 +74,7 @@ import { ExecutionDeliveryError } from '../../application/executionDelivery';
 import type { ContentStatus, ContentType, SourceType, ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 import { downloadDossierMarkdown, formatDossierMarkdown } from '../../services/dossierExport';
-import { notifyManager } from '../../services/notifications';
+import { notifyClient, notifyManager } from '../../services/notifications';
 import { notifyManagerBriefingAcknowledged } from '../presentation/briefingAckNotification';
 import {
   notifyManagerThesisChangesRequested,
@@ -81,7 +82,10 @@ import {
 } from '../presentation/thesisClientReviewNotification';
 import { notifyClientThesisManagerSave } from '../presentation/thesisManagerSaveNotification';
 import { openClientArticleReviewPresentation } from '../../services/articleReviewOpen';
-import { readBriefingAckNotificationContext } from '../data/compatibilityReads';
+import {
+  readBriefingAckNotificationContext,
+  readDeliverySentNotifyFacts,
+} from '../data/compatibilityReads';
 import type { Client, MasterDossier } from '../../types';
 import type { TrustedTenantScope } from '../query/tenantScope';
 
@@ -122,6 +126,16 @@ export type ArticleReviewCommandResult =
       decision: 'save_revision' | 'approve' | 'request_changes';
       message: string;
       hadRevisionEvent: boolean;
+    }
+  | { ok: false; message: string };
+
+export type DeliverySendCommandResult =
+  | {
+      ok: true;
+      packageId: string;
+      createdTasks: number;
+      message: string;
+      notifySkipped?: boolean;
     }
   | { ok: false; message: string };
 
@@ -616,10 +630,62 @@ export const signalIntakeCommands = {
 } as const;
 
 /**
- * CR-1 Execution Delivery (#28 TransitionClientTask, #31 SaveContentDraft, #32 ReviewClientArticle).
+ * CR-1 Execution Delivery (#18 SendDeliveryPackage, #28 TransitionClientTask,
+ * #31 SaveContentDraft, #32 ReviewClientArticle).
  * Seam authority = 0. Claim safety / learning / providers not owned here.
  */
 export const executionDeliveryCommands = {
+  /**
+   * Registry #18 — SendDeliveryPackage.
+   * Public input only. Client BRIEFING notify is presentation compatibility
+   * after canonical success (mirrors contentPipelineCommands.sendDelivery).
+   * Audit DELIVERY_SENT remains consumer-owned.
+   */
+  async sendDeliveryPackage(intent: {
+    requestedClientId: string | null | undefined;
+    packageId: string;
+  }): Promise<DeliverySendCommandResult> {
+    try {
+      const result = await sendDeliveryPackage(intent);
+      let message = `Briefing enviado. ${
+        result.createdTasks
+          ? `${result.createdTasks} tarea(s) creada(s).`
+          : 'Sin tareas nuevas.'
+      }`;
+      let notifySkipped = false;
+      try {
+        const facts = readDeliverySentNotifyFacts(result.packageId);
+        const notified = notifyClient(result.clientId, {
+          type: 'BRIEFING',
+          title: 'Nuevo briefing de tu Brand Manager',
+          body: `${facts?.title || 'Briefing'} · ${facts?.itemCount ?? result.itemCount} ítem(s)`,
+          href: 'client-home',
+        });
+        if (!notified) {
+          notifySkipped = true;
+          message = 'Briefing enviado. El cliente no tiene cuenta vinculada para avisos.';
+        }
+      } catch {
+        // Best-effort compatibility — send already persisted.
+      }
+      return {
+        ok: true,
+        packageId: result.packageId,
+        createdTasks: result.createdTasks,
+        message,
+        notifySkipped,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof ExecutionDeliveryError || err instanceof Error
+            ? err.message
+            : 'No se pudo enviar el briefing',
+      };
+    }
+  },
+
   transitionClientTask(intent: {
     requestedClientId: string | null | undefined;
     taskId: string;
