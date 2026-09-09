@@ -81,6 +81,7 @@ test.describe('P9 — React admin radar discard + send-to-curation parity', () =
         const signal = dbService.getSignalById(id);
         return {
           inCuration: dbService.isSignalInCuration(cid, id),
+          managerDecision: signal?.managerDecision ?? null,
           status: signal?.status ?? null,
           score: typeof signal?.relevanceScore === 'number' ? signal.relevanceScore : null,
         };
@@ -88,7 +89,7 @@ test.describe('P9 — React admin radar discard + send-to-curation parity', () =
       { cid: CLIENT_JUAN_ID, id: fixture.curationId }
     );
     expect(curationState.inCuration).toBe(true);
-    expect(curationState.status).toBe('SAVED');
+    expect(curationState.managerDecision).toBe('SAVED');
     if (!fixture.curationScored) {
       expect(curationState.score).not.toBeNull();
     }
