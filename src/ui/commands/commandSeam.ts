@@ -57,12 +57,10 @@ import {
 } from '../../services/thesisLifecycleConsumer';
 import {
   discardSignal as discardSignalConsumer,
-  markSignalSaved as markSignalSavedConsumer,
   registerManualSignal,
   registerSource,
 } from '../../services/signalIntakeConsumer';
 import {
-  addSignalToCuration as addSignalToCurationConsumer,
   assignClientTask,
   cancelClientTask,
   reviewClientArticle,
@@ -71,14 +69,12 @@ import {
   transitionClientTask,
   acknowledgeDelivery as acknowledgeDeliveryConsumer,
 } from '../../services/executionDeliveryConsumer';
-import { createStrategicSignalRoutingUseCases } from '../../composition/strategicSignalRouting/composeStrategicSignalRouting';
+import { runRadarSendToCurationComposite } from '../../services/radarSendToCurationPresentation';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
 import { SignalIntakeError } from '../../application/signalIntake';
 import { ExecutionDeliveryError } from '../../application/executionDelivery';
-import { StrategicRoutingError } from '../../application/strategicSignalRouting';
-import { dbService } from '../../services/db';
 import type {
   ContentStatus,
   ContentType,
@@ -701,107 +697,13 @@ export const radarCommands = {
   /**
    * Registry #21 radar composite — AddSignalToCuration then MarkSignalSaved.
    * Pre-score via frozen ScoreAndRouteSignal only when authoritative signal is unscored.
+   * Composite body lives in `radarSendToCurationPresentation` (mirrors radarHandlers; keeps seam/React db-free).
    */
   sendToCuration(intent: {
     requestedClientId: string | null | undefined;
     signalId: string;
   }): RadarSendToCurationCommandResult {
-    const signalId = intent.signalId?.trim();
-    if (!signalId) {
-      return { ok: false, message: 'Señal no resuelta' };
-    }
-    const requestedClientId = intent.requestedClientId;
-
-    const signal = dbService.getSignalById(signalId);
-    if (!signal) {
-      return { ok: false, message: 'Señal no encontrada.' };
-    }
-
-    const clientId =
-      (typeof requestedClientId === 'string' && requestedClientId.trim()) || signal.clientId;
-    if (!clientId) {
-      return { ok: false, message: 'Cliente no resuelto' };
-    }
-
-    if (dbService.isSignalInCuration(clientId, signalId)) {
-      return {
-        ok: true,
-        message: 'Esta señal ya está en la mesa de curación.',
-        alreadyInCuration: true,
-      };
-    }
-
-    let preScored = false;
-    if (signal.relevanceScore === undefined) {
-      const organizationId =
-        dbService.getClientById(clientId)?.organizationId?.trim() ||
-        authService.getCurrentUser()?.organizationId?.trim() ||
-        null;
-      if (organizationId) {
-        try {
-          createStrategicSignalRoutingUseCases().scoreAndRouteSignal({
-            signalId,
-            clientId,
-            organizationId,
-          });
-          preScored = true;
-        } catch (error) {
-          if (!(error instanceof StrategicRoutingError && error.code === 'SIGNAL_NOT_FOUND')) {
-            return {
-              ok: false,
-              message:
-                error instanceof Error ? error.message : 'No se pudo puntuar la señal',
-            };
-          }
-        }
-      }
-    }
-
-    try {
-      addSignalToCurationConsumer({ requestedClientId: clientId, signalId });
-    } catch (error) {
-      if (error instanceof ExecutionDeliveryError && error.code === 'CURATION_ALREADY_EXISTS') {
-        return {
-          ok: true,
-          message: 'Esta señal ya está en la mesa de curación.',
-          alreadyInCuration: true,
-          preScored,
-        };
-      }
-      return {
-        ok: false,
-        message:
-          error instanceof ExecutionDeliveryError || error instanceof Error
-            ? error.message
-            : 'No se pudo enviar a curación',
-      };
-    }
-
-    try {
-      markSignalSavedConsumer({ requestedClientId: clientId, signalId });
-    } catch (error) {
-      if (error instanceof SignalIntakeError && error.code === 'SIGNAL_NOT_FOUND') {
-        // #21a already persisted — A2 presentation continues to audit/toast.
-      } else {
-        return {
-          ok: false,
-          message:
-            error instanceof SignalIntakeError || error instanceof Error
-              ? error.message
-              : 'No se pudo marcar la señal como guardada',
-        };
-      }
-    }
-
-    try {
-      auditService.log(authService.getCurrentUser(), 'SIGNAL_TO_CURATION', 'Signal', signalId, {
-        clientId,
-      });
-    } catch {
-      // Best-effort presentation compatibility — curation already persisted.
-    }
-
-    return { ok: true, message: 'Enviada a curación', preScored };
+    return runRadarSendToCurationComposite(intent);
   },
 } as const;
 

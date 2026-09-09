@@ -122,6 +122,12 @@ function read(rel: string): string {
   return readFileSync(join(process.cwd(), rel), 'utf8');
 }
 
+function code(rel: string): string {
+  return read(rel)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 beforeEach(() => {
   discardCalls.length = 0;
   addCalls.length = 0;
@@ -152,16 +158,25 @@ describe('P9 §2–§3 — #21 ownership gate', () => {
     expect(radar).toMatch(/markSignalSaved/);
     expect(radar).not.toMatch(/addAdviceActionToCuration/);
 
-    const seam = read('src/ui/commands/commandSeam.ts');
+    const seam = code('src/ui/commands/commandSeam.ts');
     expect(seam).toMatch(/radarCommands/);
-    expect(seam).toMatch(/addSignalToCurationConsumer|addSignalToCuration/);
+    expect(seam).toMatch(/runRadarSendToCurationComposite/);
     expect(seam).not.toMatch(/addAdviceActionToCuration/);
+    expect(seam).not.toMatch(/\bdbService\b/);
+
+    const composite = read('src/services/radarSendToCurationPresentation.ts');
+    expect(composite).toMatch(/addSignalToCuration/);
+    expect(composite).toMatch(/markSignalSaved/);
+    expect(composite).toMatch(/scoreAndRouteSignal/);
+    expect(composite).not.toMatch(/addAdviceActionToCuration/);
+    expect(composite).not.toMatch(/addRecommendation/);
 
     const panel = read('src/ui/modules/pages/ReactClientWorkspacePage.tsx');
     expect(panel).toMatch(/useDiscardRadarSignal/);
     expect(panel).toMatch(/useSendSignalToCuration/);
     expect(panel).not.toMatch(/addAdviceActionToCuration/);
     expect(panel).not.toMatch(/addRecommendation/);
+    expect(panel).not.toMatch(/dbService/);
   });
 });
 
