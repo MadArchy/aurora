@@ -72,6 +72,7 @@ import {
 import { runRadarSendToCurationComposite } from '../../services/radarSendToCurationPresentation';
 import { runCurationDecidePresentation } from '../../services/curationDecidePresentation';
 import { runCurationProposeAnglePresentation } from '../../services/curationProposeAnglePresentation';
+import { runBriefCreateFromCurationPresentation } from '../../services/briefCreateFromCurationPresentation';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
@@ -159,6 +160,10 @@ export type CurationDecideCommandResult =
 export type ProposeAngleCommandResult =
   | { ok: true; message: string; kind: 'success' }
   | { ok: false; message: string; kind?: 'warning' | 'error'; silent?: boolean };
+
+export type CreateBriefFromCurationCommandResult =
+  | { ok: true; message: string; briefId: string }
+  | { ok: false; message: string; kind?: 'warning' | 'error' };
 
 /**
  * Wraps a canonical call so a rejection reaches the UI as a message instead of
@@ -372,11 +377,11 @@ export const signalOutcomeCommands = {
  * the id and returns the consumer's verdict. It never marks a brief approved in
  * the UI, and a refused approval leaves no optimistic state behind (T-010-14).
  *
- * NOT EXPOSED — brief creation. CR-2 (2026-08-28) changed
- * `createBriefFromCurationEntry` to id-based authoritative reload
- * (`curationEntryId` only). The seam still does not expose brief creation until
- * a presentation migration explicitly adopts the consumer; legacy UI invokes it
- * directly from `main.ts`.
+ * CR-2 brief creation from curation (P12). Composite body lives in
+ * `briefCreateFromCurationPresentation` (mirrors curationHandlers create-brief
+ * click; keeps seam/React db-free). React passes `curationEntryId` and factual
+ * `destination` from the compatibility read only — canonical consumer reloads the
+ * entry and resolves thesis internally.
  */
 export const briefCommands = {
   approve(scope: TrustedTenantScope, briefId: string): CommandResult {
@@ -389,6 +394,13 @@ export const briefCommands = {
         }),
       'No se pudo aprobar el Strategic Brief'
     );
+  },
+
+  createFromCuration(intent: {
+    curationEntryId: string;
+    destination: CurationDestination;
+  }): CreateBriefFromCurationCommandResult {
+    return runBriefCreateFromCurationPresentation(intent);
   },
 } as const;
 

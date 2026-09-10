@@ -20,7 +20,8 @@
  *   - #21 radar send-to-curation → `AddSignalToCuration` + `MarkSignalSaved` (P9)
  *   - #14 decide curation       → `DecideCuration` (P10)
  *   - #15 propose angle         → `ProposeAngle` (P11)
- * Outcome/brief/#18/#27/#20/#21-radar/#14/#15 change the caller only. #16–#17 assembly,
+ *   - CR-2 brief create         → `createBriefFromCurationEntry` (P12)
+ * Outcome/brief/#18/#27/#20/#21-radar/#14/#15/#12 change the caller only. #17 assembly,
  * #21 advisor AddAdviceActionToCuration, #22 score/investigate, #33 composite
  * recommendation→task path, and recordings remain legacy.
  *
@@ -28,9 +29,7 @@
  * investigate agents remain; curation decisions, delivery *assembly* (not send),
  * source registration and ingestion, #33 recommendation→task composite, evidence
  * assignment and content generation all write business state with no React parity
- * yet (AUDIT010-09). Brief *creation* is blocked for a different reason, recorded
- * separately: its canonical consumer requires the caller to pass the whole
- * `CurationEntry` aggregate, which would give the UI snapshot authority.
+ * yet (AUDIT010-09).
  *
  * DELIBERATELY NOT REPRODUCED — the legacy radar and sources tabs call
  * `runSourceDiscoveryAgent` during render (`ClientWorkspace:1983`, `:2247`), so
@@ -45,6 +44,7 @@ import {
   useApproveBrief,
   useAssignClientTaskManual,
   useCancelClientTask,
+  useCreateBriefFromCuration,
   useDecideCuration,
   useProposeAngle,
   useDiscardRadarSignal,
@@ -57,6 +57,7 @@ import {
   useWorkspaceSources,
   useWorkspaceTasks,
 } from '../../hooks/useWave3Data';
+import { curationDestinationToAuthorizedAction } from '../../../domain/briefConsumerCore';
 import type { CurationDestination, TaskType } from '../../../types';
 import { ReactKpiWeeklyChart } from '../Kpi/ReactKpiWeeklyChart';
 import { ReactMasterDossierPanel } from '../MasterDossier/ReactMasterDossierPanel';
@@ -408,7 +409,9 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
   const { data, isLoading, isError } = useWorkspaceDeliver(scope);
   const decide = useDecideCuration(scope);
   const propose = useProposeAngle(scope);
+  const createBrief = useCreateBriefFromCuration(scope);
   const [proposingId, setProposingId] = useState<string | null>(null);
+  const [creatingBriefId, setCreatingBriefId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     kind: 'success' | 'error' | 'warning';
@@ -448,6 +451,25 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       setStatusMessage({ kind: 'success', text: result.message });
     } finally {
       setProposingId(null);
+    }
+  };
+
+  const onCreateBrief = async (curationEntryId: string, destination: CurationDestination) => {
+    if (createBrief.isPending || creatingBriefId) return;
+    setCreatingBriefId(curationEntryId);
+    setStatusMessage(null);
+    try {
+      const result = await createBrief.mutateAsync({ curationEntryId, destination });
+      if (!result.ok) {
+        setStatusMessage({
+          kind: result.kind === 'error' ? 'error' : 'warning',
+          text: result.message,
+        });
+        return;
+      }
+      setStatusMessage({ kind: 'success', text: result.message });
+    } finally {
+      setCreatingBriefId(null);
     }
   };
 
@@ -544,7 +566,13 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       {deliver.readyEntries.length ? (
         <ul className="curation-list" data-testid="react-ws-ready-list">
           {deliver.readyEntries.map((entry) => {
-            const busy = propose.isPending && proposingId === entry.id;
+            const proposeBusy = propose.isPending && proposingId === entry.id;
+            const briefBusy = createBrief.isPending && creatingBriefId === entry.id;
+            const briefDestination = entry.destination as CurationDestination | null;
+            const briefEligible =
+              Boolean(briefDestination) &&
+              Boolean(curationDestinationToAuthorizedAction(briefDestination!)) &&
+              !entry.strategicBriefId;
             return (
               <li className="curation-row" key={entry.id} data-testid={`react-ws-ready-${entry.id}`}>
                 <div>
@@ -560,17 +588,30 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
                     </p>
                   ) : null}
                 </div>
-                {!entry.aiAngle ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    data-testid={`react-ws-propose-angle-${entry.id}`}
-                    disabled={busy || propose.isPending}
-                    onClick={() => void onProposeAngle(entry.id)}
-                  >
-                    {busy ? 'Pensando…' : 'Proponer ángulo'}
-                  </button>
-                ) : null}
+                <div className="curation-row-actions">
+                  {!entry.aiAngle ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      data-testid={`react-ws-propose-angle-${entry.id}`}
+                      disabled={proposeBusy || propose.isPending}
+                      onClick={() => void onProposeAngle(entry.id)}
+                    >
+                      {proposeBusy ? 'Pensando…' : 'Proponer ángulo'}
+                    </button>
+                  ) : null}
+                  {briefEligible ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      data-testid={`react-ws-create-brief-${entry.id}`}
+                      disabled={briefBusy || createBrief.isPending}
+                      onClick={() => void onCreateBrief(entry.id, briefDestination!)}
+                    >
+                      {briefBusy ? 'Creando…' : 'Create Strategic Brief DRAFT'}
+                    </button>
+                  ) : null}
+                </div>
               </li>
             );
           })}
@@ -646,10 +687,7 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
         </p>
       ) : null}
 
-      <LegacyHandoff
-        actions={['crear el Strategic Brief', 'montar el briefing']}
-        testId="react-ws-deliver-handoff"
-      />
+      <LegacyHandoff actions={['montar el briefing']} testId="react-ws-deliver-handoff" />
     </div>
   );
 }

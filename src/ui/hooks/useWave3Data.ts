@@ -38,7 +38,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type CurationDecideCommandResult, type DeliverySendCommandResult, type ProposeAngleCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
+import { briefCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type CreateBriefFromCurationCommandResult, type CurationDecideCommandResult, type DeliverySendCommandResult, type ProposeAngleCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
 import type { CurationDestination, TaskType } from '../../types';
 import type { ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
@@ -528,6 +528,30 @@ export function useRegisterSignalOutcome(scope: TrustedTenantScope | null) {
       void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'canonical') });
       void queryClient.invalidateQueries({
         queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+    },
+  });
+}
+
+/** CR-2 createBriefFromCurationEntry — P12 React deliver brief-create parity. */
+export function useCreateBriefFromCuration(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    CreateBriefFromCurationCommandResult,
+    Error,
+    { curationEntryId: string; destination: CurationDestination }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return briefCommands.createFromCuration(intent);
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'canonical'),
       });
     },
   });

@@ -223,20 +223,19 @@ describe('P11 §12–§13 — deliver read extension and UI predicate', () => {
 
   it('DeliverPanel shows propose control only when aiAngle is absent on ready row', () => {
     const panel = read('src/ui/modules/pages/ReactClientWorkspacePage.tsx');
+    const panelCode = code('src/ui/modules/pages/ReactClientWorkspacePage.tsx');
     expect(panel).toMatch(/useProposeAngle/);
     expect(panel).toMatch(/react-ws-ready-list/);
     expect(panel).toMatch(/react-ws-propose-angle-/);
     expect(panel).toMatch(/!entry\.aiAngle/);
     expect(panel).toMatch(/Pensando…/);
     expect(panel).toMatch(/Proponer ángulo/);
-    expect(panel).toMatch(
-      /actions=\{\['crear el Strategic Brief', 'montar el briefing'\]\}/
-    );
+    expect(panel).toMatch(/actions=\{\['montar el briefing'\]\}/);
     expect(panel).not.toMatch(/actions=\{[^}]*proponer ángulo/);
-    expect(panel).not.toMatch(/\bdbService\b/);
-    expect(panel).not.toMatch(/\bproposeAngle\s*\(/);
-    expect(panel).not.toMatch(/createBriefFromCurationEntry/);
-    expect(panel).not.toMatch(/addRecommendation|scoreAndRouteSignal/);
+    expect(panelCode).not.toMatch(/\bdbService\b/);
+    expect(panelCode).not.toMatch(/\bproposeAngle\s*\(/);
+    expect(panelCode).not.toMatch(/\bcreateBriefFromCurationEntry\s*\(/);
+    expect(panelCode).not.toMatch(/addRecommendation|scoreAndRouteSignal/);
   });
 
   it('hooks invalidate compatibility queries after successful propose', () => {
@@ -286,10 +285,10 @@ describe('P11 §21–§25 — non-regression boundaries', () => {
     expect(composite).not.toMatch(/\bproposeAngle\b/);
   });
 
-  it('React layer does not call #14 decide, Brief create, #17, #18, or #22 from deliver panel', () => {
+  it('React layer does not call #14 decide, Brief create consumer, #17, #18, or #22 from deliver panel', () => {
     const panel = code('src/ui/modules/pages/ReactClientWorkspacePage.tsx');
     expect(panel).not.toMatch(/\bdecideCuration\s*\(/);
-    expect(panel).not.toMatch(/createBriefFromCurationEntry/);
+    expect(panel).not.toMatch(/\bcreateBriefFromCurationEntry\s*\(/);
     expect(panel).not.toMatch(/ensureDraftDelivery|addCurationToDelivery/);
     expect(panel).not.toMatch(/sendDeliveryPackage\s*\(/);
     expect(panel).not.toMatch(/scoreAndRouteSignal|addRecommendation/);

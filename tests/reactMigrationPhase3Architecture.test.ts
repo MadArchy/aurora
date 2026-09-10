@@ -227,8 +227,10 @@ describe('§10 / A26 — every wave-3 command goes through the command seam', ()
     expect(source).toMatch(/approveStrategicBrief/);
   });
 
-  it('brief creation is NOT exposed — its consumer requires a caller aggregate (T-010-07)', () => {
+  it('brief creation from curation is exposed via presentation composite (P12 CR-2)', () => {
     const source = code(join(ROOT, 'src/ui/commands/commandSeam.ts'));
+    expect(source).toMatch(/createFromCuration/);
+    expect(source).toMatch(/runBriefCreateFromCurationPresentation/);
     expect(source).not.toMatch(/createBriefFromCurationEntry/);
   });
 });

@@ -1,5 +1,5 @@
 /**
- * SPEC-010 · T603 React Parity Wave P11 — bounded ADMIN propose-angle E2E.
+ * SPEC-010 · T603 React Parity Wave P12 — bounded ADMIN brief-create E2E.
  */
 import { expect, test } from '@playwright/test';
 import {
@@ -10,8 +10,8 @@ import {
 
 test.use({ channel: 'chrome' });
 
-test.describe('P11 — React admin propose angle parity', () => {
-  test('ADMIN proposes angle on ready curation row without propose-angle handoff text', async ({
+test.describe('P12 — React admin create strategic brief parity', () => {
+  test('ADMIN creates DRAFT brief on ready curation row without brief-create handoff text', async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -30,20 +30,39 @@ test.describe('P11 — React admin propose angle parity', () => {
       dbService.applyStrategicRoutingToSignal(
         signal.id,
         {
-          totalScore: 82,
+          totalScore: 84,
           priorityBand: 'HIGH',
           factors: {} as never,
           penalties: {} as never,
-          strategicRationale: 'E2E P11 governed routing fixture.',
+          strategicRationale: 'E2E P12 governed routing fixture.',
           recommendedAction: 'CURATE',
           scoringStatus: 'SCORED',
           calculatedAt: new Date().toISOString(),
         },
         {
           thesisId: thesis.id,
-          thesisScores: [{ thesisId: thesis.id, score: 82, rationale: 'E2E' }],
+          thesisScores: [{ thesisId: thesis.id, score: 84, rationale: 'E2E' }],
           routingDecision: { routingState: 'CLEAR', selectedThesisId: thesis.id },
           clientId: cid,
+        }
+      );
+      dbService.applyScoreToSignal(
+        signal.id,
+        {
+          totalScore: 84,
+          priorityBand: 'HIGH',
+          factors: {} as never,
+          penalties: {} as never,
+          strategicRationale: 'E2E P12 governed score fixture.',
+          recommendedAction: 'CURATE',
+          scoringStatus: 'SCORED',
+          scoringVersion: 'scoring-v1',
+          recommendedDisposition: 'SAVE',
+          recommendedOutputFormat: 'ARTICLE',
+          calculatedAt: new Date().toISOString(),
+        },
+        {
+          whyNow: { reason: 'E2E P12 timely governed context', score: 10 },
         }
       );
 
@@ -54,8 +73,8 @@ test.describe('P11 — React admin propose angle parity', () => {
       decideCuration({
         requestedClientId: cid,
         curationEntryId: added.entry.id,
-        destination: 'EVIDENCE',
-        rationale: 'E2E P11 decided ready row with governed thesis routing context.',
+        destination: 'TASK_ARTICLE',
+        rationale: 'E2E P12 decided ready row with Brief-eligible destination.',
       });
 
       const entry = dbService.getCurationById(added.entry.id);
@@ -68,14 +87,14 @@ test.describe('P11 — React admin propose angle parity', () => {
         curationId: added.entry.id,
         thesisResolved: true,
         ready,
-        hasAngle: Boolean(entry?.aiAngle),
+        hasBrief: Boolean(entry?.strategicBriefId),
       };
     }, { cid: CLIENT_JUAN_ID });
 
     expect(fixture.curationId).toBeTruthy();
     expect(fixture.thesisResolved).toBe(true);
     expect(fixture.ready).toBe(true);
-    expect(fixture.hasAngle).toBe(false);
+    expect(fixture.hasBrief).toBe(false);
 
     await sidebarTab(page, 'ws-deliver').click();
     await expect(page.locator('[data-testid="react-ws-deliver"]')).toBeVisible({
@@ -84,7 +103,7 @@ test.describe('P11 — React admin propose angle parity', () => {
 
     await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toBeVisible();
     await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).not.toContainText(
-      'proponer ángulo'
+      'crear el Strategic Brief'
     );
     await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toContainText(
       'montar el briefing'
@@ -92,29 +111,32 @@ test.describe('P11 — React admin propose angle parity', () => {
 
     const curationId = fixture.curationId!;
     await expect(page.locator(`[data-testid="react-ws-ready-${curationId}"]`)).toBeVisible();
-    await page.locator(`[data-testid="react-ws-propose-angle-${curationId}"]`).click();
+    await page.locator(`[data-testid="react-ws-create-brief-${curationId}"]`).click();
 
     await expect(page.locator('[data-testid="react-ws-deliver-success"]')).toContainText(
-      /Ángulo propuesto/,
+      /Strategic Brief DRAFT created/,
       { timeout: 30_000 }
     );
 
-    await expect(page.locator(`[data-testid="react-ws-angle-${curationId}"]`)).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.locator(`[data-testid="react-ws-ready-${curationId}"]`)).toContainText(
+      'con Brief',
+      { timeout: 15_000 }
+    );
 
     const persisted = await page.evaluate(
       async ({ id }) => {
         const { dbService } = await import('/src/services/db.ts');
         const entry = dbService.getCurationById(id);
-        return entry?.aiAngle ?? null;
+        return entry?.strategicBriefId ?? null;
       },
       { id: curationId }
     );
     expect(persisted).toBeTruthy();
   });
 
-  test('THESIS_NOT_RESOLVED shows exact legacy warning on ready row', async ({ page }) => {
+  test('missing governed thesis/routing shows failure feedback on Brief create', async ({
+    page,
+  }) => {
     test.setTimeout(120_000);
     await openManagerWorkspace(page);
 
@@ -137,8 +159,8 @@ test.describe('P11 — React admin propose angle parity', () => {
       decideCuration({
         requestedClientId: cid,
         curationEntryId: added.entry.id,
-        destination: 'EVIDENCE',
-        rationale: 'E2E P11 unresolved thesis fixture for warning path.',
+        destination: 'TASK_ARTICLE',
+        rationale: 'E2E P12 unresolved thesis fixture for brief failure path.',
       });
       const entry = dbService.getCurationById(added.entry.id);
       if (entry?.deliveryPackageId) {
@@ -155,10 +177,9 @@ test.describe('P11 — React admin propose angle parity', () => {
     });
 
     const curationId = fixture.curationId!;
-    await page.locator(`[data-testid="react-ws-propose-angle-${curationId}"]`).click();
-    await expect(page.locator('[data-testid="react-ws-deliver-warning-msg"]')).toContainText(
-      'Routing must be resolved first — create a Strategic Brief or ensure CLEAR governed routing.',
-      { timeout: 15_000 }
-    );
+    await page.locator(`[data-testid="react-ws-create-brief-${curationId}"]`).click();
+    await expect(page.locator('[data-testid="react-ws-deliver-warning-msg"]')).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

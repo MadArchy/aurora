@@ -324,7 +324,7 @@ describe('P10 surface / #22 / React db boundaries', () => {
     expect(panel).toMatch(/react-ws-decide-form-/);
     expect(panel).toMatch(/react-ws-decide-submit-/);
     expect(panel).toMatch(
-      /actions=\{\['crear el Strategic Brief', 'montar el briefing'\]\}/
+      /actions=\{\['montar el briefing'\]\}/
     );
     expect(panel).not.toMatch(/actions=\{[^}]*proponer ángulo/);
     expect(panel).not.toMatch(/decidir el destino/);
