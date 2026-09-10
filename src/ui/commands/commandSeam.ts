@@ -71,6 +71,7 @@ import {
 } from '../../services/executionDeliveryConsumer';
 import { runRadarSendToCurationComposite } from '../../services/radarSendToCurationPresentation';
 import { runCurationDecidePresentation } from '../../services/curationDecidePresentation';
+import { runCurationProposeAnglePresentation } from '../../services/curationProposeAnglePresentation';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
@@ -154,6 +155,10 @@ export type DeliverySendCommandResult =
 export type CurationDecideCommandResult =
   | { ok: true; message: string; queued?: boolean; kind?: 'success' | 'warning' }
   | { ok: false; message: string };
+
+export type ProposeAngleCommandResult =
+  | { ok: true; message: string; kind: 'success' }
+  | { ok: false; message: string; kind?: 'warning' | 'error'; silent?: boolean };
 
 /**
  * Wraps a canonical call so a rejection reaches the UI as a message instead of
@@ -740,6 +745,18 @@ export const executionDeliveryCommands = {
     rationale: string;
   }): CurationDecideCommandResult {
     return runCurationDecidePresentation(intent);
+  },
+
+  /**
+   * Registry #15 — ProposeAngle.
+   * Composite body lives in `curationProposeAnglePresentation` (mirrors
+   * handleProposeAngleClick; keeps seam/React db-free and AI-free).
+   */
+  async proposeAngle(intent: {
+    requestedClientId: string | null | undefined;
+    curationEntryId: string;
+  }): Promise<ProposeAngleCommandResult> {
+    return runCurationProposeAnglePresentation(intent);
   },
 
   /**

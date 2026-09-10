@@ -45,7 +45,7 @@ test.describe('P10 — React admin decide curation parity', () => {
     await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).not.toContainText(
       'decidir el destino'
     );
-    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toContainText(
+    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).not.toContainText(
       'proponer ángulo'
     );
 

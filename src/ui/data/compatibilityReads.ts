@@ -1082,6 +1082,16 @@ export interface WorkspaceDeliverPackageRead {
   readonly itemTitles: readonly string[];
 }
 
+export interface WorkspaceDeliverReadyEntryRead {
+  readonly id: string;
+  readonly signalTitle: string;
+  readonly destination: string;
+  readonly rationale: string;
+  readonly strategicBriefId: string | null;
+  readonly aiAngle: string | null;
+  readonly stage: string;
+}
+
 export interface WorkspaceDeliverRead {
   readonly pending: readonly {
     readonly id: string;
@@ -1091,6 +1101,8 @@ export interface WorkspaceDeliverRead {
     readonly strategicBriefId: string | null;
     readonly stage: string;
   }[];
+  /** Decided curation rows not yet attached to a sent package — factual read for #15. */
+  readonly readyEntries: readonly WorkspaceDeliverReadyEntryRead[];
   readonly ready: number;
   readonly draftItems: number;
   /** Current DRAFT package for #18 send preview — factual read only. */
@@ -1102,7 +1114,14 @@ export interface WorkspaceDeliverRead {
 export function readWorkspaceDeliver(scope: TrustedTenantScope): WorkspaceDeliverRead {
   const clientId = requireClient(scope);
   if (!clientId) {
-    return { pending: [], ready: 0, draftItems: 0, draftPackage: null, sentDeliveries: [] };
+    return {
+      pending: [],
+      readyEntries: [],
+      ready: 0,
+      draftItems: 0,
+      draftPackage: null,
+      sentDeliveries: [],
+    };
   }
 
   const draft = dbService.getDraftDelivery(clientId);
@@ -1129,9 +1148,25 @@ export function readWorkspaceDeliver(scope: TrustedTenantScope): WorkspaceDelive
     itemTitles: pkg.items.map((item) => item.title),
   });
 
+  const readyEntries = dbService.getReadyCurationByClient(clientId).map((entry) => {
+    const pkg = entry.deliveryPackageId
+      ? dbService.getDeliveryById(entry.deliveryPackageId)
+      : undefined;
+    return {
+      id: entry.id,
+      signalTitle: entry.title,
+      destination: entry.destination as string,
+      rationale: entry.managerRationale,
+      strategicBriefId: entry.strategicBriefId ?? null,
+      aiAngle: entry.aiAngle ?? null,
+      stage: deriveWorkStage({ entry, pkg, task: undefined }),
+    };
+  });
+
   return {
     pending,
-    ready: dbService.getReadyCurationByClient(clientId).length,
+    readyEntries,
+    ready: readyEntries.length,
     draftItems: draft?.items.length ?? 0,
     draftPackage: draft ? toPackageRead(draft) : null,
     sentDeliveries: dbService.getSentDeliveriesByClient(clientId).map(toPackageRead),

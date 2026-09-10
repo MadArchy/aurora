@@ -323,9 +323,10 @@ describe('P10 surface / #22 / React db boundaries', () => {
     expect(panel).toMatch(/useDecideCuration/);
     expect(panel).toMatch(/react-ws-decide-form-/);
     expect(panel).toMatch(/react-ws-decide-submit-/);
-    expect(panel).toMatch(/proponer ángulo/);
-    expect(panel).toMatch(/crear el Strategic Brief/);
-    expect(panel).toMatch(/montar el briefing/);
+    expect(panel).toMatch(
+      /actions=\{\['crear el Strategic Brief', 'montar el briefing'\]\}/
+    );
+    expect(panel).not.toMatch(/actions=\{[^}]*proponer ángulo/);
     expect(panel).not.toMatch(/decidir el destino/);
     expect(panel).not.toMatch(/dbService\./);
     expect(panel).not.toMatch(/proposeAngle|removeCuration|reopenCuration/);
@@ -345,7 +346,7 @@ describe('P10 surface / #22 / React db boundaries', () => {
     const seam = code('src/ui/commands/commandSeam.ts');
     expect(seam).toMatch(/runCurationDecidePresentation/);
     expect(seam).not.toMatch(/\bdbService\b/);
-    expect(seam).not.toMatch(/proposeAngle|removeCuration|reopenCuration/);
+    expect(seam).not.toMatch(/removeCuration|reopenCuration/);
   });
 
   it('presentation composite mirrors curationHandlers without #15/#16/#17 UI', () => {

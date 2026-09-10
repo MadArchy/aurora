@@ -19,7 +19,8 @@
  *   - #20 discard signal        → `DiscardSignal` (P9)
  *   - #21 radar send-to-curation → `AddSignalToCuration` + `MarkSignalSaved` (P9)
  *   - #14 decide curation       → `DecideCuration` (P10)
- * Outcome/brief/#18/#27/#20/#21-radar/#14 change the caller only. #15–#17 assembly,
+ *   - #15 propose angle         → `ProposeAngle` (P11)
+ * Outcome/brief/#18/#27/#20/#21-radar/#14/#15 change the caller only. #16–#17 assembly,
  * #21 advisor AddAdviceActionToCuration, #22 score/investigate, #33 composite
  * recommendation→task path, and recordings remain legacy.
  *
@@ -45,6 +46,7 @@ import {
   useAssignClientTaskManual,
   useCancelClientTask,
   useDecideCuration,
+  useProposeAngle,
   useDiscardRadarSignal,
   useRegisterSignalOutcome,
   useSendSignalToCuration,
@@ -405,6 +407,8 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
   }, [tenantScope, workspaceClientId]);
   const { data, isLoading, isError } = useWorkspaceDeliver(scope);
   const decide = useDecideCuration(scope);
+  const propose = useProposeAngle(scope);
+  const [proposingId, setProposingId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     kind: 'success' | 'error' | 'warning';
@@ -425,6 +429,26 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       kind: result.kind === 'warning' ? 'warning' : 'success',
       text: result.message,
     });
+  };
+
+  const onProposeAngle = async (curationEntryId: string) => {
+    if (propose.isPending || proposingId) return;
+    setProposingId(curationEntryId);
+    setStatusMessage(null);
+    try {
+      const result = await propose.mutateAsync({ curationEntryId });
+      if (!result.ok) {
+        if (result.silent) return;
+        setStatusMessage({
+          kind: result.kind === 'error' ? 'error' : 'warning',
+          text: result.message,
+        });
+        return;
+      }
+      setStatusMessage({ kind: 'success', text: result.message });
+    } finally {
+      setProposingId(null);
+    }
   };
 
   if (!scope) {
@@ -452,6 +476,7 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
 
   const deliver = data ?? {
     pending: [],
+    readyEntries: [],
     ready: 0,
     draftItems: 0,
     draftPackage: null,
@@ -513,6 +538,46 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       ) : (
         <p className="empty-state" data-testid="react-ws-curation-empty">
           Nada pendiente de decidir.
+        </p>
+      )}
+
+      {deliver.readyEntries.length ? (
+        <ul className="curation-list" data-testid="react-ws-ready-list">
+          {deliver.readyEntries.map((entry) => {
+            const busy = propose.isPending && proposingId === entry.id;
+            return (
+              <li className="curation-row" key={entry.id} data-testid={`react-ws-ready-${entry.id}`}>
+                <div>
+                  <strong>{entry.signalTitle}</strong>
+                  <p className="muted small">
+                    Etapa {entry.stage} · destino {entry.destination}
+                    {entry.strategicBriefId ? ' · con Brief' : ''}
+                  </p>
+                  {entry.rationale ? <p className="small">{entry.rationale}</p> : null}
+                  {entry.aiAngle ? (
+                    <p className="small" data-testid={`react-ws-angle-${entry.id}`}>
+                      <strong>Ángulo propuesto:</strong> {entry.aiAngle}
+                    </p>
+                  ) : null}
+                </div>
+                {!entry.aiAngle ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    data-testid={`react-ws-propose-angle-${entry.id}`}
+                    disabled={busy || propose.isPending}
+                    onClick={() => void onProposeAngle(entry.id)}
+                  >
+                    {busy ? 'Pensando…' : 'Proponer ángulo'}
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="muted small" data-testid="react-ws-ready-empty">
+          Nada listo para proponer ángulo.
         </p>
       )}
 
@@ -582,7 +647,7 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       ) : null}
 
       <LegacyHandoff
-        actions={['proponer ángulo', 'crear el Strategic Brief', 'montar el briefing']}
+        actions={['crear el Strategic Brief', 'montar el briefing']}
         testId="react-ws-deliver-handoff"
       />
     </div>
