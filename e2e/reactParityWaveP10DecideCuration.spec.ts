@@ -1,0 +1,85 @@
+/**
+ * SPEC-010 · T603 React Parity Wave P10 — bounded ADMIN decide-curation E2E.
+ */
+import { expect, test } from '@playwright/test';
+import {
+  CLIENT_JUAN_ID,
+  openManagerWorkspace,
+  sidebarTab,
+} from './helpers/spec010Auth';
+
+test.use({ channel: 'chrome' });
+
+test.describe('P10 — React admin decide curation parity', () => {
+  test('ADMIN decides destination on pending curation row without decide handoff text', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await openManagerWorkspace(page);
+
+    const fixture = await page.evaluate(async ({ cid }) => {
+      const { dbService } = await import('/src/services/db.ts');
+      const signals = dbService
+        .getSignalsByClient(cid)
+        .filter((s) => s.status !== 'DISCARDED' && !dbService.isSignalInCuration(cid, s.id));
+      const signal = signals[0];
+      if (!signal) return { curationId: null as string | null, signalId: null as string | null };
+      const { addSignalToCuration } = await import('/src/services/executionDeliveryConsumer.ts');
+      const result = addSignalToCuration({ requestedClientId: cid, signalId: signal.id });
+      const pending = dbService.getPendingCurationByClient(cid);
+      const row = pending.find((p) => p.id === result.entry.id);
+      return {
+        curationId: row?.id ?? result.entry.id,
+        signalId: signal.id,
+      };
+    }, { cid: CLIENT_JUAN_ID });
+
+    expect(fixture.curationId).toBeTruthy();
+
+    await sidebarTab(page, 'ws-deliver').click();
+    await expect(page.locator('[data-testid="react-ws-deliver"]')).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toBeVisible();
+    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).not.toContainText(
+      'decidir el destino'
+    );
+    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toContainText(
+      'proponer ángulo'
+    );
+
+    const curationId = fixture.curationId!;
+    await expect(page.locator(`[data-testid="react-ws-pending-${curationId}"]`)).toBeVisible();
+
+    await page.selectOption(`[data-testid="react-ws-decide-destination-${curationId}"]`, 'EVIDENCE');
+    await page.fill(
+      `[data-testid="react-ws-decide-rationale-${curationId}"]`,
+      'Evidencia útil para el dossier del cliente en esta fase.'
+    );
+    await page.locator(`[data-testid="react-ws-decide-submit-${curationId}"]`).click();
+
+    await expect(page.locator('[data-testid="react-ws-deliver-success"]')).toContainText(
+      'Destino confirmado',
+      { timeout: 10_000 }
+    );
+
+    const decided = await page.evaluate(
+      async ({ cid, id }) => {
+        const { dbService } = await import('/src/services/db.ts');
+        const entry = dbService.getCurationById(id);
+        return {
+          destination: entry?.destination ?? null,
+          rationale: entry?.managerRationale ?? null,
+          pending: dbService.getPendingCurationByClient(cid).some((p) => p.id === id),
+        };
+      },
+      { cid: CLIENT_JUAN_ID, id: curationId }
+    );
+    expect(decided.destination).toBe('EVIDENCE');
+    expect(decided.rationale).toContain('Evidencia útil');
+    expect(decided.pending).toBe(false);
+
+    await expect(page.locator(`[data-testid="react-ws-pending-${curationId}"]`)).toHaveCount(0);
+  });
+});

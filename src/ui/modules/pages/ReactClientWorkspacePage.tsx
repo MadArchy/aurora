@@ -18,7 +18,8 @@
  *   - #27 assign/cancel task    → `AssignClientTask` / `CancelClientTask` (P8 MANUAL)
  *   - #20 discard signal        → `DiscardSignal` (P9)
  *   - #21 radar send-to-curation → `AddSignalToCuration` + `MarkSignalSaved` (P9)
- * Outcome/brief/#18/#27/#20/#21-radar change the caller only. #14–#17 assembly,
+ *   - #14 decide curation       → `DecideCuration` (P10)
+ * Outcome/brief/#18/#27/#20/#21-radar/#14 change the caller only. #15–#17 assembly,
  * #21 advisor AddAdviceActionToCuration, #22 score/investigate, #33 composite
  * recommendation→task path, and recordings remain legacy.
  *
@@ -43,6 +44,7 @@ import {
   useApproveBrief,
   useAssignClientTaskManual,
   useCancelClientTask,
+  useDecideCuration,
   useDiscardRadarSignal,
   useRegisterSignalOutcome,
   useSendSignalToCuration,
@@ -53,7 +55,7 @@ import {
   useWorkspaceSources,
   useWorkspaceTasks,
 } from '../../hooks/useWave3Data';
-import type { TaskType } from '../../../types';
+import type { CurationDestination, TaskType } from '../../../types';
 import { ReactKpiWeeklyChart } from '../Kpi/ReactKpiWeeklyChart';
 import { ReactMasterDossierPanel } from '../MasterDossier/ReactMasterDossierPanel';
 import { ReactThesisEditorPage } from './ReactThesisEditorPage';
@@ -296,9 +298,97 @@ function RadarPanel({ workspaceClientId = null }: { workspaceClientId?: string |
   );
 }
 
+const CURATION_DESTINATION_LABELS: Record<CurationDestination, string> = {
+  TASK_VIDEO: 'Tarea: grabar video',
+  TASK_ARTICLE: 'Tarea: revisar artículo',
+  OPPORTUNITY: 'Oportunidad de escenario',
+  REFERENCE_READING: 'Lectura de referencia',
+  EVIDENCE: 'Guardar como evidencia',
+  DISCARD: 'Descartado',
+};
+
+const CURATION_DESTINATIONS = Object.keys(
+  CURATION_DESTINATION_LABELS
+) as CurationDestination[];
+
 /* ------------------------------------------------------------------ *
- * Deliver — #18 send native (P7); #14–#17 assembly remains legacy
+ * Deliver — #14 decide native (P10); #18 send native (P7); #15–#17 remain legacy
  * ------------------------------------------------------------------ */
+
+function PendingCurationDecideForm({
+  entryId,
+  busy,
+  onSubmit,
+}: {
+  entryId: string;
+  busy: boolean;
+  onSubmit: (destination: CurationDestination, rationale: string) => Promise<void>;
+}) {
+  const [destination, setDestination] = useState<CurationDestination | ''>('');
+  const [rationale, setRationale] = useState('');
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!destination) return;
+    if (rationale.trim().length < 10) return;
+    void onSubmit(destination, rationale.trim());
+  };
+
+  return (
+    <form
+      className="curation-decide-form"
+      data-testid={`react-ws-decide-form-${entryId}`}
+      onSubmit={handleSubmit}
+    >
+      <div className="form-group">
+        <label className="form-label" htmlFor={`dest-${entryId}`}>
+          Destino
+        </label>
+        <select
+          id={`dest-${entryId}`}
+          className="form-select"
+          required
+          disabled={busy}
+          value={destination}
+          onChange={(e) => setDestination(e.target.value as CurationDestination | '')}
+          data-testid={`react-ws-decide-destination-${entryId}`}
+        >
+          <option value="">Elige qué hacer con esto…</option>
+          {CURATION_DESTINATIONS.map((d) => (
+            <option key={d} value={d}>
+              {CURATION_DESTINATION_LABELS[d]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="form-group">
+        <label className="form-label" htmlFor={`why-${entryId}`}>
+          Por qué (queda en auditoría)
+        </label>
+        <textarea
+          id={`why-${entryId}`}
+          className="form-input"
+          rows={2}
+          minLength={10}
+          required
+          disabled={busy}
+          placeholder="Ej.: refuerza el proof point de gobernanza de IA y responde una duda real de la audiencia."
+          value={rationale}
+          onChange={(e) => setRationale(e.target.value)}
+          data-testid={`react-ws-decide-rationale-${entryId}`}
+        />
+      </div>
+      <button
+        type="submit"
+        className="btn btn-primary btn-sm"
+        disabled={busy || !destination || rationale.trim().length < 10}
+        data-testid={`react-ws-decide-submit-${entryId}`}
+      >
+        Confirmar destino
+      </button>
+    </form>
+  );
+}
 
 function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string | null }) {
   const { tenantScope } = useSession();
@@ -314,11 +404,28 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
     }
   }, [tenantScope, workspaceClientId]);
   const { data, isLoading, isError } = useWorkspaceDeliver(scope);
+  const decide = useDecideCuration(scope);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
-    kind: 'success' | 'error';
+    kind: 'success' | 'error' | 'warning';
     text: string;
   } | null>(null);
+
+  const onDecide = async (
+    curationEntryId: string,
+    destination: CurationDestination,
+    rationale: string
+  ) => {
+    const result = await decide.mutateAsync({ curationEntryId, destination, rationale });
+    if (!result.ok) {
+      setStatusMessage({ kind: 'error', text: result.message });
+      return;
+    }
+    setStatusMessage({
+      kind: result.kind === 'warning' ? 'warning' : 'success',
+      text: result.message,
+    });
+  };
 
   if (!scope) {
     return (
@@ -385,7 +492,7 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       {deliver.pending.length ? (
         <ul className="curation-list" data-testid="react-ws-curation-list">
           {deliver.pending.map((entry) => (
-            <li className="curation-row" key={entry.id}>
+            <li className="curation-row" key={entry.id} data-testid={`react-ws-pending-${entry.id}`}>
               <div>
                 <strong>{entry.signalTitle}</strong>
                 <p className="muted small">
@@ -395,6 +502,11 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
                 </p>
                 {entry.rationale ? <p className="small">{entry.rationale}</p> : null}
               </div>
+              <PendingCurationDecideForm
+                entryId={entry.id}
+                busy={decide.isPending}
+                onSubmit={(destination, rationale) => onDecide(entry.id, destination, rationale)}
+              />
             </li>
           ))}
         </ul>
@@ -449,10 +561,20 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
 
       {statusMessage ? (
         <p
-          className={statusMessage.kind === 'error' ? 'form-error' : 'form-success'}
+          className={
+            statusMessage.kind === 'error'
+              ? 'form-error'
+              : statusMessage.kind === 'warning'
+                ? 'form-warning'
+                : 'form-success'
+          }
           role="status"
           data-testid={
-            statusMessage.kind === 'error' ? 'react-ws-deliver-error-msg' : 'react-ws-deliver-success'
+            statusMessage.kind === 'error'
+              ? 'react-ws-deliver-error-msg'
+              : statusMessage.kind === 'warning'
+                ? 'react-ws-deliver-warning-msg'
+                : 'react-ws-deliver-success'
           }
         >
           {statusMessage.text}
@@ -460,12 +582,7 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       ) : null}
 
       <LegacyHandoff
-        actions={[
-          'decidir el destino',
-          'proponer ángulo',
-          'crear el Strategic Brief',
-          'montar el briefing',
-        ]}
+        actions={['proponer ángulo', 'crear el Strategic Brief', 'montar el briefing']}
         testId="react-ws-deliver-handoff"
       />
     </div>

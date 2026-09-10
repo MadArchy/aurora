@@ -70,6 +70,7 @@ import {
   acknowledgeDelivery as acknowledgeDeliveryConsumer,
 } from '../../services/executionDeliveryConsumer';
 import { runRadarSendToCurationComposite } from '../../services/radarSendToCurationPresentation';
+import { runCurationDecidePresentation } from '../../services/curationDecidePresentation';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
@@ -78,6 +79,7 @@ import { ExecutionDeliveryError } from '../../application/executionDelivery';
 import type {
   ContentStatus,
   ContentType,
+  CurationDestination,
   SourceType,
   TaskType,
   ThesisEditableFields,
@@ -147,6 +149,10 @@ export type DeliverySendCommandResult =
       message: string;
       notifySkipped?: boolean;
     }
+  | { ok: false; message: string };
+
+export type CurationDecideCommandResult =
+  | { ok: true; message: string; queued?: boolean; kind?: 'success' | 'warning' }
   | { ok: false; message: string };
 
 /**
@@ -721,6 +727,21 @@ export type TaskCancelCommandResult =
  * Seam authority = 0. Claim safety / learning / providers not owned here.
  */
 export const executionDeliveryCommands = {
+  /**
+   * Registry #14 — DecideCuration.
+   * Composite body lives in `curationDecidePresentation` (mirrors curationHandlers;
+   * keeps seam/React db-free). DISCARD uses frozen #20 via discardSignalForCurationComposite.
+   * Non-DISCARD queue calls frozen #17 addCurationToDelivery as legacy presentation compat only.
+   */
+  decideCuration(intent: {
+    requestedClientId: string | null | undefined;
+    curationEntryId: string;
+    destination: CurationDestination;
+    rationale: string;
+  }): CurationDecideCommandResult {
+    return runCurationDecidePresentation(intent);
+  },
+
   /**
    * Registry #27 — AssignClientTask (MANUAL origin only).
    * Recommendation→task composite remains #33 presentation (legacy).

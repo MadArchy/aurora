@@ -38,8 +38,8 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type DeliverySendCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
-import type { TaskType } from '../../types';
+import { briefCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type CurationDecideCommandResult, type DeliverySendCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
+import type { CurationDestination, TaskType } from '../../types';
 import type { ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
 
@@ -176,6 +176,32 @@ export function useWorkspaceDeliver(scope: TrustedTenantScope | null) {
     queryKey: scope ? tenantQueryKey(scope, 'compatibility', 'workspace-deliver') : DISABLED,
     queryFn: () => readWorkspaceDeliver(scope!),
     enabled: scope !== null && scope.clientId !== null,
+  });
+}
+
+/** CR-1 #14 DecideCuration — P10 React deliver decide parity. */
+export function useDecideCuration(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    CurationDecideCommandResult,
+    Error,
+    { curationEntryId: string; destination: CurationDestination; rationale: string }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.decideCuration({
+        requestedClientId: scope.clientId,
+        curationEntryId: intent.curationEntryId,
+        destination: intent.destination,
+        rationale: intent.rationale,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+    },
   });
 }
 
