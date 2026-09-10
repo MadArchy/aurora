@@ -139,6 +139,15 @@ describe('P12 §1–§3 — CR-2 public input and destination authority', () => 
     expect(mapping).toMatch(/REFERENCE_READING/);
     expect(mapping).toMatch(/default:\s*return undefined/);
   });
+
+  it('frozen consumer rejects caller destination mismatch before Brief creation', () => {
+    const consumer = read('src/services/strategicBriefConsumer.ts');
+    expect(consumer).toMatch(/authoritativeDestination = entry\.destination/);
+    expect(consumer).toMatch(/params\.destination !== authoritativeDestination/);
+    expect(consumer).toMatch(/CURATION_DESTINATION_MISMATCH/);
+    expect(consumer).toMatch(/curationDestinationToAuthorizedAction\(authoritativeDestination\)/);
+    expect(consumer).not.toMatch(/curationDestinationToAuthorizedAction\(params\.destination\)/);
+  });
 });
 
 describe('P12 §16–§17 — command seam and hook', () => {
@@ -164,6 +173,26 @@ describe('P12 §16–§17 — command seam and hook', () => {
     expect(decideCalls).toHaveLength(0);
     expect(approveCalls).toHaveLength(0);
     expect(scoreCalls).toHaveLength(0);
+  });
+
+  it('destination mismatch rejection surfaces canonical consumer error', async () => {
+    briefCreateImpl = () => {
+      const error = new Error(
+        'Curation destination mismatch: caller asserted OPPORTUNITY, authoritative destination is TASK_VIDEO.'
+      ) as Error & { code: string };
+      error.code = 'CURATION_DESTINATION_MISMATCH';
+      throw error;
+    };
+    const { briefCommands } = await import('../src/ui/commands/commandSeam');
+    const result = briefCommands.createFromCuration({
+      curationEntryId: 'cur_p12_1',
+      destination: 'OPPORTUNITY',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toMatch(/Curation destination mismatch/);
+      expect(result.kind).toBe('warning');
+    }
   });
 
   it('consumer rejection surfaces exact legacy warning message', async () => {

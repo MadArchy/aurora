@@ -238,11 +238,21 @@ describe('CR-2 — denial paths (zero side effects)', () => {
     expect(setBriefLink).not.toHaveBeenCalled();
   });
 
-  it('invalid destination that does not require Brief denies', async () => {
+  it('authoritative DISCARD destination denies before Brief creation', async () => {
+    curation.set('cur_1', curationEntry({ destination: 'DISCARD' }));
     const { createBriefFromCurationEntry } = await consumer();
     expect(() =>
       createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'DISCARD', now: NOW })
     ).toThrow(/does not require a Strategic Brief/);
+    expect(setBriefLink).not.toHaveBeenCalled();
+  });
+
+  it('caller destination mismatch rejects before Brief creation', async () => {
+    curation.set('cur_1', curationEntry({ destination: 'TASK_ARTICLE' }));
+    const { createBriefFromCurationEntry } = await consumer();
+    expect(() =>
+      createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'DISCARD', now: NOW })
+    ).toThrow(/Curation destination mismatch/);
     expect(setBriefLink).not.toHaveBeenCalled();
   });
 
@@ -324,6 +334,104 @@ describe('CR-2 — stale caller snapshot authority', () => {
     });
     expect(second.created).toBe(false);
     expect(second.brief.id).toBe(first.brief.id);
+  });
+});
+
+describe('CR-2 — destination authority (caller assertion vs entry.destination)', () => {
+  beforeEach(async () => {
+    session = user({ role: 'ADMIN', organizationId: 'org_a' });
+    clients.set('client_a', client('client_a', 'org_a'));
+    signals.set('sig_1', signal('sig_1', 'client_a', 'org_a'));
+    setBriefLink.mockClear();
+    const { resetStrategicBriefConsumerForTest } = await consumer();
+    resetStrategicBriefConsumerForTest();
+  });
+
+  it('TASK_VIDEO entry rejects OPPORTUNITY caller assertion before any write', async () => {
+    curation.set('cur_1', curationEntry({ destination: 'TASK_VIDEO' }));
+    const { createBriefFromCurationEntry, BriefFromCurationConsumerError } = await consumer();
+    expect(() =>
+      createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'OPPORTUNITY', now: NOW })
+    ).toThrow(BriefFromCurationConsumerError);
+    try {
+      createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'OPPORTUNITY', now: NOW });
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'CURATION_DESTINATION_MISMATCH' });
+      expect((error as Error).message).toMatch(/authoritative destination is TASK_VIDEO/);
+    }
+    expect(setBriefLink).not.toHaveBeenCalled();
+  });
+
+  it('OPPORTUNITY entry rejects TASK_ARTICLE caller assertion before any write', async () => {
+    curation.set('cur_1', curationEntry({ destination: 'OPPORTUNITY' }));
+    const { createBriefFromCurationEntry } = await consumer();
+    expect(() =>
+      createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'TASK_ARTICLE', now: NOW })
+    ).toThrow(/Curation destination mismatch/);
+    expect(setBriefLink).not.toHaveBeenCalled();
+  });
+
+  it('EVIDENCE entry rejects TASK_ARTICLE caller assertion before Brief creation', async () => {
+    curation.set('cur_1', curationEntry({ destination: 'EVIDENCE' }));
+    const { createBriefFromCurationEntry } = await consumer();
+    expect(() =>
+      createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'TASK_ARTICLE', now: NOW })
+    ).toThrow(/Curation destination mismatch/);
+    expect(setBriefLink).not.toHaveBeenCalled();
+  });
+
+  it('DISCARD entry rejects OPPORTUNITY caller assertion before Brief creation', async () => {
+    curation.set('cur_1', curationEntry({ destination: 'DISCARD' }));
+    const { createBriefFromCurationEntry } = await consumer();
+    expect(() =>
+      createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'OPPORTUNITY', now: NOW })
+    ).toThrow(/Curation destination mismatch/);
+    expect(setBriefLink).not.toHaveBeenCalled();
+  });
+
+  it('matching caller assertion succeeds for every Brief-producing destination', async () => {
+    const { createBriefFromCurationEntry } = await consumer();
+    const cases = [
+      { destination: 'TASK_VIDEO' as const, action: 'CREATE_CONTENT' },
+      { destination: 'TASK_ARTICLE' as const, action: 'CREATE_CONTENT' },
+      { destination: 'OPPORTUNITY' as const, action: 'CREATE_OPPORTUNITY' },
+      { destination: 'REFERENCE_READING' as const, action: 'CREATE_TASK' },
+    ];
+    for (const [index, testCase] of cases.entries()) {
+      const id = `cur_dest_${index}`;
+      curation.set(id, curationEntry({ id, destination: testCase.destination }));
+      signals.set(`sig_${index}`, signal(`sig_${index}`, 'client_a', 'org_a'));
+      curation.get(id)!.signalId = `sig_${index}`;
+      setBriefLink.mockClear();
+      const { brief } = createBriefFromCurationEntry({
+        curationEntryId: id,
+        destination: testCase.destination,
+        now: NOW,
+      });
+      expect(brief.decision.authorizedAction).toBe(testCase.action);
+      expect(setBriefLink).toHaveBeenCalledWith(id, brief.id);
+    }
+  });
+
+  it('existing DRAFT does not mask caller destination mismatch', async () => {
+    curation.set('cur_1', curationEntry({ destination: 'TASK_ARTICLE' }));
+    const { createBriefFromCurationEntry } = await consumer();
+    createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'TASK_ARTICLE', now: NOW });
+    expect(setBriefLink).toHaveBeenCalledTimes(1);
+    setBriefLink.mockClear();
+    expect(() =>
+      createBriefFromCurationEntry({ curationEntryId: 'cur_1', destination: 'OPPORTUNITY', now: NOW })
+    ).toThrow(/Curation destination mismatch/);
+    expect(setBriefLink).not.toHaveBeenCalled();
+  });
+
+  it('consumer maps authorizedAction from entry.destination not params.destination', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/services/strategicBriefConsumer.ts'),
+      'utf8'
+    );
+    expect(source).toMatch(/curationDestinationToAuthorizedAction\(authoritativeDestination\)/);
+    expect(source).not.toMatch(/curationDestinationToAuthorizedAction\(params\.destination\)/);
   });
 });
 

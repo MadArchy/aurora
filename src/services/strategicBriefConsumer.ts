@@ -22,6 +22,16 @@ import type { TrustedBriefActorContext } from '../application/strategicBrief/tru
 
 type BriefUseCases = ReturnType<typeof composeStrategicBrief>;
 
+/** Narrow CR-2 consumer error — not an Application/Domain taxonomy extension. */
+export class BriefFromCurationConsumerError extends Error {
+  readonly code = 'CURATION_DESTINATION_MISMATCH' as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'BriefFromCurationConsumerError';
+  }
+}
+
 let store: LocalStrategicBriefStore = createLocalStrategicBriefStore();
 let useCases: BriefUseCases = buildUseCases(store);
 
@@ -136,7 +146,18 @@ export function createBriefFromCurationEntry(params: {
     throw new Error('Curation entry must reference a signal to create a governed Brief.');
   }
 
-  const authorizedAction = curationDestinationToAuthorizedAction(params.destination);
+  const authoritativeDestination = entry.destination;
+  if (!authoritativeDestination) {
+    throw new Error('Curation entry must have a decided destination to create a Strategic Brief.');
+  }
+
+  if (params.destination !== authoritativeDestination) {
+    throw new BriefFromCurationConsumerError(
+      `Curation destination mismatch: caller asserted ${params.destination}, authoritative destination is ${authoritativeDestination}.`
+    );
+  }
+
+  const authorizedAction = curationDestinationToAuthorizedAction(authoritativeDestination);
   if (!authorizedAction) {
     throw new Error('This curation destination does not require a Strategic Brief.');
   }
