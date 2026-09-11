@@ -19,6 +19,12 @@ test.describe('P11 — React admin propose angle parity', () => {
 
     const fixture = await page.evaluate(async ({ cid }) => {
       const { dbService } = await import('/src/services/db.ts');
+      for (const pkg of dbService.getDeliveriesByClient(cid)) {
+        if (pkg.status === 'DRAFT') dbService.discardDraftDelivery(pkg.id);
+      }
+      const draftCount = dbService
+        .getDeliveriesByClient(cid)
+        .filter((d) => d.status === 'DRAFT').length;
       const thesis = dbService.getActiveTheses(cid)[0];
       if (!thesis) return { curationId: null as string | null, thesisResolved: false };
 
@@ -69,6 +75,7 @@ test.describe('P11 — React admin propose angle parity', () => {
         thesisResolved: true,
         ready,
         hasAngle: Boolean(entry?.aiAngle),
+        draftCount,
       };
     }, { cid: CLIENT_JUAN_ID });
 
@@ -76,6 +83,7 @@ test.describe('P11 — React admin propose angle parity', () => {
     expect(fixture.thesisResolved).toBe(true);
     expect(fixture.ready).toBe(true);
     expect(fixture.hasAngle).toBe(false);
+    expect(fixture.draftCount).toBe(0);
 
     await sidebarTab(page, 'ws-deliver').click();
     await expect(page.locator('[data-testid="react-ws-deliver"]')).toBeVisible({

@@ -126,3 +126,31 @@ export async function openManagerWorkspace(page: Page, clientId = CLIENT_JUAN_ID
   await enterClientWorkspaceFromShell(page);
   void clientId;
 }
+
+/** P7-proven cleanup: discard every DRAFT delivery package for the fixture client. */
+export async function discardAllDraftDeliveries(page: Page, clientId: string) {
+  return page.evaluate(async ({ cid }) => {
+    const { dbService } = await import('/src/services/db.ts');
+    for (const pkg of dbService.getDeliveriesByClient(cid)) {
+      if (pkg.status === 'DRAFT') dbService.discardDraftDelivery(pkg.id);
+    }
+    return dbService.getDeliveriesByClient(cid).filter((d) => d.status === 'DRAFT').length;
+  }, { cid: clientId });
+}
+
+/** Authoritative DRAFT count for fixture client (test-side read only). */
+export async function countDraftDeliveries(page: Page, clientId: string) {
+  return page.evaluate(async ({ cid }) => {
+    const { dbService } = await import('/src/services/db.ts');
+    return dbService.getDeliveriesByClient(cid).filter((d) => d.status === 'DRAFT').length;
+  }, { cid: clientId });
+}
+
+/** P7-proven presentation refresh after authoritative store mutation post-mount. */
+export async function refetchDeliverPanel(page: Page) {
+  await sidebarTab(page, 'ws-radar').click();
+  await sidebarTab(page, 'ws-deliver').click();
+  await expect(page.locator('[data-testid="react-ws-deliver"]')).toBeVisible({
+    timeout: 15_000,
+  });
+}

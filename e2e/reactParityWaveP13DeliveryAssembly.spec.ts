@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 import {
   CLIENT_JUAN_ID,
   openManagerWorkspace,
+  refetchDeliverPanel,
   sidebarTab,
 } from './helpers/spec010Auth';
 
@@ -17,13 +18,22 @@ test.describe('P13 — React admin delivery assembly parity', () => {
 
     const fixture = await page.evaluate(async ({ cid }) => {
       const { dbService } = await import('/src/services/db.ts');
+      for (const pkg of dbService.getDeliveriesByClient(cid)) {
+        if (pkg.status === 'DRAFT') dbService.discardDraftDelivery(pkg.id);
+      }
+      const draftCountBefore = dbService
+        .getDeliveriesByClient(cid)
+        .filter((d) => d.status === 'DRAFT').length;
+
       const thesis = dbService.getActiveTheses(cid)[0];
-      if (!thesis) return { curationId: null as string | null, thesisResolved: false };
+      if (!thesis) {
+        return { curationId: null as string | null, thesisResolved: false, draftCountBefore };
+      }
 
       const signal = dbService
         .getSignalsByClient(cid)
         .find((s) => s.status !== 'DISCARDED' && !dbService.isSignalInCuration(cid, s.id));
-      if (!signal) return { curationId: null, thesisResolved: false };
+      if (!signal) return { curationId: null, thesisResolved: false, draftCountBefore };
 
       dbService.applyStrategicRoutingToSignal(
         signal.id,
@@ -80,22 +90,24 @@ test.describe('P13 — React admin delivery assembly parity', () => {
         dbService.attachCurationToDelivery(added.entry.id, null);
       }
 
-      const existingDraft = dbService.getDraftDelivery(cid);
-      if (existingDraft) {
-        dbService.discardDraftDelivery(existingDraft.id);
-      }
-
+      const draftCountAfter = dbService
+        .getDeliveriesByClient(cid)
+        .filter((d) => d.status === 'DRAFT').length;
       const ready = dbService.getReadyCurationByClient(cid).some((row) => row.id === added.entry.id);
       return {
         curationId: added.entry.id,
         thesisResolved: true,
         ready,
+        draftCountBefore,
+        draftCountAfter,
       };
     }, { cid: CLIENT_JUAN_ID });
 
     expect(fixture.curationId).toBeTruthy();
     expect(fixture.thesisResolved).toBe(true);
     expect(fixture.ready).toBe(true);
+    expect(fixture.draftCountBefore).toBe(0);
+    expect(fixture.draftCountAfter).toBe(0);
 
     await sidebarTab(page, 'ws-deliver').click();
     await expect(page.locator('[data-testid="react-ws-deliver"]')).toBeVisible({
@@ -103,6 +115,7 @@ test.describe('P13 — React admin delivery assembly parity', () => {
     });
     await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toHaveCount(0);
 
+    await expect(page.locator('[data-testid="react-ws-ensure-draft"]')).toBeVisible();
     await page.locator('[data-testid="react-ws-ensure-draft"]').click();
     await expect(page.locator('[data-testid="react-ws-deliver-success"]')).toContainText(
       'Briefing creado'
@@ -133,17 +146,29 @@ test.describe('P13 — React admin delivery assembly parity', () => {
     test.setTimeout(120_000);
     await openManagerWorkspace(page);
 
-    await page.evaluate(async ({ cid }) => {
+    const seeded = await page.evaluate(async ({ cid }) => {
       const { dbService } = await import('/src/services/db.ts');
-      const existingDraft = dbService.getDraftDelivery(cid);
-      if (existingDraft) dbService.discardDraftDelivery(existingDraft.id);
-      dbService.ensureDraftDelivery(cid, 'e2e_p13');
+      for (const pkg of dbService.getDeliveriesByClient(cid)) {
+        if (pkg.status === 'DRAFT') dbService.discardDraftDelivery(pkg.id);
+      }
+      const pkg = dbService.ensureDraftDelivery(cid, 'e2e_p13');
+      dbService.updateDelivery(pkg.id, { title: 'Briefing E2E P13 discard' });
+      const draftCount = dbService
+        .getDeliveriesByClient(cid)
+        .filter((d) => d.status === 'DRAFT').length;
+      return { packageId: pkg.id, draftCount };
     }, { cid: CLIENT_JUAN_ID });
 
+    expect(seeded.draftCount).toBe(1);
+
     await sidebarTab(page, 'ws-deliver').click();
+    await refetchDeliverPanel(page);
     await expect(page.locator('[data-testid="react-ws-draft-package"]')).toBeVisible({
       timeout: 15_000,
     });
+    await expect(page.locator('[data-testid="react-ws-draft-title"]')).toHaveValue(
+      'Briefing E2E P13 discard'
+    );
 
     await page.locator('[data-testid="react-ws-discard-draft"]').click();
     await expect(page.locator('[data-testid="react-ws-discard-confirm"]')).toBeVisible();
@@ -151,6 +176,26 @@ test.describe('P13 — React admin delivery assembly parity', () => {
     await expect(page.locator('[data-testid="react-ws-deliver-success"]')).toContainText(
       'Borrador descartado'
     );
+
+    const afterDiscard = await page.evaluate(async ({ pid, cid }) => {
+      const { dbService } = await import('/src/services/db.ts');
+      const pkg = dbService.getDeliveryById(pid);
+      const draft = dbService.getDraftDelivery(cid);
+      const draftCount = dbService
+        .getDeliveriesByClient(cid)
+        .filter((d) => d.status === 'DRAFT').length;
+      return {
+        packageExists: Boolean(pkg),
+        packageStatus: pkg?.status ?? null,
+        draftId: draft?.id ?? null,
+        draftCount,
+      };
+    }, { pid: seeded.packageId, cid: CLIENT_JUAN_ID });
+
+    expect(afterDiscard.packageExists).toBe(false);
+    expect(afterDiscard.draftId).toBeNull();
+    expect(afterDiscard.draftCount).toBe(0);
+
     await expect(page.locator('[data-testid="react-ws-draft-empty"]')).toBeVisible();
     await expect(page.locator('[data-testid="react-ws-ensure-draft"]')).toBeVisible();
   });

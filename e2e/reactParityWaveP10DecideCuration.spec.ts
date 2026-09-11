@@ -19,6 +19,12 @@ test.describe('P10 — React admin decide curation parity', () => {
 
     const fixture = await page.evaluate(async ({ cid }) => {
       const { dbService } = await import('/src/services/db.ts');
+      for (const pkg of dbService.getDeliveriesByClient(cid)) {
+        if (pkg.status === 'DRAFT') dbService.discardDraftDelivery(pkg.id);
+      }
+      const draftCount = dbService
+        .getDeliveriesByClient(cid)
+        .filter((d) => d.status === 'DRAFT').length;
       const signals = dbService
         .getSignalsByClient(cid)
         .filter((s) => s.status !== 'DISCARDED' && !dbService.isSignalInCuration(cid, s.id));
@@ -31,10 +37,12 @@ test.describe('P10 — React admin decide curation parity', () => {
       return {
         curationId: row?.id ?? result.entry.id,
         signalId: signal.id,
+        draftCount,
       };
     }, { cid: CLIENT_JUAN_ID });
 
     expect(fixture.curationId).toBeTruthy();
+    expect(fixture.draftCount).toBe(0);
 
     await sidebarTab(page, 'ws-deliver').click();
     await expect(page.locator('[data-testid="react-ws-deliver"]')).toBeVisible({
