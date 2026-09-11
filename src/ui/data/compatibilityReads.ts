@@ -1073,13 +1073,21 @@ export function readWorkspaceRadar(scope: TrustedTenantScope): WorkspaceRadarRea
   };
 }
 
+export interface WorkspaceDeliverItemRead {
+  readonly id: string;
+  readonly title: string;
+}
+
 export interface WorkspaceDeliverPackageRead {
   readonly id: string;
   readonly title: string;
+  readonly strategicNote: string;
   readonly status: string;
   readonly sentAt: string | null;
   readonly itemCount: number;
   readonly itemTitles: readonly string[];
+  /** Persisted delivery item ids for #17 remove — factual read only. */
+  readonly items: readonly WorkspaceDeliverItemRead[];
 }
 
 export interface WorkspaceDeliverReadyEntryRead {
@@ -1090,6 +1098,8 @@ export interface WorkspaceDeliverReadyEntryRead {
   readonly strategicBriefId: string | null;
   readonly aiAngle: string | null;
   readonly stage: string;
+  /** Persisted attach fact — null when not in a briefing. */
+  readonly deliveryPackageId: string | null;
 }
 
 export interface WorkspaceDeliverRead {
@@ -1142,10 +1152,12 @@ export function readWorkspaceDeliver(scope: TrustedTenantScope): WorkspaceDelive
   const toPackageRead = (pkg: NonNullable<typeof draft>): WorkspaceDeliverPackageRead => ({
     id: pkg.id,
     title: pkg.title ?? '',
+    strategicNote: pkg.strategicNote ?? '',
     status: pkg.status,
     sentAt: pkg.sentAt ?? null,
     itemCount: pkg.items.length,
     itemTitles: pkg.items.map((item) => item.title),
+    items: pkg.items.map((item) => ({ id: item.id, title: item.title })),
   });
 
   const readyEntries = dbService.getReadyCurationByClient(clientId).map((entry) => {
@@ -1160,6 +1172,7 @@ export function readWorkspaceDeliver(scope: TrustedTenantScope): WorkspaceDelive
       strategicBriefId: entry.strategicBriefId ?? null,
       aiAngle: entry.aiAngle ?? null,
       stage: deriveWorkStage({ entry, pkg, task: undefined }),
+      deliveryPackageId: entry.deliveryPackageId ?? null,
     };
   });
 

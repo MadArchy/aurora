@@ -21,12 +21,13 @@
  *   - #14 decide curation       → `DecideCuration` (P10)
  *   - #15 propose angle         → `ProposeAngle` (P11)
  *   - CR-2 brief create         → `createBriefFromCurationEntry` (P12)
- * Outcome/brief/#18/#27/#20/#21-radar/#14/#15/#12 change the caller only. #17 assembly,
+ *   - #17 delivery assembly     → EnsureDraft/Add/Metadata/Remove/Discard (P13)
+ * Outcome/brief/#18/#27/#20/#21-radar/#14/#15/#12/#17 change the caller only.
  * #21 advisor AddAdviceActionToCuration, #22 score/investigate, #33 composite
  * recommendation→task path, and recordings remain legacy.
  *
  * BLOCKED, left legacy — the large majority. #22 bulk/per-signal score UI and
- * investigate agents remain; curation decisions, delivery *assembly* (not send),
+ * investigate agents remain;
  * source registration and ingestion, #33 recommendation→task composite, evidence
  * assignment and content generation all write business state with no React parity
  * yet (AUDIT010-09).
@@ -37,16 +38,21 @@
  * migrated, and the recommendation/discovery surfaces stay legacy-only.
  */
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSession } from '../../providers/SessionProvider';
 import { narrowToClient } from '../../query/tenantScope';
 import {
   useApproveBrief,
   useAssignClientTaskManual,
   useCancelClientTask,
+  useAddCurationToDelivery,
   useCreateBriefFromCuration,
   useDecideCuration,
+  useDiscardDraftDelivery,
+  useEnsureDraftDelivery,
   useProposeAngle,
+  useRemoveDeliveryItemFromDelivery,
+  useUpdateDeliveryPackageMetadata,
   useDiscardRadarSignal,
   useRegisterSignalOutcome,
   useSendSignalToCuration,
@@ -410,9 +416,19 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
   const decide = useDecideCuration(scope);
   const propose = useProposeAngle(scope);
   const createBrief = useCreateBriefFromCuration(scope);
+  const ensureDraft = useEnsureDraftDelivery(scope);
+  const addToDelivery = useAddCurationToDelivery(scope);
+  const updateMetadata = useUpdateDeliveryPackageMetadata(scope);
+  const removeItem = useRemoveDeliveryItemFromDelivery(scope);
+  const discardDraft = useDiscardDraftDelivery(scope);
   const [proposingId, setProposingId] = useState<string | null>(null);
   const [creatingBriefId, setCreatingBriefId] = useState<string | null>(null);
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftNote, setDraftNote] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     kind: 'success' | 'error' | 'warning';
     text: string;
@@ -473,6 +489,111 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
     }
   };
 
+  const deliver = data ?? {
+    pending: [],
+    readyEntries: [],
+    ready: 0,
+    draftItems: 0,
+    draftPackage: null,
+    sentDeliveries: [],
+  };
+
+  useEffect(() => {
+    if (deliver.draftPackage) {
+      setDraftTitle(deliver.draftPackage.title);
+      setDraftNote(deliver.draftPackage.strategicNote);
+    } else {
+      setDraftTitle('');
+      setDraftNote('');
+    }
+  }, [deliver.draftPackage]);
+
+  const onEnsureDraft = async () => {
+    if (ensureDraft.isPending) return;
+    setStatusMessage(null);
+    const result = await ensureDraft.mutateAsync();
+    if (!result.ok) {
+      setStatusMessage({
+        kind: result.kind === 'error' ? 'error' : 'warning',
+        text: result.message,
+      });
+      return;
+    }
+    setStatusMessage({ kind: 'success', text: result.message });
+  };
+
+  const onAddToDelivery = async (curationEntryId: string) => {
+    if (addToDelivery.isPending || addingId) return;
+    setAddingId(curationEntryId);
+    setStatusMessage(null);
+    try {
+      const result = await addToDelivery.mutateAsync({ curationEntryId });
+      if (!result.ok) {
+        setStatusMessage({
+          kind: result.kind === 'info' ? 'warning' : result.kind === 'error' ? 'error' : 'warning',
+          text: result.message,
+        });
+        return;
+      }
+      setStatusMessage({ kind: 'success', text: result.message });
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  const onSaveMetadata = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!deliver.draftPackage || updateMetadata.isPending) return;
+    setStatusMessage(null);
+    const result = await updateMetadata.mutateAsync({
+      packageId: deliver.draftPackage.id,
+      title: draftTitle,
+      strategicNote: draftNote,
+    });
+    if (!result.ok) {
+      setStatusMessage({
+        kind: result.kind === 'error' ? 'error' : 'warning',
+        text: result.message,
+      });
+      return;
+    }
+    setStatusMessage({ kind: 'success', text: result.message });
+  };
+
+  const onRemoveItem = async (packageId: string, itemId: string) => {
+    if (removeItem.isPending || removingItemId) return;
+    setRemovingItemId(itemId);
+    setStatusMessage(null);
+    try {
+      const result = await removeItem.mutateAsync({ packageId, itemId });
+      if (!result.ok) {
+        setStatusMessage({
+          kind: result.kind === 'error' ? 'error' : 'warning',
+          text: result.message,
+        });
+        return;
+      }
+      setStatusMessage({ kind: 'success', text: result.message });
+    } finally {
+      setRemovingItemId(null);
+    }
+  };
+
+  const onDiscardDraftConfirmed = async (packageId: string) => {
+    if (discardDraft.isPending) return;
+    setStatusMessage(null);
+    const result = await discardDraft.mutateAsync({ packageId });
+    setDiscardConfirmOpen(false);
+    if (!result.ok) {
+      setStatusMessage({
+        kind: result.kind === 'error' ? 'error' : 'warning',
+        text: result.message,
+      });
+      return;
+    }
+    setStatusMessage({ kind: 'success', text: result.message });
+  };
+
   if (!scope) {
     return (
       <PanelState
@@ -495,15 +616,6 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       />
     );
   }
-
-  const deliver = data ?? {
-    pending: [],
-    readyEntries: [],
-    ready: 0,
-    draftItems: 0,
-    draftPackage: null,
-    sentDeliveries: [],
-  };
 
   if (previewOpen && deliver.draftPackage) {
     return (
@@ -573,6 +685,11 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
               Boolean(briefDestination) &&
               Boolean(curationDestinationToAuthorizedAction(briefDestination!)) &&
               !entry.strategicBriefId;
+            const addEligible =
+              !entry.deliveryPackageId &&
+              Boolean(entry.destination) &&
+              entry.destination !== 'DISCARD';
+            const addBusy = addToDelivery.isPending && addingId === entry.id;
             return (
               <li className="curation-row" key={entry.id} data-testid={`react-ws-ready-${entry.id}`}>
                 <div>
@@ -580,6 +697,7 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
                   <p className="muted small">
                     Etapa {entry.stage} · destino {entry.destination}
                     {entry.strategicBriefId ? ' · con Brief' : ''}
+                    {entry.deliveryPackageId ? ' · en briefing' : ''}
                   </p>
                   {entry.rationale ? <p className="small">{entry.rationale}</p> : null}
                   {entry.aiAngle ? (
@@ -611,6 +729,17 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
                       {briefBusy ? 'Creando…' : 'Create Strategic Brief DRAFT'}
                     </button>
                   ) : null}
+                  {addEligible ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      data-testid={`react-ws-add-to-briefing-${entry.id}`}
+                      disabled={addBusy || addToDelivery.isPending}
+                      onClick={() => void onAddToDelivery(entry.id)}
+                    >
+                      {addBusy ? 'Añadiendo…' : 'Añadir al briefing'}
+                    </button>
+                  ) : null}
                 </div>
               </li>
             );
@@ -629,27 +758,121 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
             {' · '}
             {deliver.draftPackage.itemCount} elementos · {deliver.draftPackage.status}
           </p>
-          <ul className="muted small" data-testid="react-ws-draft-items">
-            {deliver.draftPackage.itemTitles.map((title, index) => (
-              <li key={`${index}-${title}`}>{title}</li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            className="btn btn-primary"
-            data-testid="react-ws-deliver-preview-send"
-            onClick={() => {
-              setStatusMessage(null);
-              setPreviewOpen(true);
-            }}
+          <form
+            className="form-stack small"
+            data-testid="react-ws-draft-metadata-form"
+            onSubmit={(event) => void onSaveMetadata(event)}
           >
-            Vista previa y enviar
-          </button>
+            <label>
+              Título
+              <input
+                type="text"
+                value={draftTitle}
+                onChange={(event) => setDraftTitle(event.target.value)}
+                data-testid="react-ws-draft-title"
+              />
+            </label>
+            <label>
+              Nota estratégica
+              <textarea
+                value={draftNote}
+                onChange={(event) => setDraftNote(event.target.value)}
+                rows={3}
+                data-testid="react-ws-draft-strategic-note"
+              />
+            </label>
+            <button
+              type="submit"
+              className="btn btn-secondary btn-sm"
+              data-testid="react-ws-draft-save-metadata"
+              disabled={updateMetadata.isPending}
+            >
+              {updateMetadata.isPending ? 'Guardando…' : 'Guardar nota estratégica'}
+            </button>
+          </form>
+          <ul className="muted small" data-testid="react-ws-draft-items">
+            {deliver.draftPackage.items.map((item) => {
+              const removeBusy = removeItem.isPending && removingItemId === item.id;
+              return (
+                <li key={item.id} data-testid={`react-ws-draft-item-${item.id}`}>
+                  {item.title}
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm"
+                    data-testid={`react-ws-remove-item-${item.id}`}
+                    disabled={removeBusy || removeItem.isPending}
+                    onClick={() =>
+                      void onRemoveItem(deliver.draftPackage!.id, item.id)
+                    }
+                  >
+                    {removeBusy ? 'Retirando…' : 'Quitar'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="curation-row-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              data-testid="react-ws-deliver-preview-send"
+              onClick={() => {
+                setStatusMessage(null);
+                setPreviewOpen(true);
+              }}
+            >
+              Vista previa y enviar
+            </button>
+            {discardConfirmOpen ? (
+              <div className="form-stack small" data-testid="react-ws-discard-confirm">
+                <p className="small">¿Descartar este borrador de briefing?</p>
+                <div className="curation-row-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    data-testid="react-ws-discard-confirm-yes"
+                    disabled={discardDraft.isPending}
+                    onClick={() => void onDiscardDraftConfirmed(deliver.draftPackage!.id)}
+                  >
+                    {discardDraft.isPending ? 'Descartando…' : 'Sí, descartar'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm"
+                    data-testid="react-ws-discard-confirm-no"
+                    disabled={discardDraft.isPending}
+                    onClick={() => setDiscardConfirmOpen(false)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                data-testid="react-ws-discard-draft"
+                disabled={discardDraft.isPending}
+                onClick={() => setDiscardConfirmOpen(true)}
+              >
+                Descartar borrador
+              </button>
+            )}
+          </div>
         </div>
       ) : (
-        <p className="muted small" data-testid="react-ws-draft-empty">
-          No hay briefing en borrador listo para enviar.
-        </p>
+        <div data-testid="react-ws-draft-empty">
+          <p className="muted small">No hay briefing en borrador listo para enviar.</p>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="react-ws-ensure-draft"
+            disabled={ensureDraft.isPending}
+            onClick={() => void onEnsureDraft()}
+          >
+            {ensureDraft.isPending ? 'Creando…' : 'Crear briefing'}
+          </button>
+        </div>
       )}
 
       {deliver.sentDeliveries.length ? (
@@ -687,7 +910,6 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
         </p>
       ) : null}
 
-      <LegacyHandoff actions={['montar el briefing']} testId="react-ws-deliver-handoff" />
     </div>
   );
 }

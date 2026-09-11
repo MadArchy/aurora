@@ -144,11 +144,10 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
     'reopenCuration',
     'setCurationAngle',
     'addToCuration',
-    'ensureDraftDelivery',
+    // ensureDraftDelivery / discardDraftDelivery — CR-1 #17 canonical via P13 seam
     'addDeliveryItem',
     'attachCurationToDelivery',
     'removeDeliveryItem',
-    'discardDraftDelivery',
     'updateDelivery',
     'acknowledgeDelivery',
     // sources and ingestion — addSource/addSignal are CR-1 Signal Intake
@@ -232,6 +231,14 @@ describe('§10 / A26 — every wave-3 command goes through the command seam', ()
     expect(source).toMatch(/createFromCuration/);
     expect(source).toMatch(/runBriefCreateFromCurationPresentation/);
     expect(source).not.toMatch(/createBriefFromCurationEntry/);
+  });
+
+  it('delivery assembly #17 is exposed via presentation composite (P13 B4)', () => {
+    const source = code(join(ROOT, 'src/ui/commands/commandSeam.ts'));
+    expect(source).toMatch(/runEnsureDraftDeliveryPresentation/);
+    expect(source).toMatch(/runAddCurationToDeliveryPresentation/);
+    expect(source).toMatch(/ensureDraftDelivery\(intent/);
+    expect(source).not.toMatch(/\bdbService\b/);
   });
 });
 

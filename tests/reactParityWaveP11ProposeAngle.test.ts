@@ -230,7 +230,8 @@ describe('P11 §12–§13 — deliver read extension and UI predicate', () => {
     expect(panel).toMatch(/!entry\.aiAngle/);
     expect(panel).toMatch(/Pensando…/);
     expect(panel).toMatch(/Proponer ángulo/);
-    expect(panel).toMatch(/actions=\{\['montar el briefing'\]\}/);
+    expect(panel).not.toMatch(/react-ws-deliver-handoff/);
+    expect(panel).not.toMatch(/montar el briefing/);
     expect(panel).not.toMatch(/actions=\{[^}]*proponer ángulo/);
     expect(panelCode).not.toMatch(/\bdbService\b/);
     expect(panelCode).not.toMatch(/\bproposeAngle\s*\(/);

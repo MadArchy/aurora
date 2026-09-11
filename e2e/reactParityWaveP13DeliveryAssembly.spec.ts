@@ -1,5 +1,5 @@
 /**
- * SPEC-010 · T603 React Parity Wave P12 — bounded ADMIN brief-create E2E.
+ * SPEC-010 · T603 React Parity Wave P13 — bounded ADMIN delivery assembly E2E.
  */
 import { expect, test } from '@playwright/test';
 import {
@@ -10,10 +10,8 @@ import {
 
 test.use({ channel: 'chrome' });
 
-test.describe('P12 — React admin create strategic brief parity', () => {
-  test('ADMIN creates DRAFT brief on ready curation row without brief-create handoff text', async ({
-    page,
-  }) => {
+test.describe('P13 — React admin delivery assembly parity', () => {
+  test('ADMIN assembles draft briefing without deliver handoff', async ({ page }) => {
     test.setTimeout(120_000);
     await openManagerWorkspace(page);
 
@@ -34,7 +32,7 @@ test.describe('P12 — React admin create strategic brief parity', () => {
           priorityBand: 'HIGH',
           factors: {} as never,
           penalties: {} as never,
-          strategicRationale: 'E2E P12 governed routing fixture.',
+          strategicRationale: 'E2E P13 governed routing fixture.',
           recommendedAction: 'CURATE',
           scoringStatus: 'SCORED',
           calculatedAt: new Date().toISOString(),
@@ -53,7 +51,7 @@ test.describe('P12 — React admin create strategic brief parity', () => {
           priorityBand: 'HIGH',
           factors: {} as never,
           penalties: {} as never,
-          strategicRationale: 'E2E P12 governed score fixture.',
+          strategicRationale: 'E2E P13 governed score fixture.',
           recommendedAction: 'CURATE',
           scoringStatus: 'SCORED',
           scoringVersion: 'scoring-v1',
@@ -62,7 +60,7 @@ test.describe('P12 — React admin create strategic brief parity', () => {
           calculatedAt: new Date().toISOString(),
         },
         {
-          whyNow: { reason: 'E2E P12 timely governed context', score: 10 },
+          whyNow: { reason: 'E2E P13 timely governed context', score: 10 },
         }
       );
 
@@ -73,13 +71,18 @@ test.describe('P12 — React admin create strategic brief parity', () => {
       decideCuration({
         requestedClientId: cid,
         curationEntryId: added.entry.id,
-        destination: 'TASK_ARTICLE',
-        rationale: 'E2E P12 decided ready row with Brief-eligible destination.',
+        destination: 'TASK_VIDEO',
+        rationale: 'E2E P13 decided ready row for assembly.',
       });
 
       const entry = dbService.getCurationById(added.entry.id);
       if (entry?.deliveryPackageId) {
         dbService.attachCurationToDelivery(added.entry.id, null);
+      }
+
+      const existingDraft = dbService.getDraftDelivery(cid);
+      if (existingDraft) {
+        dbService.discardDraftDelivery(existingDraft.id);
       }
 
       const ready = dbService.getReadyCurationByClient(cid).some((row) => row.id === added.entry.id);
@@ -87,94 +90,68 @@ test.describe('P12 — React admin create strategic brief parity', () => {
         curationId: added.entry.id,
         thesisResolved: true,
         ready,
-        hasBrief: Boolean(entry?.strategicBriefId),
       };
     }, { cid: CLIENT_JUAN_ID });
 
     expect(fixture.curationId).toBeTruthy();
     expect(fixture.thesisResolved).toBe(true);
     expect(fixture.ready).toBe(true);
-    expect(fixture.hasBrief).toBe(false);
 
     await sidebarTab(page, 'ws-deliver').click();
     await expect(page.locator('[data-testid="react-ws-deliver"]')).toBeVisible({
       timeout: 15_000,
     });
-
     await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="react-ws-ensure-draft"]')).toBeVisible();
+
+    await page.locator('[data-testid="react-ws-ensure-draft"]').click();
+    await expect(page.locator('[data-testid="react-ws-deliver-success"]')).toContainText(
+      'Briefing creado'
+    );
+    await expect(page.locator('[data-testid="react-ws-draft-package"]')).toBeVisible();
 
     const curationId = fixture.curationId!;
-    await expect(page.locator(`[data-testid="react-ws-ready-${curationId}"]`)).toBeVisible();
-    await page.locator(`[data-testid="react-ws-create-brief-${curationId}"]`).click();
+    const addButton = page.locator(`[data-testid="react-ws-add-to-briefing-${curationId}"]`);
+    if (await addButton.count()) {
+      await addButton.click();
+      await expect(page.locator('[data-testid="react-ws-deliver-success"]')).toContainText(
+        'Añadido al briefing'
+      );
+    }
 
+    await page.fill('[data-testid="react-ws-draft-title"]', 'Briefing E2E P13');
+    await page.fill('[data-testid="react-ws-draft-strategic-note"]', 'Nota estratégica E2E');
+    await page.locator('[data-testid="react-ws-draft-save-metadata"]').click();
     await expect(page.locator('[data-testid="react-ws-deliver-success"]')).toContainText(
-      /Strategic Brief DRAFT created/,
-      { timeout: 30_000 }
+      'Nota estratégica guardada'
     );
 
-    await expect(page.locator(`[data-testid="react-ws-ready-${curationId}"]`)).toContainText(
-      'con Brief',
-      { timeout: 15_000 }
-    );
-
-    const persisted = await page.evaluate(
-      async ({ id }) => {
-        const { dbService } = await import('/src/services/db.ts');
-        const entry = dbService.getCurationById(id);
-        return entry?.strategicBriefId ?? null;
-      },
-      { id: curationId }
-    );
-    expect(persisted).toBeTruthy();
+    await expect(page.locator('[data-testid="react-ws-draft-items"] li')).not.toHaveCount(0);
+    await expect(page.locator('[data-testid="react-ws-deliver-preview-send"]')).toBeEnabled();
   });
 
-  test('missing governed thesis/routing shows failure feedback on Brief create', async ({
-    page,
-  }) => {
+  test('ADMIN discards draft briefing with authoritative refresh', async ({ page }) => {
     test.setTimeout(120_000);
     await openManagerWorkspace(page);
 
-    const fixture = await page.evaluate(async ({ cid }) => {
+    await page.evaluate(async ({ cid }) => {
       const { dbService } = await import('/src/services/db.ts');
-      const signal = dbService
-        .getSignalsByClient(cid)
-        .find(
-          (s) =>
-            s.status !== 'DISCARDED' &&
-            !dbService.isSignalInCuration(cid, s.id) &&
-            !s.routingDecision?.selectedThesisId
-        );
-      if (!signal) return { curationId: null as string | null };
-
-      const { addSignalToCuration, decideCuration } = await import(
-        '/src/services/executionDeliveryConsumer.ts'
-      );
-      const added = addSignalToCuration({ requestedClientId: cid, signalId: signal.id });
-      decideCuration({
-        requestedClientId: cid,
-        curationEntryId: added.entry.id,
-        destination: 'TASK_ARTICLE',
-        rationale: 'E2E P12 unresolved thesis fixture for brief failure path.',
-      });
-      const entry = dbService.getCurationById(added.entry.id);
-      if (entry?.deliveryPackageId) {
-        dbService.attachCurationToDelivery(added.entry.id, null);
-      }
-      return { curationId: added.entry.id };
+      const existingDraft = dbService.getDraftDelivery(cid);
+      if (existingDraft) dbService.discardDraftDelivery(existingDraft.id);
+      dbService.ensureDraftDelivery(cid, 'e2e_p13');
     }, { cid: CLIENT_JUAN_ID });
 
-    expect(fixture.curationId).toBeTruthy();
-
     await sidebarTab(page, 'ws-deliver').click();
-    await expect(page.locator('[data-testid="react-ws-deliver"]')).toBeVisible({
+    await expect(page.locator('[data-testid="react-ws-draft-package"]')).toBeVisible({
       timeout: 15_000,
     });
 
-    const curationId = fixture.curationId!;
-    await page.locator(`[data-testid="react-ws-create-brief-${curationId}"]`).click();
-    await expect(page.locator('[data-testid="react-ws-deliver-warning-msg"]')).toBeVisible({
-      timeout: 15_000,
-    });
+    await page.locator('[data-testid="react-ws-discard-draft"]').click();
+    await expect(page.locator('[data-testid="react-ws-discard-confirm"]')).toBeVisible();
+    await page.locator('[data-testid="react-ws-discard-confirm-yes"]').click();
+    await expect(page.locator('[data-testid="react-ws-deliver-success"]')).toContainText(
+      'Borrador descartado'
+    );
+    await expect(page.locator('[data-testid="react-ws-draft-empty"]')).toBeVisible();
+    await expect(page.locator('[data-testid="react-ws-ensure-draft"]')).toBeVisible();
   });
 });

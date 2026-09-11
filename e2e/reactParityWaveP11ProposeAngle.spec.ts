@@ -82,13 +82,8 @@ test.describe('P11 — React admin propose angle parity', () => {
       timeout: 15_000,
     });
 
-    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toBeVisible();
-    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).not.toContainText(
-      'proponer ángulo'
-    );
-    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toContainText(
-      'montar el briefing'
-    );
+    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="react-ws-ensure-draft"]')).toBeVisible();
 
     const curationId = fixture.curationId!;
     await expect(page.locator(`[data-testid="react-ws-ready-${curationId}"]`)).toBeVisible();

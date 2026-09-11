@@ -270,7 +270,8 @@ describe('P12 §14–§15 — deliver read seam and UI predicate', () => {
     expect(panel).toMatch(/curationDestinationToAuthorizedAction/);
     expect(panel).toMatch(/!entry\.strategicBriefId/);
     expect(panel).toMatch(/Create Strategic Brief DRAFT/);
-    expect(panel).toMatch(/actions=\{\['montar el briefing'\]\}/);
+    expect(panel).not.toMatch(/react-ws-deliver-handoff/);
+    expect(panel).not.toMatch(/montar el briefing/);
     expect(panel).not.toMatch(/actions=\{[^}]*crear el Strategic Brief/);
     expect(panel).not.toMatch(/\bdbService\b/);
     expect(panel).not.toMatch(/\bcreateBriefFromCurationEntry\s*\(/);
@@ -309,12 +310,13 @@ describe('P12 §21–§27 — non-regression boundaries', () => {
     expect(proposeComposite).not.toMatch(/\bcreateBriefFromCurationEntry\b/);
   });
 
-  it('React deliver panel does not call #14 decide, #15 propose, approval, #17, #18, or #22', () => {
+  it('React deliver panel does not call raw #14/#15/CR-2/#17/#18/#22 consumers', () => {
     const panel = code('src/ui/modules/pages/ReactClientWorkspacePage.tsx');
     expect(panel).not.toMatch(/\bdecideCuration\s*\(/);
     expect(panel).not.toMatch(/\bproposeAngle\s*\(/);
     expect(panel).not.toMatch(/\bcreateBriefFromCurationEntry\s*\(/);
-    expect(panel).not.toMatch(/ensureDraftDelivery|addCurationToDelivery/);
+    expect(panel).not.toMatch(/\bensureDraftDelivery\s*\(/);
+    expect(panel).not.toMatch(/\baddCurationToDelivery\s*\(/);
     expect(panel).not.toMatch(/sendDeliveryPackage\s*\(/);
     expect(panel).not.toMatch(/scoreAndRouteSignal|addRecommendation/);
   });

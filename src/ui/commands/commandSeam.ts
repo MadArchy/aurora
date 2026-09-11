@@ -73,6 +73,14 @@ import { runRadarSendToCurationComposite } from '../../services/radarSendToCurat
 import { runCurationDecidePresentation } from '../../services/curationDecidePresentation';
 import { runCurationProposeAnglePresentation } from '../../services/curationProposeAnglePresentation';
 import { runBriefCreateFromCurationPresentation } from '../../services/briefCreateFromCurationPresentation';
+import {
+  runAddCurationToDeliveryPresentation,
+  runDiscardDraftDeliveryPresentation,
+  runEnsureDraftDeliveryPresentation,
+  runRemoveDeliveryItemPresentation,
+  runUpdateDeliveryPackageMetadataPresentation,
+  type DeliveryAssemblyPresentationResult,
+} from '../../services/deliveryAssemblyPresentation';
 import { ClientLifecycleError } from '../../application/clientLifecycle';
 import { MasterProfileError } from '../../application/masterProfile';
 import { ThesisLifecycleError } from '../../application/thesisLifecycle';
@@ -160,6 +168,8 @@ export type CurationDecideCommandResult =
 export type ProposeAngleCommandResult =
   | { ok: true; message: string; kind: 'success' }
   | { ok: false; message: string; kind?: 'warning' | 'error'; silent?: boolean };
+
+export type { DeliveryAssemblyPresentationResult } from '../../services/deliveryAssemblyPresentation';
 
 export type CreateBriefFromCurationCommandResult =
   | { ok: true; message: string; briefId: string }
@@ -769,6 +779,60 @@ export const executionDeliveryCommands = {
     curationEntryId: string;
   }): Promise<ProposeAngleCommandResult> {
     return runCurationProposeAnglePresentation(intent);
+  },
+
+  /**
+   * Registry #17 — EnsureDraftDelivery.
+   * Presentation composite mirrors deliveryHandlers ensure toast.
+   */
+  ensureDraftDelivery(intent: {
+    requestedClientId: string | null | undefined;
+  }): DeliveryAssemblyPresentationResult {
+    return runEnsureDraftDeliveryPresentation(intent);
+  },
+
+  /**
+   * Registry #17 — AddCurationToDelivery.
+   * Direct ADMIN assembly only. P10 decide composite uses frozen consumer separately.
+   */
+  addCurationToDelivery(intent: {
+    requestedClientId: string | null | undefined;
+    curationEntryId: string;
+  }): DeliveryAssemblyPresentationResult {
+    return runAddCurationToDeliveryPresentation(intent);
+  },
+
+  /**
+   * Registry #17 — UpdateDeliveryPackageMetadata.
+   */
+  updateDeliveryPackageMetadata(intent: {
+    requestedClientId: string | null | undefined;
+    packageId: string;
+    title: string;
+    strategicNote: string;
+  }): DeliveryAssemblyPresentationResult {
+    return runUpdateDeliveryPackageMetadataPresentation(intent);
+  },
+
+  /**
+   * Registry #17 — RemoveDeliveryItemFromDelivery.
+   */
+  removeDeliveryItemFromDelivery(intent: {
+    requestedClientId: string | null | undefined;
+    packageId: string;
+    itemId: string;
+  }): DeliveryAssemblyPresentationResult {
+    return runRemoveDeliveryItemPresentation(intent);
+  },
+
+  /**
+   * Registry #17 — DiscardDraftDelivery.
+   */
+  discardDraftDelivery(intent: {
+    requestedClientId: string | null | undefined;
+    packageId: string;
+  }): DeliveryAssemblyPresentationResult {
+    return runDiscardDraftDeliveryPresentation(intent);
   },
 
   /**

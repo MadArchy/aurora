@@ -38,7 +38,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type CreateBriefFromCurationCommandResult, type CurationDecideCommandResult, type DeliverySendCommandResult, type ProposeAngleCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
+import { briefCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type CreateBriefFromCurationCommandResult, type CurationDecideCommandResult, type DeliveryAssemblyPresentationResult, type DeliverySendCommandResult, type ProposeAngleCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
 import type { CurationDestination, TaskType } from '../../types';
 import type { ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
@@ -553,6 +553,120 @@ export function useCreateBriefFromCuration(scope: TrustedTenantScope | null) {
       void queryClient.invalidateQueries({
         queryKey: tenantInvalidationKey(scope, 'canonical'),
       });
+    },
+  });
+}
+
+function invalidateDeliverWorkspace(
+  queryClient: ReturnType<typeof useQueryClient>,
+  scope: TrustedTenantScope
+) {
+  void queryClient.invalidateQueries({
+    queryKey: tenantInvalidationKey(scope, 'compatibility'),
+  });
+}
+
+/** P13 — Registry #17 EnsureDraftDelivery. */
+export function useEnsureDraftDelivery(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<DeliveryAssemblyPresentationResult, Error, void>({
+    mutationFn: async () => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.ensureDraftDelivery({
+        requestedClientId: scope.clientId,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      invalidateDeliverWorkspace(queryClient, scope);
+    },
+  });
+}
+
+/** P13 — Registry #17 AddCurationToDelivery. */
+export function useAddCurationToDelivery(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    DeliveryAssemblyPresentationResult,
+    Error,
+    { curationEntryId: string }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.addCurationToDelivery({
+        requestedClientId: scope.clientId,
+        curationEntryId: intent.curationEntryId,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      invalidateDeliverWorkspace(queryClient, scope);
+    },
+  });
+}
+
+/** P13 — Registry #17 UpdateDeliveryPackageMetadata. */
+export function useUpdateDeliveryPackageMetadata(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    DeliveryAssemblyPresentationResult,
+    Error,
+    { packageId: string; title: string; strategicNote: string }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.updateDeliveryPackageMetadata({
+        requestedClientId: scope.clientId,
+        ...intent,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      invalidateDeliverWorkspace(queryClient, scope);
+    },
+  });
+}
+
+/** P13 — Registry #17 RemoveDeliveryItemFromDelivery. */
+export function useRemoveDeliveryItemFromDelivery(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    DeliveryAssemblyPresentationResult,
+    Error,
+    { packageId: string; itemId: string }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.removeDeliveryItemFromDelivery({
+        requestedClientId: scope.clientId,
+        ...intent,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      invalidateDeliverWorkspace(queryClient, scope);
+    },
+  });
+}
+
+/** P13 — Registry #17 DiscardDraftDelivery. */
+export function useDiscardDraftDelivery(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    DeliveryAssemblyPresentationResult,
+    Error,
+    { packageId: string }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.discardDraftDelivery({
+        requestedClientId: scope.clientId,
+        packageId: intent.packageId,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      invalidateDeliverWorkspace(queryClient, scope);
     },
   });
 }

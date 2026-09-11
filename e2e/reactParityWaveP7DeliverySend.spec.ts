@@ -48,9 +48,7 @@ test.describe('P7 — React delivery package send parity', () => {
     });
     await expect(page.locator('[data-testid="react-ws-deliver-preview-send"]')).toBeEnabled();
     await expect(page.locator('[data-testid="react-delivery-preview-handoff"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).not.toContainText(
-      'enviar el briefing'
-    );
+    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toHaveCount(0);
 
     await page.click('[data-testid="react-ws-deliver-preview-send"]');
     await expect(page.locator('[data-testid="react-delivery-preview-modal"]')).toBeVisible();

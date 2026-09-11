@@ -318,14 +318,13 @@ describe('P10 §12–§14 — decide curation seam', () => {
 });
 
 describe('P10 surface / #22 / React db boundaries', () => {
-  it('DeliverPanel wires decide form and narrows handoff', () => {
+  it('DeliverPanel wires decide form without deliver assembly handoff (P13 native)', () => {
     const panel = read('src/ui/modules/pages/ReactClientWorkspacePage.tsx');
     expect(panel).toMatch(/useDecideCuration/);
     expect(panel).toMatch(/react-ws-decide-form-/);
     expect(panel).toMatch(/react-ws-decide-submit-/);
-    expect(panel).toMatch(
-      /actions=\{\['montar el briefing'\]\}/
-    );
+    expect(panel).not.toMatch(/react-ws-deliver-handoff/);
+    expect(panel).not.toMatch(/montar el briefing/);
     expect(panel).not.toMatch(/actions=\{[^}]*proponer ángulo/);
     expect(panel).not.toMatch(/decidir el destino/);
     expect(panel).not.toMatch(/dbService\./);

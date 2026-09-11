@@ -180,7 +180,9 @@ describe('P7 §7 / §20 — React surface authority guards', () => {
     expect(workspace).toMatch(/react-ws-deliver-preview-send/);
     expect(workspace).toMatch(/ReactDeliveryPreviewModal/);
     expect(workspace).toMatch(/narrowToClient/);
-    expect(workspace).toMatch(/montar el briefing/);
+    expect(workspace).toMatch(/react-ws-ensure-draft|react-ws-draft-package/);
+    expect(workspace).not.toMatch(/react-ws-deliver-handoff/);
+    expect(workspace).not.toMatch(/montar el briefing/);
     expect(workspace).not.toMatch(/montar y enviar el briefing/);
     expect(modal).toMatch(/useSendDeliveryPackage/);
     expect(modal).toMatch(/narrowToClient/);

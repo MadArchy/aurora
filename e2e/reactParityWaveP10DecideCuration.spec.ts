@@ -41,13 +41,8 @@ test.describe('P10 — React admin decide curation parity', () => {
       timeout: 15_000,
     });
 
-    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toBeVisible();
-    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).not.toContainText(
-      'decidir el destino'
-    );
-    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).not.toContainText(
-      'proponer ángulo'
-    );
+    await expect(page.locator('[data-testid="react-ws-deliver-handoff"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="react-ws-ensure-draft"]')).toBeVisible();
 
     const curationId = fixture.curationId!;
     await expect(page.locator(`[data-testid="react-ws-pending-${curationId}"]`)).toBeVisible();
