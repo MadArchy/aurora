@@ -175,6 +175,16 @@ export type CreateBriefFromCurationCommandResult =
   | { ok: true; message: string; briefId: string }
   | { ok: false; message: string; kind?: 'warning' | 'error' };
 
+export type CreateClientWithInviteCommandResult =
+  | {
+      ok: true;
+      message: string;
+      clientId: string;
+      displayName: string;
+      invitationToken: string;
+    }
+  | { ok: false; message: string };
+
 /**
  * Wraps a canonical call so a rejection reaches the UI as a message instead of
  * an unhandled throw. The seam never inspects the reason and never retries: the
@@ -430,13 +440,25 @@ export const clientLifecycleCommands = {
     company?: string;
     targetMarket?: string;
     claimedOrganizationId?: string;
-  }): CommandResult {
-    return attempt(
-      () => {
-        createClientWithInvite(intent);
-      },
-      'No se pudo crear el cliente'
-    );
+  }): CreateClientWithInviteCommandResult {
+    try {
+      const result = createClientWithInvite(intent);
+      return {
+        ok: true,
+        message: `Cliente creado. Token de invitación: ${result.invitation.token}`,
+        clientId: result.client.id,
+        displayName: result.client.displayName,
+        invitationToken: result.invitation.token,
+      };
+    } catch (err) {
+      if (err instanceof ClientLifecycleError) {
+        return { ok: false, message: err.message };
+      }
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : 'No se pudo crear el cliente',
+      };
+    }
   },
 
   async acceptInvitation(intent: {

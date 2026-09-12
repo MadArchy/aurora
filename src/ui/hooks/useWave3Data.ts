@@ -38,7 +38,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type CreateBriefFromCurationCommandResult, type CurationDecideCommandResult, type DeliveryAssemblyPresentationResult, type DeliverySendCommandResult, type ProposeAngleCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
+import { briefCommands, clientLifecycleCommands, deliveryAckCommands, executionDeliveryCommands, radarCommands, signalOutcomeCommands, thesisLifecycleCommands, type ArticleReviewCommandResult, type CommandResult, type CreateBriefFromCurationCommandResult, type CreateClientWithInviteCommandResult, type CurationDecideCommandResult, type DeliveryAssemblyPresentationResult, type DeliverySendCommandResult, type ProposeAngleCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
 import type { CurationDestination, TaskType } from '../../types';
 import type { ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
@@ -526,6 +526,34 @@ export function useRegisterSignalOutcome(scope: TrustedTenantScope | null) {
     onSuccess: (result) => {
       if (!scope || !result.ok) return;
       void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'canonical') });
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+    },
+  });
+}
+
+/** CR-1 #34 CreateClientWithInvite — P14 React cockpit create-client parity. */
+export function useCreateClientWithInvite(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    CreateClientWithInviteCommandResult,
+    Error,
+    {
+      firstName: string;
+      lastName: string;
+      email: string;
+      profession?: string;
+      company?: string;
+      targetMarket?: string;
+    }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope) return { ok: false, message: 'Sesión sin contexto de organización.' };
+      return clientLifecycleCommands.createClientWithInvite(intent);
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
       void queryClient.invalidateQueries({
         queryKey: tenantInvalidationKey(scope, 'compatibility'),
       });

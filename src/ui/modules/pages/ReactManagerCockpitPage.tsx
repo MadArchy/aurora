@@ -1,37 +1,254 @@
 /**
- * SPEC-010 · React ManagerCockpit (wave 3, T-010-303) — READ_ONLY_REACT.
+ * SPEC-010 · React ManagerCockpit (wave 3, T-010-303) — HYBRID.
  *
  * Authority: presentation only.
  *
  * READ SOURCE: compatibility (`readPortfolioOverview`, `readAiCenter`).
  *
- * COMMAND: none. Every mutating action of the legacy cockpit is blocked:
- *   - "+ Nuevo cliente"            → legacy modal → `clientLifecycleCommands` /
- *                                     `createClientWithInvite` (CR-1 Client Lifecycle)
- *   - "Subir local → Firestore"    → bulk Firestore write (`pushCurrentLocalToFirestore`)
- *   - "Ver como cliente"           → `authService.impersonateClient`, a session
- *                                     mutation owned by SPEC-009
- *   - "Redactar paper" / pipeline  → canonical gate followed by `dbService` writes
- * None has a canonical Application use case for its write, so all stay legacy
- * and are named in the handoff notice. Entering a client's workspace is
- * navigation plus an audit entry, which belongs to the legacy controller that
- * owns navigation, so it is exposed here as an intent the host may honour.
+ * COMMAND: #34 CreateClientWithInvite (P14) via `clientLifecycleCommands`.
+ * Remaining mutating cockpit actions stay legacy:
+ *   - "Ver como cliente"           → `authService.impersonateClient` (SPEC-009)
+ *   - "Subir local → Firestore"    → bulk Firestore write
+ *   - "Redactar paper" / pipeline  → canonical gate + legacy writes
  *
  * Two legacy behaviours are deliberately not reproduced:
  *   - the directory row shows `getActiveTheses(id)[0]` and silently hides any
- *     other active thesis. This view shows the count and every title, so a
- *     multi-thesis client cannot look single-thesis (threat T-010-15).
- *   - the panel probes `aiService.isServerGatewayAvailable()` during render. A
- *     read must not make service calls with side-effect potential, so the
- *     gateway strip stays legacy-only and this view reports quota and history.
+ *     other active thesis. This view shows the count and every title.
+ *   - the panel probes `aiService.isServerGatewayAvailable()` during render.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useSession } from '../../providers/SessionProvider';
-import { useAiCenter, usePortfolioOverview } from '../../hooks/useWave3Data';
+import { useAiCenter, useCreateClientWithInvite, usePortfolioOverview } from '../../hooks/useWave3Data';
 import { LegacyHandoff, PanelState } from './LegacyHandoff';
 
 type CockpitTab = 'portfolio' | 'clients' | 'ai';
+
+type CreateClientFields = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  profession: string;
+  company: string;
+  targetMarket: string;
+};
+
+const EMPTY_CREATE_CLIENT: CreateClientFields = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  profession: '',
+  company: '',
+  targetMarket: '',
+};
+
+function CreateClientPanel() {
+  const { tenantScope } = useSession();
+  const createClient = useCreateClientWithInvite(tenantScope);
+  const [open, setOpen] = useState(false);
+  const [fields, setFields] = useState<CreateClientFields>(EMPTY_CREATE_CLIENT);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const busy = createClient.isPending;
+
+  const resetForm = () => {
+    setFields(EMPTY_CREATE_CLIENT);
+    setError(null);
+    setMessage(null);
+  };
+
+  const closeForm = () => {
+    setOpen(false);
+    resetForm();
+  };
+
+  const setField = (key: keyof CreateClientFields, value: string) => {
+    setFields((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setMessage(null);
+
+    const firstName = fields.firstName.trim();
+    const lastName = fields.lastName.trim();
+    const email = fields.email.trim();
+    if (!firstName || !lastName || !email) {
+      setError('Nombre, apellido y correo son obligatorios.');
+      return;
+    }
+    if (!email.includes('@')) {
+      setError('Introduce un correo válido.');
+      return;
+    }
+
+    const result = await createClient.mutateAsync({
+      firstName,
+      lastName,
+      email,
+      profession: fields.profession.trim() || undefined,
+      company: fields.company.trim() || undefined,
+      targetMarket: fields.targetMarket.trim() || undefined,
+    });
+
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+
+    setFields(EMPTY_CREATE_CLIENT);
+    setError(null);
+    setMessage(result.message);
+    setOpen(false);
+  };
+
+  return (
+    <div className="cockpit-create-client" data-testid="react-cockpit-create-client">
+      {!open ? (
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={() => {
+            setOpen(true);
+            setError(null);
+          }}
+          data-testid="react-cockpit-create-open"
+        >
+          + Nuevo cliente
+        </button>
+      ) : (
+        <form className="card nested-card" noValidate onSubmit={(event) => void submit(event)}>
+          <h4>Crear cliente e invitación</h4>
+          <p className="muted small">
+            La organización y el actor se resuelven desde la sesión de manager.
+          </p>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" htmlFor="react-cockpit-first-name">
+                Nombre
+              </label>
+              <input
+                id="react-cockpit-first-name"
+                className="form-input"
+                value={fields.firstName}
+                onChange={(event) => setField('firstName', event.target.value)}
+                required
+                disabled={busy}
+                data-testid="react-cockpit-first-name"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="react-cockpit-last-name">
+                Apellido
+              </label>
+              <input
+                id="react-cockpit-last-name"
+                className="form-input"
+                value={fields.lastName}
+                onChange={(event) => setField('lastName', event.target.value)}
+                required
+                disabled={busy}
+                data-testid="react-cockpit-last-name"
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="react-cockpit-email">
+              Correo
+            </label>
+            <input
+              id="react-cockpit-email"
+              type="email"
+              className="form-input"
+              value={fields.email}
+              onChange={(event) => setField('email', event.target.value)}
+              required
+              disabled={busy}
+              data-testid="react-cockpit-email"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="react-cockpit-profession">
+              Profesión (opcional)
+            </label>
+            <input
+              id="react-cockpit-profession"
+              className="form-input"
+              value={fields.profession}
+              onChange={(event) => setField('profession', event.target.value)}
+              disabled={busy}
+              data-testid="react-cockpit-profession"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="react-cockpit-company">
+              Empresa (opcional)
+            </label>
+            <input
+              id="react-cockpit-company"
+              className="form-input"
+              value={fields.company}
+              onChange={(event) => setField('company', event.target.value)}
+              disabled={busy}
+              data-testid="react-cockpit-company"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="react-cockpit-target">
+              Mercado objetivo (opcional)
+            </label>
+            <input
+              id="react-cockpit-target"
+              className="form-input"
+              value={fields.targetMarket}
+              onChange={(event) => setField('targetMarket', event.target.value)}
+              disabled={busy}
+              data-testid="react-cockpit-target"
+            />
+          </div>
+
+          <div className="modal-footer">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={closeForm}
+              data-testid="react-cockpit-create-cancel"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={busy}
+              data-testid="react-cockpit-create-submit"
+            >
+              {busy ? 'Creando…' : 'Crear e invitar'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {message ? (
+        <p className="muted small" role="status" data-testid="react-cockpit-create-success">
+          {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="form-error" role="alert" data-testid="react-cockpit-create-error">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) => void }) {
   const { tenantScope } = useSession();
@@ -112,7 +329,6 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
                   {row.profession}
                   {row.company ? ` · ${row.company}` : ''}
                 </p>
-                {/* Every active thesis title, not just the first one. */}
                 <p className="muted small" data-testid={`react-cockpit-theses-${row.clientId}`}>
                   {row.activeThesisCount === 0
                     ? 'Sin tesis activa'
@@ -240,7 +456,6 @@ export function ReactManagerCockpitPage({
     );
   }
 
-  // Visibility only. The trusted session decides the role; this view never sets it.
   if (!isAdmin) {
     return (
       <PanelState
@@ -255,7 +470,7 @@ export function ReactManagerCockpitPage({
     <section
       className="card cockpit-card"
       data-testid="react-manager-cockpit"
-      data-authority="READ_ONLY"
+      data-authority="HYBRID"
     >
       <div className="card-header">
         <div>
@@ -284,12 +499,16 @@ export function ReactManagerCockpitPage({
         </div>
       </div>
 
-      {tab === 'ai' ? <AiCenterPanel /> : <PortfolioPanel onEnterClient={onEnterClient} />}
+      <CreateClientPanel />
+
+      {tab === 'ai' ? (
+        <AiCenterPanel />
+      ) : (
+        <PortfolioPanel onEnterClient={onEnterClient} />
+      )}
 
       <LegacyHandoff
         actions={[
-          'crear un cliente',
-          'invitarlo',
           'ver la app como cliente',
           'subir datos a Firestore',
           'generar contenido y mover el pipeline',
