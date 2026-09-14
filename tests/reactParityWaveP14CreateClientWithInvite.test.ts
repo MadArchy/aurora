@@ -255,10 +255,11 @@ describe('P14 §15–§21 — hook, form, refresh, boundaries', () => {
 });
 
 describe('P14 §22–§28 — non-regression boundaries', () => {
-  it('ReactLogin still omits invitation acceptance', () => {
+  it('ReactLogin email branch unchanged by P14 cockpit work', () => {
     const login = read('src/ui/modules/Login/ReactLogin.tsx');
-    expect(login).toMatch(/invitation acceptance is intentionally absent/);
-    expect(login).not.toMatch(/acceptInvitation/);
+    expect(login).toMatch(/sessionCommands\.login/);
+    expect(login).toMatch(/react-login-submit/);
+    expect(login).not.toMatch(/useCreateClientWithInvite/);
   });
 
   it('legacy create-client handler rollback retained', () => {

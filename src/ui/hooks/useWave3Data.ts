@@ -533,6 +533,17 @@ export function useRegisterSignalOutcome(scope: TrustedTenantScope | null) {
   });
 }
 
+/** CR-1 #1 AcceptClientInvitation — P15 React invite accept parity (unauthenticated). */
+export function useAcceptClientInvitation() {
+  return useMutation<
+    CommandResult,
+    Error,
+    { token: string; password: string; displayName: string }
+  >({
+    mutationFn: async (intent) => clientLifecycleCommands.acceptInvitation(intent),
+  });
+}
+
 /** CR-1 #34 CreateClientWithInvite — P14 React cockpit create-client parity. */
 export function useCreateClientWithInvite(scope: TrustedTenantScope | null) {
   const queryClient = useQueryClient();

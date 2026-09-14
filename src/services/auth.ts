@@ -124,20 +124,23 @@ class AuthService {
         );
         if (!admin || account.role !== 'CLIENT' || account.clientId !== this.impersonation.clientId) {
           this.persistImpersonation(null);
-          this.currentUser = this.toUser(account);
+          this.setSession(this.toUser(account));
           return;
         }
-        this.currentUser = this.toUser(account, {
-          displayName: parsed.displayName || this.impersonation.displayName,
-        });
+        this.setSession(
+          this.toUser(account, {
+            displayName: parsed.displayName || this.impersonation.displayName,
+          })
+        );
         return;
       }
 
-      this.currentUser = this.toUser(account, {
+      const user = this.toUser(account, {
         displayName: parsed.displayName,
       });
+      this.setSession(user);
       void import('./notifications').then(({ bindAuthNotificationIdentities }) => {
-        if (this.currentUser) bindAuthNotificationIdentities(this.currentUser);
+        bindAuthNotificationIdentities(user);
       });
     } catch {
       this.currentUser = null;
@@ -317,27 +320,51 @@ class AuthService {
   ): Promise<{ ok: true } | { ok: false; message: string }> {
     if (invite.status !== 'PENDING') return { ok: false, message: 'La invitación no está vigente.' };
     if (Date.parse(invite.expiresAt) < Date.now()) return { ok: false, message: 'INVITATION_EXPIRED' };
-    if (this.accounts.some((a) => a.email.toLowerCase() === invite.email.toLowerCase())) {
-      return { ok: false, message: 'Ya existe una cuenta con ese correo.' };
-    }
     if (!invite.organizationId?.trim()) {
       return { ok: false, message: 'Invitación sin organizationId (fail-closed).' };
     }
     if (!invite.clientId?.trim()) {
       return { ok: false, message: 'Invitación sin clientId (fail-closed).' };
     }
+
+    const organizationId = invite.organizationId.trim();
+    const existingIdx = this.accounts.findIndex(
+      (a) => a.email.toLowerCase() === invite.email.toLowerCase()
+    );
     const salt = createSalt();
-    const account: AuthAccount = {
-      uid: createId('user'),
-      email: invite.email,
-      passwordSalt: salt,
-      passwordHash: await hashPassword(password, salt),
-      role: 'CLIENT',
-      organizationId: invite.organizationId.trim(),
-      clientId: invite.clientId,
-      status: 'ACTIVE',
-    };
-    this.accounts.push(account);
+    const passwordHash = await hashPassword(password, salt);
+
+    let account: AuthAccount;
+    if (existingIdx >= 0) {
+      const existing = this.accounts[existingIdx];
+      const pendingInviteMatch =
+        existing.status === 'INVITED' &&
+        existing.clientId === invite.clientId &&
+        existing.organizationId?.trim() === organizationId;
+      if (!pendingInviteMatch) {
+        return { ok: false, message: 'Ya existe una cuenta con ese correo.' };
+      }
+      account = {
+        ...existing,
+        passwordSalt: salt,
+        passwordHash,
+        status: 'ACTIVE',
+      };
+      this.accounts[existingIdx] = account;
+    } else {
+      account = {
+        uid: createId('user'),
+        email: invite.email,
+        passwordSalt: salt,
+        passwordHash,
+        role: 'CLIENT',
+        organizationId,
+        clientId: invite.clientId,
+        status: 'ACTIVE',
+      };
+      this.accounts.push(account);
+    }
+
     this.persistAccounts();
     this.persistImpersonation(null);
     const user = this.toUser(account, { displayName, mustCompleteOnboarding: true });
