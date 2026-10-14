@@ -12,6 +12,8 @@ const h = vi.hoisted(() => {
     commits: [] as Array<Array<{ path: string; data: Record<string, unknown> }>>,
     failNextCommit: false,
     tick: 0,
+    /** Runs after a transaction's reads, before it commits: a concurrent writer for that window. */
+    duringTransaction: null as null | (() => void),
   };
   return { state };
 });
@@ -80,6 +82,54 @@ vi.mock('firebase/firestore', () => {
           }
         },
       };
+    },
+    runTransaction: async <T,>(
+      _db: unknown,
+      update: (tx: {
+        get(ref: { path: string }): Promise<{ exists(): boolean; data(): Record<string, unknown> | undefined }>;
+        set(ref: { path: string }, data: Record<string, unknown>, options?: { merge?: boolean }): unknown;
+        delete(ref: { path: string }): unknown;
+      }) => Promise<T>
+    ): Promise<T> => {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const reads = new Map<string, string>();
+        const pending: Array<{ path: string; data: Record<string, unknown> | null }> = [];
+        const tx = {
+          async get(ref: { path: string }) {
+            if (pending.length > 0) throw new Error('Firestore transactions require all reads before writes');
+            const data = h.state.remote.get(ref.path);
+            reads.set(ref.path, JSON.stringify(data ?? null));
+            return { exists: () => data !== undefined, data: () => (data ? structuredClone(data) : undefined) };
+          },
+          set(ref: { path: string }, data: Record<string, unknown>) {
+            pending.push({ path: ref.path, data });
+            return tx;
+          },
+          delete(ref: { path: string }) {
+            pending.push({ path: ref.path, data: null });
+            return tx;
+          },
+        };
+        const result = await update(tx);
+        const concurrent = h.state.duringTransaction;
+        h.state.duringTransaction = null;
+        concurrent?.();
+        const written = pending.map((write) => ({ path: write.path, data: write.data ?? { deleted: true } }));
+        h.state.attempts.push(written);
+        if (h.state.failNextCommit) {
+          h.state.failNextCommit = false;
+          throw new Error('unavailable');
+        }
+        const changed = [...reads].some(([path, seen]) => JSON.stringify(h.state.remote.get(path) ?? null) !== seen);
+        if (changed) continue;
+        h.state.commits.push(written);
+        for (const write of pending) {
+          if (write.data === null) h.state.remote.delete(write.path);
+          else h.state.remote.set(write.path, { ...(h.state.remote.get(write.path) ?? {}), ...write.data });
+        }
+        return result;
+      }
+      throw new Error('aborted: transaction contention');
     },
     onSnapshot: (q: Query, callback: (snap: ReturnType<typeof toSnapshot>) => void) => {
       callback(toSnapshot(matches(q)));
@@ -254,6 +304,7 @@ beforeEach(async () => {
   h.state.attempts = [];
   h.state.commits = [];
   h.state.failNextCommit = false;
+  h.state.duringTransaction = null;
   h.state.tick = 0;
   pushErrors = [];
   onFirestorePushError((message) => pushErrors.push(message));
@@ -424,7 +475,7 @@ describe('CLIENT transition ordering through debounced persistence (D4)', () => 
     expect(pushErrors).toEqual([]);
   });
 
-  it('DB-09: ADMIN scheduling is unchanged — latest live snapshot, one coalesced full push', async () => {
+  it('DB-09: ADMIN scheduling writes only captured changes, deriving the counter in the transaction', async () => {
     await hydrateAs(ADMIN);
     const local = localFromRemote();
 
@@ -433,17 +484,25 @@ describe('CLIENT transition ordering through debounced persistence (D4)', () => 
     transitionTask(local, 'task_1', 'COMPLETED', T2);
     scheduleFirestorePush(local);
     local.contents[0].title = 'Edited after scheduling';
+    h.state.duringTransaction = () => {
+      h.state.remote.set(ROOT, { ...h.state.remote.get(ROOT)!, completedTasksCount: 5 });
+    };
     await settle();
 
+    expect(h.state.attempts).toHaveLength(2);
     expect(h.state.commits).toHaveLength(1);
     const scheduled = h.state.commits[0];
+    expect(scheduled.map((w) => w.path).sort()).toEqual([ROOT, TASK].sort());
     expect(committedStatuses(TASK)).toEqual(['COMPLETED']);
-    expect(scheduled.find((w) => w.path === `${ROOT}/contents/c_1`)!.data.title).toBe('Edited after scheduling');
+    expect(scheduled.find((w) => w.path === ROOT)!.data).toEqual({ completedTasksCount: 6 });
+    expect(h.state.remote.get(ROOT)!.completedTasksCount).toBe(6);
+    expect(h.state.remote.get(`${ROOT}/contents/c_1`)!.title).toBe('Article');
+    expect(pushErrors).toEqual([]);
 
     h.state.commits = [];
     h.state.tick = 0;
     await importSnapshotToFirestore(local);
-    expect(h.state.commits[0].map((w) => w.path)).toEqual(scheduled.map((w) => w.path));
+    expect(h.state.commits[0].map((w) => w.path).sort()).toEqual([...h.state.remote.keys()].sort());
   });
 
   it('DB-10: rapid opportunity accept → complete persists IN_PROGRESS before COMPLETED', async () => {

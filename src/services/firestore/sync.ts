@@ -83,6 +83,48 @@ type PendingClientMutation = {
 };
 const pendingClientMutations = new Map<string, PendingClientMutation>();
 
+/** Base of a field on a document with no server-confirmed baseline: written as-is, never conflict-checked. */
+const NO_BASE = Symbol('no-base');
+
+type PendingAdminField = { value: unknown; base: unknown; version: number };
+
+/**
+ * ADMIN changes captured when they were scheduled and not yet acknowledged, by document path.
+ * Kept apart from CLIENT mutations: each entry is bound to the tenant that captured it.
+ * `create` is the full row of a document the server is not known to hold; otherwise `fields`
+ * holds each changed field with the server value it was changed from (`base`).
+ */
+type PendingAdminDoc = {
+  target: CollectionKey;
+  clientId: string;
+  id: string;
+  organizationId: string | null;
+  create: { row: Record<string, unknown>; version: number } | null;
+  fields: Map<string, PendingAdminField>;
+};
+const pendingAdminMutations = new Map<string, PendingAdminDoc>();
+/**
+ * ADMIN commits acknowledged before the listener echoed them: a snapshot still showing the
+ * pre-commit values is stale and must not revert the row; any other version ends the guard.
+ */
+type AdminEchoGuard = {
+  clientId: string;
+  organizationId: string | null;
+  create: Record<string, unknown> | null;
+  fields: Map<string, { value: unknown; before: unknown }>;
+  expiresAt: number;
+};
+const adminEchoGuards = new Map<string, AdminEchoGuard>();
+const ADMIN_ECHO_GUARD_MS = 30_000;
+/**
+ * ADMIN values discarded because their session ended before they were pushed. Local rows may
+ * still hold them; a later session must not persist them under its own identity.
+ */
+const abandonedAdminValues = new Map<string, { create: Record<string, unknown> | null; fields: Map<string, unknown> }>();
+let adminCaptureVersion = 0;
+/** Clients of the ADMIN tenant in the last capture; ADMIN removal intents are limited to them. */
+let adminScopedClientIds = new Set<string>();
+
 /**
  * Explicit remote removals recorded by local mutations. A merge snapshot push cannot express
  * a deleted document or a cleared field, so each intent names one exact client-scoped document.
@@ -102,6 +144,10 @@ export function resetKnownRemoteDocPaths() {
   liveCollections.clear();
   remoteBaseline.clear();
   pendingClientMutations.clear();
+  pendingAdminMutations.clear();
+  adminEchoGuards.clear();
+  abandonedAdminValues.clear();
+  adminScopedClientIds = new Set();
   pendingDocDeletes.clear();
   pendingFieldClears.clear();
 }
@@ -424,10 +470,26 @@ export function importSnapshotToFirestore(snapshot: LocalV5Snapshot): Promise<Sn
   return enqueueSnapshotImport(() => runSnapshotImport(snapshot));
 }
 
-function enqueueSnapshotImport(task: () => Promise<SnapshotImportResult>): Promise<SnapshotImportResult> {
+/** Remote writes (imports and ADMIN pushes) run one at a time, in scheduling order. */
+function enqueueSnapshotImport<T>(task: () => Promise<T>): Promise<T> {
   const run = snapshotImportQueue.then(task);
   snapshotImportQueue = run.catch(() => undefined);
   return run;
+}
+
+async function readPersistenceActor(): Promise<PersistenceActor> {
+  const auth = await getFirebaseAuth();
+  const user = auth?.currentUser;
+  if (!user) return { role: 'ADMIN' };
+  const token = await user.getIdTokenResult();
+  const actor: PersistenceActor = {
+    role: typeof token.claims.role === 'string' ? token.claims.role : 'ADMIN',
+    clientId: typeof token.claims.clientId === 'string' ? token.claims.clientId : null,
+    organizationId:
+      typeof token.claims.organizationId === 'string' ? token.claims.organizationId : null,
+  };
+  sessionPersistenceActor = actor;
+  return actor;
 }
 
 async function runSnapshotImport(snapshot: LocalV5Snapshot): Promise<SnapshotImportResult> {
@@ -438,19 +500,7 @@ async function runSnapshotImport(snapshot: LocalV5Snapshot): Promise<SnapshotImp
   const db = await getFirebaseFirestore();
   if (!db) return { ok: false, message: 'Firestore no inicializado.', written: 0 };
 
-  const auth = await getFirebaseAuth();
-  const user = auth?.currentUser;
-  let actor: PersistenceActor = { role: 'ADMIN' };
-  if (user) {
-    const token = await user.getIdTokenResult();
-    actor = {
-      role: typeof token.claims.role === 'string' ? token.claims.role : 'ADMIN',
-      clientId: typeof token.claims.clientId === 'string' ? token.claims.clientId : null,
-      organizationId:
-        typeof token.claims.organizationId === 'string' ? token.claims.organizationId : null,
-    };
-    sessionPersistenceActor = actor;
-  }
+  const actor = await readPersistenceActor();
 
   const scoped = filterSnapshotForPersistenceActor(snapshot, actor);
   const isClientActor = actor.role === 'CLIENT';
@@ -1144,6 +1194,9 @@ export async function pullClientDataFromFirestore(
 
     const dossierSnap = await getDocs(await scopedClientSubcollectionQuery(db, clientId, 'dossier', scope));
     markRemoteDocsKnown(`${clientDocPath(clientId)}/dossier`, confirmedDocIds(dossierSnap.docs));
+    if (!isFromCache(dossierSnap)) {
+      recordRemoteBaseline(`${clientDocPath(clientId)}/dossier`, dossierSnap.docs, { prune: true });
+    }
     const dossierDoc = dossierSnap.docs.find((row) => row.id === 'data');
     if (dossierDoc) {
       partial.dossiers![clientId] = normalizeFirestorePulledData(
@@ -1198,6 +1251,18 @@ export type RemotePersistenceOutcome =
 /** The root client doc has no listener; its server-derived counter is handed back after each push. */
 export type ClientRootReconcileHandler = (clientId: string, fields: { completedTasksCount: number }) => void;
 
+/**
+ * Server truth plus still-pending ADMIN fields for one local row an ADMIN push settled
+ * (conflict, failure, derived counter); `row: null` drops a row the server does not hold.
+ */
+export type AdminRowReconcile = {
+  target: CollectionKey;
+  clientId: string;
+  id: string;
+  row: Record<string, unknown> | null;
+};
+export type AdminRowsReconcileHandler = (rows: ReadonlyArray<AdminRowReconcile>) => void;
+
 type ClientCapture = {
   snapshot: LocalV5Snapshot;
   epoch: number;
@@ -1216,8 +1281,8 @@ let clientCaptureVersion = 0;
 /** Outcome per capture version; a coalesced capture resolves with the capture that replaced it. */
 const captureOutcomes = new Map<number, Promise<RemotePersistenceOutcome>>();
 const TRACKED_CAPTURE_OUTCOMES = 500;
-let pendingAdminSnapshot: LocalV5Snapshot | null = null;
 let adminPushInFlight: Promise<RemotePersistenceOutcome> | null = null;
+let adminRowsHandler: AdminRowsReconcileHandler | null = null;
 
 const DISCARDED_CAPTURE_MESSAGE = 'Cambios descartados tras un error de sincronización.';
 
@@ -1302,8 +1367,11 @@ function recordPendingClientMutations(capture: ClientCapture) {
   }
 }
 
-/** Pending CLIENT rows win over a snapshot of the same tenant, client and collection. */
-function overlayPendingClientMutations(
+/**
+ * Pending rows win over a snapshot of the same tenant, client and collection: whole CLIENT
+ * rows, ADMIN creates, and ADMIN changed fields on top of the server row.
+ */
+function overlayPendingMutations(
   collectionPath: string,
   clientId: string,
   organizationId: string,
@@ -1318,6 +1386,46 @@ function overlayPendingClientMutations(
     const index = out.findIndex((candidate) => candidate.id === id);
     if (index >= 0) out[index] = row;
     else out.push(row);
+  }
+  const now = Date.now();
+  for (const [path, guard] of adminEchoGuards) {
+    if (parentCollectionPath(path) !== collectionPath || guard.clientId !== clientId) continue;
+    if (guard.organizationId !== null && guard.organizationId !== organizationId) continue;
+    const id = docIdOf(path);
+    const index = out.findIndex((candidate) => candidate.id === id);
+    if (now > guard.expiresAt || (guard.create ? index >= 0 : index < 0)) {
+      adminEchoGuards.delete(path);
+      continue;
+    }
+    if (guard.create) {
+      out.push({ ...structuredClone(guard.create), id, clientId });
+      continue;
+    }
+    const current = out[index];
+    const stale = [...guard.fields.entries()].every(([key, field]) => sameFieldValue(current[key], field.before));
+    if (!stale) {
+      adminEchoGuards.delete(path);
+      continue;
+    }
+    const row = { ...current };
+    for (const [key, field] of guard.fields) row[key] = structuredClone(field.value);
+    out[index] = row;
+  }
+  for (const [path, entry] of pendingAdminMutations) {
+    if (parentCollectionPath(path) !== collectionPath || entry.clientId !== clientId) continue;
+    if (entry.organizationId !== null && entry.organizationId !== organizationId) continue;
+    const id = docIdOf(path);
+    const index = out.findIndex((candidate) => candidate.id === id);
+    if (entry.create) {
+      const row = { ...structuredClone(entry.create.row), id, clientId };
+      if (index >= 0) out[index] = row;
+      else out.push(row);
+      continue;
+    }
+    if (index < 0) continue;
+    const row = { ...out[index] };
+    for (const [key, field] of entry.fields) row[key] = structuredClone(field.value);
+    out[index] = row;
   }
   return out;
 }
@@ -1348,7 +1456,7 @@ function reconcileClientCollections(collectionPaths: ReadonlySet<string>) {
     const state = realtimeCollections.get(collectionPath);
     if (!state?.received) continue;
     const partial = partials.get(state.clientId) ?? {};
-    partial[state.snapshotKey] = overlayPendingClientMutations(
+    partial[state.snapshotKey] = overlayPendingMutations(
       collectionPath,
       state.clientId,
       state.organizationId,
@@ -1460,13 +1568,521 @@ function scheduleClientPush(
   }, 800);
 }
 
-function dispatchAdminPush(snapshot: LocalV5Snapshot) {
-  const run = importSnapshotToFirestore(snapshot).then(
-    (result): RemotePersistenceOutcome => {
-      if (result.ok) return { status: 'confirmed' };
-      pushErrorHandler?.(result.message);
-      return pushFailureOutcome(result.message);
-    },
+/** Never ADMIN field updates: document identity, write-once creation time, server-derived counter. */
+const ADMIN_NON_UPDATABLE_KEYS: ReadonlySet<string> = new Set(['id', 'createdAt', 'completedTasksCount']);
+/** Documents per ADMIN transaction; each adds at most one read and one write. */
+const ADMIN_TRANSACTION_DOCS = 100;
+const TASK_DOC_PATH = /^clients\/[^/]+\/tasks\/[^/]+$/;
+
+type AdminDocIdentity = Pick<PendingAdminDoc, 'target' | 'clientId' | 'id' | 'organizationId'>;
+
+/** Records the fields of one local row that differ from the server baseline or its pending value. */
+function recordAdminRow(
+  path: string,
+  identity: AdminDocIdentity,
+  source: Record<string, unknown>,
+  version: number
+) {
+  if (pendingDocDeletes.has(path)) {
+    pendingAdminMutations.delete(path);
+    return;
+  }
+  const row = structuredClone(stripUndefinedForFirestore(source));
+  const pending = pendingAdminMutations.get(path);
+  const baseline = remoteBaseline.get(path);
+  const abandoned = abandonedAdminValues.get(path);
+  if (pending?.create || (!pending && !baseline && !knownRemoteDocPaths.has(path))) {
+    if (!pending && abandoned?.create && sameFieldValue(abandoned.create, row)) return;
+    if (!pending?.create || !sameFieldValue(pending.create.row, row)) {
+      pendingAdminMutations.set(path, { ...identity, create: { row, version }, fields: new Map() });
+    }
+    return;
+  }
+  const clearing = pendingFieldClears.get(path)?.fields;
+  const echoed = adminEchoGuards.get(path)?.fields;
+  const entry: PendingAdminDoc = pending ?? { ...identity, create: null, fields: new Map() };
+  for (const [key, value] of Object.entries(row)) {
+    if (ADMIN_NON_UPDATABLE_KEYS.has(key)) continue;
+    const field = entry.fields.get(key);
+    if (field) {
+      if (!sameFieldValue(field.value, value)) entry.fields.set(key, { value, base: field.base, version });
+      continue;
+    }
+    const confirmed = echoed?.get(key);
+    const base = confirmed ? confirmed.value : baseline ? baseline[key] : NO_BASE;
+    if (base !== NO_BASE && sameFieldValue(base, value) && !clearing?.has(key)) continue;
+    if (abandoned?.fields.has(key) && sameFieldValue(abandoned.fields.get(key), value)) continue;
+    entry.fields.set(key, { value, base, version });
+  }
+  if (!pending && entry.fields.size > 0) pendingAdminMutations.set(path, entry);
+}
+
+/**
+ * ADMIN capture at scheduling time: values are copied now, so later in-place edits and realtime
+ * replacements of the live rows can neither change nor erase what this mutation persists.
+ */
+function captureAdminMutations(snapshot: LocalV5Snapshot, actor: PersistenceActor | null) {
+  const version = ++adminCaptureVersion;
+  const organizationId = actor?.organizationId?.trim() || null;
+  const clients = snapshot.clients.filter(
+    (client) => !organizationId || client.organizationId === organizationId
+  );
+  adminScopedClientIds = new Set(clients.map((client) => client.id));
+  for (const client of clients) {
+    const root = clientDocPath(client.id);
+    const envelope = { id: client.id, organizationId: client.organizationId };
+    const identity = (target: CollectionKey, id: string): AdminDocIdentity => ({
+      target,
+      clientId: client.id,
+      id,
+      organizationId: organizationId ?? (client.organizationId?.trim() || null),
+    });
+    recordAdminRow(root, identity('clients', client.id), client as unknown as Record<string, unknown>, version);
+    for (const [key, sub] of Object.entries(COLLECTION_MAP)) {
+      const rows = snapshot[key as CollectionKey];
+      if (!sub || !Array.isArray(rows)) continue;
+      const scoped = itemsForClient(
+        rows as Array<{ clientId?: string | null; id?: string; organizationId?: unknown }>,
+        client.id
+      );
+      for (const row of scoped) {
+        if (!row.id) continue;
+        if (organizationId && typeof row.organizationId === 'string' && row.organizationId !== organizationId) {
+          continue;
+        }
+        recordAdminRow(
+          `${root}/${sub}/${row.id}`,
+          identity(key as CollectionKey, row.id),
+          ensureSubcollectionEnvelope(row as Record<string, unknown>, envelope),
+          version
+        );
+      }
+    }
+    const profile = snapshot.profiles[client.id];
+    if (profile) {
+      recordAdminRow(
+        `${root}/profile/data`,
+        identity('profiles', 'data'),
+        ensureSubcollectionEnvelope(profile as unknown as Record<string, unknown>, envelope),
+        version
+      );
+    }
+    const dossier = snapshot.dossiers[client.id];
+    if (dossier) {
+      recordAdminRow(
+        `${root}/dossier/data`,
+        identity('dossiers', 'data'),
+        ensureSubcollectionEnvelope(dossier as unknown as Record<string, unknown>, envelope),
+        version
+      );
+    }
+  }
+}
+
+/** Frozen copy of the ADMIN work due for one document at dispatch time. */
+type AdminWorkItem = {
+  path: string;
+  identity: AdminDocIdentity | null;
+  create: { row: Record<string, unknown>; version: number } | null;
+  fields: Map<string, PendingAdminField>;
+  remove: boolean;
+  clears: Map<string, number>;
+};
+
+function dueAdminWork(path: string, upTo: number): AdminWorkItem {
+  const entry = pendingAdminMutations.get(path);
+  const fields = new Map<string, PendingAdminField>();
+  for (const [key, field] of entry?.fields ?? []) {
+    if (field.version <= upTo) fields.set(key, { ...field, value: structuredClone(field.value) });
+  }
+  const create =
+    entry?.create && entry.create.version <= upTo
+      ? { row: structuredClone(entry.create.row), version: entry.create.version }
+      : null;
+  return {
+    path,
+    identity: entry
+      ? { target: entry.target, clientId: entry.clientId, id: entry.id, organizationId: entry.organizationId }
+      : null,
+    create,
+    fields,
+    remove: pendingDocDeletes.has(path),
+    clears: new Map(pendingFieldClears.get(path)?.fields ?? []),
+  };
+}
+
+type AdminWrite = {
+  path: string;
+  remove?: boolean;
+  create?: Record<string, unknown>;
+  patch?: Record<string, unknown>;
+  clears?: string[];
+};
+
+type AdminPlan = {
+  writes: AdminWrite[];
+  server: Map<string, Record<string, unknown> | null>;
+  conflicts: string[];
+  conflictPaths: Set<string>;
+  missing: Set<string>;
+  rootCount: number | null;
+};
+
+/**
+ * Compare-and-set against the server state read in the transaction: a field is written only
+ * when the server still holds the value the change was based on. Task completions derive the
+ * root counter from the server count read in the same transaction.
+ */
+function planAdminChunk(
+  work: ReadonlyArray<AdminWorkItem>,
+  server: ReadonlyMap<string, Record<string, unknown> | null>,
+  existing: ReadonlySet<string>,
+  root: string
+): AdminPlan {
+  const plan: AdminPlan = {
+    writes: [],
+    server: new Map(server),
+    conflicts: [],
+    conflictPaths: new Set(),
+    missing: new Set(),
+    rootCount: null,
+  };
+  let completions = 0;
+  let rootWrite: AdminWrite | null = null;
+  for (const item of work) {
+    if (item.remove) {
+      if (existing.has(item.path)) plan.writes.push({ path: item.path, remove: true });
+      continue;
+    }
+    let fields = item.fields;
+    if (item.create) {
+      if (!existing.has(item.path)) {
+        plan.writes.push({ path: item.path, create: item.create.row });
+        continue;
+      }
+      const createVersion = item.create.version;
+      fields = new Map(
+        Object.entries(item.create.row)
+          .filter(([key]) => !ADMIN_NON_UPDATABLE_KEYS.has(key))
+          .map(([key, value]): [string, PendingAdminField] => [key, { value, base: NO_BASE, version: createVersion }])
+      );
+    }
+    const current = server.get(item.path);
+    if (!current) {
+      if (fields.size > 0) plan.missing.add(item.path);
+      continue;
+    }
+    const patch: Record<string, unknown> = {};
+    const times: Record<string, unknown> = {};
+    const conflicted: string[] = [];
+    for (const [key, field] of fields) {
+      if (TRUSTED_SCALAR_TIME_FIELDS.has(key)) {
+        times[key] = field.value;
+        continue;
+      }
+      if (sameFieldValue(current[key], field.value)) continue;
+      if (field.base !== NO_BASE && !sameFieldValue(current[key], field.base)) {
+        conflicted.push(key);
+        continue;
+      }
+      patch[key] = field.value;
+    }
+    if (Object.keys(patch).length > 0) {
+      if (conflicted.length === 0) Object.assign(patch, times);
+      else if ('updatedAt' in times) patch.updatedAt = times.updatedAt;
+    }
+    if (conflicted.length > 0) {
+      plan.conflictPaths.add(item.path);
+      for (const key of conflicted) plan.conflicts.push(`${item.path}.${key}`);
+    }
+    if (TASK_DOC_PATH.test(item.path) && patch.status === 'COMPLETED' && current.status !== 'COMPLETED') {
+      completions += 1;
+    }
+    const clears = [...item.clears.keys()].filter((field) => !fields.has(field) && field in current);
+    if (Object.keys(patch).length === 0 && clears.length === 0) continue;
+    const write: AdminWrite = { path: item.path, patch, clears };
+    if (item.path === root) rootWrite = write;
+    plan.writes.push(write);
+  }
+  if (completions > 0) {
+    const rootServer = server.get(root);
+    const base = typeof rootServer?.completedTasksCount === 'number' ? rootServer.completedTasksCount : 0;
+    plan.rootCount = base + completions;
+    if (!rootWrite) {
+      rootWrite = { path: root, patch: {}, clears: [] };
+      plan.writes.push(rootWrite);
+    }
+    rootWrite.patch = { ...rootWrite.patch, completedTasksCount: plan.rootCount };
+  }
+  return plan;
+}
+
+function prepareAdminWrite(
+  write: AdminWrite,
+  serverTimestamp: () => unknown,
+  deleteField: () => unknown
+): Record<string, unknown> {
+  if (write.create) return prepareDocForWrite(write.create, serverTimestamp, false);
+  const data = applyTrustedServerTimestamps(stripUndefinedForFirestore(write.patch ?? {}), serverTimestamp);
+  for (const field of write.clears ?? []) data[field] = deleteField();
+  return data;
+}
+
+/** Releases the due values; a newer capture of the same field stays pending. */
+function settleAdminWork(work: ReadonlyArray<AdminWorkItem>) {
+  for (const item of work) {
+    const entry = pendingAdminMutations.get(item.path);
+    if (!entry) continue;
+    if (item.create && entry.create?.version === item.create.version) entry.create = null;
+    for (const [key, field] of item.fields) {
+      if (entry.fields.get(key)?.version === field.version) entry.fields.delete(key);
+    }
+    if (!entry.create && entry.fields.size === 0) pendingAdminMutations.delete(item.path);
+  }
+}
+
+function markAdminDocCommitted(path: string) {
+  knownRemoteDocPaths.add(path);
+  realtimeCollections.get(parentCollectionPath(path))?.committedSince.add(docIdOf(path));
+}
+
+function guardAdminEcho(path: string, guard: Omit<AdminEchoGuard, 'expiresAt' | 'clientId' | 'organizationId'>, work: ReadonlyArray<AdminWorkItem>) {
+  const identity = work.find((item) => item.path === path)?.identity;
+  if (!identity || (!guard.create && guard.fields.size === 0)) return;
+  adminEchoGuards.set(path, {
+    ...guard,
+    clientId: identity.clientId,
+    organizationId: identity.organizationId,
+    expiresAt: Date.now() + ADMIN_ECHO_GUARD_MS,
+  });
+}
+
+function applyAdminCommit(work: ReadonlyArray<AdminWorkItem>, plan: AdminPlan) {
+  const conflicted = new Set(plan.conflicts);
+  for (const item of work) {
+    const entry = pendingAdminMutations.get(item.path);
+    if (!entry || plan.missing.has(item.path)) continue;
+    for (const [key, field] of item.fields) {
+      const newer = entry.fields.get(key);
+      if (newer && newer.version !== field.version && !conflicted.has(`${item.path}.${key}`)) {
+        entry.fields.set(key, { ...newer, base: structuredClone(field.value) });
+      }
+    }
+  }
+  settleAdminWork(work);
+  for (const write of plan.writes) {
+    if (write.remove) {
+      knownRemoteDocPaths.delete(write.path);
+      remoteBaseline.delete(write.path);
+      adminEchoGuards.delete(write.path);
+      continue;
+    }
+    markAdminDocCommitted(write.path);
+    if (write.create) {
+      remoteBaseline.set(write.path, structuredClone(write.create));
+      guardAdminEcho(write.path, { create: structuredClone(write.create), fields: new Map() }, work);
+      continue;
+    }
+    const before = plan.server.get(write.path) ?? {};
+    const next: Record<string, unknown> = { ...before, ...structuredClone(write.patch ?? {}) };
+    for (const field of write.clears ?? []) delete next[field];
+    remoteBaseline.set(write.path, next);
+    const fields = new Map<string, { value: unknown; before: unknown }>();
+    for (const [key, value] of Object.entries(write.patch ?? {})) {
+      if (TRUSTED_SCALAR_TIME_FIELDS.has(key) || ADMIN_NON_UPDATABLE_KEYS.has(key)) continue;
+      fields.set(key, { value: structuredClone(value), before: before[key] });
+    }
+    guardAdminEcho(write.path, { create: null, fields }, work);
+  }
+  const written = new Set(plan.writes.map((write) => write.path));
+  for (const item of work) {
+    if (item.remove) {
+      pendingDocDeletes.delete(item.path);
+      continue;
+    }
+    if (plan.missing.has(item.path)) {
+      knownRemoteDocPaths.delete(item.path);
+      remoteBaseline.delete(item.path);
+      continue;
+    }
+    const current = plan.server.get(item.path);
+    if (current && !written.has(item.path)) remoteBaseline.set(item.path, structuredClone(current));
+    if (item.clears.size > 0) releaseFieldClears(item.path, item.clears);
+  }
+}
+
+/** Server baseline plus the ADMIN fields still pending; null when the server holds no such doc. */
+function reconciledAdminRow(path: string, identity: AdminDocIdentity): AdminRowReconcile {
+  const reference = { target: identity.target, clientId: identity.clientId, id: identity.id };
+  const entry = pendingAdminMutations.get(path);
+  if (entry?.create) return { ...reference, row: structuredClone(entry.create.row) };
+  const baseline = remoteBaseline.get(path);
+  if (!baseline) return { ...reference, row: null };
+  const row: Record<string, unknown> = structuredClone(baseline);
+  for (const [key, field] of entry?.fields ?? []) row[key] = structuredClone(field.value);
+  if (identity.target === 'clients') {
+    row.id = identity.clientId;
+  } else if (identity.target !== 'profiles' && identity.target !== 'dossiers') {
+    row.id = identity.id;
+    row.clientId = identity.clientId;
+  }
+  return { ...reference, row };
+}
+
+function conflictMessage(plan: AdminPlan): string {
+  const docs = plan.conflicts.length + plan.missing.size;
+  return `Conflicto de sincronización: ${docs} cambio(s) ADMIN no se guardaron porque otra sesión modificó o eliminó el documento; se muestra la versión del servidor.`;
+}
+
+async function commitAdminChunk(
+  db: NonNullable<Awaited<ReturnType<typeof getFirebaseFirestore>>>,
+  clientId: string,
+  paths: ReadonlyArray<string>,
+  upTo: number,
+  organizationId: string | null
+): Promise<RemotePersistenceOutcome> {
+  const firestore = await import('firebase/firestore');
+  const root = clientDocPath(clientId);
+  const work = paths.map((path) => dueAdminWork(path, upTo));
+  const completing = work.some(
+    (item) => TASK_DOC_PATH.test(item.path) && item.fields.get('status')?.value === 'COMPLETED'
+  );
+  const probe = completing && !paths.includes(root) ? [...paths, root] : [...paths];
+  try {
+    const existing = await resolveExistingDocPaths(
+      db,
+      probe.map((path) => ({ path, envelopeClientId: path === root ? null : clientId })),
+      { organizationId, rootAlwaysExists: false }
+    );
+    const removing = new Set(work.filter((item) => item.remove).map((item) => item.path));
+    const readPaths = probe.filter((path) => existing.has(path) && !removing.has(path));
+    const plan = await firestore.runTransaction(db, async (tx) => {
+      const server = new Map<string, Record<string, unknown> | null>();
+      for (const path of readPaths) {
+        const snap = await tx.get(firestore.doc(db, path));
+        server.set(path, snap.exists() ? normalizeFirestorePulledData(snap.data() ?? {}) : null);
+      }
+      const planned = planAdminChunk(work, server, existing, root);
+      for (const write of planned.writes) {
+        const ref = firestore.doc(db, write.path);
+        if (write.remove) tx.delete(ref);
+        else tx.set(ref, prepareAdminWrite(write, firestore.serverTimestamp, () => firestore.deleteField()), { merge: true });
+      }
+      return planned;
+    });
+    applyAdminCommit(work, plan);
+    const rootServer = plan.server.get(root);
+    if (completing && rootServer && !plan.writes.some((write) => write.path === root)) {
+      remoteBaseline.set(root, structuredClone(rootServer));
+    }
+    const settled = new Set<string>([...plan.conflictPaths, ...plan.missing]);
+    const rows: AdminRowReconcile[] = work.flatMap((item) =>
+      item.identity && settled.has(item.path) ? [reconciledAdminRow(item.path, item.identity)] : []
+    );
+    if (completing && !settled.has(root) && remoteBaseline.has(root)) {
+      rows.push(reconciledAdminRow(root, { target: 'clients', clientId, id: clientId, organizationId }));
+    }
+    if (rows.length > 0) adminRowsHandler?.(rows);
+    if (plan.conflicts.length > 0 || plan.missing.size > 0) {
+      const message = conflictMessage(plan);
+      pushErrorHandler?.(message);
+      return { status: 'failed', message };
+    }
+    return { status: 'confirmed' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
+    settleAdminWork(work);
+    const rows = work.flatMap((item) =>
+      item.identity && (item.create || (item.fields.size > 0 && remoteBaseline.has(item.path)))
+        ? [reconciledAdminRow(item.path, item.identity)]
+        : []
+    );
+    if (completing && !rows.some((row) => row.target === 'clients') && remoteBaseline.has(root)) {
+      rows.push(reconciledAdminRow(root, { target: 'clients', clientId, id: clientId, organizationId }));
+    }
+    if (rows.length > 0) adminRowsHandler?.(rows);
+    pushErrorHandler?.(message);
+    return pushFailureOutcome(message);
+  }
+}
+
+async function runAdminPush(upTo: number): Promise<RemotePersistenceOutcome> {
+  if (!readFirebaseConfig()) {
+    return { status: 'failed', message: 'Configura VITE_FIREBASE_* para sincronizar.' };
+  }
+  const db = await getFirebaseFirestore();
+  if (!db) return { status: 'failed', message: 'Firestore no inicializado.' };
+  const auth = await getFirebaseAuth();
+  if (!auth?.currentUser) {
+    const dropped = pendingAdminMutations.size;
+    for (const [path, entry] of pendingAdminMutations) {
+      const quarantined = abandonedAdminValues.get(path) ?? { create: null, fields: new Map<string, unknown>() };
+      if (entry.create) quarantined.create = entry.create.row;
+      for (const [key, field] of entry.fields) quarantined.fields.set(key, field.value);
+      abandonedAdminValues.set(path, quarantined);
+    }
+    pendingAdminMutations.clear();
+    adminEchoGuards.clear();
+    if (dropped === 0) return { status: 'confirmed' };
+    const message = `Sin sesión activa: ${dropped} cambio(s) ADMIN no se sincronizaron con el servidor.`;
+    pushErrorHandler?.(message);
+    return { status: 'failed', message };
+  }
+  const actor = await readPersistenceActor();
+  if (actor.role === 'CLIENT') {
+    pendingAdminMutations.clear();
+    return { status: 'rejected', message: 'La sesión no tiene permisos ADMIN; cambios descartados.' };
+  }
+  const organizationId = actor.organizationId?.trim() || null;
+  const byClient = new Map<string, Set<string>>();
+  const add = (clientId: string, path: string) => {
+    const paths = byClient.get(clientId) ?? new Set<string>();
+    paths.add(path);
+    byClient.set(clientId, paths);
+  };
+  for (const [path, entry] of pendingAdminMutations) {
+    if (organizationId && entry.organizationId && entry.organizationId !== organizationId) {
+      pendingAdminMutations.delete(path);
+      continue;
+    }
+    const due =
+      (entry.create !== null && entry.create.version <= upTo) ||
+      [...entry.fields.values()].some((field) => field.version <= upTo);
+    if (due) add(entry.clientId, path);
+  }
+  for (const [path, intent] of pendingDocDeletes) {
+    if (adminScopedClientIds.has(intent.clientId)) add(intent.clientId, path);
+  }
+  for (const [path, clear] of pendingFieldClears) {
+    if (adminScopedClientIds.has(clear.clientId)) add(clear.clientId, path);
+  }
+  const outcomes: RemotePersistenceOutcome[] = [];
+  for (const [clientId, paths] of byClient) {
+    const list = [...paths];
+    for (let start = 0; start < list.length; start += ADMIN_TRANSACTION_DOCS) {
+      outcomes.push(
+        await commitAdminChunk(db, clientId, list.slice(start, start + ADMIN_TRANSACTION_DOCS), upTo, organizationId)
+      );
+    }
+  }
+  return mostSevereOutcome(outcomes);
+}
+
+function hasAdminWork(): boolean {
+  if (pendingAdminMutations.size > 0) return true;
+  for (const intent of pendingDocDeletes.values()) {
+    if (adminScopedClientIds.has(intent.clientId)) return true;
+  }
+  for (const clear of pendingFieldClears.values()) {
+    if (adminScopedClientIds.has(clear.clientId)) return true;
+  }
+  return false;
+}
+
+function dispatchAdminPush() {
+  const upTo = adminCaptureVersion;
+  const run = enqueueSnapshotImport(() => runAdminPush(upTo)).then(
+    (outcome) => outcome,
     (err: unknown): RemotePersistenceOutcome => {
       const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
       pushErrorHandler?.(message);
@@ -1479,20 +2095,23 @@ function dispatchAdminPush(snapshot: LocalV5Snapshot) {
   });
 }
 
-export function scheduleFirestorePush(snapshot: LocalV5Snapshot, onRootReconciled?: ClientRootReconcileHandler) {
+export function scheduleFirestorePush(
+  snapshot: LocalV5Snapshot,
+  onRootReconciled?: ClientRootReconcileHandler,
+  onAdminRowsReconciled?: AdminRowsReconcileHandler
+) {
   if (!isFirestoreAuthoritative()) return;
   const actor = sessionPersistenceActor;
   if (actor?.role === 'CLIENT' && actor.clientId) {
     scheduleClientPush(snapshot, actor, actor.clientId, onRootReconciled);
     return;
   }
-  pendingAdminSnapshot = snapshot;
+  if (onAdminRowsReconciled) adminRowsHandler = onAdminRowsReconciled;
+  captureAdminMutations(snapshot, actor);
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     syncTimer = null;
-    const due = pendingAdminSnapshot;
-    pendingAdminSnapshot = null;
-    if (due) dispatchAdminPush(due);
+    if (hasAdminWork()) dispatchAdminPush();
   }, 800);
 }
 
@@ -1502,9 +2121,7 @@ function flushScheduledPushes() {
   const client = pendingClientCapture;
   pendingClientCapture = null;
   if (client) dispatchClientCapture(client);
-  const admin = pendingAdminSnapshot;
-  pendingAdminSnapshot = null;
-  if (admin) dispatchAdminPush(admin);
+  if (sessionPersistenceActor?.role !== 'CLIENT' && hasAdminWork()) dispatchAdminPush();
 }
 
 /** Capture version before a command runs; the captures it produces are the ones after it. */
@@ -1654,7 +2271,7 @@ export async function startFirestoreRealtimeSync(
         ])
       );
       const partial: Partial<LocalV5Snapshot> = {
-        [snapshotKey]: overlayPendingClientMutations(collectionPath, clientId, scope.organizationId, rows),
+        [snapshotKey]: overlayPendingMutations(collectionPath, clientId, scope.organizationId, rows),
       } as Partial<LocalV5Snapshot>;
       onPartial(partial, { clientId });
     });

@@ -74,7 +74,7 @@ import { quotasFor, assertClientQuota, assertSourceQuota, assertThesisQuota } fr
 import { buildJuanMasterDossier } from '../data/juanMasterDossier';
 import { FIREBASE_ENABLED } from '../firebase/config';
 import type { LocalV5Snapshot } from './firestore/types';
-import type { RemoteMutationIntent, RemotePersistenceOutcome } from './firestore/sync';
+import type { AdminRowReconcile, RemoteMutationIntent, RemotePersistenceOutcome } from './firestore/sync';
 import { buildScoreBreakdown } from '../domain/scoreExplainCore';
 import type { SignalRoutingHistoryEntry } from '../domain/routingHistoryCore';
 import {
@@ -1094,8 +1094,36 @@ class DataService {
   private pushToFirestore(sync: FirestoreSyncModule, intents: RemoteMutationIntent[], snapshot: LocalV5Snapshot) {
     if (!sync.isFirestoreAuthoritative()) return;
     sync.queueRemoteMutationIntents(intents);
-    sync.scheduleFirestorePush(snapshot, this.applyServerClientFields);
+    sync.scheduleFirestorePush(snapshot, this.applyServerClientFields, this.applyReconciledAdminRows);
   }
+
+  /** Local rows replaced by server truth after an ADMIN push; applied without scheduling a write. */
+  private readonly applyReconciledAdminRows = (rows: ReadonlyArray<AdminRowReconcile>) => {
+    const live = this.exportSnapshot();
+    for (const { target, clientId, id, row } of rows) {
+      if (target === 'profiles' || target === 'dossiers') {
+        const map: Record<string, unknown> = live[target];
+        if (row) map[clientId] = row;
+        else delete map[clientId];
+        continue;
+      }
+      const value = live[target];
+      if (!Array.isArray(value)) continue;
+      const list: unknown[] = value;
+      const index = list.findIndex(
+        (item) =>
+          typeof item === 'object' &&
+          item !== null &&
+          'id' in item &&
+          item.id === id &&
+          (target === 'clients' || ('clientId' in item && item.clientId === clientId))
+      );
+      if (row && index >= 0) list[index] = row;
+      else if (row) list.push(row);
+      else if (index >= 0) list.splice(index, 1);
+    }
+    this.saveAll({ skipRemote: true });
+  };
 
   /** Loads the sync module once; from then on `saveAll` hands each capture over synchronously. */
   private loadFirestoreSync(): Promise<FirestoreSyncModule> {

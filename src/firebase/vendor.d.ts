@@ -60,6 +60,24 @@ declare module 'firebase/firestore' {
   export function setDoc(ref: DocumentReference, data: unknown, options?: { merge?: boolean }): Promise<void>;
   export function serverTimestamp(): unknown;
   export function deleteField(): unknown;
+  export interface DocumentSnapshot {
+    exists(): boolean;
+    data(): Record<string, unknown> | undefined;
+  }
+  /** Reads must precede writes; the SDK may re-run the update function, so it must not have side effects. */
+  export interface Transaction {
+    get(ref: DocumentReference): Promise<DocumentSnapshot>;
+    set(ref: DocumentReference, data: unknown, options?: { merge?: boolean }): Transaction;
+    delete(ref: DocumentReference): Transaction;
+  }
+  export interface TransactionOptions {
+    readonly maxAttempts?: number;
+  }
+  export function runTransaction<T>(
+    db: Firestore,
+    updateFunction: (transaction: Transaction) => Promise<T>,
+    options?: TransactionOptions
+  ): Promise<T>;
 }
 
 declare module 'firebase/storage' {
