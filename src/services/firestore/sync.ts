@@ -69,6 +69,21 @@ const liveCollections = new Set<string>();
 const remoteBaseline = new Map<string, Record<string, unknown>>();
 
 /**
+ * CLIENT rows captured for a push but not yet acknowledged by the server, by document path.
+ * A realtime snapshot cannot replace them until the capture carrying them settles: success
+ * releases versions up to the acknowledged one, failure drops every capture of that epoch.
+ */
+type PendingClientMutation = {
+  collectionPath: string;
+  clientId: string;
+  organizationId: string | null;
+  version: number;
+  epoch: number;
+  row: Record<string, unknown>;
+};
+const pendingClientMutations = new Map<string, PendingClientMutation>();
+
+/**
  * Explicit remote removals recorded by local mutations. A merge snapshot push cannot express
  * a deleted document or a cleared field, so each intent names one exact client-scoped document.
  */
@@ -86,6 +101,7 @@ export function resetKnownRemoteDocPaths() {
   knownRemoteDocPaths.clear();
   liveCollections.clear();
   remoteBaseline.clear();
+  pendingClientMutations.clear();
   pendingDocDeletes.clear();
   pendingFieldClears.clear();
 }
@@ -116,6 +132,10 @@ export function queueRemoteMutationIntents(intents: ReadonlyArray<RemoteMutation
 
 function parentCollectionPath(docPath: string): string {
   return docPath.slice(0, docPath.lastIndexOf('/'));
+}
+
+function docIdOf(docPath: string): string {
+  return docPath.slice(docPath.lastIndexOf('/') + 1);
 }
 
 function applyLiveCollectionSnapshot(collectionPath: string, docIds: Iterable<string>) {
@@ -392,7 +412,7 @@ export function ensureSubcollectionEnvelope(
   return out;
 }
 
-type SnapshotImportResult = { ok: boolean; message: string; written: number };
+type SnapshotImportResult = { ok: boolean; message: string; written: number; discarded?: boolean };
 
 let snapshotImportQueue: Promise<unknown> = Promise.resolve();
 
@@ -539,6 +559,7 @@ async function runSnapshotImport(snapshot: LocalV5Snapshot): Promise<SnapshotImp
         continue;
       }
       knownRemoteDocPaths.add(write.path);
+      realtimeCollections.get(parentCollectionPath(write.path))?.committedSince.add(docIdOf(write.path));
       if (write.confirmed) {
         remoteBaseline.set(write.path, { ...(remoteBaseline.get(write.path) ?? {}), ...write.confirmed });
       }
@@ -793,6 +814,41 @@ async function fillMissingClientBaselines(
   }
 }
 
+/** Existing tasks this CLIENT push moves to COMPLETED, per parent client doc path. */
+function taskCompletionsByClient(
+  planned: ReadonlyArray<PlannedWrite>,
+  existing: ReadonlySet<string>
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const write of planned) {
+    if (write.collection !== 'tasks' || write.envelopeClientId === null || !existing.has(write.path)) continue;
+    const baseline = remoteBaseline.get(write.path);
+    if (!baseline || write.row.status !== 'COMPLETED' || baseline.status === 'COMPLETED') continue;
+    const root = clientDocPath(write.envelopeClientId);
+    out.set(root, (out.get(root) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * `completedTasksCount` is never sent as the local tally: it is the server baseline plus the
+ * task completions committed in the same atomic batch, so a lost or rejected task write cannot
+ * leave the counter ahead, and resending the same push cannot count a completion twice.
+ */
+function withDerivedCompletedTasksCount(
+  row: Record<string, unknown>,
+  baseline: Record<string, unknown>,
+  completions: number
+): Record<string, unknown> {
+  if (!('completedTasksCount' in row)) return row;
+  const out = { ...row };
+  delete out.completedTasksCount;
+  if (completions === 0) return out;
+  const base = typeof baseline.completedTasksCount === 'number' ? baseline.completedTasksCount : 0;
+  out.completedTasksCount = base + completions;
+  return out;
+}
+
 /**
  * W4 CLIENT persistence: only docs whose CLIENT-writable state differs from the server
  * baseline are sent, projected to the fields the rules let a CLIENT change. Server-stamped
@@ -804,6 +860,7 @@ function projectClientWrites(
   serverTimestamp: () => unknown
 ): PreparedWrite[] {
   const out: PreparedWrite[] = [];
+  const completions = taskCompletionsByClient(planned, existing);
   for (const write of planned) {
     const policy = CLIENT_WRITE_POLICIES[write.collection];
     if (!policy) continue;
@@ -830,16 +887,20 @@ function projectClientWrites(
     if (policy.canUpdate && !policy.canUpdate(row)) continue;
     const baseline = remoteBaseline.get(write.path);
     if (!baseline) continue;
+    const source =
+      write.collection === 'root'
+        ? withDerivedCompletedTasksCount(row, baseline, completions.get(write.path) ?? 0)
+        : row;
 
     const changed = policy.update.filter(
-      (key) => !TRUSTED_SCALAR_TIME_FIELDS.has(key) && key in row && !sameFieldValue(row[key], baseline[key])
+      (key) => !TRUSTED_SCALAR_TIME_FIELDS.has(key) && key in source && !sameFieldValue(source[key], baseline[key])
     );
     if (changed.length === 0) continue;
 
-    const payload = pickKeys(row, changed);
+    const payload = pickKeys(source, changed);
     for (const key of policy.update) {
-      if (!TRUSTED_SCALAR_TIME_FIELDS.has(key) || typeof row[key] !== 'string') continue;
-      if (key === 'updatedAt' || !sameFieldValue(row[key], baseline[key])) payload[key] = row[key];
+      if (!TRUSTED_SCALAR_TIME_FIELDS.has(key) || typeof source[key] !== 'string') continue;
+      if (key === 'updatedAt' || !sameFieldValue(source[key], baseline[key])) payload[key] = source[key];
     }
     out.push({
       path: write.path,
@@ -1124,11 +1185,201 @@ const EDGE_SENSITIVE_STATE_FIELDS: ReadonlyArray<readonly [CollectionKey, string
   ['opportunities', 'status'],
 ];
 
-type ClientCapture = { snapshot: LocalV5Snapshot; epoch: number };
+/**
+ * Server outcome of a push. `pending`: no acknowledgement within the wait; `rejected`: the
+ * server refused the writes (rules); `failed`: they were not persisted for any other reason.
+ */
+export type RemotePersistenceOutcome =
+  | { status: 'confirmed' }
+  | { status: 'pending' }
+  | { status: 'rejected'; message: string }
+  | { status: 'failed'; message: string };
+
+/** The root client doc has no listener; its server-derived counter is handed back after each push. */
+export type ClientRootReconcileHandler = (clientId: string, fields: { completedTasksCount: number }) => void;
+
+type ClientCapture = {
+  snapshot: LocalV5Snapshot;
+  epoch: number;
+  version: number;
+  clientId: string;
+  organizationId: string | null;
+  outcome: Promise<RemotePersistenceOutcome>;
+  resolveOutcome: (outcome: RemotePersistenceOutcome) => void;
+  onRootReconciled?: ClientRootReconcileHandler;
+};
 
 let pendingClientCapture: ClientCapture | null = null;
 /** Bumped when a CLIENT push fails: captures taken before then may carry edges that depend on it. */
 let clientPushEpoch = 0;
+let clientCaptureVersion = 0;
+/** Outcome per capture version; a coalesced capture resolves with the capture that replaced it. */
+const captureOutcomes = new Map<number, Promise<RemotePersistenceOutcome>>();
+const TRACKED_CAPTURE_OUTCOMES = 500;
+let pendingAdminSnapshot: LocalV5Snapshot | null = null;
+let adminPushInFlight: Promise<RemotePersistenceOutcome> | null = null;
+
+const DISCARDED_CAPTURE_MESSAGE = 'Cambios descartados tras un error de sincronización.';
+
+function pushFailureOutcome(message: string): RemotePersistenceOutcome {
+  return /permission|denied|insufficient/i.test(message)
+    ? { status: 'rejected', message }
+    : { status: 'failed', message };
+}
+
+const OUTCOME_SEVERITY: Record<RemotePersistenceOutcome['status'], number> = {
+  confirmed: 0,
+  pending: 1,
+  failed: 2,
+  rejected: 3,
+};
+
+function mostSevereOutcome(outcomes: ReadonlyArray<RemotePersistenceOutcome>): RemotePersistenceOutcome {
+  return outcomes.reduce<RemotePersistenceOutcome>(
+    (worst, next) => (OUTCOME_SEVERITY[next.status] > OUTCOME_SEVERITY[worst.status] ? next : worst),
+    { status: 'confirmed' }
+  );
+}
+
+function createClientCapture(
+  snapshot: LocalV5Snapshot,
+  actor: PersistenceActor,
+  clientId: string,
+  onRootReconciled: ClientRootReconcileHandler | undefined
+): ClientCapture {
+  let resolveOutcome: (outcome: RemotePersistenceOutcome) => void = () => undefined;
+  const outcome = new Promise<RemotePersistenceOutcome>((resolve) => {
+    resolveOutcome = resolve;
+  });
+  const version = ++clientCaptureVersion;
+  captureOutcomes.set(version, outcome);
+  captureOutcomes.delete(version - TRACKED_CAPTURE_OUTCOMES);
+  return {
+    snapshot: captureClientSnapshot(snapshot, actor),
+    epoch: clientPushEpoch,
+    version,
+    clientId,
+    organizationId: actor.organizationId?.trim() || null,
+    outcome,
+    resolveOutcome,
+    onRootReconciled,
+  };
+}
+
+function clientRowDiffersFromServer(path: string, row: Record<string, unknown>, policy: ClientWritePolicy): boolean {
+  const baseline = remoteBaseline.get(path);
+  if (!baseline) return true;
+  return policy.update.some(
+    (key) => !TRUSTED_SCALAR_TIME_FIELDS.has(key) && key in row && !sameFieldValue(row[key], baseline[key])
+  );
+}
+
+/** Every CLIENT-writable row of the capture that the server does not hold yet becomes pending. */
+function recordPendingClientMutations(capture: ClientCapture) {
+  const record = (path: string, collection: string, row: Record<string, unknown>) => {
+    const policy = CLIENT_WRITE_POLICIES[collection];
+    if (!policy || !clientRowDiffersFromServer(path, row, policy)) return;
+    pendingClientMutations.set(path, {
+      collectionPath: parentCollectionPath(path),
+      clientId: capture.clientId,
+      organizationId: capture.organizationId,
+      version: capture.version,
+      epoch: capture.epoch,
+      row,
+    });
+  };
+  const root = clientDocPath(capture.clientId);
+  for (const client of capture.snapshot.clients) {
+    if (client.id === capture.clientId) record(root, 'root', client as unknown as Record<string, unknown>);
+  }
+  for (const key of CLIENT_PERSIST_COLLECTION_KEYS) {
+    const sub = COLLECTION_MAP[key];
+    const rows = capture.snapshot[key];
+    if (!sub || sub === 'profile' || !Array.isArray(rows)) continue;
+    for (const row of itemsForClient(rows as Array<{ clientId?: string | null; id?: string }>, capture.clientId)) {
+      if (row.id) record(`${root}/${sub}/${row.id}`, sub, row as Record<string, unknown>);
+    }
+  }
+}
+
+/** Pending CLIENT rows win over a snapshot of the same tenant, client and collection. */
+function overlayPendingClientMutations(
+  collectionPath: string,
+  clientId: string,
+  organizationId: string,
+  rows: ReadonlyArray<Record<string, unknown>>
+): Array<Record<string, unknown>> {
+  const out = [...rows];
+  for (const [path, entry] of pendingClientMutations) {
+    if (entry.collectionPath !== collectionPath || entry.clientId !== clientId) continue;
+    if (entry.organizationId !== organizationId) continue;
+    const id = docIdOf(path);
+    const row = { ...structuredClone(entry.row), id, clientId };
+    const index = out.findIndex((candidate) => candidate.id === id);
+    if (index >= 0) out[index] = row;
+    else out.push(row);
+  }
+  return out;
+}
+
+/**
+ * Server-confirmed rows of a live collection: the last listing plus docs committed since,
+ * read from the baseline so acknowledged writes and server state win over stale listings.
+ */
+function confirmedCollectionRows(collectionPath: string, state: RealtimeCollectionState): Array<Record<string, unknown>> {
+  const rows: Array<Record<string, unknown>> = [];
+  for (const id of new Set([...state.docs.keys(), ...state.committedSince])) {
+    const baseline = remoteBaseline.get(`${collectionPath}/${id}`);
+    const listed = state.docs.get(id);
+    const source = baseline ?? (listed && !listed.pending ? listed.row : null);
+    if (source) rows.push({ ...structuredClone(source), id, clientId: state.clientId });
+  }
+  return rows;
+}
+
+/**
+ * Re-applies server truth (plus still-pending rows) to collections whose pending rows settled.
+ * One import per client: an import may save, and that capture must not see half-reconciled state.
+ */
+function reconcileClientCollections(collectionPaths: ReadonlySet<string>) {
+  if (!realtimeHandler) return;
+  const partials = new Map<string, Record<string, Array<Record<string, unknown>>>>();
+  for (const collectionPath of collectionPaths) {
+    const state = realtimeCollections.get(collectionPath);
+    if (!state?.received) continue;
+    const partial = partials.get(state.clientId) ?? {};
+    partial[state.snapshotKey] = overlayPendingClientMutations(
+      collectionPath,
+      state.clientId,
+      state.organizationId,
+      confirmedCollectionRows(collectionPath, state)
+    );
+    partials.set(state.clientId, partial);
+  }
+  for (const [clientId, partial] of partials) {
+    realtimeHandler(partial as Partial<LocalV5Snapshot>, { clientId });
+  }
+}
+
+function settleClientCapture(capture: ClientCapture, persisted: boolean) {
+  const touched = new Set<string>();
+  for (const [path, entry] of pendingClientMutations) {
+    if (entry.clientId !== capture.clientId) continue;
+    if (persisted ? entry.version > capture.version : entry.epoch !== capture.epoch) continue;
+    pendingClientMutations.delete(path);
+    touched.add(entry.collectionPath);
+  }
+  try {
+    reconcileClientCollections(touched);
+    const root = clientDocPath(capture.clientId);
+    const count = remoteBaseline.get(root)?.completedTasksCount;
+    if (!pendingClientMutations.has(root) && typeof count === 'number') {
+      capture.onRootReconciled?.(capture.clientId, { completedTasksCount: count });
+    }
+  } catch (err) {
+    pushErrorHandler?.(err instanceof Error ? err.message : 'Error al reconciliar con Firestore.');
+  }
+}
 
 /** Values as of scheduling time; `exportSnapshot()` shares live rows that later commands mutate. */
 function captureClientSnapshot(snapshot: LocalV5Snapshot, actor: PersistenceActor): LocalV5Snapshot {
@@ -1151,7 +1402,7 @@ function changesEdgeSensitiveState(pending: LocalV5Snapshot, next: LocalV5Snapsh
 function dispatchClientCapture(capture: ClientCapture) {
   void enqueueSnapshotImport(async () => {
     if (capture.epoch !== clientPushEpoch) {
-      return { ok: true, message: 'Cambios descartados tras un error de sincronización.', written: 0 };
+      return { ok: true, message: DISCARDED_CAPTURE_MESSAGE, written: 0, discarded: true };
     }
     try {
       const result = await runSnapshotImport(capture.snapshot);
@@ -1162,47 +1413,127 @@ function dispatchClientCapture(capture: ClientCapture) {
       throw err;
     }
   }).then((result) => {
+    const persisted = result.ok && !result.discarded;
+    settleClientCapture(capture, persisted);
     if (!result.ok) pushErrorHandler?.(result.message);
+    capture.resolveOutcome(
+      persisted
+        ? { status: 'confirmed' }
+        : result.discarded
+          ? { status: 'failed', message: result.message }
+          : pushFailureOutcome(result.message)
+    );
   }).catch((err) => {
     const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
+    settleClientCapture(capture, false);
     pushErrorHandler?.(message);
+    capture.resolveOutcome(pushFailureOutcome(message));
   });
 }
 
 /**
  * CLIENT pushes keep every edge-sensitive transition: a pending capture is persisted, never
  * dropped, before a capture that moves one of its edge-sensitive states again.
+ * The capture is recorded as pending before this returns, so no realtime snapshot can replace it.
  */
-function scheduleClientPush(snapshot: LocalV5Snapshot, actor: PersistenceActor) {
-  const capture: ClientCapture = { snapshot: captureClientSnapshot(snapshot, actor), epoch: clientPushEpoch };
-  if (pendingClientCapture && changesEdgeSensitiveState(pendingClientCapture.snapshot, capture.snapshot)) {
-    dispatchClientCapture(pendingClientCapture);
+function scheduleClientPush(
+  snapshot: LocalV5Snapshot,
+  actor: PersistenceActor,
+  clientId: string,
+  onRootReconciled: ClientRootReconcileHandler | undefined
+) {
+  const capture = createClientCapture(snapshot, actor, clientId, onRootReconciled);
+  recordPendingClientMutations(capture);
+  const previous = pendingClientCapture;
+  if (previous && changesEdgeSensitiveState(previous.snapshot, capture.snapshot)) {
+    dispatchClientCapture(previous);
+  } else if (previous) {
+    void capture.outcome.then(previous.resolveOutcome);
   }
   pendingClientCapture = capture;
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
+    syncTimer = null;
     const due = pendingClientCapture;
     pendingClientCapture = null;
     if (due) dispatchClientCapture(due);
   }, 800);
 }
 
-export function scheduleFirestorePush(snapshot: LocalV5Snapshot) {
+function dispatchAdminPush(snapshot: LocalV5Snapshot) {
+  const run = importSnapshotToFirestore(snapshot).then(
+    (result): RemotePersistenceOutcome => {
+      if (result.ok) return { status: 'confirmed' };
+      pushErrorHandler?.(result.message);
+      return pushFailureOutcome(result.message);
+    },
+    (err: unknown): RemotePersistenceOutcome => {
+      const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
+      pushErrorHandler?.(message);
+      return pushFailureOutcome(message);
+    }
+  );
+  adminPushInFlight = run;
+  void run.then(() => {
+    if (adminPushInFlight === run) adminPushInFlight = null;
+  });
+}
+
+export function scheduleFirestorePush(snapshot: LocalV5Snapshot, onRootReconciled?: ClientRootReconcileHandler) {
   if (!isFirestoreAuthoritative()) return;
   const actor = sessionPersistenceActor;
   if (actor?.role === 'CLIENT' && actor.clientId) {
-    scheduleClientPush(snapshot, actor);
+    scheduleClientPush(snapshot, actor, actor.clientId, onRootReconciled);
     return;
   }
+  pendingAdminSnapshot = snapshot;
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
-    void importSnapshotToFirestore(snapshot).then((result) => {
-      if (!result.ok) pushErrorHandler?.(result.message);
-    }).catch((err) => {
-      const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
-      pushErrorHandler?.(message);
-    });
+    syncTimer = null;
+    const due = pendingAdminSnapshot;
+    pendingAdminSnapshot = null;
+    if (due) dispatchAdminPush(due);
   }, 800);
+}
+
+function flushScheduledPushes() {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = null;
+  const client = pendingClientCapture;
+  pendingClientCapture = null;
+  if (client) dispatchClientCapture(client);
+  const admin = pendingAdminSnapshot;
+  pendingAdminSnapshot = null;
+  if (admin) dispatchAdminPush(admin);
+}
+
+/** Capture version before a command runs; the captures it produces are the ones after it. */
+export function beginRemotePersistenceScope(): number {
+  return clientCaptureVersion;
+}
+
+/**
+ * Sends scheduled pushes now and resolves once every capture taken after `since` settled:
+ * `confirmed` only when the server acknowledged all of them.
+ */
+export async function awaitRemotePersistence(since: number, timeoutMs = 10_000): Promise<RemotePersistenceOutcome> {
+  if (!isFirestoreAuthoritative()) return { status: 'pending' };
+  flushScheduledPushes();
+  const awaited = [...captureOutcomes.entries()]
+    .filter(([version]) => version > since)
+    .sort(([a], [b]) => a - b)
+    .map(([, outcome]) => outcome);
+  if (adminPushInFlight) awaited.push(adminPushInFlight);
+  if (awaited.length === 0) return { status: 'confirmed' };
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<RemotePersistenceOutcome>((resolve) => {
+    timer = setTimeout(() => resolve({ status: 'pending' }), timeoutMs);
+  });
+  try {
+    return await Promise.race([Promise.all(awaited).then(mostSevereOutcome), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export async function hydrateFromFirestore(clientIds: string[]): Promise<Partial<LocalV5Snapshot>> {
@@ -1218,11 +1549,26 @@ type RealtimePartialHandler = (
 
 let realtimeUnsubs: Array<() => void> = [];
 
+/** Last listing of a live collection (ids, pending flag; rows only when no baseline holds them). */
+type RealtimeCollectionState = {
+  clientId: string;
+  organizationId: string;
+  snapshotKey: CollectionKey;
+  received: boolean;
+  docs: Map<string, { pending: boolean; row: Record<string, unknown> | null }>;
+  /** Docs this session committed after that listing. */
+  committedSince: Set<string>;
+};
+const realtimeCollections = new Map<string, RealtimeCollectionState>();
+let realtimeHandler: RealtimePartialHandler | null = null;
+
 /** Detiene listeners en tiempo real (logout). */
 export function stopFirestoreRealtimeSync() {
   for (const unsub of realtimeUnsubs) unsub();
   realtimeUnsubs = [];
   liveCollections.clear();
+  realtimeCollections.clear();
+  realtimeHandler = null;
   sessionPersistenceActor = null;
 }
 
@@ -1265,12 +1611,22 @@ export async function startFirestoreRealtimeSync(
   const { onSnapshot } = await import('firebase/firestore');
   const scope = await readTenantReadScope();
   if (!scope) return;
+  realtimeHandler = onPartial;
 
   const listen = async (clientId: string, sub: string, snapshotKey: CollectionKey) => {
     if (!isClientSubcollectionReadable(sub, scope)) return;
+    const collectionPath = `${clientDocPath(clientId)}/${sub}`;
+    const state: RealtimeCollectionState = {
+      clientId,
+      organizationId: scope.organizationId,
+      snapshotKey,
+      received: false,
+      docs: new Map(),
+      committedSince: new Set(),
+    };
+    realtimeCollections.set(collectionPath, state);
     const scopedQuery = await scopedClientSubcollectionQuery(db, clientId, sub, scope);
     const unsub = onSnapshot(scopedQuery, (snap: import('firebase/firestore').QuerySnapshot) => {
-      const collectionPath = `${clientDocPath(clientId)}/${sub}`;
       if (isFromCache(snap) || snap.docs.some(hasPendingWrites)) {
         liveCollections.delete(collectionPath);
         markRemoteDocsKnown(collectionPath, confirmedDocIds(snap.docs));
@@ -1286,8 +1642,19 @@ export async function startFirestoreRealtimeSync(
           clientId,
         })
       );
+      state.received = true;
+      state.committedSince.clear();
+      state.docs = new Map(
+        snap.docs.map((docSnap, index) => [
+          docSnap.id,
+          {
+            pending: hasPendingWrites(docSnap),
+            row: remoteBaseline.has(`${collectionPath}/${docSnap.id}`) ? null : structuredClone(rows[index]),
+          },
+        ])
+      );
       const partial: Partial<LocalV5Snapshot> = {
-        [snapshotKey]: rows,
+        [snapshotKey]: overlayPendingClientMutations(collectionPath, clientId, scope.organizationId, rows),
       } as Partial<LocalV5Snapshot>;
       onPartial(partial, { clientId });
     });

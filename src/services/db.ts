@@ -74,7 +74,7 @@ import { quotasFor, assertClientQuota, assertSourceQuota, assertThesisQuota } fr
 import { buildJuanMasterDossier } from '../data/juanMasterDossier';
 import { FIREBASE_ENABLED } from '../firebase/config';
 import type { LocalV5Snapshot } from './firestore/types';
-import type { RemoteMutationIntent } from './firestore/sync';
+import type { RemoteMutationIntent, RemotePersistenceOutcome } from './firestore/sync';
 import { buildScoreBreakdown } from '../domain/scoreExplainCore';
 import type { SignalRoutingHistoryEntry } from '../domain/routingHistoryCore';
 import {
@@ -83,6 +83,12 @@ import {
 } from '../domain/scoreHistoryCore';
 
 export type { LocalV5Snapshot } from './firestore/types';
+
+type FirestoreSyncModule = typeof import('./firestore/sync');
+
+/** Capture version a command started from; `null` before the sync module loaded. */
+export type RemotePersistenceScope = { since: number | null };
+export type RemotePersistenceResult = RemotePersistenceOutcome | { status: 'local' };
 
 class DataService {
   private clients: Client[] = [];
@@ -128,6 +134,7 @@ class DataService {
   private saveBatchDepth = 0;
   /** Removals the merge snapshot cannot express; handed to the sync queue by the next remote save. */
   private pendingRemoteIntents: RemoteMutationIntent[] = [];
+  private firestoreSync: FirestoreSyncModule | null = null;
 
   constructor() {
     this.loadInitialData();
@@ -1073,16 +1080,48 @@ class DataService {
 
     const intents = options?.skipRemote ? [] : this.pendingRemoteIntents.splice(0);
     if (!options?.skipRemote && FIREBASE_ENABLED) {
-      void import('./firestore/sync').then(
-        ({ isFirestoreAuthoritative, queueRemoteMutationIntents, scheduleFirestorePush }) => {
-          if (isFirestoreAuthoritative()) {
-            queueRemoteMutationIntents(intents);
-            scheduleFirestorePush(this.exportSnapshot());
-          }
-        }
-      );
+      if (this.firestoreSync) {
+        this.pushToFirestore(this.firestoreSync, intents, this.exportSnapshot());
+      } else {
+        // Captured before yielding: a realtime snapshot may replace these rows before the import resolves.
+        const snapshot = structuredClone(this.exportSnapshot());
+        void this.loadFirestoreSync().then((sync) => this.pushToFirestore(sync, intents, snapshot));
+      }
     }
     this.emitChange();
+  }
+
+  private pushToFirestore(sync: FirestoreSyncModule, intents: RemoteMutationIntent[], snapshot: LocalV5Snapshot) {
+    if (!sync.isFirestoreAuthoritative()) return;
+    sync.queueRemoteMutationIntents(intents);
+    sync.scheduleFirestorePush(snapshot, this.applyServerClientFields);
+  }
+
+  /** Loads the sync module once; from then on `saveAll` hands each capture over synchronously. */
+  private loadFirestoreSync(): Promise<FirestoreSyncModule> {
+    return import('./firestore/sync').then((sync) => {
+      this.firestoreSync ??= sync;
+      return sync;
+    });
+  }
+
+  private readonly applyServerClientFields = (clientId: string, fields: { completedTasksCount: number }) => {
+    const client = this.clients.find((c) => c.id === clientId);
+    if (!client || client.completedTasksCount === fields.completedTasksCount) return;
+    client.completedTasksCount = fields.completedTasksCount;
+    this.saveAll({ skipRemote: true });
+  };
+
+  /** Marks the start of a command whose server persistence will be awaited. */
+  public beginRemotePersistenceScope(): RemotePersistenceScope {
+    return { since: this.firestoreSync?.beginRemotePersistenceScope() ?? null };
+  }
+
+  /** Server outcome of every write made since `scope`; `local` when no remote backend is enabled. */
+  public async awaitRemotePersistence(scope: RemotePersistenceScope): Promise<RemotePersistenceResult> {
+    if (!FIREBASE_ENABLED) return { status: 'local' };
+    const sync = this.firestoreSync ?? (await this.loadFirestoreSync());
+    return sync.awaitRemotePersistence(scope.since ?? 0);
   }
 
   /** Agrupa escrituras en un solo persist (p. ej. materialización de briefing). */
@@ -1205,7 +1244,7 @@ class DataService {
 
   /** Hidrata desde Firestore tras login Firebase (backend autoritativo). */
   public async hydrateFromRemote(clientIds?: string[]): Promise<boolean> {
-    const sync = await import('./firestore/sync');
+    const sync = await this.loadFirestoreSync();
     let ids = clientIds?.filter(Boolean);
     if (!ids?.length) {
       ids = await sync.listFirestoreClientIds();
@@ -1220,7 +1259,7 @@ class DataService {
 
   /** Si Firestore está vacío, sube el seed demo (solo ADMIN, primera vez). */
   public async bootstrapFirestoreIfEmpty(): Promise<{ bootstrapped: boolean; message: string }> {
-    const sync = await import('./firestore/sync');
+    const sync = await this.loadFirestoreSync();
     const existing = await sync.listFirestoreClientIds();
     if (existing.length) {
       return { bootstrapped: false, message: 'Firestore ya contiene clientes.' };

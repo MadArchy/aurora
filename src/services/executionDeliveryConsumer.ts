@@ -36,7 +36,7 @@ import { composeExecutionDelivery } from '../composition/executionDelivery/compo
 import { requireTenantScope, requireAdminActor } from '../controllers/trustedTenant';
 import { authService } from './auth';
 import { auditService } from './audit';
-import { dbService } from './db';
+import { dbService, type RemotePersistenceResult, type RemotePersistenceScope } from './db';
 
 type ExecutionDeliveryUseCases = ReturnType<typeof composeExecutionDelivery>;
 
@@ -556,4 +556,16 @@ export function reviewClientArticle(intent: {
   } catch (err) {
     mapError(err, 'No se pudo registrar la revisión del artículo');
   }
+}
+
+/** #32 — opened before a review decision so its server persistence can be awaited afterwards. */
+export function beginClientArticleReviewPersistence(): RemotePersistenceScope {
+  return dbService.beginRemotePersistenceScope();
+}
+
+/** #32 — server outcome of every write the review decision (and its notification) produced. */
+export function confirmClientArticleReviewPersistence(
+  scope: RemotePersistenceScope
+): Promise<RemotePersistenceResult> {
+  return dbService.awaitRemotePersistence(scope);
 }

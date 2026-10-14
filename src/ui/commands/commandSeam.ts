@@ -78,6 +78,8 @@ import {
   removeCuration,
   reopenCuration,
   reviewClientArticle,
+  beginClientArticleReviewPersistence,
+  confirmClientArticleReviewPersistence,
   saveContentDraft,
   sendDeliveryPackage,
   transitionClientTask,
@@ -183,12 +185,24 @@ export type ThesisClientReviewCommandResult =
     }
   | { ok: false; message: string };
 
+export type ArticleReviewCommandIntent = {
+  requestedClientId: string | null | undefined;
+  contentId: string;
+  decision: 'save_revision' | 'approve' | 'request_changes';
+  title?: string;
+  body?: string;
+  reason?: string;
+  taskId?: string;
+};
+
 export type ArticleReviewCommandResult =
   | {
       ok: true;
       decision: 'save_revision' | 'approve' | 'request_changes';
       message: string;
       hadRevisionEvent: boolean;
+      /** `pending`: stored on this device only; the server has not confirmed it yet. */
+      persistence?: 'local' | 'confirmed' | 'pending';
     }
   | { ok: false; message: string };
 
@@ -1498,15 +1512,7 @@ export const executionDeliveryCommands = {
     }
   },
 
-  reviewClientArticle(intent: {
-    requestedClientId: string | null | undefined;
-    contentId: string;
-    decision: 'save_revision' | 'approve' | 'request_changes';
-    title?: string;
-    body?: string;
-    reason?: string;
-    taskId?: string;
-  }): ArticleReviewCommandResult {
+  reviewClientArticle(intent: ArticleReviewCommandIntent): ArticleReviewCommandResult {
     const fallback =
       intent.decision === 'save_revision'
         ? 'No se pudo guardar la revisión'
@@ -1567,6 +1573,42 @@ export const executionDeliveryCommands = {
             : fallback,
       };
     }
+  },
+
+  /**
+   * #32 with server confirmation: success is only announced once Firestore accepted every
+   * write of the decision. Rejected or failed writes surface as errors, never as sent.
+   */
+  async reviewClientArticleConfirmed(intent: ArticleReviewCommandIntent): Promise<ArticleReviewCommandResult> {
+    const scope = beginClientArticleReviewPersistence();
+    const result = executionDeliveryCommands.reviewClientArticle(intent);
+    if (!result.ok) return result;
+    const outcome = await confirmClientArticleReviewPersistence(scope);
+    if (outcome.status === 'local' || outcome.status === 'confirmed') {
+      return { ...result, persistence: outcome.status };
+    }
+    if (outcome.status === 'pending') {
+      const message =
+        result.decision === 'save_revision'
+          ? 'Cambios guardados en este dispositivo; pendientes de confirmación del servidor.'
+          : result.decision === 'approve'
+            ? 'Aprobación guardada en este dispositivo; pendiente de confirmación del servidor. Aún no se envió al manager.'
+            : 'Rechazo guardado en este dispositivo; pendiente de confirmación del servidor. Aún no se envió al manager.';
+      return { ...result, message, persistence: 'pending' };
+    }
+    const action =
+      result.decision === 'save_revision'
+        ? 'los cambios'
+        : result.decision === 'approve'
+          ? 'la aprobación'
+          : 'el rechazo';
+    return {
+      ok: false,
+      message:
+        outcome.status === 'rejected'
+          ? `El servidor rechazó ${action}; no se envió al manager.`
+          : `No se pudo confirmar ${action} con el servidor; no se envió al manager. Intenta de nuevo.`,
+    };
   },
 
   /**

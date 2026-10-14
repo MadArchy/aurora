@@ -679,7 +679,7 @@ export function useReviewClientArticle(scope: TrustedTenantScope | null) {
   >({
     mutationFn: async (params) => {
       if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
-      return executionDeliveryCommands.reviewClientArticle({
+      return executionDeliveryCommands.reviewClientArticleConfirmed({
         requestedClientId: scope.clientId,
         contentId: params.contentId,
         decision: params.decision,
@@ -689,8 +689,9 @@ export function useReviewClientArticle(scope: TrustedTenantScope | null) {
         taskId: params.taskId,
       });
     },
-    onSuccess: (result) => {
-      if (!scope || !result.ok) return;
+    onSuccess: () => {
+      // A server rejection also changes local rows (rolled back to server truth).
+      if (!scope) return;
       void queryClient.invalidateQueries({ queryKey: tenantInvalidationKey(scope, 'compatibility') });
     },
   });

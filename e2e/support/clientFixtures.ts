@@ -21,7 +21,12 @@ export const FIXTURE_JUAN_THESIS_ID = 'thesis_juan_ip_ai_adoption';
 const TIMESTAMP_FIELDS = new Set(['createdAt', 'updatedAt', 'sentAt', 'acknowledgedAt', 'completedAt']);
 
 type FirestoreRestValue = Record<string, unknown>;
-type RestField = { stringValue?: string; timestampValue?: string; mapValue?: { fields?: RestFields } };
+type RestField = {
+  stringValue?: string;
+  integerValue?: string;
+  timestampValue?: string;
+  mapValue?: { fields?: RestFields };
+};
 type RestFields = Record<string, RestField>;
 type RestDoc = { fields?: RestFields };
 
@@ -77,6 +82,28 @@ export async function ownerGetField(path: string, field: string): Promise<string
     fields = fields?.[segment]?.mapValue?.fields;
   }
   return fields?.[leaf]?.stringValue ?? null;
+}
+
+/** OWNER read of one top-level integer field; `null` when the doc or field is absent or not an integer. */
+export async function ownerGetIntegerField(path: string, field: string): Promise<number | null> {
+  const raw = (await ownerGetDoc(path))?.[field]?.integerValue;
+  return raw === undefined ? null : Number(raw);
+}
+
+/** OWNER read of the top-level string fields of every document in a collection. */
+export async function ownerListStringFields(collectionPath: string): Promise<Array<Record<string, string>>> {
+  const res = await fetch(`${emulatorDocumentsBase()}/${collectionPath}?pageSize=300`, {
+    headers: { Authorization: 'Bearer owner' },
+  });
+  if (!res.ok) throw new Error(`[clientFixtures] owner LIST ${collectionPath}: HTTP ${res.status}`);
+  const body = (await res.json()) as { documents?: RestDoc[] };
+  return (body.documents ?? []).map((doc) =>
+    Object.fromEntries(
+      Object.entries(doc.fields ?? {}).flatMap(([key, value]) =>
+        value.stringValue === undefined ? [] : [[key, value.stringValue]]
+      )
+    )
+  );
 }
 
 /** OWNER read of a document's fields; `null` only when the document does not exist. */
