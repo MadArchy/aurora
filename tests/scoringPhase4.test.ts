@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative } from 'node:path';
 import type { PositioningThesis, Signal } from '../src/types';
 import {
   SCORING_FACTOR_WEIGHTS,
@@ -52,9 +53,20 @@ const paritySignal: Signal = {
   updatedBy: 'system',
 };
 
+const SCORING_WEIGHTS_DEFINITION = /export const SCORING_FACTOR_WEIGHTS/;
+const SKIPPED_SOURCE_DIR_NAMES = new Set(['node_modules', 'dist', 'build', 'coverage']);
+
+function isSkippedSourceDirectory(parentDir: string, entry: string): boolean {
+  if (SKIPPED_SOURCE_DIR_NAMES.has(entry)) return true;
+  // Compiled Functions output only. src/lib and functions/src/lib stay in the scan.
+  if (entry !== 'lib') return false;
+  return parentDir.replace(/\\/g, '/').endsWith('/functions');
+}
+
 function collectTsFiles(dir: string): string[] {
   const results: string[] = [];
   for (const entry of readdirSync(dir)) {
+    if (isSkippedSourceDirectory(dir, entry)) continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
       results.push(...collectTsFiles(full));
@@ -63,6 +75,27 @@ function collectTsFiles(dir: string): string[] {
     }
   }
   return results;
+}
+
+function duplicateScoringWeightPaths(scanRoot: string): string[] {
+  const hits: string[] = [];
+  for (const file of collectTsFiles(join(scanRoot, 'src'))) {
+    const rel = relative(scanRoot, file).replace(/\\/g, '/');
+    if (SCORING_WEIGHTS_DEFINITION.test(readFileSync(file, 'utf8')) && !rel.endsWith('domain/scoringCore.ts')) {
+      hits.push(rel);
+    }
+  }
+  for (const file of collectTsFiles(join(scanRoot, 'functions'))) {
+    const rel = relative(scanRoot, file).replace(/\\/g, '/');
+    if (SCORING_WEIGHTS_DEFINITION.test(readFileSync(file, 'utf8'))) hits.push(rel);
+  }
+  return hits;
+}
+
+function writeSourceFixture(root: string, relPath: string, content: string): void {
+  const full = join(root, ...relPath.split('/'));
+  mkdirSync(dirname(full), { recursive: true });
+  writeFileSync(full, content, 'utf8');
 }
 
 describe('SPEC-002 Phase 4 — consumer migration', () => {
@@ -136,23 +169,83 @@ describe('SPEC-002 Phase 4 — consumer migration', () => {
   });
 
   it('SCORING_FACTOR_WEIGHTS authoritative definition count is 1', () => {
-    const hits: string[] = [];
-    for (const file of collectTsFiles(join(ROOT, 'src'))) {
-      const rel = relative(ROOT, file).replace(/\\/g, '/');
-      const content = readFileSync(file, 'utf8');
-      if (/export const SCORING_FACTOR_WEIGHTS/.test(content) && !rel.endsWith('domain/scoringCore.ts')) {
-        hits.push(rel);
-      }
-    }
-    for (const file of collectTsFiles(join(ROOT, 'functions'))) {
-      const rel = relative(ROOT, file).replace(/\\/g, '/');
-      const content = readFileSync(file, 'utf8');
-      if (/export const SCORING_FACTOR_WEIGHTS/.test(content)) {
-        hits.push(rel);
-      }
-    }
-    expect(hits).toEqual([]);
+    expect(duplicateScoringWeightPaths(ROOT)).toEqual([]);
     expect(SCORING_FACTOR_WEIGHTS.length).toBeGreaterThan(0);
+  });
+
+  describe('SCORING_FACTOR_WEIGHTS source discovery', () => {
+    const AUTHORITY = 'export const SCORING_FACTOR_WEIGHTS = [] as const;\n';
+    const OTHER = 'export const UNRELATED = 1;\n';
+
+    function withFixture(run: (root: string) => void): void {
+      const root = mkdtempSync(join(tmpdir(), 'scoring-weights-'));
+      try {
+        writeSourceFixture(root, 'src/domain/scoringCore.ts', AUTHORITY);
+        writeSourceFixture(root, 'src/lib/id.ts', OTHER);
+        writeSourceFixture(root, 'src/services/unrelated.ts', OTHER);
+        writeSourceFixture(root, 'functions/src/lib/scoreSignal.ts', OTHER);
+        writeSourceFixture(root, 'functions/node_modules/pkg/index.ts', AUTHORITY);
+        writeSourceFixture(root, 'src/node_modules/nested/index.tsx', AUTHORITY);
+        writeSourceFixture(root, 'dist/generated.ts', AUTHORITY);
+        writeSourceFixture(root, 'functions/dist/out.ts', AUTHORITY);
+        writeSourceFixture(root, 'src/build/out.tsx', AUTHORITY);
+        writeSourceFixture(root, 'coverage/lcov.ts', AUTHORITY);
+        writeSourceFixture(root, 'functions/lib/src/domain/scoringCore.ts', AUTHORITY);
+        run(root);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    }
+
+    function examined(root: string): string[] {
+      return [...collectTsFiles(join(root, 'src')), ...collectTsFiles(join(root, 'functions'))].map((file) =>
+        relative(root, file).replace(/\\/g, '/')
+      );
+    }
+
+    it('accepts the single authoritative definition and ignores dependency and generated trees', () => {
+      withFixture((root) => {
+        const files = examined(root);
+        expect(duplicateScoringWeightPaths(root)).toEqual([]);
+        expect(files).toContain('src/domain/scoringCore.ts');
+        expect(files).toContain('src/lib/id.ts');
+        expect(files).toContain('functions/src/lib/scoreSignal.ts');
+        expect(files.some((rel) => rel.split('/').includes('node_modules'))).toBe(false);
+        expect(files.some((rel) => rel.split('/').includes('dist'))).toBe(false);
+        expect(files.some((rel) => rel.split('/').includes('build'))).toBe(false);
+        expect(files.some((rel) => rel.split('/').includes('coverage'))).toBe(false);
+        expect(files.some((rel) => rel.startsWith('functions/lib/'))).toBe(false);
+        expect(files.length).toBeGreaterThan(1);
+      });
+    });
+
+    it('detects a second definition in own source and one nested in a scoring subdirectory', () => {
+      withFixture((root) => {
+        writeSourceFixture(root, 'src/services/secondWeights.ts', AUTHORITY);
+        writeSourceFixture(root, 'src/application/strategicScoring/nestedWeights.ts', AUTHORITY);
+        writeSourceFixture(root, 'functions/src/lib/nestedWeights.ts', AUTHORITY);
+        const hits = duplicateScoringWeightPaths(root);
+        expect([...hits].sort()).toEqual([
+          'functions/src/lib/nestedWeights.ts',
+          'src/application/strategicScoring/nestedWeights.ts',
+          'src/services/secondWeights.ts',
+        ]);
+        const files = examined(root);
+        expect(hits.length).not.toBe(files.length);
+        expect(files.length).toBeGreaterThan(hits.length);
+      });
+    });
+
+    it('keeps own source trees in the repository scan', () => {
+      const files = [...collectTsFiles(join(ROOT, 'src')), ...collectTsFiles(join(ROOT, 'functions'))].map((file) =>
+        relative(ROOT, file).replace(/\\/g, '/')
+      );
+      expect(files).toContain('src/domain/scoringCore.ts');
+      expect(files).toContain('src/lib/id.ts');
+      expect(files).toContain('functions/src/lib/scoreSignal.ts');
+      expect(files.some((rel) => rel.split('/').includes('node_modules'))).toBe(false);
+      expect(files.some((rel) => rel.startsWith('functions/lib/'))).toBe(false);
+    });
   });
 
   it('zero strategic callers of applyScoreToSignal remain in src/', () => {
