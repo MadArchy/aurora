@@ -5,7 +5,7 @@
 | **Spec ID** | `010-react-migration` |
 | **Display name** | **SPEC-010 — React migration** |
 | **Status** | **`APPROVED`** · Phase 0 **COMPLETE** · human approval **APPROVED** (T-010-010, 2026-08-26 America/Bogota) |
-| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**) · Phase 3 **COMPLETE** (T-010-301…306 all **DONE**; 5 pages HYBRID, 0 fully cut over) · Phase 4 **FORMALLY_ACCEPTED** (T-010-401…405 **DONE**; T-403/T-404 formally accepted; A39 reconciled) · Phase 4B discovery **COMPLETE** (read-only) · Phase 4C local security remediation **COMPLETE** (AUDIT010-10, -11 **RESOLVED**) · Phase 5 **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** (T-010-501…510 **DONE**) · Phase 6 **PRE_REMOVAL_GATES_COMPLETE** (T-601/T-602 **DONE**; T-603/T-604 **NOT AUTHORIZED**) · deployment **NOT_STARTED** |
+| **Phase** | Phase 0 **COMPLETE** · Phase 1 **COMPLETE** · Phase 2 **COMPLETE** (T-010-201…206 all **DONE**) · Phase 3 **COMPLETE** (T-010-301…306 all **DONE**; 5 pages HYBRID, 0 fully cut over) · Phase 4 **FORMALLY_ACCEPTED** (T-010-401…405 **DONE**; T-403/T-404 formally accepted; A39 reconciled) · Phase 4B discovery **COMPLETE** (read-only) · Phase 4C local security remediation **COMPLETE** (AUDIT010-10, -11 **RESOLVED**) · Phase 5 **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** (T-010-501…510 **DONE**) · Phase 6 **PRE_REMOVAL_GATES_COMPLETE** (T-601/T-602 **DONE**; T-603 **DONE — FORMALLY_CLOSED**; T-604 **EXECUTION AUTHORIZED — HUMAN SIGN-OFF PENDING**, policies and record in `acceptance.md` § T-010-604) · CODE_COMPLETE **NO** · deployment **NOT_STARTED** · CUTOVER-E **NOT_AUTHORIZED** |
 | **Branch** | `spec/010-react-migration` |
 | **Baseline SHA** | SPEC-008 CODE_COMPLETE final freeze `642ae9390700a254fa390ba09a959bab3c37d616` |
 | **Priority** | P2 — terminal SPEC in the constitutional dependency graph |
@@ -23,7 +23,9 @@
 | **`main.ts` (Phase 4C)** | 5,041 → **5,130** lines — *grew*: fail-closed gates cost lines. Line count is not acceptance here (§17); the evidence is `EFFECT_FIRST` 6 → **0** |
 | **Formal change requests (Phase 4)** | **CR-1** (34 blocked writes, ownership complete · 22 noncutover deferred) · **CR-2 COMPLETE/FROZEN** (`cr-2-brief-from-curation-entry.md`) |
 | **Severity (Phase 4C)** | P0 **0** · P1 **0** · P2 **3** · P3 **7** — AUDIT010-10 and -11 **RESOLVED**, AUDIT010-12 opened at P3 |
+| **Test baseline (pre-T-604, `570a6d6`)** | `npm run check` **3311/3311 PASS** · `npm run test:rules` **106/106 PASS** · `npm run build` **PASS** · Playwright **98/98 PASS** — reference only; T-604 closure evidence is the fresh act-B run in `acceptance.md` § T-010-604 execution record |
 | **Human SPEC approval** | **APPROVED** — T-010-010, 2026-08-26 (America/Bogota) |
+| **Human CODE_COMPLETE (T-010-604)** | **PENDING** — execution of acts A/B ratified 2026-10-15 (America/Bogota); final sign-off is a separate human decision |
 
 **Title provenance (HIGH confidence):** `POSTURA_CONSTITUTION.md:847` and `specify/memory/constitution.md:847`
 (byte-identical files) declare `010-react-migration/`. `docs/audits/BASELINE_CONSTITUTION_AUDIT.md:331/348/413`

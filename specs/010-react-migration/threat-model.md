@@ -411,3 +411,39 @@ Capstone test `tests/t010510ThreatCapstone.test.ts` locks the ledger at **23 PAS
 | T-010-26 | **PARTIAL** | Legacy not removed; parity gate for deletion is Phase 6 | Phase 6 |
 
 **Phase-5 severity:** P0 **0** · P1 **0** · P2 **3** · P3 **7** (unchanged from Phase-4C exit).
+
+The table above is the Phase-5 snapshot and is **not** rewritten. Its "Remaining condition" and
+"Owner" cells for T-010-25 / T-010-26 are superseded by § Phase-6 threat disposition below.
+
+---
+
+## Phase-6 threat disposition (T-010-604)
+
+Ledger unchanged by T-010-604: **23 PASS · 3 PARTIAL · 0 FAIL**. No threat promoted.
+
+| ID | Status | Remaining condition at `570a6d6` | Owner (human decision, ratified 2026-10-15 America/Bogota) | Resolution gate | CODE_COMPLETE |
+|----|--------|----------------------------------|-------------------------------------------------------------|-----------------|---------------|
+| T-010-20 | PARTIAL | Display-only scoring labels in React radar | Later cutover (unchanged) | CUTOVER-E | Compatible |
+| T-010-25 | PARTIAL | Per-path gate-before-effect audit of the remaining legacy write paths for production cutover not performed. "34" is the Phase-3 count of blocked writes and has **not** been re-measured; Phase 4C measured `EFFECT_FIRST` = 0 across 157 handlers | **Manuel — Admin** (D-25 · control CR-1) | Mandatory **before CUTOVER-E / D3** | Compatible (A5, A39 PASS) |
+| T-010-26 | PARTIAL | Nine governed leaves removed under the parity gate (T-603, A43 PASS); whole-app rollback retired (Option E); residual legacy runtime (`LegacyApp.ts`, handlers) and the `ws-briefing` island retained | **Manuel — Admin** (D-26) | Separate legacy-removal unit **before CUTOVER-E**; may not be replaced by D1/D2 without new human approval | Compatible (A43 PASS) |
+
+T-010-604 does **not** execute, close or discharge D-25, D-26 or CUTOVER-E.
+
+### Persistence-integrity evidence (sync layer — related to T-010-07)
+
+Recorded as evidence; **no ledger row changes**. The defects lived in the shared local-first
+persistence layer (`src/services/db.ts`, `src/services/firestore/sync.ts`) used by both legacy and
+React, and predate SPEC-010. They were found by the 2026-10-12 T-604 E2E run and its follow-ups.
+They concern data loss and stale overwrite, not tenant isolation: no cross-tenant read/write and no
+rule bypass was observed, and rules stayed 106/106.
+
+| Item | Kind | Status | Evidence |
+|------|------|--------|----------|
+| CLIENT approval lost when a stale realtime snapshot replaced an uncaptured local mutation (DIAG-C) | Defect | **CORRECTED** — `5c6f582` | `tests/firestoreClientApprovalPersistenceRace.test.ts` · `e2e/clientArticleApprovalPersistenceRace.spec.ts` |
+| ADMIN full-snapshot push clobbering other users' rows, lost concurrent updates, wrong `completedTasksCount` (ADMIN-D1) | Defect | **CORRECTED** — `570a6d6` | `tests/firestoreAdminMutationIntegrity.test.ts` · `e2e/adminPendingMutationIntegrity.spec.ts` |
+| CLIENT «pending» confirmation styled as success; React panel not refreshed if a write fails after the 10 s wait | Residual risk | OPEN — nonblocking | `5c6f582` post-fix review |
+| ADMIN pending/confirmed indicator absent | Residual risk | OPEN — nonblocking | `570a6d6` |
+| ADMIN rows quarantined after sign-out are not re-pushed by the next session | Residual risk (by design: no write without a session) | OPEN — nonblocking | `570a6d6` S7-signout |
+| Post-ACK echo guard bounded to 30 s | Residual risk | OPEN — nonblocking | `570a6d6` |
+
+Residual risks are tracked for a later unit before CUTOVER-E; none is promoted or closed by T-010-604.

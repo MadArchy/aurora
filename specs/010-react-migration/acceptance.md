@@ -6,13 +6,14 @@
 **Phase 3:** **COMPLETE** — 5 pages migrated (all HYBRID), 34 blocked writes registered
 **Phase 4:** **FORMALLY_ACCEPTED** (T-010-401…405 · A39 reconciled · `t-010-phase4-formal-closure.md`)
 **Phase 5:** **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** (T-010-501…510 · `t-010-phase5-formal-closure.md`)
-**Phase 6:** **PRE_REMOVAL_GATES_COMPLETE** (T-010-601…602 · `t-010-phase6-pre-removal-gates.md`) · T-603 **FORMALLY_CLOSED** (`t-010-603-global-closure.md`) · T-604 **NOT AUTHORIZED**
+**Phase 6:** **PRE_REMOVAL_GATES_COMPLETE** (T-010-601…602 · `t-010-phase6-pre-removal-gates.md`) · T-603 **FORMALLY_CLOSED** (`t-010-603-global-closure.md`) · T-604 **EXECUTION AUTHORIZED (acts A/B, 2026-10-15 America/Bogota) — HUMAN SIGN-OFF PENDING** (§ T-010-604 execution record)
 **A1-A44:** **43 PASS** · **0 PARTIAL** · **0 FAIL** · **1 PENDING** (T-601 reconciled · A43 PASS · W2 promoted 30 · A10 PASS under A10-B · A41 PASS under A41-C · A25 PASS under A25-P1 · A31 PASS under SPEC-009 re-freeze (Option B) · A44 PENDING)
 **CODE_COMPLETE:** **NO**
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
+**CUTOVER-E:** **NOT_AUTHORIZED**
 
 Spec **APPROVED** — T-010-010 human SPEC approval **RECORDED**.
-Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-010-604) — **NOT STARTED**.
+Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-010-604) — execution of acts A/B authorized 2026-10-15 (America/Bogota); human sign-off **PENDING**.
 
 **Human SPEC approval model:** TASK-LEVEL only (T-010-010).
 **Human CODE_COMPLETE model:** TASK-LEVEL only (T-010-604).
@@ -23,10 +24,169 @@ Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-010
 and the boundary rules in `ui-architecture.md` / `hexagonal-boundaries.md`. The count is **not** chosen for
 symmetry with other SPECs.
 
-Only criteria provable by Phase-0 governance evidence are marked PASS. Everything requiring
+*Historical Phase-0 text (preserved verbatim; superseded — Phases 1–5 were later authorized and
+completed, see the phase lines above):* Only criteria provable by Phase-0 governance evidence are marked PASS. Everything requiring
 implementation is **PENDING** — no implementation is authorized.
 
 ---
+
+## T-010-604 closure policies (human-frozen)
+
+| Policy | Value |
+|--------|-------|
+| `T604_PREREQUISITE_POLICY` | `STRICT_FULL_PASS` |
+| `A44_T604_RELATIONSHIP` | `T604_SUCCESS_EVIDENCE_SATISFIES_A44` |
+| `SPEC010_T604_ANTI_FORGERY_GUARD_REQUIRED` | `YES` |
+
+1. A1–A43 must each hold an individual **PASS** row; no aggregate approval substitutes for any criterion.
+2. A44 remains **PENDING** until T-010-604 succeeds.
+3. A44 may become **PASS** only when the T-010-604 closure evidence is recorded and the human sign-off below is **APPROVED**.
+4. CODE_COMPLETE requires recorded evidence **and** an independent human statement; neither alone suffices.
+5. T-010-604 does **not** authorize deployment. CODE_COMPLETE ≠ DONE ≠ DEPLOYED.
+6. CUTOVER-E (D1–D3) is a separate gate requiring separate authorization.
+7. Accepted nonblocking debt cannot mask a failed or missing required criterion.
+
+Guard: `tests/reactMigrationPhase6Acceptance.test.ts` (anti-forgery contract — OPEN / CLOSED / INVALID, negative cases N1–N15).
+
+## T-010-604 execution record
+
+Recorded under T-010-604 **act A** (governance reconciliation). This section records facts and
+validation evidence only. It is **not** the human CODE_COMPLETE sign-off, which exists solely in
+§ Human CODE_COMPLETE (T-010-604) at the end of this file.
+
+| Field | Value |
+|-------|-------|
+| **Execution authorization** | `AUTHORIZE_PHASE6_T604_CODE_COMPLETE_REVIEW` — expressly ratified by Manuel — Admin for acts A (reconciliation) and B (validation) only |
+| **Execution authorization date** | 2026-10-15 (America/Bogota) |
+| **Authorized checkpoint** | `570a6d61644b2ea9665aea40e257c65b64d7b716` on `spec/010-react-migration` |
+| **Resume authorization** | `AUTHORIZE_SPEC010_T604_RESUME_AFTER_SCORING_FIX` — expressly ratified by Manuel — Admin on 2026-10-16 (America/Bogota). Not a CODE_COMPLETE signature |
+| **Resume checkpoint** | `7ad37c79551790f9c9db790873766bc49908fd76` (scoring-test discovery correction only; fresh V1–V11 below) |
+| **Authorized scope** | `acceptance.md` · `tasks.md` · `spec.md` · `threat-model.md` · `tests/reactMigrationPhase6Acceptance.test.ts` |
+| **Superseded checkpoints** | `197ba61cf6643f79b8aa3d3fc840b03aa35a926f` (2026-10-12 authorization; not consumed, not reusable) |
+| **Closure evidence checkpoint** | **PENDING** — the commit that records acts A/B; its SHA is supplied in the act-C sign-off dossier |
+| **Execution status** | **TECHNICALLY_READY_FOR_HUMAN_SIGNOFF** (fresh V1–V11 PASS on `7ad37c7`, 2026-10-16). The 2026-10-15 and 2026-10-16 V2 failures stay FAIL. A44 **PENDING**. CODE_COMPLETE **NO** |
+| **A44 / CODE_COMPLETE / CUTOVER-E** | **PENDING** / **NO** / **NOT_AUTHORIZED** |
+| **Production Firebase contact** | **0** |
+
+### Authorization history
+
+| Date (America/Bogota) | Event | Checkpoint | Outcome |
+|---|---|---|---|
+| 2026-10-12 | Human authorization `AUTHORIZE_PHASE6_T604_CODE_COMPLETE_REVIEW` signed by Manuel — Admin (D-25/D-26 owner Manuel — Admin; D-SUITE frozen) | `197ba61` | Execution started: rules 106/106 · build · Functions · security 880/880 · secret scan · legacy leaves PASS; **fresh full E2E 90/91 FAIL** at `e2e/reactParityWaveP4ClientArticleReview.spec.ts:23` (not the authorized `t010508` exception) → **HALTED** (PRET604-R2). No document edited, no commit. The authorization was **not consumed** and is **not** a sign-off for any later checkpoint |
+| 2026-10-12 → 2026-10-14 | Corrective units (§ Corrective commits) | `197ba61` → `570a6d6` | Three commits; each under its own human authorization |
+| 2026-10-14 | Approval text dated 2026-10-12 with no checkpoint and no signer | — | **Not executed** — contradiction (predated the three corrective commits); 0 modifications |
+| 2026-10-14 | Read-only T-604 dossier refresh | `570a6d6` | 18 documentary inconsistencies inventoried; 0 modifications |
+| 2026-10-15 | Express ratification of `AUTHORIZE_PHASE6_T604_CODE_COMPLETE_REVIEW` (acts A/B) by Manuel — Admin; D-25 and D-26 ratified | `570a6d6` | This reconciliation. **Not** the CODE_COMPLETE sign-off; A44 PASS and CODE_COMPLETE require a separate human decision (act C/D) |
+| 2026-10-16 | `AUTHORIZE_SPEC010_T604_V2_SINGLE_RETRY_SCORING_TIMEOUT` — one complete retry of `npm run check`, limited to the two scoring timeouts | `570a6d6` | Retry **FAIL**, same two 5000 ms timeouts, 3351/3353. No second retry. V3–V11 not run. **Not** a CODE_COMPLETE sign-off |
+| 2026-10-16 | Scoring discovery correction, separate from T604 | `7ad37c7` | `collectTsFiles` skips dependency and generated trees. Not a V2 PASS of the earlier runs |
+| 2026-10-16 | Express ratification of `AUTHORIZE_SPEC010_T604_RESUME_AFTER_SCORING_FIX` by Manuel — Admin | `7ad37c7` | Fresh V1–V11 on this HEAD. **Not** the CODE_COMPLETE sign-off |
+
+### Corrective commits after the 2026-10-12 halt
+
+Product/test corrections made while T-604 was halted. None changes any A1–A43 verdict; their
+regression evidence is re-proven by the fresh T-604 act-B run below.
+
+| Commit | Unit / authorization | Diagnosis | Change | Evidence at commit |
+|---|---|---|---|---|
+| `5c6f582` (2026-10-14) | `AUTHORIZE_SPEC010_CLIENT_PUSH_CAPTURE_RACE_CORRECTION_COMMIT` | **DIAG-C — product defect** (pre-SPEC-010, shared persistence layer): a realtime snapshot carrying older server data replaced a local CLIENT approval before the deferred push capture; the UI reported «aprobado» while `pipelineStatus` stayed `client_in_progress` and only `completedTasksCount` was written | Synchronous push capture; pending CLIENT mutations preserved across realtime snapshots; truthful pending/confirmed article-review confirmation | check **3297/3297** · rules **106/106** · build · Functions · security **880/880** · P4 + deterministic ×12 **24/24** · full E2E run 1 **91/92** (`t010508` only), run 2 **92/92** — commit authorized by the human after review of that evidence |
+| `9a3a3af` (2026-10-14) | `AUTHORIZE_SPEC010_T010508_BRIEF_HYDRATION_STABILIZATION` | **T508 Strategic Brief hydration race (test defect)**: `before` was captured while ADMIN session sync was still persisting `postura_strategic_brief_*` keys; reproducible only with server-side briefs (original spec 4/12 failures) | `e2e/t010508-phase5-parity.spec.ts` only: deterministic brief-history seed + settled-session signal + real-state verification before capture; new negative test | prepared state 12/12 · spec ×12 **108/108** · full E2E **93/93** twice · rules **106/106** · build · Functions · security **880/880** · check run 1 **FAILED** (scoring timeouts), run 2 **3297/3297** — see § Procedural finding |
+| `570a6d6` (2026-10-14) | `AUTHORIZE_SPEC010_ADMIN_PENDING_MUTATION_INTEGRITY_CORRECTION` + `AUTHORIZE_SPEC010_ADMIN_FIRESTORE_TRANSACTION_TYPES_EXTENSION` | **ADMIN-D1 — product defect**: ADMIN full-snapshot push could clobber other users' rows, lose concurrent updates and miscount `completedTasksCount` | Per-field pending ADMIN mutations overlaid on realtime snapshots; per-client transactional compare-and-set push with counter derived in-transaction; version-based ACK, echo guard, reconcile without re-push; no write/revert after sign-out | check **3311/3311** · rules **106/106** · build · Functions · security **880/880** · ADMIN spec ×12 **60/60** · CLIENT P4 ×12 **24/24** · P15 **12/12** · full E2E **98/98** twice |
+
+### Procedural finding — T508 commit (recorded, not rewritten)
+
+Unit `AUTHORIZE_SPEC010_T010508_BRIEF_HYDRATION_STABILIZATION` §8–§10 required every validation to
+pass before its local commit ("Si alguna condición falla, detener y entregar diagnóstico"; commit
+"solo si todas las validaciones terminan satisfactoriamente"). Its first `npm run check` **failed**
+(`scoringPhase4` / `scoringPhase5` 5000 ms timeouts); the run was repeated (3297/3297) and commit
+`9a3a3af` was created without a human exception for that failure. Severity **P3 — process**; no
+product, rule or security effect. The commit history is **not** rewritten, and this record grants
+**no** retroactive approval. The scoring-timeout debt remains open (§ Residual debt).
+
+### D-SUITE — frozen security validation selection
+
+40 files · SHA-256 of the ordinal-sorted, `/`-separated, LF-joined (no trailing LF) UTF-8 list:
+`cd327d369b367b76536119c72f0d90db113e6dc8ff32a23628e393d7c9a5104c` · baseline **880/880**.
+Verify the fingerprint **before** running; any drift stops T-604.
+
+```powershell
+$f = @(rg -l -i "resolveTrustedTenant|handleAiCompleteRequest|AiRunEnvelope|crossTenant|cross-tenant|tenantIsolation|spec009|httpAuth" tests src -g "*.test.ts")
+$c = @(rg -l -i "PosturaClaims|parsePosturaClaims|assignPosturaClaims|setPosturaClaims" tests -g "*.test.ts")
+$all = @($f + $c | ForEach-Object { $_ -replace '\\','/' } | Sort-Object -Unique)
+npx vitest run $all
+```
+
+```text
+tests/aiCompleteClientOrgBinding.test.ts
+tests/aiGatewayPhase2.test.ts
+tests/aiGatewayPhase3.test.ts
+tests/aiGatewayPhase4.test.ts
+tests/aiGatewayPhase5a.test.ts
+tests/aiGatewayPhase5b.test.ts
+tests/aiGatewayPhase5c.test.ts
+tests/aiGatewayPhase5cMp.test.ts
+tests/assignPosturaClaims.test.ts
+tests/claimEvidenceApplicationArchitecture.test.ts
+tests/claimEvidenceArchitecture.test.ts
+tests/claimEvidenceDomain.test.ts
+tests/claimEvidenceInfrastructureArchitecture.test.ts
+tests/claimEvidenceSecurityArchitecture.test.ts
+tests/cr1ExecutionDelivery.test.ts
+tests/cr1SignalIntake.test.ts
+tests/cr1WaveB10AssignCancelClientTask.test.ts
+tests/cr1WaveB5ProposeAngle.test.ts
+tests/cr1WaveB6RemoveReopenCuration.test.ts
+tests/cr1WaveB7AcknowledgeDelivery.test.ts
+tests/cr1WaveB9CreateContentDraft.test.ts
+tests/cr2BriefFromCurationEntry.test.ts
+tests/firebaseClaims.test.ts
+tests/learningLoopDomain.test.ts
+tests/learningLoopPersistence.test.ts
+tests/learningLoopPhase2.test.ts
+tests/learningLoopPhase5Security.test.ts
+tests/opportunityScoutDomain.test.ts
+tests/opportunityScoutPersistence.test.ts
+tests/opportunityScoutPhase4.test.ts
+tests/opportunityScoutPhase5Security.test.ts
+tests/posturaClaimsCore.test.ts
+tests/spec009ProductionMigrationTooling.test.ts
+tests/stageBExecutionDeliverySend.test.ts
+tests/stageBSignalIntakeIngest.test.ts
+tests/strategicBriefPhase5.test.ts
+tests/strategicPlanDomain.test.ts
+tests/strategicPlanPhase5.test.ts
+tests/t010501AuthorityAdversarial.test.ts
+tests/t010502CacheAdversarial.test.ts
+```
+
+Coverage limit: this selection is not all of security — rules run in `npm run test:rules` and the
+T-010-503…507 adversarial suites plus the threat capstone run inside `npm run check`.
+
+### Act-B validation (fresh, T-604)
+
+| V# | Validation | Result |
+|----|------------|--------|
+| V1 | Anti-forgery `tests/reactMigrationPhase6Acceptance.test.ts` (OPEN/CLOSED/INVALID; N1–N15) | PASS — revalidated 2026-10-16 on `7ad37c7`: 42/42, including N1–N15 and X1–X14. Prior run 2026-10-15 also 42/42 |
+| V2 | `npm run check` | PASS — fresh check 2026-10-16 on `7ad37c7`: typecheck, ESLint 0 errors, Vitest 3359/3359 (245/245). Historical failures stay FAIL and are not reclassified: 2026-10-15 FAIL 3351/3353; 2026-10-16 single retry under `AUTHORIZE_SPEC010_T604_V2_SINGLE_RETRY_SCORING_TIMEOUT` FAIL 3351/3353 (same two scoring timeouts, no assertion failure) |
+| V3 | `npm run test:rules` | PASS — 106/106 on `demo-aurora-e2e` (2026-10-16) |
+| V4 | `npm run build`; `__posturaUi` in `dist` = 0 | PASS — build exit 0; `__posturaUi` matches in `dist` = 0 (2026-10-16) |
+| V5 | Functions typecheck | PASS — `tsc -p functions/tsconfig.json --noEmit` exit 0 (2026-10-16) |
+| V6 | Frozen security suite (fingerprint verified first) | PASS — frozen 40-file SHA-256 `cd327d369b367b76536119c72f0d90db113e6dc8ff32a23628e393d7c9a5104c`, then 880/880 (2026-10-16). The live selector also names untracked `tests/reactMigrationPhase6Acceptance.test.ts`; that file was not added to the suite |
+| V7 | `npm run secret:scan` | PASS — exit 0, `rotation_required_overall=NO` (2026-10-16) |
+| V8 | `node scripts/acceptanceTally.mjs` + A1–A44 evidence references | PASS — tally 43/0/0/1, A44 still PENDING; evidence paths resolve (2026-10-16) |
+| V9 | Nine legacy leaves: 0 files · 0 importers · Option E / `resolveServedUiMode` unchanged | PASS — 0 files under `src/components`, 0 importers in `src`; `git diff 570a6d6 -- src` empty (2026-10-16) |
+| V10 | Fresh full E2E on `demo-aurora-e2e` | PASS — 98/98, `productionFirebaseRequests=0` (2026-10-16, 5.2 m) |
+| V11 | `git diff --check` · scope = exactly the 5 authorized files | PASS — `git diff --check` exit 0. Worktree scope of this record: the four governance docs plus `tests/reactMigrationPhase6Acceptance.test.ts`. `.firebase/` remains the pre-existing untracked cache and is not part of the five |
+
+### Residual debt (nonblocking for T-604; not promoted)
+
+| Debt | Evidence | Gate |
+|---|---|---|
+| Scoring file discovery (`scoringPhase4/5` formerly walked `functions/node_modules`) | Two V2 FAILs, 3351/3353, remain historical. Corrected in `7ad37c7`. One fresh check on that HEAD passed 3359/3359. Five consecutive clean checks are not claimed | Independent of the T604 signature |
+| ADMIN initial load: the manager shell waits on a full-organization hydrate | Read-only diagnosis 2026-10-16. Not implemented | Independent unit before CUTOVER-E |
+| CLIENT «pending» confirmation shown with success styling; panel not refreshed if a write fails after the 10 s wait | `5c6f582` post-fix review | Later UX unit, before CUTOVER-E |
+| ADMIN pending/confirmed indicator absent; rows quarantined after sign-out are not re-pushed; post-ACK echo guard bounded to 30 s | `570a6d6` | Later unit, before CUTOVER-E |
+| T-010-509 runtime a11y audit absent; AUDIT010-12 (P3); GLOBAL C3 PARTIAL | Phase-5 closure · A41 | Unchanged |
+| T-010-20 · T-010-25 (D-25) · T-010-26 (D-26) PARTIAL | `threat-model.md` § Phase-6 threat disposition | CUTOVER-E / legacy-removal unit |
 
 ## Required (implementation → CODE_COMPLETE)
 
@@ -83,7 +243,7 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | A41 | Behavioral parity proven per migrated module across all applicable dimensions | 5 | ✅ PASS | A41-C frozen (`MIGRATED_MODULE_APPLICABLE_DIMENSION`): `t-010-604-w3-a41-dimension-disposition.md` @ `23619f95` — **16/16** modules · **6/6** dims (1/7/8/10/14/17) formally PARITY or dispositioned · TRUE/blocking-test/code/external gaps **0**; GLOBAL C3 remains **PARTIAL** (nonblocking under T604 policy) |
 | A42 | E2E/parity harness (Playwright) implemented; legacy-vs-React journeys pass | 5 | ✅ PASS | W1/W2: Playwright harness + legacy-vs-React journeys — T-508 + Stage-B **21/21 PASS** (Planner excluded by governed MVP) |
 | A43 | Legacy removed only after parity gate; rollback exercised without data migration | 6 | ✅ PASS | Global T-010-603 formally closed under scope decision **A** (`t-010-603-global-closure.md`): **9/9** bounded legacy leaves removed and formally accepted (DOSSIER · OPPORTUNITY · KPI · CLIENTPROFILE · PROOFWALL · CLAIMSAFETY · PAGEHEADER · SOURCEREGISTRY · ONBOARDING); governed Product graph **ZERO**; C6/C7/safe-subset complete; family A38 **PASS**; blocking debt **NONE**; Option E + T-508 rollback retained; broader non-leaf hosts remain outside T-603 |
-| A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ⏳ PENDING | **T602 REGRESSION_GATE_PASS** @ 1965/1965 · 91/91 · BUILD · 73/73 · 21/21. **A44 formal PASS** requires CODE_COMPLETE Required A* + T-604 |
+| A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ⏳ PENDING | *Historical:* **T602 REGRESSION_GATE_PASS** @ 1965/1965 · 91/91 · BUILD · 73/73 · 21/21 (before the corrective commits `5c6f582` / `9a3a3af` / `570a6d6`). *Pre-T-604 reference @ `570a6d6` (not closure evidence):* check 3311/3311 · rules 106/106 · E2E 98/98. Fresh T-604 act-B run: § T-010-604 execution record. **A44 formal PASS** requires T-604 closure evidence + human sign-off **APPROVED** (policy 3) — not granted |
 
 **Acceptance count:** **44** (A1–A44) — unchanged.
 
@@ -93,7 +253,11 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | Phase 1 exit | 7 | 24 | 0 | 13 |
 | Phase 2 exit | 7 | 26 | 0 | 11 |
 | Phase 3 exit | 7 | 33 | 0 | 4 |
-| **Phase 4 exit** | **8** | **33** | **0** | **3** |
+| Phase 4 exit | 8 | 33 | 0 | 3 |
+| Phase 5 exit (`b562435`) | 8 | 33 | 0 | 3 |
+| Phase 6 — T-603 global closure (`0adb586`) | 9 | 32 | 0 | 3 |
+| **Phase 6 — pre-T-604 (`570a6d6`)** | **43** | **0** | **0** | **1** |
+| Phase 6 — T-604 closure | *PENDING act-B validation + human sign-off — not recorded* | | | |
 
 ### Row/summary reconciliation (governance finding, documentation-only)
 
@@ -221,8 +385,8 @@ Evidence: `t-010-phase6-pre-removal-gates.md` · `t-010-phase6-a1-a44-reconcilia
 |------|---------|
 | T-010-601 | **COMPLETE** — 44/44 criteria reconciled; T603 inventory recorded; **0** false PASS promotions |
 | T-010-602 | **COMPLETE** — `REGRESSION_GATE_PASS`; **A44 remains PENDING** (formal CODE_COMPLETE gate) |
-| T-010-603 | **NOT_AUTHORIZED** |
-| T-010-604 | **NOT_AUTHORIZED** |
+| T-010-603 | **NOT_AUTHORIZED** *(snapshot at T-602; later DONE — FORMALLY_CLOSED, § global closure)* |
+| T-010-604 | **NOT_AUTHORIZED** *(snapshot at T-602; current status: § T-010-604 execution record)* |
 
 **T603 manifest:** 5 future subset candidates (wave-2 leaves) · 12+ blocked · **FULL LEGACY DELETION READY = NO**
 
@@ -434,11 +598,13 @@ Evidence: `t-010-603-global-closure.md` · authorization `AUTHORIZE_PHASE6_GLOBA
 | T-010-603 **global** | **DONE — FORMALLY_CLOSED** (`PHASE6_GLOBAL_T603_FORMALLY_CLOSED`) |
 | C3 **global** | **PARTIAL** (not required for T-603; not modified) |
 | A43 **global** | **PASS** |
-| T-010-604 | **NOT_AUTHORIZED** |
+| T-010-604 | **NOT_AUTHORIZED** *(snapshot at T-603 global closure; current status: § T-010-604 execution record)* |
 | PHASE 6 COMPLETE | **NO** |
 
 Broader legacy hosts (`ClientWorkspace`, `LegacyApp`, `Login`, `AppShell`, …) are **not** part of this T-603 completion scope.  
 Prior family subset snapshot rows above remain historical local acceptances and are **not** rewritten except the Onboarding global status lines reconciled here.
+
+The `T-010-604 NOT_AUTHORIZED` rows in the Phase-6 snapshot sections above are historical at their own checkpoints and are **not** rewritten; the current T-010-604 status is in § T-010-604 execution record.
 
 ### Phase-3 acceptance movement (T-010-301…306)
 
@@ -550,6 +716,9 @@ E2E parity, Phase-5 security or Phase-6 closure is claimed.
 
 ## Phase 0 exit checklist
 
+*Historical snapshot at Phase-0 exit (preserved). T-010-010 was later approved by the human owner on
+2026-08-26 (America/Bogota) and Phase 1 was authorized — see the header and `tasks.md` § Human SPEC-010 approval.*
+
 | Gate | Status |
 |------|--------|
 | Formal package complete (11 files) | ✅ |
@@ -583,8 +752,8 @@ E2E parity, Phase-5 security or Phase-6 closure is claimed.
 | Threat model complete (26) | ✅ |
 | Tasks complete | ✅ |
 | Deployment separation complete | ✅ |
-| Human T-010-010 | **PENDING** |
-| Phase-1 authorization | **NO** |
+| Human T-010-010 | **PENDING** *(at Phase-0 exit; APPROVED 2026-08-26)* |
+| Phase-1 authorization | **NO** *(at Phase-0 exit; YES on 2026-08-26)* |
 | Product files changed | **0** |
 | Test files changed | **0** |
 | Dependency files changed | **0** |
@@ -595,17 +764,19 @@ E2E parity, Phase-5 security or Phase-6 closure is claimed.
 
 ---
 
-## Human SPEC approval (T-010-010) — REQUIRED
+## Human SPEC approval (T-010-010) — RECORDED
 
 | Field | Value |
 |-------|--------|
 | **Task** | T-010-010 |
 | **Title** | Human SPEC-010 approval |
-| **Status** | **TODO · PENDING HUMAN** |
+| **Status** | **[x] DONE · APPROVED** (2026-08-26 America/Bogota) |
 | **Classification** | HUMAN |
 | **Authorization text** | «Apruebo formalmente SPEC-010 — React migration y autorizo el cierre de T-010-010 y el inicio de la Phase 1 de implementación.» |
 
-No automation may write this statement, infer it, or mark T-010-010 DONE.
+No automation may write this statement, infer it, or mark T-010-010 DONE. The status above was set by
+the human owner's verbatim statement recorded in `tasks.md` § Human SPEC-010 approval (T-010-010) —
+RECORDED; T-010-604 act A only aligned this section with that record (previously «TODO · PENDING HUMAN»).
 
 ## Human CODE_COMPLETE (T-010-604) — FUTURE
 
@@ -616,3 +787,7 @@ No automation may write this statement, infer it, or mark T-010-010 DONE.
 | **Authorization text** | «Apruebo formalmente el CODE_COMPLETE de SPEC-010 — React migration y autorizo el cierre de T-010-604.» |
 
 Required (A\*) criteria must be **PASS** before T-010-604 may close.
+
+The 2026-10-15 execution authorization (acts A/B) does **not** fill this section. It may change to
+RECORDED only on a separate human decision over the act-C sign-off dossier for the closure evidence
+checkpoint; a signature given on any other checkpoint (e.g. 2026-10-12 on `197ba61`) is not this sign-off.
