@@ -6,14 +6,14 @@
 **Phase 3:** **COMPLETE** — 5 pages migrated (all HYBRID), 34 blocked writes registered
 **Phase 4:** **FORMALLY_ACCEPTED** (T-010-401…405 · A39 reconciled · `t-010-phase4-formal-closure.md`)
 **Phase 5:** **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** (T-010-501…510 · `t-010-phase5-formal-closure.md`)
-**Phase 6:** **PRE_REMOVAL_GATES_COMPLETE** (T-010-601…602 · `t-010-phase6-pre-removal-gates.md`) · T-603 **FORMALLY_CLOSED** (`t-010-603-global-closure.md`) · T-604 **EXECUTION AUTHORIZED (acts A/B, 2026-10-15 America/Bogota) — HUMAN SIGN-OFF PENDING** (§ T-010-604 execution record)
-**A1-A44:** **43 PASS** · **0 PARTIAL** · **0 FAIL** · **1 PENDING** (T-601 reconciled · A43 PASS · W2 promoted 30 · A10 PASS under A10-B · A41 PASS under A41-C · A25 PASS under A25-P1 · A31 PASS under SPEC-009 re-freeze (Option B) · A44 PENDING)
-**CODE_COMPLETE:** **NO**
+**Phase 6:** **COMPLETE** (T-010-601…602 · `t-010-phase6-pre-removal-gates.md`) · T-603 **FORMALLY_CLOSED** (`t-010-603-global-closure.md`) · T-604 **DONE — FORMALLY_CLOSED** (§ T-010-604 execution record)
+**A1-A44:** **44 PASS** · **0 PARTIAL** · **0 FAIL** · **0 PENDING** (T-601 reconciled · A43 PASS · W2 promoted 30 · A10 PASS under A10-B · A41 PASS under A41-C · A25 PASS under A25-P1 · A31 PASS under SPEC-009 re-freeze (Option B) · A44 PASS)
+**CODE_COMPLETE:** **YES**
 **DEPLOYED:** **NO** · **DONE:** **NO** · **DEPLOYMENT:** **NOT_STARTED**
 **CUTOVER-E:** **NOT_AUTHORIZED**
 
 Spec **APPROVED** — T-010-010 human SPEC approval **RECORDED**.
-Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-010-604) — execution of acts A/B authorized 2026-10-15 (America/Bogota); human sign-off **PENDING**.
+Spec **CODE_COMPLETE** requires Required (A\*) full PASS + human sign-off (T-010-604) — sign-off **APPROVED** 2026-10-16 (America/Bogota) by Manuel — Admin on evidence checkpoint `a331a22e292d2aa18446c8bee92e99c871afaa0e`.
 
 **Human SPEC approval model:** TASK-LEVEL only (T-010-010).
 **Human CODE_COMPLETE model:** TASK-LEVEL only (T-010-604).
@@ -63,9 +63,9 @@ validation evidence only. It is **not** the human CODE_COMPLETE sign-off, which 
 | **Resume checkpoint** | `7ad37c79551790f9c9db790873766bc49908fd76` (scoring-test discovery correction only; fresh V1–V11 below) |
 | **Authorized scope** | `acceptance.md` · `tasks.md` · `spec.md` · `threat-model.md` · `tests/reactMigrationPhase6Acceptance.test.ts` |
 | **Superseded checkpoints** | `197ba61cf6643f79b8aa3d3fc840b03aa35a926f` (2026-10-12 authorization; not consumed, not reusable) |
-| **Closure evidence checkpoint** | **PENDING** — the commit that records acts A/B; its SHA is supplied in the act-C sign-off dossier |
-| **Execution status** | **TECHNICALLY_READY_FOR_HUMAN_SIGNOFF** (fresh V1–V11 PASS on `7ad37c7`, 2026-10-16). The 2026-10-15 and 2026-10-16 V2 failures stay FAIL. A44 **PENDING**. CODE_COMPLETE **NO** |
-| **A44 / CODE_COMPLETE / CUTOVER-E** | **PENDING** / **NO** / **NOT_AUTHORIZED** |
+| **Closure evidence checkpoint** | `a331a22e292d2aa18446c8bee92e99c871afaa0e` — signed 2026-10-16 (America/Bogota) by Manuel — Admin. The later commit that records this sign-off is not this checkpoint |
+| **Execution status** | **FORMALLY_CLOSED** — sign-off APPROVED 2026-10-16 on evidence checkpoint `a331a22e292d2aa18446c8bee92e99c871afaa0e`. Prior state was TECHNICALLY_READY_FOR_HUMAN_SIGNOFF. The 2026-10-15 and 2026-10-16 V2 failures stay FAIL |
+| **A44 / CODE_COMPLETE / CUTOVER-E** | **PASS** / **YES** / **NOT_AUTHORIZED** |
 | **Production Firebase contact** | **0** |
 
 ### Authorization history
@@ -80,6 +80,7 @@ validation evidence only. It is **not** the human CODE_COMPLETE sign-off, which 
 | 2026-10-16 | `AUTHORIZE_SPEC010_T604_V2_SINGLE_RETRY_SCORING_TIMEOUT` — one complete retry of `npm run check`, limited to the two scoring timeouts | `570a6d6` | Retry **FAIL**, same two 5000 ms timeouts, 3351/3353. No second retry. V3–V11 not run. **Not** a CODE_COMPLETE sign-off |
 | 2026-10-16 | Scoring discovery correction, separate from T604 | `7ad37c7` | `collectTsFiles` skips dependency and generated trees. Not a V2 PASS of the earlier runs |
 | 2026-10-16 | Express ratification of `AUTHORIZE_SPEC010_T604_RESUME_AFTER_SCORING_FIX` by Manuel — Admin | `7ad37c7` | Fresh V1–V11 on this HEAD. **Not** the CODE_COMPLETE sign-off |
+| 2026-10-16 | `AUTHORIZE_SPEC010_T604_FINAL_CODE_COMPLETE_CLOSURE` — Manuel — Admin | `a331a22e292d2aa18446c8bee92e99c871afaa0e` | CODE_COMPLETE sign-off. Does not authorize CUTOVER-E, deployment, or closure of D-25 / D-26 |
 
 ### Corrective commits after the 2026-10-12 halt
 
@@ -243,7 +244,7 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | A41 | Behavioral parity proven per migrated module across all applicable dimensions | 5 | ✅ PASS | A41-C frozen (`MIGRATED_MODULE_APPLICABLE_DIMENSION`): `t-010-604-w3-a41-dimension-disposition.md` @ `23619f95` — **16/16** modules · **6/6** dims (1/7/8/10/14/17) formally PARITY or dispositioned · TRUE/blocking-test/code/external gaps **0**; GLOBAL C3 remains **PARTIAL** (nonblocking under T604 policy) |
 | A42 | E2E/parity harness (Playwright) implemented; legacy-vs-React journeys pass | 5 | ✅ PASS | W1/W2: Playwright harness + legacy-vs-React journeys — T-508 + Stage-B **21/21 PASS** (Planner excluded by governed MVP) |
 | A43 | Legacy removed only after parity gate; rollback exercised without data migration | 6 | ✅ PASS | Global T-010-603 formally closed under scope decision **A** (`t-010-603-global-closure.md`): **9/9** bounded legacy leaves removed and formally accepted (DOSSIER · OPPORTUNITY · KPI · CLIENTPROFILE · PROOFWALL · CLAIMSAFETY · PAGEHEADER · SOURCEREGISTRY · ONBOARDING); governed Product graph **ZERO**; C6/C7/safe-subset complete; family A38 **PASS**; blocking debt **NONE**; Option E + T-508 rollback retained; broader non-leaf hosts remain outside T-603 |
-| A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ⏳ PENDING | *Historical:* **T602 REGRESSION_GATE_PASS** @ 1965/1965 · 91/91 · BUILD · 73/73 · 21/21 (before the corrective commits `5c6f582` / `9a3a3af` / `570a6d6`). *Pre-T-604 reference @ `570a6d6` (not closure evidence):* check 3311/3311 · rules 106/106 · E2E 98/98. Fresh T-604 act-B run: § T-010-604 execution record. **A44 formal PASS** requires T-604 closure evidence + human sign-off **APPROVED** (policy 3) — not granted |
+| A44 | Full check + rules regression at CODE_COMPLETE; no unintended regression | 6 | ✅ PASS | *Historical:* **T602 REGRESSION_GATE_PASS** @ 1965/1965 · 91/91 · BUILD · 73/73 · 21/21 (before the corrective commits `5c6f582` / `9a3a3af` / `570a6d6`). *Pre-T-604 reference @ `570a6d6` (not closure evidence):* check 3311/3311 · rules 106/106 · E2E 98/98. Fresh T-604 act-B run: § T-010-604 execution record (V1–V11 PASS on `7ad37c7`, recorded in `a331a22e292d2aa18446c8bee92e99c871afaa0e`). Formal PASS granted by Manuel — Admin on 2026-10-16 (America/Bogota) under policy 3 |
 
 **Acceptance count:** **44** (A1–A44) — unchanged.
 
@@ -257,7 +258,7 @@ open for later waves or Phase-5 adversarial proof · ⏳ **PENDING** no evidence
 | Phase 5 exit (`b562435`) | 8 | 33 | 0 | 3 |
 | Phase 6 — T-603 global closure (`0adb586`) | 9 | 32 | 0 | 3 |
 | **Phase 6 — pre-T-604 (`570a6d6`)** | **43** | **0** | **0** | **1** |
-| Phase 6 — T-604 closure | *PENDING act-B validation + human sign-off — not recorded* | | | |
+| Phase 6 — T-604 closure (`a331a22e292d2aa18446c8bee92e99c871afaa0e`) | 44 | 0 | 0 | 0 |
 
 ### Row/summary reconciliation (governance finding, documentation-only)
 
@@ -778,16 +779,17 @@ No automation may write this statement, infer it, or mark T-010-010 DONE. The st
 the human owner's verbatim statement recorded in `tasks.md` § Human SPEC-010 approval (T-010-010) —
 RECORDED; T-010-604 act A only aligned this section with that record (previously «TODO · PENDING HUMAN»).
 
-## Human CODE_COMPLETE (T-010-604) — FUTURE
+## Human CODE_COMPLETE (T-010-604) — RECORDED
 
 | Field | Value |
 |-------|--------|
 | **Task** | T-010-604 |
-| **Status** | **TODO** |
-| **Authorization text** | «Apruebo formalmente el CODE_COMPLETE de SPEC-010 — React migration y autorizo el cierre de T-010-604.» |
+| **Status** | **APPROVED** |
+| **Signer** | Manuel — Admin |
+| **Date** | 2026-10-16 |
+| **Time zone** | America/Bogota |
+| **Checkpoint** | `a331a22e292d2aa18446c8bee92e99c871afaa0e` |
+| **Authorization** | `AUTHORIZE_SPEC010_T604_FINAL_CODE_COMPLETE_CLOSURE` (parent `AUTHORIZE_PHASE6_T604_CODE_COMPLETE_REVIEW`) |
+| **Statement** | «Apruebo formalmente el CODE_COMPLETE de SPEC-010 — React migration y autorizo el cierre de T-010-604.» |
 
-Required (A\*) criteria must be **PASS** before T-010-604 may close.
-
-The 2026-10-15 execution authorization (acts A/B) does **not** fill this section. It may change to
-RECORDED only on a separate human decision over the act-C sign-off dossier for the closure evidence
-checkpoint; a signature given on any other checkpoint (e.g. 2026-10-12 on `197ba61`) is not this sign-off.
+The signer limited this approval to the formal closure of SPEC-010. It does not authorize CUTOVER-E, production deployment, push, merge, closure of D-25 or D-26, or the ADMIN initial-load optimization. Those remain open. The statement above is the sentence required by the anti-forgery contract; the human ratification of 2026-10-16 issued that approval and those limits together.

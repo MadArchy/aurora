@@ -6,9 +6,9 @@
 Phases derive from the constitutional §24 seven-step migration order, **not** from another SPEC's
 structure. Each phase maps to one §24 step (see `ui-architecture.md` § *Phase ↔ §24 step mapping*).
 
-**Authorization status (current):** Phases 0–5 **COMPLETE / FORMALLY_ACCEPTED** · Phase 6 T-601…T-603 **DONE** ·
-T-010-604 execution (acts A/B) **AUTHORIZED** 2026-10-15 (America/Bogota) on `570a6d6` — human CODE_COMPLETE
-sign-off **PENDING** · deployment D1–D3 and CUTOVER-E **NOT AUTHORIZED**.
+**Authorization status (current):** Phases 0–5 **COMPLETE / FORMALLY_ACCEPTED** · Phase 6 T-601…T-604 **DONE** ·
+T-010-604 **FORMALLY_CLOSED** 2026-10-16 (America/Bogota) by Manuel — Admin on evidence checkpoint
+`a331a22e292d2aa18446c8bee92e99c871afaa0e` · deployment D1–D3 and CUTOVER-E **NOT AUTHORIZED**.
 *Historical Phase-0 text (superseded on 2026-08-26 by T-010-010):* «Authorized now: Phase 0 only. Phase 1+ requires human T-010-010.»
 
 ---
@@ -650,16 +650,16 @@ the original scripts · `npm run check` **1679/1679** · rules **91/91** · buil
 
 ---
 
-## Phase 6 — Final acceptance / legacy removal / CODE_COMPLETE (§24 step 7) — PRE_REMOVAL_GATES_COMPLETE
+## Phase 6 — Final acceptance / legacy removal / CODE_COMPLETE (§24 step 7) — COMPLETE
 
 | ID | Title | Class | Depends on | Acceptance | Status |
 |----|-------|-------|-----------|------------|--------|
 | **T-010-601** | Run full acceptance matrix A1–A44 | TECHNICAL | Phase 5 | A1–A44 | **[x] DONE** |
 | **T-010-602** | Full check + rules regression | TECHNICAL | T-010-601 | A44 | **[x] DONE** (`REGRESSION_GATE_PASS`; A44 formal **PENDING**) |
 | **T-010-603** | Remove legacy implementations that passed the parity gate | TECHNICAL | T-010-601, T-010-602 | A43 | **[x] DONE — FORMALLY_CLOSED** (`t-010-603-global-closure.md`; scope **A**; nine-family leaf program) |
-| **T-010-604** | **Human CODE_COMPLETE approval** | **HUMAN** | T-010-601…603 | CODE_COMPLETE gate | **[ ] TODO · EXECUTION AUTHORIZED (acts A/B) · HUMAN SIGN-OFF PENDING** |
+| **T-010-604** | **Human CODE_COMPLETE approval** | **HUMAN** | T-010-601…603 | CODE_COMPLETE gate | **[x] DONE** |
 
-**Evidence:** `t-010-phase6-pre-removal-gates.md` · `t-010-phase6-a1-a44-reconciliation.md` · `t-010-603-global-closure.md` · A1–A44 at T-603 global closure **9/32/0/3** (historical, A43 **PASS**) · current A1–A44 **43/0/0/1** (A44 **PENDING**) · T602 **1965/1965 · 91/91 · BUILD · 73/73 · 21/21** (historical) · T-603 nine governed leaves **ABSENT** · product changes at global closure **0**
+**Evidence:** `t-010-phase6-pre-removal-gates.md` · `t-010-phase6-a1-a44-reconciliation.md` · `t-010-603-global-closure.md` · A1–A44 at T-603 global closure **9/32/0/3** (historical, A43 **PASS**) · current A1–A44 **44/0/0/0** (A44 **PASS**, 2026-10-16) · T602 **1965/1965 · 91/91 · BUILD · 73/73 · 21/21** (historical) · T-603 nine governed leaves **ABSENT** · product changes at global closure **0**
 
 **T-010-604 history** (full record: `acceptance.md` § T-010-604 execution record):
 2026-10-12 authorization on `197ba61` → fresh full E2E 90/91 → **HALTED**, not consumed ·
@@ -667,9 +667,9 @@ corrective commits `5c6f582` (CLIENT DIAG-C) · `9a3a3af` (T508 brief hydration;
 2026-10-15 express ratification of the execution (acts A/B) on `570a6d6` by Manuel — Admin · D-25 / D-26 ratified (PARTIAL).
 Closure policies: `acceptance.md` § T-010-604 closure policies (human-frozen).
 
-**Exit:** Phase 6 pre-removal gates **COMPLETE** · T-603 **FORMALLY_CLOSED** · T-604 **EXECUTION AUTHORIZED — SIGN-OFF PENDING** · Phase 6 **NOT COMPLETE** · CODE_COMPLETE requires a separate human sign-off on the act-C dossier
+**Exit:** Phase 6 **COMPLETE** · T-603 **FORMALLY_CLOSED** · T-604 **FORMALLY_CLOSED** · CODE_COMPLETE **YES** on evidence checkpoint `a331a22e292d2aa18446c8bee92e99c871afaa0e` · CUTOVER-E **NOT_AUTHORIZED** · D-25 and D-26 remain **PARTIAL**
 
-**Required human CODE_COMPLETE statement (T-010-604) — future:**
+**Human CODE_COMPLETE statement (T-010-604) — RECORDED:**
 
 > «Apruebo formalmente el CODE_COMPLETE de SPEC-010 — React migration y autorizo el cierre de T-010-604.»
 
@@ -697,7 +697,7 @@ Deployment requires separate authorization. SPEC-009 production remains **DEFERR
 | 3 | T-010-301…306 | 6 | **COMPLETE** |
 | 4 | T-010-401…405 | 5 | **FORMALLY_ACCEPTED** |
 | 5 | T-010-501…510 | 10 | **FORMALLY_ACCEPTED_WITH_NONBLOCKING_DEBT** |
-| 6 | T-010-601…604 | 4 | **PRE_REMOVAL_GATES_COMPLETE** (T-601/T-602 DONE · T-603 DONE — FORMALLY_CLOSED · T-604 EXECUTION AUTHORIZED — SIGN-OFF PENDING) |
+| 6 | T-010-601…604 | 4 | **COMPLETE** (T-601/T-602 DONE · T-603 DONE — FORMALLY_CLOSED · T-604 DONE — FORMALLY_CLOSED) |
 | Deploy | D1–D3 | 3 | NOT_STARTED |
 
 **Total formal tasks:** 55 (52 implementation + 3 deployment)

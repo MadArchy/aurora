@@ -655,14 +655,18 @@ describe('T-010-604 anti-forgery — positive classification', () => {
     expect(assessClosure(minimalDocs('CLOSED'), repoExists)).toEqual({ state: 'CLOSED', reasons: [] });
   });
 
-  it('real governance documents are coherent (never INVALID)', () => {
-    const result = assessClosure(readRealDocs(), repoExists);
-    expect(result.reasons).toEqual([]);
-    expect(['OPEN', 'CLOSED']).toContain(result.state);
+  it('real governance documents are a valid CLOSED closure', () => {
+    expect(assessClosure(readRealDocs(), repoExists)).toEqual({ state: 'CLOSED', reasons: [] });
   });
 
   it('real documents become CLOSED only through every act-D change at once', () => {
-    expect(assessClosure(closeInMemory(readRealDocs()), repoExists)).toEqual({ state: 'CLOSED', reasons: [] });
+    const docs = readRealDocs();
+    const result = assessClosure(docs, repoExists);
+    if (result.state === 'OPEN') {
+      expect(assessClosure(closeInMemory(docs), repoExists)).toEqual({ state: 'CLOSED', reasons: [] });
+      return;
+    }
+    expect(result).toEqual({ state: 'CLOSED', reasons: [] });
   });
 
   it('real documents: promoting A44 or CODE_COMPLETE alone is INVALID', () => {
