@@ -35,7 +35,7 @@ import {
   SignalOutcome,
   NotificationItem,
 } from '../types';
-import { applyScopedCollectionMerge } from '../domain/firestoreMergeCore';
+import { applyScopedCollectionMerge, replaceClientScopedRows } from '../domain/firestoreMergeCore';
 import { computeConversionStats } from '../domain/radarFeedbackCore';
 import { resolveThesis } from '../domain/thesisContextCore';
 import { detectIndustryPreset, getIndustryPresetMeta } from './industryPresets';
@@ -90,6 +90,8 @@ type FirestoreSyncModule = typeof import('./firestore/sync');
 export type RemotePersistenceScope = { since: number | null };
 export type RemotePersistenceResult = RemotePersistenceOutcome | { status: 'local' };
 
+export type ClientOperationalPhase = 'NOT_LOADED' | 'LOADING' | 'READY' | 'EMPTY' | 'ERROR';
+
 class DataService {
   private clients: Client[] = [];
   private theses: PositioningThesis[] = [];
@@ -139,8 +141,16 @@ class DataService {
   private adminLoadEpoch = 0;
   private adminDirectoryPhase: 'IDLE' | 'LOADING' | 'READY' | 'ERROR' = 'IDLE';
   private adminIndicatorsPhase: 'NOT_LOADED' | 'LOADING' | 'READY' | 'ERROR' = 'READY';
-  /** A remote push was requested while operational collections were still unread. */
+  /** A remote push was requested while the directory itself was still unread. */
   private remotePushDeferred = false;
+  /** Server generation captured for the current ADMIN directory load. */
+  private adminReadGeneration = 0;
+  private clientOperationalPhase = new Map<string, ClientOperationalPhase>();
+  private clientHydrationTicket = new Map<string, number>();
+  private nextHydrationTicket = 0;
+  /** Clients whose deliveries listing was confirmed without opening the rest of their data. */
+  private confirmedDeliveriesClients = new Set<string>();
+  private deliveriesConfirmInflight = new Map<string, Promise<void>>();
 
   constructor() {
     this.loadInitialData();
@@ -1258,11 +1268,37 @@ class DataService {
     assign('notifications', partial.notifications);
     assign('sources', partial.sources);
 
-    if (partial.profiles) this.profiles = merge ? { ...this.profiles, ...partial.profiles } : partial.profiles;
-    if (partial.dossiers) this.dossiers = merge ? { ...this.dossiers, ...partial.dossiers } : partial.dossiers;
+    if (partial.profiles) {
+      if (scopeClientId) {
+        const next = { ...this.profiles };
+        if (partial.profiles[scopeClientId]) next[scopeClientId] = partial.profiles[scopeClientId];
+        else delete next[scopeClientId];
+        this.profiles = next;
+      } else {
+        this.profiles = merge ? { ...this.profiles, ...partial.profiles } : partial.profiles;
+      }
+    }
+    if (partial.dossiers) {
+      if (scopeClientId) {
+        const next = { ...this.dossiers };
+        if (partial.dossiers[scopeClientId]) next[scopeClientId] = partial.dossiers[scopeClientId];
+        else delete next[scopeClientId];
+        this.dossiers = next;
+      } else {
+        this.dossiers = merge ? { ...this.dossiers, ...partial.dossiers } : partial.dossiers;
+      }
+    }
     if (partial.topicPins) this.topicPins = partial.topicPins;
-    if (partial.aiRuns) this.aiRuns = partial.aiRuns;
-    if (partial.recommendations) this.recommendations = partial.recommendations;
+    if (partial.aiRuns) {
+      this.aiRuns = scopeClientId
+        ? replaceClientScopedRows(this.aiRuns, partial.aiRuns, scopeClientId)
+        : partial.aiRuns;
+    }
+    if (partial.recommendations) {
+      this.recommendations = scopeClientId
+        ? replaceClientScopedRows(this.recommendations, partial.recommendations, scopeClientId)
+        : partial.recommendations;
+    }
     if (partial.subscription !== undefined) this.subscription = partial.subscription;
     if (partial.invitations) this.invitations = partial.invitations;
     if (partial.files) this.files = partial.files;
@@ -1287,6 +1323,15 @@ class DataService {
     this.adminDirectoryPhase = 'LOADING';
     this.adminIndicatorsPhase = 'NOT_LOADED';
     this.remotePushDeferred = false;
+    this.clientOperationalPhase.clear();
+    this.clientHydrationTicket.clear();
+    this.confirmedDeliveriesClients.clear();
+    this.deliveriesConfirmInflight.clear();
+    void this.loadFirestoreSync().then((sync) => {
+      this.adminReadGeneration = sync.invalidateAdminReads();
+      sync.setAdminSubcollectionPushScope(new Set());
+      sync.clearAdminConfirmedSubcollections();
+    });
     this.emitChange();
     return this.adminLoadEpoch;
   }
@@ -1310,15 +1355,78 @@ class DataService {
     this.adminIndicatorsPhase = 'READY';
     this.remotePushDeferred = false;
     this.pendingRemoteIntents = [];
+    this.clientOperationalPhase.clear();
+    this.clientHydrationTicket.clear();
+    this.confirmedDeliveriesClients.clear();
+    this.deliveriesConfirmInflight.clear();
+    const sync = this.firestoreSync;
+    if (sync) {
+      sync.invalidateAdminReads();
+      sync.setAdminSubcollectionPushScope(null);
+      sync.clearAdminConfirmedSubcollections();
+    } else {
+      void this.loadFirestoreSync().then((loaded) => {
+        loaded.invalidateAdminReads();
+        loaded.setAdminSubcollectionPushScope(null);
+        loaded.clearAdminConfirmedSubcollections();
+      });
+    }
     this.emitChange();
+  }
+
+  public getAdminLoadEpoch(): number {
+    return this.adminLoadEpoch;
+  }
+
+  public getClientOperationalPhase(clientId: string): ClientOperationalPhase {
+    return this.clientOperationalPhase.get(clientId) ?? 'NOT_LOADED';
   }
 
   private adminRemoteWritesHeld(): boolean {
     return (
+      this.adminDirectoryPhase === 'LOADING' ||
+      this.adminDirectoryPhase === 'ERROR' ||
       this.adminIndicatorsPhase === 'NOT_LOADED' ||
-      this.adminIndicatorsPhase === 'LOADING' ||
       this.adminIndicatorsPhase === 'ERROR'
     );
+  }
+
+  private publishHydratedPushScope(): void {
+    if (!this.firestoreSync) return;
+    if (this.adminIndicatorsPhase === 'READY') {
+      this.firestoreSync.setAdminSubcollectionPushScope(null);
+      return;
+    }
+    const ready = new Set<string>();
+    for (const [clientId, phase] of this.clientOperationalPhase) {
+      if (phase === 'READY' || phase === 'EMPTY') ready.add(clientId);
+    }
+    this.firestoreSync.setAdminSubcollectionPushScope(ready);
+  }
+
+  private operationalRowCount(clientId: string): number {
+    const rows: ReadonlyArray<{ clientId?: string | null }> = [
+      ...this.tasks,
+      ...this.signals,
+      ...this.theses,
+      ...this.sources,
+      ...this.recommendations,
+      ...this.aiRuns,
+      ...this.campaigns,
+      ...this.deliveries,
+      ...this.curation,
+      ...this.opportunities,
+      ...this.results,
+      ...this.evidenceVault,
+      ...this.advices,
+      ...this.feedbackEvents,
+      ...this.signalOutcomes,
+      ...this.proofWallItems,
+      ...this.notifications,
+      ...this.campaignMilestones,
+      ...this.contents,
+    ];
+    return rows.filter((row) => row.clientId === clientId).length;
   }
 
   /**
@@ -1329,7 +1437,12 @@ class DataService {
     if (epoch !== this.adminLoadEpoch) return 'stale';
     this.adminDirectoryPhase = 'READY';
     this.adminIndicatorsPhase = clients.length === 0 ? 'READY' : 'LOADING';
+    this.firestoreSync?.setAdminSubcollectionPushScope(clients.length === 0 ? null : new Set());
     this.importSnapshot({ clients }, { merge: false, skipRemote: true });
+    if (this.remotePushDeferred && !this.adminRemoteWritesHeld()) {
+      this.remotePushDeferred = false;
+      this.saveAll();
+    }
     return 'applied';
   }
 
@@ -1350,6 +1463,7 @@ class DataService {
     if (epoch !== this.adminLoadEpoch) return 'stale';
     this.adminDirectoryPhase = 'READY';
     this.adminIndicatorsPhase = 'READY';
+    this.publishHydratedPushScope();
     if (this.remotePushDeferred) {
       this.remotePushDeferred = false;
       this.saveAll();
@@ -1362,9 +1476,10 @@ class DataService {
   public async hydrateAdminDirectory(epoch: number): Promise<'ready' | 'empty' | 'error' | 'stale'> {
     if (epoch !== this.adminLoadEpoch) return 'stale';
     const sync = await this.loadFirestoreSync();
-    const result = await sync.pullClientDirectoryFromFirestore();
+    const result = await sync.pullClientDirectoryFromFirestore(this.adminReadGeneration);
     if (epoch !== this.adminLoadEpoch) return 'stale';
     if (!result.ok) {
+      if (result.reason === 'stale-admin-read') return 'stale';
       this.markAdminDirectoryError(epoch);
       return 'error';
     }
@@ -1400,6 +1515,149 @@ class DataService {
       return this.markAdminOperationalReady(epoch) === 'stale' ? 'stale' : 'ready';
     } catch {
       if (epoch === this.adminLoadEpoch) this.markAdminIndicatorsError(epoch);
+      return 'error';
+    }
+  }
+
+  /**
+   * Starts a per-client ticket. A later ticket for the same client drops the earlier response.
+   * NOT_LOADED and ERROR are not rewritten here.
+   */
+  public beginActiveClientHydration(clientId: string): number {
+    this.nextHydrationTicket += 1;
+    const ticket = this.nextHydrationTicket;
+    this.clientHydrationTicket.set(clientId, ticket);
+    this.clientOperationalPhase.set(clientId, 'LOADING');
+    this.emitChange();
+    return ticket;
+  }
+
+  /**
+   * Applies one client's complete server listing. A missing tasks or signals array is a
+   * failed read, not an empty collection, and does not replace rows.
+   */
+  public applyActiveClientListing(
+    clientId: string,
+    organizationId: string,
+    partial: Partial<LocalV5Snapshot>,
+    ticket: number,
+    epoch: number
+  ): 'applied' | 'empty' | 'stale' | 'rejected' {
+    if (epoch !== this.adminLoadEpoch || this.clientHydrationTicket.get(clientId) !== ticket) return 'stale';
+    const client = this.getClientById(clientId);
+    if (!client || client.organizationId !== organizationId) {
+      this.clientOperationalPhase.set(clientId, 'ERROR');
+      this.emitChange();
+      return 'rejected';
+    }
+    if (!Array.isArray(partial.tasks) || !Array.isArray(partial.signals)) {
+      this.clientOperationalPhase.set(clientId, 'ERROR');
+      this.emitChange();
+      return 'rejected';
+    }
+    this.importSnapshot(partial, { merge: true, skipRemote: true, scopeClientId: clientId });
+    if (epoch !== this.adminLoadEpoch || this.clientHydrationTicket.get(clientId) !== ticket) return 'stale';
+    const empty = this.operationalRowCount(clientId) === 0;
+    this.clientOperationalPhase.set(clientId, empty ? 'EMPTY' : 'READY');
+    this.publishHydratedPushScope();
+    this.emitChange();
+    return empty ? 'empty' : 'applied';
+  }
+
+  /**
+   * Applies one complete deliveries listing. The client stays NOT_LOADED for every
+   * other collection, and a rejected or stale listing does not remove local rows.
+   */
+  public applyConfirmedDeliveriesListing(
+    clientId: string,
+    organizationId: string,
+    deliveries: LocalV5Snapshot['deliveries'],
+    epoch: number
+  ): 'applied' | 'stale' | 'rejected' {
+    if (epoch !== this.adminLoadEpoch) return 'stale';
+    const client = this.getClientById(clientId);
+    if (!client || client.organizationId !== organizationId) return 'rejected';
+    if (!Array.isArray(deliveries)) return 'rejected';
+    this.importSnapshot({ deliveries }, { merge: true, skipRemote: true, scopeClientId: clientId });
+    if (epoch !== this.adminLoadEpoch) return 'stale';
+    return 'applied';
+  }
+
+  private deliveriesListingConfirmed(clientId: string): boolean {
+    const phase = this.getClientOperationalPhase(clientId);
+    return phase === 'READY' || phase === 'EMPTY' || this.confirmedDeliveriesClients.has(clientId);
+  }
+
+  /**
+   * One in-flight listing is shared by concurrent callers. The following create is
+   * synchronous, so the second caller observes the draft created by the first.
+   * Two sessions can still both observe an empty listing before either write commits;
+   * closing that race would require a transaction outside this authorization.
+   */
+  private async confirmDeliveriesListing(clientId: string): Promise<void> {
+    if (!FIREBASE_ENABLED || this.deliveriesListingConfirmed(clientId)) return;
+    const inflight = this.deliveriesConfirmInflight.get(clientId);
+    if (inflight) {
+      await inflight;
+      return;
+    }
+    const job = this.pullDeliveriesListing(clientId);
+    this.deliveriesConfirmInflight.set(clientId, job);
+    try {
+      await job;
+    } finally {
+      if (this.deliveriesConfirmInflight.get(clientId) === job) {
+        this.deliveriesConfirmInflight.delete(clientId);
+      }
+    }
+  }
+
+  private async pullDeliveriesListing(clientId: string): Promise<void> {
+    const phase = this.getClientOperationalPhase(clientId);
+    if (phase === 'LOADING') throw new Error('client-hydration-in-progress');
+    if (phase === 'ERROR') throw new Error('client-hydration-error');
+    if (this.adminDirectoryPhase !== 'READY') throw new Error('directory-not-ready');
+    const client = this.getClientById(clientId);
+    const organizationId = client?.organizationId?.trim();
+    if (!client || !organizationId) throw new Error('Client missing organizationId for delivery draft');
+    const epoch = this.adminLoadEpoch;
+    const readGeneration = this.adminReadGeneration;
+    const sync = await this.loadFirestoreSync();
+    const deliveries = await sync.pullAuthoritativeClientDeliveries(clientId, readGeneration);
+    if (epoch !== this.adminLoadEpoch) throw new Error('stale-admin-read');
+    if (!Array.isArray(deliveries)) throw new Error('deliveries-listing-invalid');
+    const applied = this.applyConfirmedDeliveriesListing(clientId, organizationId, deliveries, epoch);
+    if (applied === 'stale') throw new Error('stale-admin-read');
+    if (applied === 'rejected') throw new Error('deliveries-listing-rejected');
+    sync.markAdminSubcollectionConfirmed(clientId, 'deliveries');
+    this.confirmedDeliveriesClients.add(clientId);
+  }
+
+  public async hydrateActiveAdminClient(
+    clientId: string,
+    organizationId: string
+  ): Promise<'ready' | 'empty' | 'error' | 'stale'> {
+    const epoch = this.adminLoadEpoch;
+    if (this.adminDirectoryPhase !== 'READY') return 'error';
+    const client = this.getClientById(clientId);
+    if (!client || client.organizationId !== organizationId) return 'error';
+    const ticket = this.beginActiveClientHydration(clientId);
+    const readGeneration = this.adminReadGeneration;
+    try {
+      const sync = await this.loadFirestoreSync();
+      const partial = await sync.pullAuthoritativeClientOperations(clientId, readGeneration);
+      if (epoch !== this.adminLoadEpoch || this.clientHydrationTicket.get(clientId) !== ticket) return 'stale';
+      const applied = this.applyActiveClientListing(clientId, organizationId, partial, ticket, epoch);
+      if (applied === 'stale') return 'stale';
+      if (applied === 'rejected') return 'error';
+      return applied === 'empty' ? 'empty' : 'ready';
+    } catch (err) {
+      const stale = err instanceof Error && err.message === 'stale-admin-read';
+      if (stale || epoch !== this.adminLoadEpoch || this.clientHydrationTicket.get(clientId) !== ticket) {
+        return 'stale';
+      }
+      this.clientOperationalPhase.set(clientId, 'ERROR');
+      this.emitChange();
       return 'error';
     }
   }
@@ -2752,8 +3010,21 @@ class DataService {
     return this.deliveries.find((d) => d.clientId === clientId && d.status === 'DRAFT');
   }
 
+  /**
+   * Returns the open draft, or creates one after a confirmed deliveries listing.
+   * With Firebase, an unconfirmed collection is not treated as empty.
+   * Concurrent callers in this session share one listing and then one synchronous create.
+   */
+  public async ensureDraftDeliveryConfirmed(clientId: string, createdBy: string): Promise<DeliveryPackage> {
+    await this.confirmDeliveriesListing(clientId);
+    return this.ensureDraftDelivery(clientId, createdBy);
+  }
+
   /** Devuelve el borrador abierto del cliente o crea uno nuevo. */
   public ensureDraftDelivery(clientId: string, createdBy: string): DeliveryPackage {
+    if (FIREBASE_ENABLED && !this.deliveriesListingConfirmed(clientId)) {
+      throw new Error('deliveries-not-confirmed');
+    }
     const existing = this.getDraftDelivery(clientId);
     if (existing) return existing;
     const client = this.getClientById(clientId);
@@ -2969,13 +3240,14 @@ class DataService {
   }
 
   public getPortfolioSummary(): ClientPortfolioSummary[] {
-    if (this.adminIndicatorsPhase !== 'READY') {
-      return this.getClients().map((client) => this.blankPortfolioSummary(client));
-    }
     const now = Date.now();
 
     return this.getClients()
       .map((client) => {
+        const phase = this.clientOperationalPhase.get(client.id) ?? 'NOT_LOADED';
+        const clientReady =
+          this.adminIndicatorsPhase === 'READY' || phase === 'READY' || phase === 'EMPTY';
+        if (!clientReady) return this.blankPortfolioSummary(client);
         const signals = this.getSignalsByClient(client.id);
         const tasks = this.getTasksByClient(client.id);
         const contents = this.getContentByClient(client.id);

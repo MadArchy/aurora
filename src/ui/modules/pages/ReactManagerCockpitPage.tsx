@@ -314,6 +314,8 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
   const { tenantScope } = useSession();
   const { data, isLoading, isError } = usePortfolioOverview(tenantScope);
   const [search, setSearch] = useState('');
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [openErrorId, setOpenErrorId] = useState<string | null>(null);
 
   if (isLoading || data?.directoryStatus === 'LOADING') {
     return <PanelState kind="loading" message="Cargando directorio de clientes…" testId="react-cockpit-loading" />;
@@ -347,7 +349,11 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
       )
     : overview.rows;
 
-  const queue = [...rows].sort((a, b) => b.attentionScore - a.attentionScore);
+  const queue = [...rows].sort((a, b) => {
+    const byScore = b.attentionScore - a.attentionScore;
+    if (byScore !== 0) return byScore;
+    return b.displayName.localeCompare(a.displayName, 'es');
+  });
 
   return (
     <div
@@ -435,18 +441,37 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
                     ? `${row.unreviewedSignals} señales nuevas · ${row.pendingCuration} por decidir`
                     : 'Señales y curación pendientes'}
                 </p>
-                {onEnterClient && row.indicators === 'READY' ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => onEnterClient(row.clientId)}
-                  >
-                    Abrir workspace
-                  </button>
-                ) : onEnterClient ? (
-                  <p className="muted small" data-testid={`react-cockpit-open-held-${row.clientId}`}>
-                    Workspace protegido hasta cargar los datos del cliente
-                  </p>
+                {onEnterClient ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      data-testid={`react-cockpit-open-${row.clientId}`}
+                      disabled={openingId === row.clientId}
+                      onClick={() => {
+                        if (openingId === row.clientId) return;
+                        setOpeningId(row.clientId);
+                        setOpenErrorId(null);
+                        void import('../../../services/auth').then(({ authService }) =>
+                          authService.openAdminClientWorkspace(row.clientId)
+                        ).then((result) => {
+                          setOpeningId((current) => (current === row.clientId ? null : current));
+                          if (!result.ok) {
+                            if (result.reason !== 'stale') setOpenErrorId(row.clientId);
+                            return;
+                          }
+                          onEnterClient(row.clientId);
+                        });
+                      }}
+                    >
+                      {openingId === row.clientId ? 'Cargando datos del cliente…' : 'Abrir workspace'}
+                    </button>
+                    {openErrorId === row.clientId ? (
+                      <p className="form-error small" data-testid={`react-cockpit-open-error-${row.clientId}`}>
+                        No se pudieron cargar los datos de este cliente. La cartera no se vació.
+                      </p>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             </li>

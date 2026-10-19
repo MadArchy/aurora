@@ -53,9 +53,22 @@ function bindRemotePush(briefStore: LocalStrategicBriefStore): () => void {
  * ADMIN session start: folds the organization's Firestore Briefs into the local store,
  * then uploads every local record the server does not hold yet.
  */
+function recordsForClients(
+  records: ReturnType<LocalStrategicBriefStore['exportRecords']>,
+  clientIds: readonly string[]
+): ReturnType<LocalStrategicBriefStore['exportRecords']> {
+  const allowed = new Set(clientIds);
+  return {
+    briefs: records.briefs.filter((brief) => allowed.has(brief.clientId)),
+    history: records.history.filter((entry) => allowed.has(entry.clientId)),
+    overrides: records.overrides.filter((record) => allowed.has(record.clientId)),
+  };
+}
+
 export async function syncStrategicBriefsWithFirestore(
   organizationId: string,
-  clientIds: readonly string[]
+  clientIds: readonly string[],
+  options?: { pushOnlyClientIds?: readonly string[] }
 ): Promise<void> {
   const sync = await import('./firestore/strategicBriefSync');
   sync.startStrategicBriefSync(organizationId);
@@ -63,7 +76,11 @@ export async function syncStrategicBriefsWithFirestore(
   if (merged > 0) {
     for (const listener of remoteMergeListeners) listener();
   }
-  sync.scheduleStrategicBriefPush(() => store.exportRecords());
+  const pushIds = options?.pushOnlyClientIds;
+  sync.scheduleStrategicBriefPush(() => {
+    const records = store.exportRecords();
+    return pushIds ? recordsForClients(records, pushIds) : records;
+  });
 }
 
 /** Notified when a Firestore pull brings Brief records the local store did not hold. */

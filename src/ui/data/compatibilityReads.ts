@@ -594,11 +594,20 @@ export function readPortfolioOverview(_scope: TrustedTenantScope): PortfolioOver
     };
   }
 
-  const indicatorsReady = availability.indicatorStatus === 'READY';
   const summaries = dbService.getPortfolioSummary();
+  const rowStatus = (clientId: string): PortfolioIndicatorStatus => {
+    if (availability.indicatorStatus === 'ERROR') return 'ERROR';
+    if (availability.indicatorStatus === 'READY') return 'READY';
+    const phase = dbService.getClientOperationalPhase(clientId);
+    if (phase === 'ERROR') return 'ERROR';
+    if (phase === 'READY' || phase === 'EMPTY') return 'READY';
+    return 'PENDING';
+  };
 
   const rows = summaries.map((summary) => {
     const client = summary.client;
+    const indicators = rowStatus(client.id);
+    const indicatorsReady = indicators === 'READY';
     const activeTheses = indicatorsReady ? dbService.getActiveTheses(client.id) : [];
     return {
       clientId: client.id,
@@ -613,15 +622,17 @@ export function readPortfolioOverview(_scope: TrustedTenantScope): PortfolioOver
       unreviewedSignals: indicatorsReady
         ? dbService.getSignalsByClient(client.id).filter((s) => s.status === 'NEW').length
         : 0,
-      indicators: availability.indicatorStatus,
+      indicators,
     };
   });
 
   return {
     rows,
     totalClients: rows.length,
-    needingAttention: indicatorsReady ? rows.filter((r) => r.attentionScore > 0).length : 0,
-    totalActiveTheses: indicatorsReady ? rows.reduce((acc, r) => acc + r.activeThesisCount, 0) : 0,
+    needingAttention:
+      availability.indicatorStatus === 'READY' ? rows.filter((r) => r.attentionScore > 0).length : 0,
+    totalActiveTheses:
+      availability.indicatorStatus === 'READY' ? rows.reduce((acc, r) => acc + r.activeThesisCount, 0) : 0,
     ...availability,
   };
 }

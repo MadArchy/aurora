@@ -171,6 +171,15 @@ export async function pullStrategicBriefs(clientIds: readonly string[]): Promise
           where('clientId', '==', clientId)
         )
       );
+      if (
+        'metadata' in snap &&
+        typeof snap.metadata === 'object' &&
+        snap.metadata !== null &&
+        'fromCache' in snap.metadata &&
+        snap.metadata.fromCache
+      ) {
+        throw new Error('strategic-brief-snapshot-from-cache');
+      }
       for (const row of snap.docs) {
         const data: Record<string, unknown> = normalizeFirestorePulledData(row.data());
         serverFingerprints.set(`${collectionPath}/${row.id}`, stableStringify(data));

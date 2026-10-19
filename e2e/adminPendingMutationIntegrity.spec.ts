@@ -139,6 +139,26 @@ async function managerSession(page: Page) {
   return page;
 }
 
+/** Juan's tasks and listeners are available only after his workspace is opened. */
+async function openJuanWorkspace(page: Page) {
+  const open = page.locator(`[data-testid="react-cockpit-open-${CLIENT_JUAN_ID}"]`);
+  await expect(open).toBeVisible({ timeout: 30_000 });
+  await open.click();
+  await expect(page.locator('[data-testid="react-ws-radar"]')).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(async () =>
+      page.evaluate(async (clientId) => {
+        const { dbService } = await import('/src/services/db.ts');
+        const sync = await import('/src/services/firestore/sync.ts');
+        const phase = dbService.getClientOperationalPhase(clientId);
+        const listeners = sync.activeFirestoreListenerCount();
+        const perClient = sync.firestoreRealtimeListenersPerClient();
+        return phase === 'READY' && listeners === perClient;
+      }, CLIENT_JUAN_ID)
+    )
+    .toBe(true);
+}
+
 async function secondManagerSession(browser: Browser) {
   const context = await browser.newContext({ baseURL: BASE_URL });
   return managerSession(await context.newPage());
@@ -159,6 +179,7 @@ test.describe('ADMIN pending mutation integrity', () => {
     const b = await seedTask(`s1b_${stamp}`);
     const unrelated = await seedTask(`s1u_${stamp}`);
     await managerSession(page);
+    await openJuanWorkspace(page);
     for (const id of [a, b, unrelated]) await waitForLocalDoc(page, 'task', id);
     const unrelatedUpdatedAt = await ownerGetTimestamp(taskPath(unrelated), 'updatedAt');
 
@@ -184,6 +205,7 @@ test.describe('ADMIN pending mutation integrity', () => {
     const b = await seedTask(`s2b_${stamp}`);
     const c = await seedTask(`s2c_${stamp}`);
     await managerSession(page);
+    await openJuanWorkspace(page);
     for (const id of [a, b, c]) await waitForLocalDoc(page, 'task', id);
 
     await setEvidence(page, a, `https://diag.local/s2-a-${stamp}`);
@@ -210,6 +232,8 @@ test.describe('ADMIN pending mutation integrity', () => {
     const b = await seedTask(`s3b_${stamp}`);
     const first = await managerSession(page);
     const second = await secondManagerSession(browser);
+    await openJuanWorkspace(first);
+    await openJuanWorkspace(second);
     for (const session of [first, second]) for (const id of [a, b]) await waitForLocalDoc(session, 'task', id);
 
     await setEvidence(first, a, `https://diag.local/s3-a-${stamp}`);
@@ -223,6 +247,7 @@ test.describe('ADMIN pending mutation integrity', () => {
     expect(await ownerGetField(taskPath(b), 'evidenceUrl')).toBe(`https://diag.local/s3-b-${stamp}`);
     await first.reload();
     await expect(first.locator('[data-testid="react-shell-logout"]')).toBeVisible({ timeout: 30_000 });
+    await openJuanWorkspace(first);
     await waitForLocalDoc(first, 'task', a);
     await waitForLocalDoc(first, 'task', b);
     expect(await localTask(first, a)).toMatchObject({ evidenceUrl: `https://diag.local/s3-a-${stamp}` });
@@ -235,6 +260,8 @@ test.describe('ADMIN pending mutation integrity', () => {
     const a = await seedTask(`s3c_${stamp}`);
     const first = await managerSession(page);
     const second = await secondManagerSession(browser);
+    await openJuanWorkspace(first);
+    await openJuanWorkspace(second);
     for (const session of [first, second]) await waitForLocalDoc(session, 'task', a);
     const firstValue = `https://diag.local/s3c-first-${stamp}`;
     const secondValue = `https://diag.local/s3c-second-${stamp}`;
@@ -267,6 +294,8 @@ test.describe('ADMIN pending mutation integrity', () => {
     const d = await seedTask(`s4d_${stamp}`);
     const first = await managerSession(page);
     const second = await secondManagerSession(browser);
+    await openJuanWorkspace(first);
+    await openJuanWorkspace(second);
     for (const session of [first, second]) for (const id of [a, b, c, d]) await waitForLocalDoc(session, 'task', id);
     const base = (await ownerGetIntegerField(ROOT, 'completedTasksCount')) ?? 0;
 

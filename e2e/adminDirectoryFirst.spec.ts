@@ -1,9 +1,10 @@
 /**
- * PERF-A — the admin directory is usable before operational hydration finishes.
+ * PERF-A — the admin directory is usable before any client is hydrated.
+ * PERF-B — operational listeners and indicators belong to the client that is opened.
  * Emulator project: demo-aurora-e2e. No production Firebase.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { MANAGER_EMAIL, MANAGER_PASSWORD } from './helpers/spec010Auth';
+import { CLIENT_JUAN_ID, MANAGER_EMAIL, MANAGER_PASSWORD } from './helpers/spec010Auth';
 
 test.use({ channel: 'chrome' });
 
@@ -12,8 +13,8 @@ const SCALE_CLIENT_IDS = Array.from({ length: 10 }, (_, index) => `client_perf_a
 type AdminLoadMarks = {
   start: number | null;
   directory: number | null;
-  indicators: number | null;
   listeners: number | null;
+  activeClient: number | null;
 };
 
 async function readAdminLoadMarks(page: Page): Promise<AdminLoadMarks> {
@@ -22,8 +23,8 @@ async function readAdminLoadMarks(page: Page): Promise<AdminLoadMarks> {
     return {
       start: at('postura:admin-auth-start'),
       directory: at('postura:admin-directory-ready'),
-      indicators: at('postura:admin-indicators-ready'),
       listeners: at('postura:admin-listeners-attached'),
+      activeClient: at('postura:admin-active-client-ready'),
     };
   });
 }
@@ -39,10 +40,17 @@ async function coldManagerLogin(page: Page): Promise<void> {
   await expect(page.locator('[data-testid="react-shell-logout"]')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[data-testid="react-cockpit-client-count"]')).toBeVisible({ timeout: 30_000 });
   await page.waitForFunction(
-    () => performance.getEntriesByName('postura:admin-listeners-attached').length > 0,
+    () => performance.getEntriesByName('postura:admin-directory-ready').length > 0,
     undefined,
-    { timeout: 60_000 }
+    { timeout: 30_000 }
   );
+}
+
+async function listenerCount(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    const sync = await import('/src/services/firestore/sync.ts');
+    return sync.activeFirestoreListenerCount();
+  });
 }
 
 async function adminIdToken(page: Page): Promise<string> {
@@ -104,39 +112,59 @@ function logLoad(label: string, marks: AdminLoadMarks, clientCount: number, list
       clientCount,
       listeners,
       directoryMs: elapsed(marks.directory),
-      indicatorsMs: elapsed(marks.indicators),
       listenersMs: elapsed(marks.listeners),
+      activeClientMs: elapsed(marks.activeClient),
     })
   );
 }
 
 test.describe('PERF-A admin directory first', () => {
-  test('directory marks precede indicator marks on a cold admin login', async ({ page }) => {
+  test('directory is usable before operational listeners, and opening one client attaches only that client', async ({ page }) => {
     test.setTimeout(120_000);
     await coldManagerLogin(page);
 
     const marks = await readAdminLoadMarks(page);
     expect(marks.start).not.toBeNull();
     expect(marks.directory).not.toBeNull();
-    expect(marks.indicators).not.toBeNull();
-    expect(marks.listeners).not.toBeNull();
+    expect(marks.listeners).toBeNull();
     expect(marks.directory! - marks.start!).toBeGreaterThanOrEqual(0);
-    expect(marks.indicators! - marks.directory!).toBeGreaterThanOrEqual(0);
-    expect(marks.listeners! - marks.indicators!).toBeGreaterThanOrEqual(0);
 
     const clientCount = Number(await page.locator('[data-testid="react-cockpit-client-count"]').innerText());
-    const listeners = await page.evaluate(async () => {
-      const sync = await import('/src/services/firestore/sync.ts');
-      return sync.activeFirestoreListenerCount();
-    });
-    logLoad('clients-2', marks, clientCount, listeners);
+    const listeners = await listenerCount(page);
+    logLoad('clients-2-directory', marks, clientCount, listeners);
     expect(clientCount).toBeGreaterThanOrEqual(2);
-    await expect(page.locator('[data-testid="react-cockpit-indicators"]')).toHaveAttribute('data-state', 'ready');
+    expect(listeners).toBe(0);
+    await expect(page.locator('[data-testid="react-cockpit-indicators"]')).toHaveAttribute('data-state', 'pending');
+    await expect(page.locator('[data-testid="react-cockpit-attention"]')).toHaveText('Pendiente');
+    await expect(page.locator('[data-testid="react-cockpit-theses"]')).toHaveText('Pendiente');
     await expect(page.locator('[data-testid="react-cockpit-queue"]')).toContainText('Juan');
-    await expect(page.locator('[data-testid="react-cockpit-queue"] button', { hasText: 'Abrir workspace' }).first()).toBeVisible();
+    await expect(page.locator(`[data-testid="react-cockpit-open-${CLIENT_JUAN_ID}"]`)).toBeVisible();
+
+    await page.locator(`[data-testid="react-cockpit-open-${CLIENT_JUAN_ID}"]`).click();
+    await expect(page.locator('[data-testid="react-ws-radar"]')).toBeVisible({ timeout: 30_000 });
+    await page.waitForFunction(
+      () => performance.getEntriesByName('postura:admin-listeners-attached').length > 0,
+      undefined,
+      { timeout: 30_000 }
+    );
+    const opened = await readAdminLoadMarks(page);
+    const openedListeners = await listenerCount(page);
+    const perClient = await page.evaluate(async () => {
+      const sync = await import('/src/services/firestore/sync.ts');
+      return sync.firestoreRealtimeListenersPerClient();
+    });
+    const listenerDetail = await page.evaluate(() => {
+      const mark = performance.getEntriesByName('postura:admin-listeners-attached')[0] as PerformanceMark | undefined;
+      const detail = mark?.detail as { clientId?: string } | undefined;
+      return detail?.clientId ?? null;
+    });
+    logLoad('clients-2-open', opened, clientCount, openedListeners);
+    expect(listenerDetail).toBe(CLIENT_JUAN_ID);
+    expect(openedListeners).toBe(perClient);
+    expect(opened.activeClient).not.toBeNull();
   });
 
-  test('twelve clients keep the directory ahead of operational hydration', async ({ page }) => {
+  test('twelve clients keep the directory ahead of any operational hydration', async ({ page }) => {
     test.setTimeout(180_000);
     await coldManagerLogin(page);
     await seedScaleClients(page);
@@ -147,16 +175,14 @@ test.describe('PERF-A admin directory first', () => {
       await coldManagerLogin(page);
       const marks = await readAdminLoadMarks(page);
       expect(marks.directory).not.toBeNull();
-      expect(marks.indicators).not.toBeNull();
-      expect(marks.indicators! - marks.directory!).toBeGreaterThanOrEqual(0);
+      expect(marks.listeners).toBeNull();
       const clientCount = Number(await page.locator('[data-testid="react-cockpit-client-count"]').innerText());
-      const listeners = await page.evaluate(async () => {
-        const sync = await import('/src/services/firestore/sync.ts');
-        return sync.activeFirestoreListenerCount();
-      });
-      logLoad('clients-12', marks, clientCount, listeners);
+      const listeners = await listenerCount(page);
+      logLoad('clients-12-directory', marks, clientCount, listeners);
       expect(clientCount).toBeGreaterThanOrEqual(12);
-      await expect(page.locator('[data-testid="react-cockpit-indicators"]')).toHaveAttribute('data-state', 'ready');
+      expect(listeners).toBe(0);
+      await expect(page.locator('[data-testid="react-cockpit-indicators"]')).toHaveAttribute('data-state', 'pending');
+      await expect(page.locator('[data-testid="react-cockpit-attention"]')).toHaveText('Pendiente');
     } finally {
       await deleteScaleClients(page);
     }

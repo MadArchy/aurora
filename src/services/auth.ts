@@ -45,30 +45,46 @@ class AuthService {
     else localStorage.removeItem(IMPERSONATION_KEY);
   }
 
-  private markAdminLoad(name: string) {
+  private activeClientOpen = 0;
+
+  private markAdminLoad(name: string, detail?: Record<string, unknown>) {
     if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return;
     performance.clearMarks(name);
-    performance.mark(name);
+    if (detail) performance.mark(name, { detail });
+    else performance.mark(name);
   }
 
-  private async attachOperationalListeners(user: User, clientIds: string[]) {
+  private async attachOperationalListeners(
+    user: User,
+    clientIds: string[],
+    options?: { stillCurrent?: () => boolean; briefClientIds?: readonly string[] }
+  ) {
     const sync = await import('./firestore/sync');
     const { bindAuthNotificationIdentities } = await import('./notifications');
     bindAuthNotificationIdentities(user);
 
     if (clientIds.length) {
-      await sync.startFirestoreRealtimeSync(clientIds, (partial, meta) => {
-        dbService.importSnapshot(partial, {
-          merge: true,
-          skipRemote: true,
-          scopeClientId: meta.clientId,
-        });
-      });
+      await sync.startFirestoreRealtimeSync(
+        clientIds,
+        (partial, meta) => {
+          dbService.importSnapshot(partial, {
+            merge: true,
+            skipRemote: true,
+            scopeClientId: meta.clientId,
+          });
+        },
+        { stillCurrent: options?.stillCurrent }
+      );
     }
+
+    if (options?.stillCurrent && !options.stillCurrent()) return;
 
     if (user.role === 'ADMIN' && user.organizationId) {
       const { syncStrategicBriefsWithFirestore } = await import('./strategicBriefConsumer');
-      await syncStrategicBriefsWithFirestore(user.organizationId, clientIds).catch((err: unknown) => {
+      const briefIds = options?.briefClientIds ?? clientIds;
+      await syncStrategicBriefsWithFirestore(user.organizationId, briefIds, {
+        pushOnlyClientIds: briefIds,
+      }).catch((err: unknown) => {
         const reason = err instanceof Error ? err.message : String(err);
         sync.reportFirestorePushError(`No se pudieron cargar los briefs: ${reason}`);
       });
@@ -97,22 +113,6 @@ class AuthService {
         }
         this.markAdminLoad('postura:admin-directory-ready');
         this.notify();
-
-        if (dbService.getAdminIndicatorPhase() !== 'READY') {
-          const directoryIds = dbService.getClients().map((client) => client.id);
-          const hydrated = await dbService.hydrateAdminOperations(epoch, directoryIds);
-          if (!dbService.isAdminLoadCurrent(epoch) || this.currentUser?.uid !== user.uid) return;
-          if (hydrated === 'error') {
-            this.notify();
-            return;
-          }
-        }
-        this.markAdminLoad('postura:admin-indicators-ready');
-        const clientIds = dbService.getClients().map((client) => client.id);
-        await this.attachOperationalListeners(user, clientIds);
-        if (!dbService.isAdminLoadCurrent(epoch) || this.currentUser?.uid !== user.uid) return;
-        this.markAdminLoad('postura:admin-listeners-attached');
-        this.notify();
       } catch {
         dbService.markAdminDirectoryError(epoch);
         this.notify();
@@ -126,6 +126,39 @@ class AuthService {
       clientIds = [user.clientId];
     }
     await this.attachOperationalListeners(user, clientIds);
+  }
+
+  /**
+   * Loads one ADMIN client's operational collections, then listens only to that client.
+   * `postura:admin-listeners-attached` records that client's listeners, not the organization's.
+   */
+  public async openAdminClientWorkspace(
+    clientId: string
+  ): Promise<{ ok: true; clientId: string } | { ok: false; reason: string }> {
+    const user = this.currentUser;
+    if (!user || user.role !== 'ADMIN' || !user.organizationId) return { ok: false, reason: 'not-admin' };
+    const ticket = ++this.activeClientOpen;
+    const epoch = dbService.getAdminLoadEpoch();
+    const stillCurrent = () =>
+      ticket === this.activeClientOpen &&
+      dbService.isAdminLoadCurrent(epoch) &&
+      this.currentUser?.uid === user.uid;
+    const hydrated = await dbService.hydrateActiveAdminClient(clientId, user.organizationId);
+    if (!stillCurrent()) return { ok: false, reason: 'stale' };
+    if (hydrated === 'stale') return { ok: false, reason: 'stale' };
+    if (hydrated === 'error') return { ok: false, reason: 'error' };
+    await this.attachOperationalListeners(user, [clientId], {
+      stillCurrent,
+      briefClientIds: [clientId],
+    });
+    if (!stillCurrent()) return { ok: false, reason: 'stale' };
+    const sync = await import('./firestore/sync');
+    this.markAdminLoad('postura:admin-listeners-attached', {
+      clientId,
+      listeners: sync.activeFirestoreListenerCount(),
+    });
+    this.markAdminLoad('postura:admin-active-client-ready', { clientId });
+    return { ok: true, clientId };
   }
 
   private async init() {

@@ -151,6 +151,13 @@ test.describe('P13 — React admin delivery assembly parity', () => {
     test.setTimeout(180_000);
     await openManagerWorkspace(page);
 
+    const elenaReads: string[] = [];
+    const onRequest = (request: { url: () => string; postData: () => string | null }) => {
+      const blob = `${request.url()}\n${request.postData() ?? ''}`;
+      if (blob.includes(CLIENT_ELENA_ID)) elenaReads.push(blob);
+    };
+    page.on('request', onRequest);
+
     const seeded = await page.evaluate(async ({ cid, elenaId }) => {
       const { dbService } = await import('/src/services/db.ts');
       for (const pkg of dbService.getDeliveriesByClient(cid)) {
@@ -158,14 +165,29 @@ test.describe('P13 — React admin delivery assembly parity', () => {
       }
       const pkg = dbService.ensureDraftDelivery(cid, 'e2e_p13');
       dbService.updateDelivery(pkg.id, { title: 'Briefing E2E P13 discard' });
-      const sibling = dbService.ensureDraftDelivery(elenaId, 'e2e_p13');
+      const sibling = await dbService.ensureDraftDeliveryConfirmed(elenaId, 'e2e_p13');
       const draftCount = dbService
         .getDeliveriesByClient(cid)
         .filter((d) => d.status === 'DRAFT').length;
-      return { packageId: pkg.id, siblingId: sibling.id, draftCount };
+      return {
+        packageId: pkg.id,
+        siblingId: sibling.id,
+        draftCount,
+        elenaPhase: dbService.getClientOperationalPhase(elenaId),
+        elenaSignals: dbService.exportSnapshot().signals.filter((signal) => signal.clientId === elenaId).length,
+        elenaTasks: dbService.exportSnapshot().tasks.filter((task) => task.clientId === elenaId).length,
+      };
     }, { cid: CLIENT_JUAN_ID, elenaId: CLIENT_ELENA_ID });
+    page.off('request', onRequest);
 
     expect(seeded.draftCount).toBe(1);
+    expect(seeded.elenaPhase).toBe('NOT_LOADED');
+    expect(seeded.elenaSignals).toBe(0);
+    expect(seeded.elenaTasks).toBe(0);
+    const otherElenaCollections = elenaReads.filter(
+      (blob) => /signals|tasks|aiRuns|recommendations|theses|sources|curation/.test(blob) && !/deliveries/.test(blob)
+    );
+    expect(otherElenaCollections).toEqual([]);
     const packagePath = clientDocPath(CLIENT_JUAN_ID, 'deliveries', seeded.packageId);
     const siblingPath = clientDocPath(CLIENT_ELENA_ID, 'deliveries', seeded.siblingId);
     await waitForServerField(packagePath, 'title', 'Briefing E2E P13 discard');
@@ -217,6 +239,9 @@ test.describe('P13 — React admin delivery assembly parity', () => {
     try {
       const fresh = await context.newPage();
       await openManagerWorkspace(fresh);
+      await fresh.locator('.sidebar-link[data-tab="clients"]').click();
+      await fresh.locator(`[data-testid="react-cockpit-open-${CLIENT_ELENA_ID}"]`).click();
+      await expect(fresh.locator('[data-testid="react-ws-radar"]')).toBeVisible({ timeout: 30_000 });
       const freshState = await fresh.evaluate(async ({ pid, siblingId, cid, elenaId }) => {
         const { dbService } = await import('/src/services/db.ts');
         return {

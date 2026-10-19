@@ -1040,10 +1040,53 @@ export function resolveTenantOrganizationIdForQuery(
 }
 
 /**
- * SPEC-009 Q1: list clients for the authenticated tenant only.
- * Security Rules are not filters — never unscoped getDocs(collection('clients')).
- * Optional organizationId arg is validated against the auth token org (no arbitrary tenant).
+ * Bumped when an ADMIN directory load starts or the session ends.
+ * An in-flight read that does not match must not prune baselines or apply rows.
  */
+let adminReadGeneration = 0;
+
+export function invalidateAdminReads(): number {
+  adminReadGeneration += 1;
+  return adminReadGeneration;
+}
+
+export function currentAdminReadGeneration(): number {
+  return adminReadGeneration;
+}
+
+function adminReadStillCurrent(readGeneration: number | undefined): boolean {
+  return readGeneration === undefined || readGeneration === adminReadGeneration;
+}
+
+/**
+ * `null` keeps the previous ADMIN capture (every subcollection row in memory).
+ * A set limits subcollection, profile and dossier captures to those clients.
+ * Client roots stay eligible: the directory listing is complete.
+ */
+let adminSubcollectionPushScope: ReadonlySet<string> | null = null;
+/**
+ * Subcollections whose complete server listing was applied for one client.
+ * A confirmation authorizes capture of that collection only.
+ */
+const adminConfirmedSubcollections = new Map<string, ReadonlySet<string>>();
+
+export function setAdminSubcollectionPushScope(clientIds: ReadonlySet<string> | null): void {
+  adminSubcollectionPushScope = clientIds;
+}
+
+export function markAdminSubcollectionConfirmed(
+  clientId: string,
+  subcollection: 'deliveries'
+): void {
+  const confirmed = new Set(adminConfirmedSubcollections.get(clientId) ?? []);
+  confirmed.add(subcollection);
+  adminConfirmedSubcollections.set(clientId, confirmed);
+}
+
+export function clearAdminConfirmedSubcollections(): void {
+  adminConfirmedSubcollections.clear();
+}
+
 /** Listeners opened per client: `REALTIME_SUBS` plus the evidence collection. */
 export function firestoreRealtimeListenersPerClient(): number {
   return REALTIME_SUBS.length + 1;
@@ -1058,11 +1101,14 @@ export function activeFirestoreListenerCount(): number {
  * ADMIN directory only: the tenant client roots, with no subcollection reads and no
  * baseline pruning. A cache-only snapshot is not an authoritative directory.
  */
-export async function pullClientDirectoryFromFirestore(): Promise<
+export async function pullClientDirectoryFromFirestore(
+  readGeneration?: number
+): Promise<
   | { ok: true; clients: LocalV5Snapshot['clients'] }
   | { ok: false; reason: string }
 > {
   try {
+    if (!adminReadStillCurrent(readGeneration)) return { ok: false, reason: 'stale-admin-read' };
     const db = await getFirebaseFirestore();
     if (!db) return { ok: false, reason: 'firestore-unavailable' };
     const scope = await readTenantReadScope();
@@ -1072,6 +1118,7 @@ export async function pullClientDirectoryFromFirestore(): Promise<
     const snap = await getDocs(
       query(collection(db, 'clients'), where('organizationId', '==', scope.organizationId))
     );
+    if (!adminReadStillCurrent(readGeneration)) return { ok: false, reason: 'stale-admin-read' };
     if (isFromCache(snap)) return { ok: false, reason: 'directory-not-from-server' };
 
     const clients: LocalV5Snapshot['clients'] = [];
@@ -1093,6 +1140,11 @@ export async function pullClientDirectoryFromFirestore(): Promise<
   }
 }
 
+/**
+ * SPEC-009 Q1: list clients for the authenticated tenant only.
+ * Security Rules are not filters — never unscoped getDocs(collection('clients')).
+ * Optional organizationId arg is validated against the auth token org (no arbitrary tenant).
+ */
 export async function listFirestoreClientIds(organizationId?: string): Promise<string[]> {
   const db = await getFirebaseFirestore();
   if (!db) return [];
@@ -1259,6 +1311,133 @@ export async function pullClientDataFromFirestore(
   }
 
   return partial;
+}
+
+/**
+ * Complete server listing of one client's operational collections.
+ * Cache, a stale session, or a failed read records nothing and prunes nothing.
+ */
+export async function pullAuthoritativeClientOperations(
+  clientId: string,
+  readGeneration: number
+): Promise<Partial<LocalV5Snapshot>> {
+  if (!adminReadStillCurrent(readGeneration)) throw new Error('stale-admin-read');
+  const db = await getFirebaseFirestore();
+  if (!db) throw new Error('firestore-unavailable');
+  const scope = await readTenantReadScope();
+  if (!scope?.isAdmin) throw new Error('not-admin');
+  if (!adminReadStillCurrent(readGeneration)) throw new Error('stale-admin-read');
+
+  const { getDocs } = await import('firebase/firestore');
+  const partial: Partial<LocalV5Snapshot> = {
+    signals: [],
+    tasks: [],
+    curation: [],
+    deliveries: [],
+    contents: [],
+    opportunities: [],
+    results: [],
+    theses: [],
+    campaigns: [],
+    evidenceVault: [],
+    advices: [],
+    feedbackEvents: [],
+    signalOutcomes: [],
+    campaignMilestones: [],
+    proofWallItems: [],
+    sources: [],
+    notifications: [],
+    recommendations: [],
+    aiRuns: [],
+    profiles: {},
+    dossiers: {},
+  };
+  const confirmed: Array<{ path: string; docs: ReadonlyArray<ServerDocLike> }> = [];
+
+  const readCollection = async (sub: string) => {
+    if (!isClientSubcollectionReadable(sub, scope)) return null;
+    const collectionPath = `${clientDocPath(clientId)}/${sub}`;
+    const snap = await getDocs(await scopedClientSubcollectionQuery(db, clientId, sub, scope));
+    if (!adminReadStillCurrent(readGeneration)) throw new Error('stale-admin-read');
+    if (isFromCache(snap)) throw new Error('snapshot-from-cache');
+    return { path: collectionPath, snap };
+  };
+
+  for (const sub of CLIENT_SUBCOLLECTIONS) {
+    const read = await readCollection(sub);
+    if (!read) continue;
+    confirmed.push({ path: read.path, docs: read.snap.docs });
+    const targetKey = Object.entries(COLLECTION_MAP).find(([, value]) => value === sub)?.[0] as
+      | CollectionKey
+      | undefined;
+    if (!targetKey || !Array.isArray(partial[targetKey])) continue;
+    for (const row of read.snap.docs) {
+      (partial[targetKey] as unknown[]).push(
+        normalizeFirestorePulledData({ id: row.id, ...row.data() })
+      );
+    }
+  }
+
+  const profile = await readCollection('profile');
+  const dossier = await readCollection('dossier');
+  if (!adminReadStillCurrent(readGeneration)) throw new Error('stale-admin-read');
+
+  for (const entry of confirmed) {
+    markRemoteDocsKnown(entry.path, confirmedDocIds(entry.docs));
+    recordRemoteBaseline(entry.path, entry.docs, { prune: true });
+  }
+  if (profile) {
+    markRemoteDocsKnown(profile.path, confirmedDocIds(profile.snap.docs));
+    recordRemoteBaseline(profile.path, profile.snap.docs, { prune: true });
+    const profileDoc = profile.snap.docs.find((row) => row.id === 'data');
+    if (profileDoc) {
+      partial.profiles![clientId] = normalizeFirestorePulledData(
+        profileDoc.data()
+      ) as unknown as LocalV5Snapshot['profiles'][string];
+    }
+  }
+  if (dossier) {
+    markRemoteDocsKnown(dossier.path, confirmedDocIds(dossier.snap.docs));
+    recordRemoteBaseline(dossier.path, dossier.snap.docs, { prune: true });
+    const dossierDoc = dossier.snap.docs.find((row) => row.id === 'data');
+    if (dossierDoc) {
+      partial.dossiers![clientId] = normalizeFirestorePulledData(
+        dossierDoc.data()
+      ) as unknown as LocalV5Snapshot['dossiers'][string];
+    }
+  }
+  return partial;
+}
+
+/**
+ * Complete server listing of one client's deliveries. Other collections are not read,
+ * their baselines are not pruned, and a cache or stale generation records nothing.
+ */
+export async function pullAuthoritativeClientDeliveries(
+  clientId: string,
+  readGeneration: number
+): Promise<LocalV5Snapshot['deliveries']> {
+  if (!adminReadStillCurrent(readGeneration)) throw new Error('stale-admin-read');
+  const db = await getFirebaseFirestore();
+  if (!db) throw new Error('firestore-unavailable');
+  const scope = await readTenantReadScope();
+  if (!scope?.isAdmin) throw new Error('not-admin');
+  if (!adminReadStillCurrent(readGeneration)) throw new Error('stale-admin-read');
+
+  const { getDocs } = await import('firebase/firestore');
+  const collectionPath = `${clientDocPath(clientId)}/deliveries`;
+  const snap = await getDocs(await scopedClientSubcollectionQuery(db, clientId, 'deliveries', scope));
+  if (!adminReadStillCurrent(readGeneration)) throw new Error('stale-admin-read');
+  if (isFromCache(snap)) throw new Error('snapshot-from-cache');
+
+  for (const path of knownRemoteDocPaths) {
+    if (parentCollectionPath(path) === collectionPath) knownRemoteDocPaths.delete(path);
+  }
+  for (const id of confirmedDocIds(snap.docs)) knownRemoteDocPaths.add(`${collectionPath}/${id}`);
+  recordRemoteBaseline(collectionPath, snap.docs, { prune: true });
+  return snap.docs.map(
+    (row) => normalizeFirestorePulledData({ id: row.id, ...row.data() }) as LocalV5Snapshot['deliveries'][number]
+  );
 }
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1691,43 +1870,51 @@ function captureAdminMutations(snapshot: LocalV5Snapshot, actor: PersistenceActo
       organizationId: organizationId ?? (client.organizationId?.trim() || null),
     });
     recordAdminRow(root, identity('clients', client.id), client as unknown as Record<string, unknown>, version);
-    for (const [key, sub] of Object.entries(COLLECTION_MAP)) {
-      const rows = snapshot[key as CollectionKey];
-      if (!sub || !Array.isArray(rows)) continue;
-      const scoped = itemsForClient(
-        rows as Array<{ clientId?: string | null; id?: string; organizationId?: unknown }>,
-        client.id
-      );
-      for (const row of scoped) {
-        if (!row.id) continue;
-        if (organizationId && typeof row.organizationId === 'string' && row.organizationId !== organizationId) {
-          continue;
+    const subcollectionsOpen =
+      !adminSubcollectionPushScope || adminSubcollectionPushScope.has(client.id);
+    const confirmed = adminConfirmedSubcollections.get(client.id);
+    if (subcollectionsOpen || confirmed?.size) {
+      for (const [key, sub] of Object.entries(COLLECTION_MAP)) {
+        if (!sub || (!subcollectionsOpen && !confirmed?.has(sub))) continue;
+        const rows = snapshot[key as CollectionKey];
+        if (!Array.isArray(rows)) continue;
+        const scoped = itemsForClient(
+          rows as Array<{ clientId?: string | null; id?: string; organizationId?: unknown }>,
+          client.id
+        );
+        for (const row of scoped) {
+          if (!row.id) continue;
+          if (organizationId && typeof row.organizationId === 'string' && row.organizationId !== organizationId) {
+            continue;
+          }
+          recordAdminRow(
+            `${root}/${sub}/${row.id}`,
+            identity(key as CollectionKey, row.id),
+            ensureSubcollectionEnvelope(row as Record<string, unknown>, envelope),
+            version
+          );
         }
+      }
+    }
+    if (subcollectionsOpen) {
+      const profile = snapshot.profiles[client.id];
+      if (profile) {
         recordAdminRow(
-          `${root}/${sub}/${row.id}`,
-          identity(key as CollectionKey, row.id),
-          ensureSubcollectionEnvelope(row as Record<string, unknown>, envelope),
+          `${root}/profile/data`,
+          identity('profiles', 'data'),
+          ensureSubcollectionEnvelope(profile as unknown as Record<string, unknown>, envelope),
           version
         );
       }
-    }
-    const profile = snapshot.profiles[client.id];
-    if (profile) {
-      recordAdminRow(
-        `${root}/profile/data`,
-        identity('profiles', 'data'),
-        ensureSubcollectionEnvelope(profile as unknown as Record<string, unknown>, envelope),
-        version
-      );
-    }
-    const dossier = snapshot.dossiers[client.id];
-    if (dossier) {
-      recordAdminRow(
-        `${root}/dossier/data`,
-        identity('dossiers', 'data'),
-        ensureSubcollectionEnvelope(dossier as unknown as Record<string, unknown>, envelope),
-        version
-      );
+      const dossier = snapshot.dossiers[client.id];
+      if (dossier) {
+        recordAdminRow(
+          `${root}/dossier/data`,
+          identity('dossiers', 'data'),
+          ensureSubcollectionEnvelope(dossier as unknown as Record<string, unknown>, envelope),
+          version
+        );
+      }
     }
   }
 }
@@ -2232,13 +2419,18 @@ type RealtimeCollectionState = {
 const realtimeCollections = new Map<string, RealtimeCollectionState>();
 let realtimeHandler: RealtimePartialHandler | null = null;
 
-/** Detiene listeners en tiempo real (logout). */
-export function stopFirestoreRealtimeSync() {
+/** Releases listener subscriptions without touching pending mutations or baselines. */
+function detachFirestoreRealtimeListeners(): void {
   for (const unsub of realtimeUnsubs) unsub();
   realtimeUnsubs = [];
   liveCollections.clear();
   realtimeCollections.clear();
   realtimeHandler = null;
+}
+
+/** Detiene listeners en tiempo real (logout). Pending ADMIN and CLIENT mutations stay queued. */
+export function stopFirestoreRealtimeSync() {
+  detachFirestoreRealtimeListeners();
   sessionPersistenceActor = null;
 }
 
@@ -2270,10 +2462,12 @@ const REALTIME_KEY_MAP: Partial<Record<(typeof REALTIME_SUBS)[number] | 'evidenc
  */
 export async function startFirestoreRealtimeSync(
   clientIds: string[],
-  onPartial: RealtimePartialHandler
+  onPartial: RealtimePartialHandler,
+  options?: { stillCurrent?: () => boolean }
 ): Promise<void> {
   stopFirestoreRealtimeSync();
   if (!readFirebaseConfig() || !clientIds.length) return;
+  if (options?.stillCurrent && !options.stillCurrent()) return;
 
   const db = await getFirebaseFirestore();
   if (!db) return;
@@ -2281,6 +2475,7 @@ export async function startFirestoreRealtimeSync(
   const { onSnapshot } = await import('firebase/firestore');
   const scope = await readTenantReadScope();
   if (!scope) return;
+  if (options?.stillCurrent && !options.stillCurrent()) return;
   realtimeHandler = onPartial;
 
   const listen = async (clientId: string, sub: string, snapshotKey: CollectionKey) => {
@@ -2305,6 +2500,7 @@ export async function startFirestoreRealtimeSync(
         applyLiveCollectionSnapshot(collectionPath, snap.docs.map((docSnap) => docSnap.id));
         recordRemoteBaseline(collectionPath, snap.docs, { prune: true });
       }
+      if (isFromCache(snap)) return;
       const rows = snap.docs.map((docSnap) =>
         normalizeFirestorePulledData({
           ...docSnap.data(),
@@ -2335,7 +2531,6 @@ export async function startFirestoreRealtimeSync(
     for (const sub of REALTIME_SUBS) {
       await listen(clientId, sub, (REALTIME_KEY_MAP[sub] || sub) as CollectionKey);
     }
-    // Evidence usa nombre distinto en el snapshot local.
     await listen(clientId, 'evidence', 'evidenceVault');
   }
 }
