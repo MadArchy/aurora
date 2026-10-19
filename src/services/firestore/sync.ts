@@ -1044,6 +1044,55 @@ export function resolveTenantOrganizationIdForQuery(
  * Security Rules are not filters — never unscoped getDocs(collection('clients')).
  * Optional organizationId arg is validated against the auth token org (no arbitrary tenant).
  */
+/** Listeners opened per client: `REALTIME_SUBS` plus the evidence collection. */
+export function firestoreRealtimeListenersPerClient(): number {
+  return REALTIME_SUBS.length + 1;
+}
+
+/** Listeners attached to the current session. Released on sign-out. */
+export function activeFirestoreListenerCount(): number {
+  return realtimeUnsubs.length;
+}
+
+/**
+ * ADMIN directory only: the tenant client roots, with no subcollection reads and no
+ * baseline pruning. A cache-only snapshot is not an authoritative directory.
+ */
+export async function pullClientDirectoryFromFirestore(): Promise<
+  | { ok: true; clients: LocalV5Snapshot['clients'] }
+  | { ok: false; reason: string }
+> {
+  try {
+    const db = await getFirebaseFirestore();
+    if (!db) return { ok: false, reason: 'firestore-unavailable' };
+    const scope = await readTenantReadScope();
+    if (!scope?.isAdmin) return { ok: false, reason: 'not-admin' };
+
+    const { collection, getDocs, query, where } = await import('firebase/firestore');
+    const snap = await getDocs(
+      query(collection(db, 'clients'), where('organizationId', '==', scope.organizationId))
+    );
+    if (isFromCache(snap)) return { ok: false, reason: 'directory-not-from-server' };
+
+    const clients: LocalV5Snapshot['clients'] = [];
+    for (const docSnap of snap.docs) {
+      knownRemoteDocPaths.add(clientDocPath(docSnap.id));
+      if (!hasPendingWrites(docSnap)) {
+        remoteBaseline.set(
+          clientDocPath(docSnap.id),
+          normalizeFirestorePulledData((docSnap.data() ?? {}) as Record<string, unknown>)
+        );
+      }
+      clients.push(
+        normalizeFirestorePulledData({ id: docSnap.id, ...docSnap.data() }) as LocalV5Snapshot['clients'][number]
+      );
+    }
+    return { ok: true, clients };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : 'directory-query-failed' };
+  }
+}
+
 export async function listFirestoreClientIds(organizationId?: string): Promise<string[]> {
   const db = await getFirebaseFirestore();
   if (!db) return [];
@@ -1114,7 +1163,8 @@ async function scopedClientSubcollectionQuery(
 
 /** Descarga datos de Firestore para un cliente (o todos si admin). */
 export async function pullClientDataFromFirestore(
-  clientIds: string[]
+  clientIds: string[],
+  options?: { skipClientRoots?: boolean }
 ): Promise<Partial<LocalV5Snapshot>> {
   const db = await getFirebaseFirestore();
   if (!db) return {};
@@ -1122,7 +1172,6 @@ export async function pullClientDataFromFirestore(
   const { doc, getDoc, getDocs } = await import('firebase/firestore');
   const scope = await readTenantReadScope();
   const partial: Partial<LocalV5Snapshot> = {
-    clients: [],
     signals: [],
     tasks: [],
     curation: [],
@@ -1146,19 +1195,23 @@ export async function pullClientDataFromFirestore(
     dossiers: {},
   };
 
+  if (!options?.skipClientRoots) partial.clients = [];
+
   for (const clientId of clientIds) {
-    const clientSnap = await getDoc(doc(db, clientDocPath(clientId)));
-    if (clientSnap.exists()) {
-      knownRemoteDocPaths.add(clientDocPath(clientId));
-      if (!isFromCache(clientSnap) && !hasPendingWrites(clientSnap as unknown as { id: string })) {
-        remoteBaseline.set(
-          clientDocPath(clientId),
-          normalizeFirestorePulledData((clientSnap.data() ?? {}) as Record<string, unknown>)
+    if (!options?.skipClientRoots) {
+      const clientSnap = await getDoc(doc(db, clientDocPath(clientId)));
+      if (clientSnap.exists()) {
+        knownRemoteDocPaths.add(clientDocPath(clientId));
+        if (!isFromCache(clientSnap) && !hasPendingWrites(clientSnap as unknown as { id: string })) {
+          remoteBaseline.set(
+            clientDocPath(clientId),
+            normalizeFirestorePulledData((clientSnap.data() ?? {}) as Record<string, unknown>)
+          );
+        }
+        partial.clients!.push(
+          normalizeFirestorePulledData(clientSnap.data()) as unknown as LocalV5Snapshot['clients'][number]
         );
       }
-      partial.clients!.push(
-        normalizeFirestorePulledData(clientSnap.data()) as unknown as LocalV5Snapshot['clients'][number]
-      );
     }
 
     for (const sub of CLIENT_SUBCOLLECTIONS) {

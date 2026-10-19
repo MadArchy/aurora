@@ -45,22 +45,14 @@ class AuthService {
     else localStorage.removeItem(IMPERSONATION_KEY);
   }
 
-  private async syncFirestoreSession(user: User) {
+  private markAdminLoad(name: string) {
+    if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return;
+    performance.clearMarks(name);
+    performance.mark(name);
+  }
+
+  private async attachOperationalListeners(user: User, clientIds: string[]) {
     const sync = await import('./firestore/sync');
-    sync.setFirestoreAuthoritative(true);
-
-    let clientIds: string[] = [];
-    if (user.role === 'ADMIN') {
-      const boot = await dbService.bootstrapFirestoreIfEmpty();
-      if (!boot.bootstrapped) {
-        await dbService.hydrateFromRemote();
-      }
-      clientIds = dbService.getClients().map((c) => c.id);
-    } else if (user.clientId) {
-      await dbService.hydrateFromRemote([user.clientId]);
-      clientIds = [user.clientId];
-    }
-
     const { bindAuthNotificationIdentities } = await import('./notifications');
     bindAuthNotificationIdentities(user);
 
@@ -83,6 +75,59 @@ class AuthService {
     }
   }
 
+  private async syncFirestoreSession(user: User) {
+    const sync = await import('./firestore/sync');
+    sync.setFirestoreAuthoritative(true);
+
+    if (user.role === 'ADMIN') {
+      const epoch = dbService.beginAdminDirectoryLoad();
+      this.markAdminLoad('postura:admin-auth-start');
+      try {
+        const boot = await dbService.bootstrapFirestoreIfEmpty();
+        if (!dbService.isAdminLoadCurrent(epoch) || this.currentUser?.uid !== user.uid) return;
+        if (boot.bootstrapped) {
+          dbService.markAdminOperationalReady(epoch);
+        } else {
+          const directory = await dbService.hydrateAdminDirectory(epoch);
+          if (!dbService.isAdminLoadCurrent(epoch) || this.currentUser?.uid !== user.uid) return;
+          if (directory === 'error') {
+            this.notify();
+            return;
+          }
+        }
+        this.markAdminLoad('postura:admin-directory-ready');
+        this.notify();
+
+        if (dbService.getAdminIndicatorPhase() !== 'READY') {
+          const directoryIds = dbService.getClients().map((client) => client.id);
+          const hydrated = await dbService.hydrateAdminOperations(epoch, directoryIds);
+          if (!dbService.isAdminLoadCurrent(epoch) || this.currentUser?.uid !== user.uid) return;
+          if (hydrated === 'error') {
+            this.notify();
+            return;
+          }
+        }
+        this.markAdminLoad('postura:admin-indicators-ready');
+        const clientIds = dbService.getClients().map((client) => client.id);
+        await this.attachOperationalListeners(user, clientIds);
+        if (!dbService.isAdminLoadCurrent(epoch) || this.currentUser?.uid !== user.uid) return;
+        this.markAdminLoad('postura:admin-listeners-attached');
+        this.notify();
+      } catch {
+        dbService.markAdminDirectoryError(epoch);
+        this.notify();
+      }
+      return;
+    }
+
+    let clientIds: string[] = [];
+    if (user.clientId) {
+      await dbService.hydrateFromRemote([user.clientId]);
+      clientIds = [user.clientId];
+    }
+    await this.attachOperationalListeners(user, clientIds);
+  }
+
   private async init() {
     if (FIREBASE_ENABLED) {
       const { bindFirebaseAuthState } = await import('../firebase/authBridge');
@@ -93,12 +138,13 @@ class AuthService {
           sync.setFirestoreAuthoritative(false);
           const { stopStrategicBriefSync } = await import('./firestore/strategicBriefSync');
           stopStrategicBriefSync();
+          dbService.releaseAdminDirectoryLoad();
           this.currentUser = null;
           this.notify();
           return;
         }
         this.currentUser = user;
-        this.notify();
+        if (user.role !== 'ADMIN') this.notify();
         await this.syncFirestoreSession(user);
       });
       return;

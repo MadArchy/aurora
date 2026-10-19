@@ -135,6 +135,12 @@ class DataService {
   /** Removals the merge snapshot cannot express; handed to the sync queue by the next remote save. */
   private pendingRemoteIntents: RemoteMutationIntent[] = [];
   private firestoreSync: FirestoreSyncModule | null = null;
+  /** Bumped on each ADMIN directory load and on sign-out, so a late response cannot land. */
+  private adminLoadEpoch = 0;
+  private adminDirectoryPhase: 'IDLE' | 'LOADING' | 'READY' | 'ERROR' = 'IDLE';
+  private adminIndicatorsPhase: 'NOT_LOADED' | 'LOADING' | 'READY' | 'ERROR' = 'READY';
+  /** A remote push was requested while operational collections were still unread. */
+  private remotePushDeferred = false;
 
   constructor() {
     this.loadInitialData();
@@ -1078,6 +1084,12 @@ class DataService {
       );
     }
 
+    if (!options?.skipRemote && FIREBASE_ENABLED && this.adminRemoteWritesHeld()) {
+      this.remotePushDeferred = true;
+      this.emitChange();
+      return;
+    }
+
     const intents = options?.skipRemote ? [] : this.pendingRemoteIntents.splice(0);
     if (!options?.skipRemote && FIREBASE_ENABLED) {
       if (this.firestoreSync) {
@@ -1267,6 +1279,128 @@ class DataService {
       void import('./notifications').then(({ notificationService }) => {
         notificationService.mergeFromRemote(this.notifications);
       });
+    }
+  }
+
+  public beginAdminDirectoryLoad(): number {
+    this.adminLoadEpoch += 1;
+    this.adminDirectoryPhase = 'LOADING';
+    this.adminIndicatorsPhase = 'NOT_LOADED';
+    this.remotePushDeferred = false;
+    this.emitChange();
+    return this.adminLoadEpoch;
+  }
+
+  public isAdminLoadCurrent(epoch: number): boolean {
+    return epoch === this.adminLoadEpoch;
+  }
+
+  public getAdminDirectoryPhase(): 'IDLE' | 'LOADING' | 'READY' | 'ERROR' {
+    return this.adminDirectoryPhase;
+  }
+
+  public getAdminIndicatorPhase(): 'NOT_LOADED' | 'LOADING' | 'READY' | 'ERROR' {
+    return this.adminIndicatorsPhase;
+  }
+
+  /** Sign-out: drop a load that has not finished so it cannot write into the next session. */
+  public releaseAdminDirectoryLoad(): void {
+    this.adminLoadEpoch += 1;
+    this.adminDirectoryPhase = 'IDLE';
+    this.adminIndicatorsPhase = 'READY';
+    this.remotePushDeferred = false;
+    this.pendingRemoteIntents = [];
+    this.emitChange();
+  }
+
+  private adminRemoteWritesHeld(): boolean {
+    return (
+      this.adminIndicatorsPhase === 'NOT_LOADED' ||
+      this.adminIndicatorsPhase === 'LOADING' ||
+      this.adminIndicatorsPhase === 'ERROR'
+    );
+  }
+
+  /**
+   * Replace the client directory only. Operational collections stay as they are:
+   * unread rows are not an empty collection and are not deletions.
+   */
+  public applyAdminDirectorySnapshot(clients: Client[], epoch: number): 'applied' | 'stale' {
+    if (epoch !== this.adminLoadEpoch) return 'stale';
+    this.adminDirectoryPhase = 'READY';
+    this.adminIndicatorsPhase = clients.length === 0 ? 'READY' : 'LOADING';
+    this.importSnapshot({ clients }, { merge: false, skipRemote: true });
+    return 'applied';
+  }
+
+  public markAdminDirectoryError(epoch: number): void {
+    if (epoch !== this.adminLoadEpoch) return;
+    this.adminDirectoryPhase = 'ERROR';
+    this.adminIndicatorsPhase = 'ERROR';
+    this.emitChange();
+  }
+
+  public markAdminIndicatorsError(epoch: number): void {
+    if (epoch !== this.adminLoadEpoch) return;
+    this.adminIndicatorsPhase = 'ERROR';
+    this.emitChange();
+  }
+
+  public markAdminOperationalReady(epoch: number): 'ready' | 'stale' {
+    if (epoch !== this.adminLoadEpoch) return 'stale';
+    this.adminDirectoryPhase = 'READY';
+    this.adminIndicatorsPhase = 'READY';
+    if (this.remotePushDeferred) {
+      this.remotePushDeferred = false;
+      this.saveAll();
+    } else {
+      this.emitChange();
+    }
+    return 'ready';
+  }
+
+  public async hydrateAdminDirectory(epoch: number): Promise<'ready' | 'empty' | 'error' | 'stale'> {
+    if (epoch !== this.adminLoadEpoch) return 'stale';
+    const sync = await this.loadFirestoreSync();
+    const result = await sync.pullClientDirectoryFromFirestore();
+    if (epoch !== this.adminLoadEpoch) return 'stale';
+    if (!result.ok) {
+      this.markAdminDirectoryError(epoch);
+      return 'error';
+    }
+    const applied = this.applyAdminDirectorySnapshot(result.clients, epoch);
+    if (applied === 'stale') return 'stale';
+    return result.clients.length ? 'ready' : 'empty';
+  }
+
+  /**
+   * Complete operational hydrate. Client roots are not read again and are not
+   * replaced, so a directory row created while this pull is in flight survives.
+   * The pull's arrays are complete listings; they are not a page of a collection.
+   */
+  public async hydrateAdminOperations(
+    epoch: number,
+    clientIds: string[]
+  ): Promise<'ready' | 'error' | 'stale'> {
+    if (epoch !== this.adminLoadEpoch) return 'stale';
+    if (!clientIds.length) {
+      this.markAdminOperationalReady(epoch);
+      return 'ready';
+    }
+    try {
+      const sync = await this.loadFirestoreSync();
+      const partial = await sync.pullClientDataFromFirestore(clientIds, { skipClientRoots: true });
+      if (epoch !== this.adminLoadEpoch) return 'stale';
+      if (!Array.isArray(partial.tasks) || !Array.isArray(partial.signals)) {
+        this.markAdminIndicatorsError(epoch);
+        return 'error';
+      }
+      this.importSnapshot(partial, { merge: false, skipRemote: true });
+      if (epoch !== this.adminLoadEpoch) return 'stale';
+      return this.markAdminOperationalReady(epoch) === 'stale' ? 'stale' : 'ready';
+    } catch {
+      if (epoch === this.adminLoadEpoch) this.markAdminIndicatorsError(epoch);
+      return 'error';
     }
   }
 
@@ -2810,7 +2944,34 @@ class DataService {
   // Agregados de cartera (dashboard nivel 1)
   // ==========================================
 
+  private blankPortfolioSummary(client: Client): ClientPortfolioSummary {
+    return {
+      client,
+      unreviewedSignals: 0,
+      savedSignals: 0,
+      openTasks: 0,
+      overdueTasks: 0,
+      contentAwaitingClient: 0,
+      contentAwaitingManager: 0,
+      thesisPendingApproval: 0,
+      opportunitiesPending: 0,
+      pendingCuration: 0,
+      draftDeliveries: 0,
+      activeSources: 0,
+      sourcesInError: 0,
+      signalsLast7Days: 0,
+      researchPending: 0,
+      outcomePending: 0,
+      usefulRate: null,
+      attentionScore: 0,
+      attentionReasons: [],
+    };
+  }
+
   public getPortfolioSummary(): ClientPortfolioSummary[] {
+    if (this.adminIndicatorsPhase !== 'READY') {
+      return this.getClients().map((client) => this.blankPortfolioSummary(client));
+    }
     const now = Date.now();
 
     return this.getClients()

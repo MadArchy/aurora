@@ -72,6 +72,9 @@ export interface PortfolioBadgeCounts {
 }
 
 export function readPortfolioBadges(_scope: TrustedTenantScope): PortfolioBadgeCounts {
+  if (dbService.getAdminIndicatorPhase() !== 'READY') {
+    return { clientsNeedingAttention: 0 };
+  }
   return {
     clientsNeedingAttention: dbService.getPortfolioSummary().filter((s) => s.attentionScore > 0).length,
   };
@@ -522,6 +525,9 @@ export function readSources(scope: TrustedTenantScope): readonly SourceRead[] {
  *     returns an unresolved marker instead of guessing (threat T-010-15).
  * ====================================================================== */
 
+export type PortfolioDirectoryStatus = 'LOADING' | 'READY' | 'ERROR';
+export type PortfolioIndicatorStatus = 'PENDING' | 'READY' | 'ERROR';
+
 export interface PortfolioRowRead {
   readonly clientId: string;
   readonly displayName: string;
@@ -533,6 +539,7 @@ export interface PortfolioRowRead {
   readonly activeThesisTitles: readonly string[];
   readonly pendingCuration: number;
   readonly unreviewedSignals: number;
+  readonly indicators: PortfolioIndicatorStatus;
 }
 
 export interface PortfolioOverviewRead {
@@ -540,6 +547,8 @@ export interface PortfolioOverviewRead {
   readonly totalClients: number;
   readonly needingAttention: number;
   readonly totalActiveTheses: number;
+  readonly directoryStatus: PortfolioDirectoryStatus;
+  readonly indicatorStatus: PortfolioIndicatorStatus;
 }
 
 /**
@@ -554,33 +563,66 @@ export interface PortfolioOverviewRead {
  * silently hides the rest, every active thesis title is returned so the manager
  * can see that a client has more than one (threat T-010-15).
  */
+function portfolioAvailability(): {
+  directoryStatus: PortfolioDirectoryStatus;
+  indicatorStatus: PortfolioIndicatorStatus;
+} {
+  const directory = dbService.getAdminDirectoryPhase();
+  const indicators = dbService.getAdminIndicatorPhase();
+  const directoryStatus: PortfolioDirectoryStatus =
+    directory === 'LOADING' ? 'LOADING' : directory === 'ERROR' ? 'ERROR' : 'READY';
+  const indicatorStatus: PortfolioIndicatorStatus =
+    indicators === 'ERROR'
+      ? 'ERROR'
+      : indicators === 'READY'
+        ? 'READY'
+        : directory === 'IDLE'
+          ? 'READY'
+          : 'PENDING';
+  return { directoryStatus, indicatorStatus };
+}
+
 export function readPortfolioOverview(_scope: TrustedTenantScope): PortfolioOverviewRead {
+  const availability = portfolioAvailability();
+  if (availability.directoryStatus !== 'READY') {
+    return {
+      rows: [],
+      totalClients: 0,
+      needingAttention: 0,
+      totalActiveTheses: 0,
+      ...availability,
+    };
+  }
+
+  const indicatorsReady = availability.indicatorStatus === 'READY';
   const summaries = dbService.getPortfolioSummary();
 
   const rows = summaries.map((summary) => {
     const client = summary.client;
-    const activeTheses = dbService.getActiveTheses(client.id);
+    const activeTheses = indicatorsReady ? dbService.getActiveTheses(client.id) : [];
     return {
       clientId: client.id,
       displayName: client.displayName || `${client.firstName} ${client.lastName}`.trim(),
       profession: client.profession || '',
       company: client.company || '',
-      attentionScore: summary.attentionScore,
-      attentionReasons: [...(summary.attentionReasons ?? [])],
+      attentionScore: indicatorsReady ? summary.attentionScore : 0,
+      attentionReasons: indicatorsReady ? [...(summary.attentionReasons ?? [])] : [],
       activeThesisCount: activeTheses.length,
       activeThesisTitles: activeTheses.map((t) => t.title),
-      pendingCuration: dbService.getPendingCurationByClient(client.id).length,
-      unreviewedSignals: dbService
-        .getSignalsByClient(client.id)
-        .filter((s) => s.status === 'NEW').length,
+      pendingCuration: indicatorsReady ? dbService.getPendingCurationByClient(client.id).length : 0,
+      unreviewedSignals: indicatorsReady
+        ? dbService.getSignalsByClient(client.id).filter((s) => s.status === 'NEW').length
+        : 0,
+      indicators: availability.indicatorStatus,
     };
   });
 
   return {
     rows,
     totalClients: rows.length,
-    needingAttention: rows.filter((r) => r.attentionScore > 0).length,
-    totalActiveTheses: rows.reduce((acc, r) => acc + r.activeThesisCount, 0),
+    needingAttention: indicatorsReady ? rows.filter((r) => r.attentionScore > 0).length : 0,
+    totalActiveTheses: indicatorsReady ? rows.reduce((acc, r) => acc + r.activeThesisCount, 0) : 0,
+    ...availability,
   };
 }
 

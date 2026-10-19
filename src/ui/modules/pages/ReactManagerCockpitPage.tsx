@@ -265,11 +265,13 @@ function CreateClientPanel() {
 function RematerializeLocalSnapshotPanel() {
   const { tenantScope } = useSession();
   const rematerialize = useRematerializeLocalSnapshot(tenantScope);
+  const overview = usePortfolioOverview(tenantScope);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!rematerialize.available) return null;
 
+  const indicatorsHeld = overview.data?.indicatorStatus === 'PENDING' || overview.data?.indicatorStatus === 'ERROR';
   const busy = rematerialize.isPending;
 
   const submit = async () => {
@@ -288,7 +290,7 @@ function RematerializeLocalSnapshotPanel() {
       <button
         type="button"
         className="btn btn-secondary btn-sm"
-        disabled={busy}
+        disabled={busy || indicatorsHeld}
         onClick={() => void submit()}
         data-testid="react-cockpit-rematerialize-submit"
       >
@@ -313,14 +315,14 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
   const { data, isLoading, isError } = usePortfolioOverview(tenantScope);
   const [search, setSearch] = useState('');
 
-  if (isLoading) {
-    return <PanelState kind="loading" message="Cargando cartera…" testId="react-cockpit-loading" />;
+  if (isLoading || data?.directoryStatus === 'LOADING') {
+    return <PanelState kind="loading" message="Cargando directorio de clientes…" testId="react-cockpit-loading" />;
   }
-  if (isError) {
+  if (isError || data?.directoryStatus === 'ERROR') {
     return (
       <PanelState
         kind="error"
-        message="No se pudo cargar la cartera."
+        message="No se pudo cargar el directorio de clientes. La cartera no está vacía: la consulta falló."
         testId="react-cockpit-error"
       />
     );
@@ -331,7 +333,12 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
     totalClients: 0,
     needingAttention: 0,
     totalActiveTheses: 0,
+    directoryStatus: 'READY' as const,
+    indicatorStatus: 'READY' as const,
   };
+  const indicatorsReady = overview.indicatorStatus === 'READY';
+  const indicatorLabel =
+    overview.indicatorStatus === 'ERROR' ? 'Error' : indicatorsReady ? null : 'Pendiente';
 
   const term = search.trim().toLowerCase();
   const rows = term
@@ -343,21 +350,30 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
   const queue = [...rows].sort((a, b) => b.attentionScore - a.attentionScore);
 
   return (
-    <div data-testid="react-cockpit-portfolio">
-      <div className="stat-grid">
+    <div
+      data-testid="react-cockpit-portfolio"
+      data-directory="ready"
+    >
+      <div
+        className="stat-grid"
+        data-testid="react-cockpit-indicators"
+        data-state={indicatorsReady ? 'ready' : overview.indicatorStatus === 'ERROR' ? 'error' : 'pending'}
+      >
         <div className="stat-tile">
-          <span className="stat-value">{overview.totalClients}</span>
+          <span className="stat-value" data-testid="react-cockpit-client-count">
+            {overview.totalClients}
+          </span>
           <span className="stat-label">Clientes</span>
         </div>
         <div className="stat-tile">
           <span className="stat-value" data-testid="react-cockpit-attention">
-            {overview.needingAttention}
+            {indicatorLabel ?? overview.needingAttention}
           </span>
           <span className="stat-label">Requieren atención</span>
         </div>
         <div className="stat-tile">
           <span className="stat-value" data-testid="react-cockpit-theses">
-            {overview.totalActiveTheses}
+            {indicatorLabel ?? overview.totalActiveTheses}
           </span>
           <span className="stat-label">Tesis activas</span>
         </div>
@@ -388,11 +404,15 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
                   {row.company ? ` · ${row.company}` : ''}
                 </p>
                 <p className="muted small" data-testid={`react-cockpit-theses-${row.clientId}`}>
-                  {row.activeThesisCount === 0
-                    ? 'Sin tesis activa'
-                    : `${row.activeThesisCount} ${
-                        row.activeThesisCount === 1 ? 'tesis activa' : 'tesis activas'
-                      }: ${row.activeThesisTitles.join(' · ')}`}
+                  {row.indicators !== 'READY'
+                    ? row.indicators === 'ERROR'
+                      ? 'Indicadores no disponibles'
+                      : 'Indicadores pendientes'
+                    : row.activeThesisCount === 0
+                      ? 'Sin tesis activa'
+                      : `${row.activeThesisCount} ${
+                          row.activeThesisCount === 1 ? 'tesis activa' : 'tesis activas'
+                        }: ${row.activeThesisTitles.join(' · ')}`}
                 </p>
                 {row.attentionReasons.length ? (
                   <ul className="small">
@@ -403,13 +423,19 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
                 ) : null}
               </div>
               <div className="portfolio-queue-meta">
-                <span className={`badge ${row.attentionScore > 0 ? 'badge-pending' : 'badge-ready'}`}>
-                  Atención {row.attentionScore}
+                <span className={`badge ${indicatorsReady && row.attentionScore > 0 ? 'badge-pending' : 'badge-ready'}`}>
+                  {row.indicators === 'READY'
+                    ? `Atención ${row.attentionScore}`
+                    : row.indicators === 'ERROR'
+                      ? 'Atención no disponible'
+                      : 'Atención pendiente'}
                 </span>
                 <p className="muted small">
-                  {row.unreviewedSignals} señales nuevas · {row.pendingCuration} por decidir
+                  {row.indicators === 'READY'
+                    ? `${row.unreviewedSignals} señales nuevas · ${row.pendingCuration} por decidir`
+                    : 'Señales y curación pendientes'}
                 </p>
-                {onEnterClient ? (
+                {onEnterClient && row.indicators === 'READY' ? (
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -417,6 +443,10 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
                   >
                     Abrir workspace
                   </button>
+                ) : onEnterClient ? (
+                  <p className="muted small" data-testid={`react-cockpit-open-held-${row.clientId}`}>
+                    Workspace protegido hasta cargar los datos del cliente
+                  </p>
                 ) : null}
               </div>
             </li>
