@@ -17,7 +17,7 @@ export function createDbDeliveryAssemblyRepositoryPort(): DeliveryAssemblyReposi
       return dbService.getDeliveryById(packageId);
     },
     ensureDraft(clientId, createdBy) {
-      return dbService.ensureDraftDelivery(clientId, createdBy);
+      return dbService.ensureDraftDeliveryConfirmed(clientId, createdBy);
     },
     addDeliveryItem(packageId, item) {
       return dbService.addDeliveryItem(packageId, item);

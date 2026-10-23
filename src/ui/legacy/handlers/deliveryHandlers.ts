@@ -12,11 +12,15 @@ import { queueCurationInBriefing } from './radarHandlers';
 import type { DeliveryHandlerHost } from '../legacyAppHost';
 
 export function bindDeliveryHandlers(host: DeliveryHandlerHost): void  {
-  document.getElementById('btn-create-delivery')?.addEventListener('click', (e) => {
+  document.getElementById('btn-create-delivery')?.addEventListener('click', async (e) => {
     const clientId = (e.currentTarget as HTMLElement).getAttribute('data-client-id') || host.resolveClientId();
-    ensureDraftDelivery({ requestedClientId: clientId });
-    host.showToast('Briefing creado. Añade los ítems curados.', 'success');
-    host.render();
+    try {
+      await ensureDraftDelivery({ requestedClientId: clientId });
+      host.showToast('Briefing creado. Añade los ítems curados.', 'success');
+      host.render();
+    } catch (err) {
+      host.showToast(err instanceof Error ? err.message : 'No se pudo crear el briefing', 'warning');
+    }
   });
 
   const metaForm = document.getElementById('form-delivery-meta');
@@ -35,17 +39,22 @@ export function bindDeliveryHandlers(host: DeliveryHandlerHost): void  {
   });
 
   document.querySelectorAll('.btn-add-to-delivery').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       const target = e.currentTarget as HTMLElement;
       const curationId = target.getAttribute('data-curation-id');
       if (!curationId) return;
       const clientId = target.getAttribute('data-client-id') || host.resolveClientId();
-      if (!queueCurationInBriefing(curationId, clientId)) {
-        host.showToast('Ese ítem ya está en un briefing.', 'info');
-        return;
+      try {
+        const queued = await queueCurationInBriefing(curationId, clientId);
+        if (!queued) {
+          host.showToast('Ese ítem ya está en un briefing.', 'info');
+          return;
+        }
+        host.showToast('Añadido al briefing', 'success');
+        host.render();
+      } catch (err) {
+        host.showToast(err instanceof Error ? err.message : 'No se pudo añadir al briefing', 'warning');
       }
-      host.showToast('Añadido al briefing', 'success');
-      host.render();
     });
   });
 

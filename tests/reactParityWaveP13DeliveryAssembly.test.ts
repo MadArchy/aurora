@@ -57,12 +57,12 @@ vi.mock('../src/composition/strategicSignalRouting/composeStrategicSignalRouting
 }));
 
 vi.mock('../src/services/executionDeliveryConsumer', () => ({
-  ensureDraftDelivery: (intent: unknown) => {
+  ensureDraftDelivery: async (intent: unknown) => {
     ensureCalls.push(intent);
     if (ensureImpl) return ensureImpl();
     return { package: { id: 'pkg_draft_1' }, created: true };
   },
-  addCurationToDelivery: (intent: unknown) => {
+  addCurationToDelivery: async (intent: unknown) => {
     addCalls.push(intent);
     if (addImpl) return addImpl();
     return { ok: true, package: { id: 'pkg_draft_1' } };
@@ -142,7 +142,7 @@ beforeEach(() => {
 describe('P13 §3 — frozen B4 public inputs', () => {
   it('EnsureDraftDelivery keys are requestedClientId and optional claims only', () => {
     const consumer = read('src/services/executionDeliveryConsumer.ts');
-    const block = consumer.match(/export function ensureDraftDelivery[\s\S]*?^}/m);
+    const block = consumer.match(/export (?:async )?function ensureDraftDelivery[\s\S]*?^}/m);
     expect(block?.[0]).toMatch(/requestedClientId/);
     expect(block?.[0]).toMatch(/claimedOrganizationId\?:/);
     expect(block?.[0]).toMatch(/claimedClientId\?:/);
@@ -151,7 +151,7 @@ describe('P13 §3 — frozen B4 public inputs', () => {
 
   it('AddCurationToDelivery keys are requestedClientId, curationEntryId, optional claims', () => {
     const consumer = read('src/services/executionDeliveryConsumer.ts');
-    const block = consumer.match(/export function addCurationToDelivery[\s\S]*?^}/m);
+    const block = consumer.match(/export (?:async )?function addCurationToDelivery[\s\S]*?^}/m);
     expect(block?.[0]).toMatch(/curationEntryId/);
     expect(block?.[0]).not.toMatch(/packageId/);
   });
@@ -182,7 +182,7 @@ describe('P13 §3 — frozen B4 public inputs', () => {
 describe('P13 §15–§16 — presentation seam and hooks', () => {
   it('ensureDraftDelivery invokes frozen consumer exactly once with legacy toast', async () => {
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.ensureDraftDelivery({
+    const result = await executionDeliveryCommands.ensureDraftDelivery({
       requestedClientId: 'client_a',
     });
     expect(result.ok).toBe(true);
@@ -203,7 +203,7 @@ describe('P13 §15–§16 — presentation seam and hooks', () => {
   it('ensure idempotency surfaces same success toast', async () => {
     ensureImpl = () => ({ package: { id: 'pkg_existing' }, created: false });
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.ensureDraftDelivery({
+    const result = await executionDeliveryCommands.ensureDraftDelivery({
       requestedClientId: 'client_a',
     });
     expect(result.ok).toBe(true);
@@ -215,7 +215,7 @@ describe('P13 §15–§16 — presentation seam and hooks', () => {
 
   it('addCurationToDelivery success mirrors legacy toast', async () => {
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.addCurationToDelivery({
+    const result = await executionDeliveryCommands.addCurationToDelivery({
       requestedClientId: 'client_a',
       curationEntryId: 'cur_1',
     });
@@ -231,7 +231,7 @@ describe('P13 §15–§16 — presentation seam and hooks', () => {
   it('add duplicate/ineligible mirrors legacy info message', async () => {
     addImpl = () => ({ ok: false });
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.addCurationToDelivery({
+    const result = await executionDeliveryCommands.addCurationToDelivery({
       requestedClientId: 'client_a',
       curationEntryId: 'cur_dup',
     });

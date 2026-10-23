@@ -20,7 +20,7 @@ async function seedDraftAdvicePackage(
     for (const pkg of dbService.getDeliveriesByClient(cid)) {
       if (pkg.status === 'DRAFT') dbService.discardDraftDelivery(pkg.id);
     }
-    const pkg = dbService.ensureDraftDelivery(cid, 'user_admin_01');
+    const pkg = await dbService.ensureDraftDeliveryConfirmed(cid, 'user_admin_01');
     dbService.addDeliveryItem(pkg.id, {
       kind: 'ADVICE',
       title: 'P7 E2E briefing advice',

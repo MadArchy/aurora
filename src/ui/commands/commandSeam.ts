@@ -1171,7 +1171,7 @@ export const executionDeliveryCommands = {
     curationEntryId: string;
     destination: CurationDestination;
     rationale: string;
-  }): CurationDecideCommandResult {
+  }): Promise<CurationDecideCommandResult> {
     return runCurationDecidePresentation(intent);
   },
 
@@ -1276,7 +1276,7 @@ export const executionDeliveryCommands = {
    */
   ensureDraftDelivery(intent: {
     requestedClientId: string | null | undefined;
-  }): DeliveryAssemblyPresentationResult {
+  }): Promise<DeliveryAssemblyPresentationResult> {
     return runEnsureDraftDeliveryPresentation(intent);
   },
 
@@ -1287,7 +1287,7 @@ export const executionDeliveryCommands = {
   addCurationToDelivery(intent: {
     requestedClientId: string | null | undefined;
     curationEntryId: string;
-  }): DeliveryAssemblyPresentationResult {
+  }): Promise<DeliveryAssemblyPresentationResult> {
     return runAddCurationToDeliveryPresentation(intent);
   },
 

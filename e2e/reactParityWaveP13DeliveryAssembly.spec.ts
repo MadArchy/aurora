@@ -160,10 +160,7 @@ test.describe('P13 — React admin delivery assembly parity', () => {
 
     const seeded = await page.evaluate(async ({ cid, elenaId }) => {
       const { dbService } = await import('/src/services/db.ts');
-      for (const pkg of dbService.getDeliveriesByClient(cid)) {
-        if (pkg.status === 'DRAFT') dbService.discardDraftDelivery(pkg.id);
-      }
-      const pkg = dbService.ensureDraftDelivery(cid, 'e2e_p13');
+      const pkg = await dbService.ensureDraftDeliveryConfirmed(cid, 'e2e_p13');
       dbService.updateDelivery(pkg.id, { title: 'Briefing E2E P13 discard' });
       const sibling = await dbService.ensureDraftDeliveryConfirmed(elenaId, 'e2e_p13');
       const draftCount = dbService

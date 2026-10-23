@@ -24,11 +24,11 @@ export type DeliveryAssemblyPresentationResult =
     }
   | { ok: false; message: string; kind?: 'warning' | 'error' | 'info' };
 
-export function runEnsureDraftDeliveryPresentation(intent: {
+export async function runEnsureDraftDeliveryPresentation(intent: {
   requestedClientId: string | null | undefined;
-}): DeliveryAssemblyPresentationResult {
+}): Promise<DeliveryAssemblyPresentationResult> {
   try {
-    const result = ensureDraftDelivery({
+    const result = await ensureDraftDelivery({
       requestedClientId: intent.requestedClientId,
     });
     return {
@@ -47,12 +47,12 @@ export function runEnsureDraftDeliveryPresentation(intent: {
   }
 }
 
-export function runAddCurationToDeliveryPresentation(intent: {
+export async function runAddCurationToDeliveryPresentation(intent: {
   requestedClientId: string | null | undefined;
   curationEntryId: string;
-}): DeliveryAssemblyPresentationResult {
+}): Promise<DeliveryAssemblyPresentationResult> {
   try {
-    const result = addCurationToDelivery({
+    const result = await addCurationToDelivery({
       requestedClientId: intent.requestedClientId,
       curationEntryId: intent.curationEntryId,
     });

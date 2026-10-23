@@ -248,14 +248,14 @@ export function reopenCuration(intent: {
 }
 
 /** Registry #17 — ensure/open client draft briefing. No composite audit. */
-export function ensureDraftDelivery(intent: {
+export async function ensureDraftDelivery(intent: {
   requestedClientId: string | null | undefined;
   claimedOrganizationId?: string;
   claimedClientId?: string;
-}): EnsureDraftDeliveryResult {
+}): Promise<EnsureDraftDeliveryResult> {
   const g = gate(intent.requestedClientId);
   try {
-    return useCases.ensureDraftDelivery({
+    return await useCases.ensureDraftDelivery({
       trusted: trustedFrom(g),
       claimedOrganizationId: intent.claimedOrganizationId,
       claimedClientId: intent.claimedClientId,
@@ -266,15 +266,15 @@ export function ensureDraftDelivery(intent: {
 }
 
 /** Registry #17 — add decided curation to draft briefing (A2 attach-after-item). No composite audit. */
-export function addCurationToDelivery(intent: {
+export async function addCurationToDelivery(intent: {
   requestedClientId: string | null | undefined;
   curationEntryId: string;
   claimedOrganizationId?: string;
   claimedClientId?: string;
-}): AddCurationToDeliveryResult {
+}): Promise<AddCurationToDeliveryResult> {
   const g = gate(intent.requestedClientId);
   try {
-    return useCases.addCurationToDelivery({
+    return await useCases.addCurationToDelivery({
       trusted: trustedFrom(g),
       curationEntryId: intent.curationEntryId,
       claimedOrganizationId: intent.claimedOrganizationId,

@@ -2110,11 +2110,11 @@ describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
     } as ReturnType<typeof dbService.getClientById>);
   }
 
-  it('EnsureDraftDelivery reuses existing draft and uses trusted actorId on create', () => {
+  it('EnsureDraftDelivery reuses existing draft and uses trusted actorId on create', async () => {
     const ports = memoryB4Ports();
     const ensure = createEnsureDraftDelivery({ assembly: ports.assembly });
     const existing = ports.assembly.getDraftByClientId('client_ed')!;
-    const reused = ensure({ trusted: adminTrusted() });
+    const reused = await ensure({ trusted: adminTrusted() });
     expect(reused.created).toBe(false);
     expect(reused.package.id).toBe(existing.id);
 
@@ -2123,33 +2123,33 @@ describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
       draft: null,
     });
     const ensureNewClient = createEnsureDraftDelivery({ assembly: newClientPorts.assembly });
-    const created = ensureNewClient({ trusted: adminTrusted({ clientId: 'client_new' }) });
+    const created = await ensureNewClient({ trusted: adminTrusted({ clientId: 'client_new' }) });
     expect(created.created).toBe(true);
     expect(created.package.createdBy).toBe('admin_01');
     expect(created.package.clientId).toBe('client_new');
   });
 
-  it('EnsureDraftDelivery denies wrong role and cross-tenant', () => {
+  it('EnsureDraftDelivery denies wrong role and cross-tenant', async () => {
     const { assembly } = memoryB4Ports();
     const ensure = createEnsureDraftDelivery({ assembly });
-    expect(() =>
+    await expect(
       ensure({ trusted: adminTrusted({ actorRole: 'CLIENT' }) })
-    ).toThrow(ExecutionDeliveryError);
-    expect(() =>
+    ).rejects.toThrow(ExecutionDeliveryError);
+    await expect(
       ensure({
         trusted: adminTrusted(),
         claimedClientId: 'other_client',
       })
-    ).toThrow(ExecutionDeliveryError);
+    ).rejects.toThrow(ExecutionDeliveryError);
   });
 
-  it('AddCurationToDelivery maps fields and applies A2 attach-after-item', () => {
+  it('AddCurationToDelivery maps fields and applies A2 attach-after-item', async () => {
     const { assembly, curation, getPackages, getCuration } = memoryB4Ports({
       entry: baseCurationEntry(),
       draft: null,
     });
     const add = createAddCurationToDelivery({ assembly, curation });
-    const result = add({
+    const result = await add({
       trusted: adminTrusted(),
       curationEntryId: 'cur_b4_1',
     });
@@ -2165,63 +2165,63 @@ describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
     expect(getCuration()[0].deliveryPackageId).toBe(getPackages()[0].id);
   });
 
-  it('AddCurationToDelivery A2: add failure does not attach', () => {
+  it('AddCurationToDelivery A2: add failure does not attach', async () => {
     const ports = memoryB4Ports({ entry: baseCurationEntry() });
     vi.spyOn(ports.assembly, 'addDeliveryItem').mockReturnValue(null);
     const attachSpy = vi.spyOn(ports.assembly, 'attachCurationToDelivery');
     const add = createAddCurationToDelivery(ports);
-    expect(() =>
+    await expect(
       add({
         trusted: adminTrusted(),
         curationEntryId: 'cur_b4_1',
       })
-    ).toThrow(ExecutionDeliveryError);
+    ).rejects.toThrow(ExecutionDeliveryError);
     expect(attachSpy).not.toHaveBeenCalled();
     expect(ports.getCuration()[0].deliveryPackageId).toBeNull();
   });
 
-  it('AddCurationToDelivery returns ineligible compat for duplicate/missing/DISCARD/undecided', () => {
+  it('AddCurationToDelivery returns ineligible compat for duplicate/missing/DISCARD/undecided', async () => {
     const ports = memoryB4Ports({ entry: baseCurationEntry({ deliveryPackageId: 'pkg_other' }) });
     const add = createAddCurationToDelivery(ports);
-    expect(add({ trusted: adminTrusted(), curationEntryId: 'cur_b4_1' }).ok).toBe(false);
+    expect((await add({ trusted: adminTrusted(), curationEntryId: 'cur_b4_1' })).ok).toBe(false);
 
     const missing = memoryB4Ports();
     expect(
-      createAddCurationToDelivery(missing)({
+      (await createAddCurationToDelivery(missing)({
         trusted: adminTrusted(),
         curationEntryId: 'cur_missing',
-      }).ok
+      })).ok
     ).toBe(false);
 
     const discard = memoryB4Ports({ entry: baseCurationEntry({ destination: 'DISCARD' }) });
     expect(
-      createAddCurationToDelivery(discard)({
+      (await createAddCurationToDelivery(discard)({
         trusted: adminTrusted(),
         curationEntryId: 'cur_b4_1',
-      }).ok
+      })).ok
     ).toBe(false);
 
     const undecided = memoryB4Ports({ entry: baseCurationEntry({ destination: null }) });
     expect(
-      createAddCurationToDelivery(undecided)({
+      (await createAddCurationToDelivery(undecided)({
         trusted: adminTrusted(),
         curationEntryId: 'cur_b4_1',
-      }).ok
+      })).ok
     ).toBe(false);
   });
 
-  it('AddCurationToDelivery attach failure after item leaves item without rollback', () => {
+  it('AddCurationToDelivery attach failure after item leaves item without rollback', async () => {
     const ports = memoryB4Ports({ entry: baseCurationEntry() });
     vi.spyOn(ports.assembly, 'attachCurationToDelivery').mockImplementation(() => {
       throw new Error('attach failed');
     });
     const add = createAddCurationToDelivery(ports);
-    expect(() =>
+    await expect(
       add({
         trusted: adminTrusted(),
         curationEntryId: 'cur_b4_1',
       })
-    ).toThrow(ExecutionDeliveryError);
+    ).rejects.toThrow(ExecutionDeliveryError);
     expect(ports.getPackages()[0].items.length).toBe(1);
     expect(ports.getCuration()[0].deliveryPackageId).toBeNull();
   });
@@ -2328,15 +2328,15 @@ describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
     expect(auditSpy).not.toHaveBeenCalled();
   });
 
-  it('queueCurationInBriefing delegates to canonical add without direct db assembly writes', () => {
+  it('queueCurationInBriefing delegates to canonical add without direct db assembly writes', async () => {
     setupAdminGate();
-    const addSpy = vi.spyOn(executionDeliveryConsumer, 'addCurationToDelivery').mockReturnValue({
+    const addSpy = vi.spyOn(executionDeliveryConsumer, 'addCurationToDelivery').mockResolvedValue({
       ok: true,
       package: baseDraft(),
       item: { id: 'ditem_1', kind: 'TASK', title: 'Item' },
       entry: baseCurationEntry({ deliveryPackageId: 'pkg_b4_1' }),
     });
-    expect(queueCurationInBriefing('cur_b4_1', 'client_ed')).toBe(true);
+    expect(await queueCurationInBriefing('cur_b4_1', 'client_ed')).toBe(true);
     expect(addSpy).toHaveBeenCalledWith({
       requestedClientId: 'client_ed',
       curationEntryId: 'cur_b4_1',
@@ -2490,7 +2490,7 @@ describe('CR-1 Execution Delivery architecture', () => {
 
   it('curation #14 delegates handleCurationFormSubmit — no direct dbService.decideCuration/decideSignal', () => {
     const source = readFileSync(resolve('src/ui/legacy/handlers/curationHandlers.ts'), 'utf8');
-    const block = source.match(/export function handleCurationFormSubmit[\s\S]*?^}/m);
+    const block = source.match(/export (?:async )?function handleCurationFormSubmit[\s\S]*?^}/m);
     expect(block).toBeTruthy();
     expect(block![0]).toMatch(/decideCuration\s*\(/);
     expect(block![0]).toMatch(/discardSignalForCurationComposite\s*\(/);

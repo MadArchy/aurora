@@ -27,20 +27,20 @@ export type CurationDecideCompositeResult =
   | { ok: true; message: string; queued?: boolean; kind: 'success' | 'warning' }
   | { ok: false; message: string };
 
-function queueCurationInBriefing(curationId: string, requestedClientId: string): boolean {
-  const result = addCurationToDelivery({
+async function queueCurationInBriefing(curationId: string, requestedClientId: string): Promise<boolean> {
+  const result = await addCurationToDelivery({
     requestedClientId,
     curationEntryId: curationId,
   });
   return result.ok;
 }
 
-export function runCurationDecidePresentation(intent: {
+export async function runCurationDecidePresentation(intent: {
   requestedClientId: string | null | undefined;
   curationEntryId: string;
   destination: CurationDestination;
   rationale: string;
-}): CurationDecideCompositeResult {
+}): Promise<CurationDecideCompositeResult> {
   const { curationEntryId, destination, rationale } = intent;
   const requestedClientId = intent.requestedClientId;
 
@@ -126,10 +126,20 @@ export function runCurationDecidePresentation(intent: {
 
   const queueClientId =
     (typeof requestedClientId === 'string' && requestedClientId.trim()) || entry.clientId;
-  const queued =
-    destination !== 'DISCARD'
-      ? queueCurationInBriefing(curationEntryId, queueClientId)
-      : false;
+  let queued = false;
+  if (destination !== 'DISCARD') {
+    try {
+      queued = await queueCurationInBriefing(curationEntryId, queueClientId);
+    } catch (error) {
+      // The decision itself is already persisted; the briefing was not created or confirmed.
+      return {
+        ok: false,
+        message: `Destino confirmado, pero no se pudo añadir al briefing: ${
+          error instanceof Error ? error.message : 'error desconocido'
+        }`,
+      };
+    }
+  }
 
   const message =
     destination === 'DISCARD'

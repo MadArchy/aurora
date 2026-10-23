@@ -139,6 +139,8 @@ class DataService {
   private firestoreSync: FirestoreSyncModule | null = null;
   /** Bumped on each ADMIN directory load and on sign-out, so a late response cannot land. */
   private adminLoadEpoch = 0;
+  /** Concurrent draft requests of this session for one client share one transaction. */
+  private readonly draftEnsureInflight = new Map<string, Promise<DeliveryPackage>>();
   private adminDirectoryPhase: 'IDLE' | 'LOADING' | 'READY' | 'ERROR' = 'IDLE';
   private adminIndicatorsPhase: 'NOT_LOADED' | 'LOADING' | 'READY' | 'ERROR' = 'READY';
   /** A remote push was requested while the directory itself was still unread. */
@@ -1153,6 +1155,10 @@ class DataService {
       this.firestoreSync ??= sync;
       return sync;
     });
+  }
+
+  private loadRemoteSync(): Promise<FirestoreSyncModule> {
+    return this.loadFirestoreSync();
   }
 
   private readonly applyServerClientFields = (clientId: string, fields: { completedTasksCount: number }) => {
@@ -3011,30 +3017,72 @@ class DataService {
   }
 
   /**
-   * Returns the open draft, or creates one after a confirmed deliveries listing.
-   * With Firebase, an unconfirmed collection is not treated as empty.
-   * Concurrent callers in this session share one listing and then one synchronous create.
+   * Returns the open draft, creating one only through the confirmed path.
+   * With Firebase the creation is a transaction on `clients/{clientId}.activeDraftDeliveryId`
+   * (see `ensureActiveDraftDeliveryTransactional`); the package enters memory only after the
+   * commit, and a failure never produces a local draft that could be synced without coordination.
+   * Without Firebase (real local mode) the draft is created locally.
    */
-  public async ensureDraftDeliveryConfirmed(clientId: string, createdBy: string): Promise<DeliveryPackage> {
-    await this.confirmDeliveriesListing(clientId);
-    return this.ensureDraftDelivery(clientId, createdBy);
+  public ensureDraftDeliveryConfirmed(clientId: string, createdBy: string): Promise<DeliveryPackage> {
+    if (!FIREBASE_ENABLED) {
+      try {
+        return Promise.resolve(this.ensureDraftDelivery(clientId, createdBy));
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    }
+    const inflight = this.draftEnsureInflight.get(clientId);
+    if (inflight) return inflight;
+    const job = this.ensureDraftDeliveryRemote(clientId, createdBy);
+    this.draftEnsureInflight.set(clientId, job);
+    const release = () => {
+      if (this.draftEnsureInflight.get(clientId) === job) this.draftEnsureInflight.delete(clientId);
+    };
+    job.then(release, release);
+    return job;
   }
 
-  /** Devuelve el borrador abierto del cliente o crea uno nuevo. */
-  public ensureDraftDelivery(clientId: string, createdBy: string): DeliveryPackage {
-    if (FIREBASE_ENABLED && !this.deliveriesListingConfirmed(clientId)) {
-      throw new Error('deliveries-not-confirmed');
-    }
-    const existing = this.getDraftDelivery(clientId);
-    if (existing) return existing;
+  private async ensureDraftDeliveryRemote(clientId: string, createdBy: string): Promise<DeliveryPackage> {
     const client = this.getClientById(clientId);
     const organizationId = client?.organizationId?.trim();
-    if (!organizationId) {
+    if (!client || !organizationId) {
       throw new Error('Client missing organizationId for delivery draft');
     }
+    const epoch = this.adminLoadEpoch;
+    const readGeneration = this.adminReadGeneration;
+    await this.confirmDeliveriesListing(clientId);
+    if (epoch !== this.adminLoadEpoch) throw new Error('stale-admin-read');
+
+    const sync = await this.loadRemoteSync();
     const now = new Date();
-    const pkg: DeliveryPackage = {
-      id: createId('pkg'),
+    const outcome = await sync.ensureActiveDraftDeliveryTransactional({
+      clientId,
+      organizationId,
+      readGeneration,
+      newId: createId('pkg'),
+      build: (id) => this.buildDraftDelivery(id, organizationId, clientId, createdBy, now),
+    });
+    // A response that belongs to a previous session must not land in memory.
+    if (epoch !== this.adminLoadEpoch) throw new Error('stale-admin-read');
+
+    const confirmed = outcome.package;
+    const local = this.deliveries.find((d) => d.id === confirmed.id);
+    if (local) return local;
+    this.deliveries.unshift(confirmed);
+    // Already persisted by the transaction: no generic push is scheduled for it.
+    this.saveAll({ skipRemote: true });
+    return confirmed;
+  }
+
+  private buildDraftDelivery(
+    id: string,
+    organizationId: string,
+    clientId: string,
+    createdBy: string,
+    now: Date
+  ): DeliveryPackage {
+    return {
+      id,
       organizationId,
       clientId,
       title: `Briefing ${now.toLocaleDateString('es', { day: '2-digit', month: 'long' })}`,
@@ -3045,6 +3093,27 @@ class DataService {
       createdAt: now.toISOString(),
       createdBy,
     };
+  }
+
+  /**
+   * Reuses the open draft. Creation is local-only: with Firebase every creation must go through
+   * `ensureDraftDeliveryConfirmed`, so this path refuses to mint a draft remotely.
+   */
+  public ensureDraftDelivery(clientId: string, createdBy: string): DeliveryPackage {
+    if (FIREBASE_ENABLED && !this.deliveriesListingConfirmed(clientId)) {
+      throw new Error('deliveries-not-confirmed');
+    }
+    const existing = this.getDraftDelivery(clientId);
+    if (existing) return existing;
+    if (FIREBASE_ENABLED) {
+      throw new Error('draft-creation-requires-transaction');
+    }
+    const client = this.getClientById(clientId);
+    const organizationId = client?.organizationId?.trim();
+    if (!organizationId) {
+      throw new Error('Client missing organizationId for delivery draft');
+    }
+    const pkg = this.buildDraftDelivery(createId('pkg'), organizationId, clientId, createdBy, new Date());
     this.deliveries.unshift(pkg);
     this.saveAll();
     return pkg;

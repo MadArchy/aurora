@@ -49,9 +49,9 @@ function buildDeliveryItemFromCuration(entry: CurationEntry): Omit<DeliveryItem,
  * A2 policy: attach only after confirmed DeliveryItem creation.
  */
 export function createAddCurationToDelivery(deps: AddCurationToDeliveryDeps) {
-  return function addCurationToDelivery(
+  return async function addCurationToDelivery(
     input: AddCurationToDeliveryInput
-  ): AddCurationToDeliveryResult {
+  ): Promise<AddCurationToDeliveryResult> {
     const curationEntryId = input.curationEntryId?.trim();
     if (!curationEntryId) {
       throw new ExecutionDeliveryError('INVALID_INPUT', 'Curation entry id is required.');
@@ -86,7 +86,7 @@ export function createAddCurationToDelivery(deps: AddCurationToDeliveryDeps) {
       const existingDraft = deps.assembly.getDraftByClientId(entry.clientId);
       const pkg =
         existingDraft ??
-        deps.assembly.ensureDraft(entry.clientId, input.trusted.actorId);
+        (await deps.assembly.ensureDraft(entry.clientId, input.trusted.actorId));
 
       if (pkg.status !== 'DRAFT') {
         throw new ExecutionDeliveryError(

@@ -74,7 +74,7 @@ vi.mock('../src/services/executionDeliveryConsumer', () => ({
       },
     };
   },
-  addCurationToDelivery: (intent: {
+  addCurationToDelivery: async (intent: {
     requestedClientId: string | null | undefined;
     curationEntryId: string;
   }) => {
@@ -185,7 +185,7 @@ describe('P10 §2 — #14 public input and boundaries', () => {
 describe('P10 §12–§14 — decide curation seam', () => {
   it('ADMIN non-DISCARD invokes DecideCuration once then addCurationToDelivery compat', async () => {
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.decideCuration({
+    const result = await executionDeliveryCommands.decideCuration({
       requestedClientId: 'client_a',
       curationEntryId: 'cur_p10_1',
       destination: 'TASK_VIDEO',
@@ -227,7 +227,7 @@ describe('P10 §12–§14 — decide curation seam', () => {
       return { signal: { id: 'sig_p10_1' } };
     };
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.decideCuration({
+    const result = await executionDeliveryCommands.decideCuration({
       requestedClientId: 'client_a',
       curationEntryId: 'cur_p10_1',
       destination: 'DISCARD',
@@ -247,7 +247,7 @@ describe('P10 §12–§14 — decide curation seam', () => {
       throw new SignalIntakeError('ACTOR_NOT_AUTHORIZED', 'Denied');
     };
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.decideCuration({
+    const result = await executionDeliveryCommands.decideCuration({
       requestedClientId: 'client_a',
       curationEntryId: 'cur_p10_1',
       destination: 'DISCARD',
@@ -270,7 +270,7 @@ describe('P10 §12–§14 — decide curation seam', () => {
       entry: { id: 'cur_p10_1', clientId: 'client_a' },
     });
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.decideCuration({
+    const result = await executionDeliveryCommands.decideCuration({
       requestedClientId: 'client_a',
       curationEntryId: 'cur_p10_1',
       destination: 'DISCARD',
@@ -286,7 +286,7 @@ describe('P10 §12–§14 — decide curation seam', () => {
       throw new ExecutionDeliveryError('CURATION_NOT_FOUND', 'missing');
     };
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.decideCuration({
+    const result = await executionDeliveryCommands.decideCuration({
       requestedClientId: 'client_a',
       curationEntryId: 'cur_missing',
       destination: 'EVIDENCE',
@@ -303,7 +303,7 @@ describe('P10 §12–§14 — decide curation seam', () => {
   it('queue failure returns success without queued message', async () => {
     addToDeliveryImpl = () => ({ ok: false });
     const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
-    const result = executionDeliveryCommands.decideCuration({
+    const result = await executionDeliveryCommands.decideCuration({
       requestedClientId: 'client_a',
       curationEntryId: 'cur_p10_1',
       destination: 'OPPORTUNITY',
@@ -314,6 +314,37 @@ describe('P10 §12–§14 — decide curation seam', () => {
       expect(result.queued).toBe(false);
       expect(result.message).toBe('Destino confirmado. Añádelo al briefing cuando quieras.');
     }
+  });
+
+  it('reutilización de borrador existente preserves queued status and message', async () => {
+    addToDeliveryImpl = () => ({ ok: true });
+    const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
+    const result = await executionDeliveryCommands.decideCuration({
+      requestedClientId: 'client_a',
+      curationEntryId: 'cur_p10_reused',
+      destination: 'TASK_VIDEO',
+      rationale: 'Valid rationale text',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.queued).toBe(true);
+      expect(result.message).toBe('Destino confirmado y añadido al briefing');
+    }
+  });
+
+  it('error de fallo en creación de borrador no genera falso éxito en encolado', async () => {
+    addToDeliveryImpl = () => {
+      throw new Error('Fallo remoto de transacción');
+    };
+    const { executionDeliveryCommands } = await import('../src/ui/commands/commandSeam');
+    const result = await executionDeliveryCommands.decideCuration({
+      requestedClientId: 'client_a',
+      curationEntryId: 'cur_p10_err',
+      destination: 'TASK_VIDEO',
+      rationale: 'Valid rationale text',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/no se pudo añadir al briefing/);
   });
 });
 

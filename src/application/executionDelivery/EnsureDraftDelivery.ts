@@ -28,7 +28,9 @@ export interface EnsureDraftDeliveryDeps {
  * Singleton draft per client; trusted actorId only for createdBy.
  */
 export function createEnsureDraftDelivery(deps: EnsureDraftDeliveryDeps) {
-  return function ensureDraftDelivery(input: EnsureDraftDeliveryInput): EnsureDraftDeliveryResult {
+  return async function ensureDraftDelivery(
+    input: EnsureDraftDeliveryInput
+  ): Promise<EnsureDraftDeliveryResult> {
     assertTrustedExecutionContext(input.trusted);
     requireAdminRole(input.trusted);
     assertNoExecutionSpoof({
@@ -67,7 +69,7 @@ export function createEnsureDraftDelivery(deps: EnsureDraftDeliveryDeps) {
     }
 
     try {
-      const pkg = deps.assembly.ensureDraft(input.trusted.clientId, input.trusted.actorId);
+      const pkg = await deps.assembly.ensureDraft(input.trusted.clientId, input.trusted.actorId);
       if (pkg.clientId !== input.trusted.clientId) {
         throw new ExecutionDeliveryError(
           'TENANT_CONTEXT_INVALID',

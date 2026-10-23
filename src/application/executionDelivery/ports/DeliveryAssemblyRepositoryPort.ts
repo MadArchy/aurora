@@ -4,7 +4,8 @@ export interface DeliveryAssemblyRepositoryPort {
   getClientById(clientId: string): Client | undefined;
   getDraftByClientId(clientId: string): DeliveryPackage | undefined;
   getPackageById(packageId: string): DeliveryPackage | undefined;
-  ensureDraft(clientId: string, createdBy: string): DeliveryPackage;
+  /** Resolves only after the draft creation/reuse is confirmed (remote: transaction committed). */
+  ensureDraft(clientId: string, createdBy: string): Promise<DeliveryPackage>;
   addDeliveryItem(packageId: string, item: Omit<DeliveryItem, 'id'>): DeliveryPackage | null;
   removeDeliveryItem(packageId: string, itemId: string): void;
   updateDraftMetadata(

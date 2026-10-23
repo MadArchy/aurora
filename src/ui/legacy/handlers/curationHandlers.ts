@@ -36,64 +36,78 @@ export function handleCurationFormSubmit(
   curationId: string,
   destination: CurationDestination,
   rationale: string
-): void {
-  const requestedClientId = host.resolveClientId();
+): Promise<void> {
+  return (async () => {
+    const requestedClientId = host.resolveClientId();
 
-  let entry;
-  try {
-    entry = decideCuration({
-      requestedClientId,
-      curationEntryId: curationId,
-      destination,
-      rationale,
-    }).entry;
-  } catch (error) {
-    if (error instanceof ExecutionDeliveryError && error.code === 'CURATION_NOT_FOUND') {
-      auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
+    let entry;
+    try {
+      entry = decideCuration({
+        requestedClientId,
+        curationEntryId: curationId,
         destination,
         rationale,
-      });
-      showCurationSuccessToast(host, destination, false);
-      host.render();
-      return;
-    }
-    host.showToast(
-      error instanceof Error ? error.message : 'No se pudo decidir la curación',
-      'warning'
-    );
-    return;
-  }
-
-  if (entry.signalId && destination === 'DISCARD') {
-    try {
-      discardSignalForCurationComposite({
-        requestedClientId: entry.clientId,
-        signalId: entry.signalId,
-        reason: rationale,
-      });
+      }).entry;
     } catch (error) {
-      if (error instanceof SignalIntakeError && error.code === 'SIGNAL_NOT_FOUND') {
-        // Legacy-compatible success continuation after successful #14 DISCARD.
-      } else {
+      if (error instanceof ExecutionDeliveryError && error.code === 'CURATION_NOT_FOUND') {
         auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
           destination,
           rationale,
         });
-        host.showToast(DISCARD_PARTIAL_FAILURE_MESSAGE, 'warning');
+        showCurationSuccessToast(host, destination, false);
+        host.render();
+        return;
+      }
+      host.showToast(
+        error instanceof Error ? error.message : 'No se pudo decidir la curación',
+        'warning'
+      );
+      return;
+    }
+
+    if (entry.signalId && destination === 'DISCARD') {
+      try {
+        discardSignalForCurationComposite({
+          requestedClientId: entry.clientId,
+          signalId: entry.signalId,
+          reason: rationale,
+        });
+      } catch (error) {
+        if (error instanceof SignalIntakeError && error.code === 'SIGNAL_NOT_FOUND') {
+          // Legacy-compatible success continuation after successful #14 DISCARD.
+        } else {
+          auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
+            destination,
+            rationale,
+          });
+          host.showToast(DISCARD_PARTIAL_FAILURE_MESSAGE, 'warning');
+          host.render();
+          return;
+        }
+      }
+    }
+
+    auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
+      destination,
+      rationale,
+    });
+
+    let queued = false;
+    if (destination !== 'DISCARD') {
+      try {
+        queued = await queueCurationInBriefing(curationId, requestedClientId);
+      } catch (error) {
+        host.showToast(
+          error instanceof Error ? error.message : 'No se pudo añadir al briefing',
+          'warning'
+        );
         host.render();
         return;
       }
     }
-  }
-
-  auditService.log(authService.getCurrentUser(), 'CURATION_DECIDED', 'CurationEntry', curationId, {
-    destination,
-    rationale,
-  });
-
-  const queued = destination !== 'DISCARD' ? queueCurationInBriefing(curationId, requestedClientId) : false;
-  showCurationSuccessToast(host, destination, queued);
-  host.render();
+    showCurationSuccessToast(host, destination, queued);
+    host.render();
+  })();
 }
 
 export const THESIS_NOT_RESOLVED_MESSAGE =

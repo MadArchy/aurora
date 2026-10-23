@@ -49,12 +49,11 @@ export function scoreSignal(host: RadarHandlerHost, signalId: string, clientId: 
   }
 }
 
-export function queueCurationInBriefing(curationId: string, requestedClientId: string): boolean {
-  const result = addCurationToDelivery({
+export function queueCurationInBriefing(curationId: string, requestedClientId: string): Promise<boolean> {
+  return addCurationToDelivery({
     requestedClientId,
     curationEntryId: curationId,
-  });
-  return result.ok;
+  }).then((result) => result.ok);
 }
 
 /**

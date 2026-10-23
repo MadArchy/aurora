@@ -458,6 +458,12 @@ export function ensureSubcollectionEnvelope(
   return out;
 }
 
+/**
+ * R-B01: `clients/{clientId}` field that coordinates the single open draft delivery.
+ * Written only by `ensureActiveDraftDeliveryTransactional`; generic persistence never sends it.
+ */
+export const ACTIVE_DRAFT_DELIVERY_FIELD = 'activeDraftDeliveryId';
+
 type SnapshotImportResult = { ok: boolean; message: string; written: number; discarded?: boolean };
 
 let snapshotImportQueue: Promise<unknown> = Promise.resolve();
@@ -511,11 +517,14 @@ async function runSnapshotImport(snapshot: LocalV5Snapshot): Promise<SnapshotImp
     if (isClientActor && actor.clientId && client.id !== actor.clientId) continue;
     const envelope = { id: client.id, organizationId: client.organizationId };
 
+    const rootRow = { ...(client as unknown as Record<string, unknown>) };
+    // Coordination field owned by the draft transaction; never written from a local snapshot.
+    delete rootRow[ACTIVE_DRAFT_DELIVERY_FIELD];
     planned.push({
       path: clientDocPath(client.id),
       envelopeClientId: null,
       collection: 'root',
-      row: client as unknown as Record<string, unknown>,
+      row: rootRow,
     });
 
     for (const [key, subName] of Object.entries(COLLECTION_MAP)) {
@@ -1440,6 +1449,187 @@ export async function pullAuthoritativeClientDeliveries(
   );
 }
 
+export type ActiveDraftEnsureOutcome = {
+  package: LocalV5Snapshot['deliveries'][number];
+  created: boolean;
+  source: 'pointer' | 'historical' | 'created';
+};
+
+export type ActiveDraftEnsureInput = {
+  clientId: string;
+  organizationId: string;
+  readGeneration: number;
+  /** Generated once per command so every transaction retry targets the same document. */
+  newId: string;
+  /** Pure builder: it must not touch memory, React or storage (it can run on each retry). */
+  build: (id: string) => LocalV5Snapshot['deliveries'][number];
+};
+
+class DraftPointerUnconfirmedError extends Error {
+  constructor(readonly pointer: string) {
+    super('draft-pointer-unconfirmed');
+  }
+}
+
+type DraftRow = Record<string, unknown>;
+
+function isOpenDraftOf(row: DraftRow | null | undefined, organizationId: string, clientId: string): boolean {
+  return (
+    !!row &&
+    row.status === 'DRAFT' &&
+    row.organizationId === organizationId &&
+    row.clientId === clientId
+  );
+}
+
+function byCreatedAtThenId(a: DraftRow, b: DraftRow): number {
+  const left = typeof a.createdAt === 'string' ? a.createdAt : '';
+  const right = typeof b.createdAt === 'string' ? b.createdAt : '';
+  if (left !== right) return left < right ? -1 : 1;
+  return String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0;
+}
+
+function isPermissionDenied(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'permission-denied';
+}
+
+/**
+ * R-B01 — one open draft delivery per client across concurrent ADMIN sessions.
+ *
+ * The shared root document `clients/{clientId}` is the coordination resource. The preliminary
+ * listing only supplies candidates and is NOT a uniqueness guarantee. Inside the transaction all
+ * reads precede all writes and nothing outside the transaction is touched, so retries are safe.
+ * A pointer to a deleted draft cannot be read under the current rules (reading a missing
+ * document is denied); it is healed only after two consecutive fresh listings both lack it.
+ * Memory is the caller's concern and is updated only after this promise resolves.
+ */
+export async function ensureActiveDraftDeliveryTransactional(
+  input: ActiveDraftEnsureInput
+): Promise<ActiveDraftEnsureOutcome> {
+  const { clientId, organizationId } = input;
+  if (!adminReadStillCurrent(input.readGeneration)) throw new Error('stale-admin-read');
+  const db = await getFirebaseFirestore();
+  if (!db) throw new Error('firestore-unavailable');
+  const scope = await readTenantReadScope();
+  if (!scope?.isAdmin) throw new Error('not-admin');
+  if (scope.organizationId !== organizationId) throw new Error('tenant-mismatch');
+
+  const { doc, getDocs, runTransaction, serverTimestamp } = await import('firebase/firestore');
+  const rootRef = doc(db, clientDocPath(clientId));
+  const collectionPath = `${clientDocPath(clientId)}/deliveries`;
+  const fromServer = (id: string, data: unknown): DraftRow =>
+    normalizeFirestorePulledData({ id, ...(data as Record<string, unknown>) }) as DraftRow;
+
+  let unconfirmedPointer: string | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!adminReadStillCurrent(input.readGeneration)) throw new Error('stale-admin-read');
+    const listing = await getDocs(await scopedClientSubcollectionQuery(db, clientId, 'deliveries', scope));
+    if (isFromCache(listing)) throw new Error('snapshot-from-cache');
+    const listed = new Map<string, DraftRow>();
+    for (const row of listing.docs) listed.set(row.id, fromServer(row.id, row.data()));
+    const candidates = [...listed.values()]
+      .filter((row) => isOpenDraftOf(row, organizationId, clientId))
+      .sort(byCreatedAtThenId);
+    const healPointer = unconfirmedPointer;
+    let readListedDoc = false;
+
+    try {
+      const outcome = await runTransaction(db, async (tx): Promise<ActiveDraftEnsureOutcome> => {
+        readListedDoc = false;
+        if (!adminReadStillCurrent(input.readGeneration)) throw new Error('stale-admin-read');
+        const rootSnap = await tx.get(rootRef);
+        if (!rootSnap.exists()) throw new Error('client-root-missing');
+        const root = rootSnap.data() as DraftRow;
+        if (root.organizationId !== organizationId) throw new Error('tenant-mismatch');
+
+        const rawPointer = root[ACTIVE_DRAFT_DELIVERY_FIELD];
+        const pointer = typeof rawPointer === 'string' && rawPointer.trim() ? rawPointer.trim() : null;
+        let pointed: DraftRow | null = null;
+        if (pointer) {
+          if (listed.has(pointer)) {
+            readListedDoc = true;
+            const pointedSnap = await tx.get(doc(db, `${collectionPath}/${pointer}`));
+            pointed = pointedSnap.exists() ? fromServer(pointer, pointedSnap.data()) : null;
+          } else if (healPointer !== pointer) {
+            throw new DraftPointerUnconfirmedError(pointer);
+          }
+        }
+
+        const pointedValid = isOpenDraftOf(pointed, organizationId, clientId);
+        let historical: DraftRow | null = null;
+        if (!pointedValid) {
+          for (const candidate of candidates) {
+            if (candidate.id === pointer) continue;
+            readListedDoc = true;
+            const candidateSnap = await tx.get(doc(db, `${collectionPath}/${String(candidate.id)}`));
+            const row = candidateSnap.exists() ? fromServer(String(candidate.id), candidateSnap.data()) : null;
+            if (isOpenDraftOf(row, organizationId, clientId)) {
+              historical = row;
+              break;
+            }
+          }
+        }
+
+        // Every read is done; only writes follow.
+        if (pointedValid && pointed) {
+          return {
+            package: pointed as unknown as ActiveDraftEnsureOutcome['package'],
+            created: false,
+            source: 'pointer',
+          };
+        }
+        if (historical) {
+          tx.set(rootRef, { [ACTIVE_DRAFT_DELIVERY_FIELD]: String(historical.id) }, { merge: true });
+          return {
+            package: historical as unknown as ActiveDraftEnsureOutcome['package'],
+            created: false,
+            source: 'historical',
+          };
+        }
+
+        const built = input.build(input.newId);
+        if (
+          built.id !== input.newId ||
+          built.status !== 'DRAFT' ||
+          built.clientId !== clientId ||
+          built.organizationId !== organizationId
+        ) {
+          throw new Error('draft-build-mismatch');
+        }
+        const data = prepareDocForWrite(built as unknown as Record<string, unknown>, serverTimestamp, false, {
+          client: { id: clientId, organizationId },
+        });
+        tx.set(doc(db, `${collectionPath}/${input.newId}`), data);
+        tx.set(rootRef, { [ACTIVE_DRAFT_DELIVERY_FIELD]: input.newId }, { merge: true });
+        return { package: built, created: true, source: 'created' };
+      });
+
+      const path = `${collectionPath}/${outcome.package.id}`;
+      markRemoteDocsKnown(collectionPath, [outcome.package.id]);
+      if (outcome.created || !remoteBaseline.has(path)) {
+        remoteBaseline.set(
+          path,
+          normalizeFirestorePulledData(
+            stripUndefinedForFirestore(outcome.package) as unknown as Record<string, unknown>
+          )
+        );
+      }
+      return outcome;
+    } catch (err) {
+      if (attempt < 2 && err instanceof DraftPointerUnconfirmedError) {
+        unconfirmedPointer = err.pointer;
+        continue;
+      }
+      if (attempt < 2 && readListedDoc && isPermissionDenied(err)) {
+        // A listed draft vanished between the listing and the read: list again.
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('draft-transaction-exhausted');
+}
+
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let authoritative = false;
 type FirestorePushErrorHandler = (message: string) => void;
@@ -1801,7 +1991,12 @@ function scheduleClientPush(
 }
 
 /** Never ADMIN field updates: document identity, write-once creation time, server-derived counter. */
-const ADMIN_NON_UPDATABLE_KEYS: ReadonlySet<string> = new Set(['id', 'createdAt', 'completedTasksCount']);
+const ADMIN_NON_UPDATABLE_KEYS: ReadonlySet<string> = new Set([
+  'id',
+  'createdAt',
+  'completedTasksCount',
+  ACTIVE_DRAFT_DELIVERY_FIELD,
+]);
 /** Documents per ADMIN transaction; each adds at most one read and one write. */
 const ADMIN_TRANSACTION_DOCS = 100;
 const TASK_DOC_PATH = /^clients\/[^/]+\/tasks\/[^/]+$/;
