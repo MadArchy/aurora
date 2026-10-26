@@ -19,3 +19,4 @@ secrets/
 .firebase-service-account.json
 .gitleaks-report.json
 *.canvas.data.json
+.firebase/

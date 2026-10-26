@@ -143,6 +143,9 @@ class AuthService {
       ticket === this.activeClientOpen &&
       dbService.isAdminLoadCurrent(epoch) &&
       this.currentUser?.uid === user.uid;
+    const sync = await import('./firestore/sync');
+    await sync.flushPendingAdminPushes(5000);
+    if (!stillCurrent()) return { ok: false, reason: 'stale' };
     const hydrated = await dbService.hydrateActiveAdminClient(clientId, user.organizationId);
     if (!stillCurrent()) return { ok: false, reason: 'stale' };
     if (hydrated === 'stale') return { ok: false, reason: 'stale' };
@@ -152,7 +155,6 @@ class AuthService {
       briefClientIds: [clientId],
     });
     if (!stillCurrent()) return { ok: false, reason: 'stale' };
-    const sync = await import('./firestore/sync');
     this.markAdminLoad('postura:admin-listeners-attached', {
       clientId,
       listeners: sync.activeFirestoreListenerCount(),
@@ -168,6 +170,7 @@ class AuthService {
         if (!user) {
           const sync = await import('./firestore/sync');
           sync.stopFirestoreRealtimeSync();
+          sync.clearFirestorePersistenceSession();
           sync.setFirestoreAuthoritative(false);
           const { stopStrategicBriefSync } = await import('./firestore/strategicBriefSync');
           stopStrategicBriefSync();
@@ -311,6 +314,11 @@ class AuthService {
 
   public getCurrentUser(): User | null {
     return this.currentUser;
+  }
+
+  public setCurrentUserForTesting(user: User | null): void {
+    this.currentUser = user;
+    this.notify();
   }
 
   /** True solo cuando un ADMIN está viendo el portal como cliente. */

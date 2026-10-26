@@ -1180,6 +1180,13 @@ class DataService {
     return sync.awaitRemotePersistence(scope.since ?? 0);
   }
 
+  /** Drena mutaciones en vuelo y programadas antes de transiciones de cliente o pruebas. */
+  public async flushRemotePushes(timeoutMs = 10_000): Promise<RemotePersistenceResult> {
+    if (!FIREBASE_ENABLED) return { status: 'local' };
+    const sync = this.firestoreSync ?? (await this.loadFirestoreSync());
+    return sync.flushPendingAdminPushes(timeoutMs);
+  }
+
   /** Agrupa escrituras en un solo persist (p. ej. materialización de briefing). */
   public runInSaveBatch<T>(fn: () => T): T {
     this.saveBatchDepth += 1;

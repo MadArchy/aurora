@@ -1394,15 +1394,30 @@ export async function pullAuthoritativeClientOperations(
   for (const entry of confirmed) {
     markRemoteDocsKnown(entry.path, confirmedDocIds(entry.docs));
     recordRemoteBaseline(entry.path, entry.docs, { prune: true });
+    const sub = entry.path.slice(entry.path.lastIndexOf('/') + 1);
+    const targetKey = Object.entries(COLLECTION_MAP).find(([, value]) => value === sub)?.[0] as
+      | CollectionKey
+      | undefined;
+    if (targetKey && Array.isArray(partial[targetKey])) {
+      partial[targetKey] = overlayPendingMutations(
+        entry.path,
+        clientId,
+        scope.organizationId,
+        partial[targetKey] as Array<Record<string, unknown>>
+      ) as never;
+    }
   }
   if (profile) {
     markRemoteDocsKnown(profile.path, confirmedDocIds(profile.snap.docs));
     recordRemoteBaseline(profile.path, profile.snap.docs, { prune: true });
     const profileDoc = profile.snap.docs.find((row) => row.id === 'data');
     if (profileDoc) {
-      partial.profiles![clientId] = normalizeFirestorePulledData(
-        profileDoc.data()
-      ) as unknown as LocalV5Snapshot['profiles'][string];
+      const data = normalizeFirestorePulledData(profileDoc.data()) as Record<string, unknown>;
+      const pending = pendingAdminMutations.get(`${profile.path}/data`);
+      if (pending) {
+        for (const [key, field] of pending.fields) data[key] = structuredClone(field.value);
+      }
+      partial.profiles![clientId] = data as unknown as LocalV5Snapshot['profiles'][string];
     }
   }
   if (dossier) {
@@ -1410,9 +1425,12 @@ export async function pullAuthoritativeClientOperations(
     recordRemoteBaseline(dossier.path, dossier.snap.docs, { prune: true });
     const dossierDoc = dossier.snap.docs.find((row) => row.id === 'data');
     if (dossierDoc) {
-      partial.dossiers![clientId] = normalizeFirestorePulledData(
-        dossierDoc.data()
-      ) as unknown as LocalV5Snapshot['dossiers'][string];
+      const data = normalizeFirestorePulledData(dossierDoc.data()) as Record<string, unknown>;
+      const pending = pendingAdminMutations.get(`${dossier.path}/data`);
+      if (pending) {
+        for (const [key, field] of pending.fields) data[key] = structuredClone(field.value);
+      }
+      partial.dossiers![clientId] = data as unknown as LocalV5Snapshot['dossiers'][string];
     }
   }
   return partial;
@@ -1800,6 +1818,12 @@ function overlayPendingMutations(
   rows: ReadonlyArray<Record<string, unknown>>
 ): Array<Record<string, unknown>> {
   const out = [...rows];
+  for (const [path, intent] of pendingDocDeletes) {
+    if (parentCollectionPath(path) !== collectionPath || intent.clientId !== clientId) continue;
+    const id = docIdOf(path);
+    const index = out.findIndex((candidate) => candidate.id === id);
+    if (index >= 0) out.splice(index, 1);
+  }
   for (const [path, entry] of pendingClientMutations) {
     if (entry.collectionPath !== collectionPath || entry.clientId !== clientId) continue;
     if (entry.organizationId !== organizationId) continue;
@@ -2588,6 +2612,42 @@ export async function awaitRemotePersistence(since: number, timeoutMs = 10_000):
   }
 }
 
+/**
+ * Sends scheduled pushes now and resolves once every in-flight/scheduled admin push settles.
+ * Used as a barrier before switching client workspaces.
+ */
+export async function flushPendingAdminPushes(timeoutMs = 10_000): Promise<RemotePersistenceOutcome> {
+  if (!isFirestoreAuthoritative()) return { status: 'confirmed' };
+  flushScheduledPushes();
+  if (!adminPushInFlight && !hasAdminWork()) return { status: 'confirmed' };
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<RemotePersistenceOutcome>((resolve) => {
+    timer = setTimeout(() => resolve({ status: 'pending' }), timeoutMs);
+  });
+
+  const drainWork = async (): Promise<RemotePersistenceOutcome> => {
+    const outcomes: RemotePersistenceOutcome[] = [];
+    while (adminPushInFlight || hasAdminWork()) {
+      if (adminPushInFlight) {
+        outcomes.push(await adminPushInFlight);
+      }
+      if (hasAdminWork()) {
+        flushScheduledPushes();
+      } else {
+        break;
+      }
+    }
+    return outcomes.length ? mostSevereOutcome(outcomes) : { status: 'confirmed' };
+  };
+
+  try {
+    return await Promise.race([drainWork(), timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function hydrateFromFirestore(clientIds: string[]): Promise<Partial<LocalV5Snapshot>> {
   if (!readFirebaseConfig()) return {};
   setFirestoreAuthoritative(true);
@@ -2623,9 +2683,13 @@ function detachFirestoreRealtimeListeners(): void {
   realtimeHandler = null;
 }
 
-/** Detiene listeners en tiempo real (logout). Pending ADMIN and CLIENT mutations stay queued. */
+/** Detiene listeners en tiempo real (cambio de cliente o logout). Pending ADMIN and CLIENT mutations stay queued. */
 export function stopFirestoreRealtimeSync() {
   detachFirestoreRealtimeListeners();
+}
+
+/** Invalida explícitamente el actor de sesión (solo en logout o cambio de usuario/auth). */
+export function clearFirestorePersistenceSession() {
   sessionPersistenceActor = null;
 }
 
