@@ -34,6 +34,7 @@ const h = vi.hoisted(() => {
     userUid: 'user_admin_01',
     claims: { role: 'ADMIN', organizationId: 'org_aurora_01' },
     failNextCommit: false,
+    simulateNetworkOffline: false,
     delayCommitMs: 0,
     permissionDeniedDocPath: null as string | null,
     totalCommits: 0,
@@ -78,8 +79,8 @@ vi.mock('firebase/firestore', () => {
       if (h.state.delayCommitMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, h.state.delayCommitMs));
       }
-      if (h.state.failNextCommit) {
-        h.state.failNextCommit = false;
+      if (h.state.simulateNetworkOffline || h.state.failNextCommit) {
+        if (h.state.failNextCommit) h.state.failNextCommit = false;
         throw new Error('network-disconnect-simulated');
       }
       const stagedWrites: Array<{ kind: 'set' | 'delete'; path: string; data?: unknown }> = [];
@@ -176,6 +177,7 @@ describe('PERF-C / R-B03 — Synchronization Actor Continuity and Multi-Client L
     h.state.userUid = 'user_admin_01';
     h.state.claims = { role: 'ADMIN', organizationId: 'org_aurora_01' };
     h.state.failNextCommit = false;
+    h.state.simulateNetworkOffline = false;
     h.state.delayCommitMs = 0;
     h.state.permissionDeniedDocPath = null;
     h.state.totalCommits = 0;
@@ -383,9 +385,12 @@ describe('PERF-C / R-B03 — Synchronization Actor Continuity and Multi-Client L
       { merge: true, skipRemote: false }
     );
 
-    // El flush debe completar reportando el error sin provocar un crash de la sesión
+    // El flush debe completar reportando el error de permisos sin provocar un crash de la sesión
     const outcome = await sync.flushPendingAdminPushes(2000);
-    expect(['rejected', 'failed']).toContain(outcome.status);
+    expect(outcome.status).toBe('rejected');
+    expect(h.state.remote.get('clients/client_juan_001/tasks/task_forbidden')).toBeUndefined();
+    // La mutación rechazada definitivamente no se reintenta indefinidamente
+    expect(sync.hasPendingAdminMutationsForDoc('clients/client_juan_001/tasks/task_forbidden')).toBe(false);
   });
 
   it('S8 & S9. Pérdida de conectividad durante el drenado y reintento', async () => {
@@ -395,9 +400,10 @@ describe('PERF-C / R-B03 — Synchronization Actor Continuity and Multi-Client L
 
     sync.setFirestoreAuthoritative(true);
     await authService.openAdminClientWorkspace('client_juan_001');
+    await sync.flushPendingAdminPushes(2000);
 
-    // Simular corte
-    h.state.failNextCommit = true;
+    // Simular corte de red antes del ACK remoto
+    h.state.simulateNetworkOffline = true;
 
     dbService.importSnapshot(
       {
@@ -414,27 +420,41 @@ describe('PERF-C / R-B03 — Synchronization Actor Continuity and Multi-Client L
       { merge: true, skipRemote: false }
     );
 
+    // S8: Intento de persistencia que falla por corte de red
     const firstOutcome = await sync.flushPendingAdminPushes(2000);
     expect(firstOutcome.status).toBe('failed');
 
-    // Reconectar y reintentar persistencia de la tarea recuperable
-    dbService.importSnapshot(
-      {
-        tasks: [
-          {
-            id: 'task_retry',
-            clientId: 'client_juan_001',
-            organizationId: 'org_aurora_01',
-            title: 'Reintento Conexión',
-            status: 'ASSIGNED',
-          } as never,
-        ],
-      },
-      { merge: true, skipRemote: false }
-    );
+    // 1. Verificar que NO existe ACK remoto
+    expect(h.state.remote.get('clients/client_juan_001/tasks/task_retry')).toBeUndefined();
+
+    // 2. Verificar que la mutación original permanece pendiente en memoria con su valor y versión
+    expect(sync.hasPendingAdminMutationsForDoc('clients/client_juan_001/tasks/task_retry')).toBe(true);
+    expect(sync.getPendingAdminMutationField('clients/client_juan_001/tasks/task_retry', 'title')).toBe('Reintento Conexión');
+
+    // 3. Confirmar que la navegación bloquea transiciones no confirmadas (no declara guardado exitoso)
+    const openElenaWhileFailed = await authService.openAdminClientWorkspace('client_elena_002');
+    expect(openElenaWhileFailed.ok).toBe(false);
+    expect(openElenaWhileFailed.reason).toBe('flush-failed');
+
+    // S9: Reconexión — utilizar EXACTAMENTE la mutación que sobrevivió en S8 (SIN REINYECCIÓN MANUAL)
+    h.state.simulateNetworkOffline = false;
+    const commitsBeforeRetry = h.state.totalCommits;
+
     const secondOutcome = await sync.flushPendingAdminPushes(2000);
     expect(secondOutcome.status).toBe('confirmed');
+
+    // 4. Confirmar exactamente una escritura efectiva tras la reconexión
+    expect(h.state.totalCommits).toBe(commitsBeforeRetry + 1);
+
+    // 5. Confirmar que el valor remoto ahora sí fue persistido
     expect(h.state.remote.get('clients/client_juan_001/tasks/task_retry')?.title).toBe('Reintento Conexión');
+
+    // 6. Comprobar que solo tras la confirmación se retira de la cola de pendientes
+    expect(sync.hasPendingAdminMutationsForDoc('clients/client_juan_001/tasks/task_retry')).toBe(false);
+
+    // 7. Tras la confirmación, la navegación a otro cliente procede exitosamente
+    const openElenaAfterConfirmed = await authService.openAdminClientWorkspace('client_elena_002');
+    expect(openElenaAfterConfirmed.ok).toBe(true);
   });
 
   it('S10. Dos mutaciones consecutivas sobre el mismo campo con versiones diferentes', async () => {

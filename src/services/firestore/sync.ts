@@ -2450,18 +2450,28 @@ async function commitAdminChunk(
     return { status: 'confirmed' };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
-    settleAdminWork(work);
-    const rows = work.flatMap((item) =>
-      item.identity && (item.create || (item.fields.size > 0 && remoteBaseline.has(item.path)))
-        ? [reconciledAdminRow(item.path, item.identity)]
-        : []
-    );
-    if (completing && !rows.some((row) => row.target === 'clients') && remoteBaseline.has(root)) {
-      rows.push(reconciledAdminRow(root, { target: 'clients', clientId, id: clientId, organizationId }));
+    const outcome = pushFailureOutcome(message);
+    if (outcome.status === 'rejected') {
+      for (const item of work) {
+        const quarantined = abandonedAdminValues.get(item.path) ?? { create: null, fields: new Map<string, unknown>() };
+        if (item.create) quarantined.create = item.create.row;
+        for (const [key, field] of item.fields) quarantined.fields.set(key, field.value);
+        abandonedAdminValues.set(item.path, quarantined);
+      }
+      settleAdminWork(work);
+      const rows = work.flatMap((item) =>
+        item.identity && (item.create || (item.fields.size > 0 && remoteBaseline.has(item.path)))
+          ? [reconciledAdminRow(item.path, item.identity)]
+          : []
+      );
+      if (completing && !rows.some((row) => row.target === 'clients') && remoteBaseline.has(root)) {
+        rows.push(reconciledAdminRow(root, { target: 'clients', clientId, id: clientId, organizationId }));
+      }
+      if (rows.length > 0) adminRowsHandler?.(rows);
     }
-    if (rows.length > 0) adminRowsHandler?.(rows);
+    // Transient failure: pending mutations remain in pendingAdminMutations for automatic retry
     pushErrorHandler?.(message);
-    return pushFailureOutcome(message);
+    return outcome;
   }
 }
 
@@ -2630,7 +2640,11 @@ export async function flushPendingAdminPushes(timeoutMs = 10_000): Promise<Remot
     const outcomes: RemotePersistenceOutcome[] = [];
     while (adminPushInFlight || hasAdminWork()) {
       if (adminPushInFlight) {
-        outcomes.push(await adminPushInFlight);
+        const outcome = await adminPushInFlight;
+        outcomes.push(outcome);
+        if (outcome.status !== 'confirmed') {
+          break;
+        }
       }
       if (hasAdminWork()) {
         flushScheduledPushes();
@@ -2691,6 +2705,16 @@ export function stopFirestoreRealtimeSync() {
 /** Invalida explícitamente el actor de sesión (solo en logout o cambio de usuario/auth). */
 export function clearFirestorePersistenceSession() {
   sessionPersistenceActor = null;
+}
+
+export function hasPendingAdminMutationsForDoc(path: string): boolean {
+  return pendingAdminMutations.has(path);
+}
+
+export function getPendingAdminMutationField(path: string, field: string): unknown {
+  const entry = pendingAdminMutations.get(path);
+  if (entry?.create) return entry.create.row[field];
+  return entry?.fields.get(field)?.value;
 }
 
 const REALTIME_SUBS = [

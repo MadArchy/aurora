@@ -10,6 +10,7 @@ const h = vi.hoisted(() => {
     attempts: [] as Array<{ kind: 'transaction' | 'batch'; writes: Array<{ path: string; data: Record<string, unknown> | null }> }>,
     commits: [] as Array<{ kind: 'transaction' | 'batch'; writes: Array<{ path: string; data: Record<string, unknown> | null }> }>,
     failNextCommit: false,
+    failCommitError: null as string | null,
     /** Runs after a transaction's reads, before it commits: a concurrent writer for that window. */
     duringTransaction: null as null | (() => void),
     /** Holds a transaction commit (late ACK) until released. */
@@ -75,7 +76,7 @@ vi.mock('firebase/firestore', () => {
           h.state.attempts.push({ kind: 'batch', writes: pending.map((write) => ({ ...write })) });
           if (h.state.failNextCommit) {
             h.state.failNextCommit = false;
-            throw new Error('unavailable');
+            throw new Error(h.state.failCommitError ?? 'unavailable');
           }
           h.state.commits.push({ kind: 'batch', writes: pending.map((write) => ({ ...write })) });
           apply(pending);
@@ -121,7 +122,7 @@ vi.mock('firebase/firestore', () => {
         h.state.attempts.push({ kind: 'transaction', writes: pending.map((write) => ({ ...write })) });
         if (h.state.failNextCommit) {
           h.state.failNextCommit = false;
-          throw new Error('unavailable');
+          throw new Error(h.state.failCommitError ?? 'unavailable');
         }
         const changed = [...reads].some(([path, seen]) => JSON.stringify(h.state.remote.get(path) ?? null) !== seen);
         if (changed) continue;
@@ -378,6 +379,7 @@ beforeEach(async () => {
   h.state.attempts = [];
   h.state.commits = [];
   h.state.failNextCommit = false;
+  h.state.failCommitError = null;
   h.state.duringTransaction = null;
   h.state.gate = null;
   h.state.gateReached = false;
@@ -537,20 +539,53 @@ describe('ADMIN pending mutation integrity (ADMIN-D1)', () => {
     expect(pushErrors).toEqual([]);
   });
 
-  it('S7: a failed push reports the error, reverts the local row and never resends the lost value', async () => {
+  it('S7: a failed push preserves the pending mutation, keeps the optimistic local row, and resends upon reconnection', async () => {
     await boot();
     h.state.failNextCommit = true;
     complete('a');
     push();
     await settle();
 
+    // 1. Reporta el error transitorio
     expect(pushErrors).toEqual(['unavailable']);
+    // 2. El baseline remoto permanece autoritativo
     expect(remote(`${TASKS}/a`).status).toBe('IN_PROGRESS');
+    expect(remote(ROOT).completedTasksCount).toBe(5);
+    // 3. La mutación no confirmada se conserva localmente (no hay pérdida de datos)
+    expect(task('a').status).toBe('COMPLETED');
+    expect(store.clients[0].completedTasksCount).toBe(6);
+    expect(h.state.commits).toEqual([]);
+
+    // 4. Al restablecerse la conectividad, el siguiente push reintenta la misma mutación y la confirma
+    h.state.attempts = [];
+    push();
+    await settle();
+
+    expect(h.state.attempts.length).toBeGreaterThan(0);
+    expect(remote(`${TASKS}/a`).status).toBe('COMPLETED');
+    expect(remote(ROOT).completedTasksCount).toBe(6);
+    expect(task('a').status).toBe('COMPLETED');
+    expect(h.state.commits.length).toBeGreaterThan(0);
+  });
+
+  it('S7-permission-denied: a permission-denied push reports rejection, reconciles to server baseline, and never resends', async () => {
+    await boot();
+    h.state.failCommitError = 'permission-denied';
+    h.state.failNextCommit = true;
+    complete('a');
+    push();
+    await settle();
+
+    // 1. Reporta rechazo definitivo
+    expect(pushErrors).toEqual(['permission-denied']);
+    expect(remote(`${TASKS}/a`).status).toBe('IN_PROGRESS');
+    // 2. Reconciliado con el servidor al ser rechazado por reglas de seguridad
     expect(task('a').status).toBe('IN_PROGRESS');
     expect(remote(ROOT).completedTasksCount).toBe(5);
     expect(store.clients[0].completedTasksCount).toBe(5);
     expect(h.state.commits).toEqual([]);
 
+    // 3. No se reintenta indefinidamente bajo permisos inválidos
     h.state.attempts = [];
     push();
     await settle();

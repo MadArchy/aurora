@@ -144,8 +144,11 @@ class AuthService {
       dbService.isAdminLoadCurrent(epoch) &&
       this.currentUser?.uid === user.uid;
     const sync = await import('./firestore/sync');
-    await sync.flushPendingAdminPushes(5000);
+    const flushOutcome = await sync.flushPendingAdminPushes(5000);
     if (!stillCurrent()) return { ok: false, reason: 'stale' };
+    if (flushOutcome.status !== 'confirmed') {
+      return { ok: false, reason: `flush-${flushOutcome.status}` };
+    }
     const hydrated = await dbService.hydrateActiveAdminClient(clientId, user.organizationId);
     if (!stillCurrent()) return { ok: false, reason: 'stale' };
     if (hydrated === 'stale') return { ok: false, reason: 'stale' };
@@ -167,6 +170,7 @@ class AuthService {
     if (FIREBASE_ENABLED) {
       const { bindFirebaseAuthState } = await import('../firebase/authBridge');
       await bindFirebaseAuthState(async (user) => {
+        const prevUser = this.currentUser;
         if (!user) {
           const sync = await import('./firestore/sync');
           sync.stopFirestoreRealtimeSync();
@@ -178,6 +182,11 @@ class AuthService {
           this.currentUser = null;
           this.notify();
           return;
+        }
+        if (prevUser && (prevUser.uid !== user.uid || prevUser.organizationId !== user.organizationId)) {
+          const sync = await import('./firestore/sync');
+          sync.stopFirestoreRealtimeSync();
+          sync.clearFirestorePersistenceSession();
         }
         this.currentUser = user;
         if (user.role !== 'ADMIN') this.notify();
@@ -317,6 +326,10 @@ class AuthService {
   }
 
   public setCurrentUserForTesting(user: User | null): void {
+    const prev = this.currentUser;
+    if (!user || (prev && (prev.uid !== user.uid || prev.organizationId !== user.organizationId))) {
+      void import('./firestore/sync').then((sync) => sync.clearFirestorePersistenceSession());
+    }
     this.currentUser = user;
     this.notify();
   }
