@@ -4,6 +4,10 @@ import { hashPassword, verifyPassword, createSalt } from '../lib/hash';
 import { createId } from '../lib/id';
 import { FIREBASE_ENABLED } from '../firebase/config';
 import { dbService } from './db';
+import {
+  bindSessionPersistenceActor,
+  clearFirestorePersistenceSession,
+} from './firestore/sync';
 
 const ACCOUNTS_KEY = 'postura_accounts_v4';
 const SESSION_KEY = 'postura_session_v4';
@@ -174,7 +178,7 @@ class AuthService {
         if (!user) {
           const sync = await import('./firestore/sync');
           sync.stopFirestoreRealtimeSync();
-          sync.clearFirestorePersistenceSession();
+          clearFirestorePersistenceSession();
           sync.setFirestoreAuthoritative(false);
           const { stopStrategicBriefSync } = await import('./firestore/strategicBriefSync');
           stopStrategicBriefSync();
@@ -183,12 +187,23 @@ class AuthService {
           this.notify();
           return;
         }
-        if (prevUser && (prevUser.uid !== user.uid || prevUser.organizationId !== user.organizationId)) {
+        if (
+          prevUser &&
+          (prevUser.uid !== user.uid ||
+            prevUser.organizationId !== user.organizationId ||
+            prevUser.role !== user.role)
+        ) {
           const sync = await import('./firestore/sync');
           sync.stopFirestoreRealtimeSync();
-          sync.clearFirestorePersistenceSession();
+          clearFirestorePersistenceSession();
         }
         this.currentUser = user;
+        bindSessionPersistenceActor({
+          uid: user.uid,
+          role: user.role,
+          organizationId: user.organizationId,
+          clientId: user.clientId ?? null,
+        });
         if (user.role !== 'ADMIN') this.notify();
         await this.syncFirestoreSession(user);
       });
@@ -327,10 +342,26 @@ class AuthService {
 
   public setCurrentUserForTesting(user: User | null): void {
     const prev = this.currentUser;
-    if (!user || (prev && (prev.uid !== user.uid || prev.organizationId !== user.organizationId))) {
-      void import('./firestore/sync').then((sync) => sync.clearFirestorePersistenceSession());
+    const identityChanged =
+      !user ||
+      (prev != null &&
+        (prev.uid !== user.uid ||
+          prev.organizationId !== user.organizationId ||
+          prev.role !== user.role));
+    if (identityChanged) {
+      clearFirestorePersistenceSession();
     }
     this.currentUser = user;
+    if (user) {
+      bindSessionPersistenceActor({
+        uid: user.uid,
+        role: user.role,
+        organizationId: user.organizationId,
+        clientId: user.clientId ?? null,
+      });
+    } else {
+      bindSessionPersistenceActor(null);
+    }
     this.notify();
   }
 

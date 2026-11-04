@@ -99,10 +99,28 @@ type PendingAdminDoc = {
   clientId: string;
   id: string;
   organizationId: string | null;
+  /** Identity that captured this mutation — dispatch requires an exact match. */
+  originUid: string;
+  originRole: string;
+  originOrganizationId: string | null;
+  originGeneration: number;
   create: { row: Record<string, unknown>; version: number } | null;
   fields: Map<string, PendingAdminField>;
 };
 const pendingAdminMutations = new Map<string, PendingAdminDoc>();
+/**
+ * Pending ADMIN work removed from the active dispatch queue when the capturing session ends.
+ * Kept out of the new actor's queue; never dispatched under another uid.
+ */
+type OrphanedAdminBundle = {
+  uid: string;
+  organizationId: string | null;
+  role: string;
+  generation: number;
+  mutations: Map<string, PendingAdminDoc>;
+  message: string;
+};
+let orphanedAdminMutations: OrphanedAdminBundle | null = null;
 /**
  * ADMIN commits acknowledged before the listener echoed them: a snapshot still showing the
  * pre-commit values is stale and must not revert the row; any other version ends the guard.
@@ -117,10 +135,75 @@ type AdminEchoGuard = {
 const adminEchoGuards = new Map<string, AdminEchoGuard>();
 const ADMIN_ECHO_GUARD_MS = 30_000;
 /**
- * ADMIN values discarded because their session ended before they were pushed. Local rows may
- * still hold them; a later session must not persist them under its own identity.
+ * ADMIN values discarded because their session ended (or was rejected) before ACK.
+ * Each entry is tagged with the capturing identity so echo-suppression never applies to
+ * another uid/org. Foreign identities may capture an identical value freely.
  */
-const abandonedAdminValues = new Map<string, { create: Record<string, unknown> | null; fields: Map<string, unknown> }>();
+type AbandonedAdminValues = {
+  create: Record<string, unknown> | null;
+  fields: Map<string, unknown>;
+  originUid: string;
+  originOrganizationId: string | null;
+  originGeneration: number;
+};
+const abandonedAdminValues = new Map<string, AbandonedAdminValues>();
+
+/**
+ * Late remote outcomes that must not mutate the active session's store/baseline/queue.
+ * Visible only to the origin identity (in-memory; lost on F5 — RR-01 not authorized).
+ */
+export type OriginRemoteReconciliation = {
+  originUid: string;
+  originOrganizationId: string | null;
+  originGeneration: number;
+  status: 'remote_confirmed_unapplied' | 'remote_uncertain';
+  paths: string[];
+  message: string;
+};
+let originRemoteReconciliations: OriginRemoteReconciliation[] = [];
+
+/**
+ * Test-only ACK pause after successful `runTransaction`, before local apply.
+ * Requires Vite *dev* server with `--mode test` (Playwright webServer). Any
+ * `vite build` sets DEV=false, so production and adversarial VITE_* envs cannot
+ * enable the gate; the pause path DCE's out of production bundles.
+ */
+const ADMIN_COMMIT_ACK_GATE_ENABLED =
+  import.meta.env.DEV === true && import.meta.env.MODE === 'test';
+
+type AdminCommitAckGateState = {
+  armed: boolean;
+  /** When set, pause only chunks that include this document path. */
+  matchPath: string | null;
+  paused: boolean;
+  paths: string[];
+  release: (() => void) | null;
+  wait: Promise<void> | null;
+};
+
+let adminCommitAckGate: AdminCommitAckGateState | null = null;
+
+/** After a successful remote TX, optionally park before local ACK application (test only). */
+async function pauseAfterRemoteAdminCommitAck(paths: ReadonlyArray<string>): Promise<void> {
+  if (!ADMIN_COMMIT_ACK_GATE_ENABLED) return;
+  const gate = adminCommitAckGate;
+  if (!gate?.armed) return;
+  if (gate.matchPath && !paths.includes(gate.matchPath)) return;
+  gate.paths = [...paths];
+  gate.paused = true;
+  if (!gate.wait) {
+    gate.wait = new Promise<void>((resolve) => {
+      gate.release = () => {
+        gate.paused = false;
+        gate.wait = null;
+        gate.release = null;
+        resolve();
+      };
+    });
+  }
+  await gate.wait;
+}
+
 let adminCaptureVersion = 0;
 /** Clients of the ADMIN tenant in the last capture; ADMIN removal intents are limited to them. */
 let adminScopedClientIds = new Set<string>();
@@ -145,11 +228,17 @@ export function resetKnownRemoteDocPaths() {
   remoteBaseline.clear();
   pendingClientMutations.clear();
   pendingAdminMutations.clear();
+  orphanedAdminMutations = null;
   adminEchoGuards.clear();
   abandonedAdminValues.clear();
+  originRemoteReconciliations = [];
   adminScopedClientIds = new Set();
   pendingDocDeletes.clear();
   pendingFieldClears.clear();
+  if (ADMIN_COMMIT_ACK_GATE_ENABLED) {
+    adminCommitAckGate?.release?.();
+    adminCommitAckGate = null;
+  }
 }
 
 function intentDocPath(intent: RemoteMutationIntent): string | null {
@@ -237,10 +326,20 @@ export type PersistenceActor = {
   role: string;
   clientId?: string | null;
   organizationId?: string | null;
+  uid?: string | null;
 };
 
 /** Signed-in actor from the last token read; push scheduling is synchronous and cannot await claims. */
 let sessionPersistenceActor: PersistenceActor | null = null;
+/**
+ * Session generation for ADMIN persistence. Stable for the same uid/org/role.
+ * Bumped only on identity/authorization invalidation — not on every actor read.
+ */
+let persistenceGeneration = 0;
+
+function actorIdentityKey(actor: PersistenceActor): string {
+  return `${actor.uid ?? ''}|${actor.role}|${actor.organizationId ?? ''}`;
+}
 
 function itemsForClient<T extends { clientId?: string | null; id?: string }>(
   rows: T[],
@@ -493,7 +592,12 @@ async function readPersistenceActor(): Promise<PersistenceActor> {
     clientId: typeof token.claims.clientId === 'string' ? token.claims.clientId : null,
     organizationId:
       typeof token.claims.organizationId === 'string' ? token.claims.organizationId : null,
+    uid: user.uid,
   };
+  // Bump only when replacing a known actor with a different identity — not on first bind after clear.
+  if (sessionPersistenceActor && actorIdentityKey(sessionPersistenceActor) !== actorIdentityKey(actor)) {
+    persistenceGeneration++;
+  }
   sessionPersistenceActor = actor;
   return actor;
 }
@@ -1188,13 +1292,24 @@ async function readTenantReadScope(): Promise<TenantReadScope | null> {
   const token = await user.getIdTokenResult();
   const organizationId =
     typeof token.claims.organizationId === 'string' ? token.claims.organizationId.trim() : '';
-  sessionPersistenceActor = organizationId
+  const nextActor: PersistenceActor | null = organizationId
     ? {
         role: typeof token.claims.role === 'string' ? token.claims.role : '',
         clientId: typeof token.claims.clientId === 'string' ? token.claims.clientId : null,
         organizationId,
+        uid: user.uid,
       }
     : null;
+  if (
+    sessionPersistenceActor &&
+    nextActor &&
+    actorIdentityKey(sessionPersistenceActor) !== actorIdentityKey(nextActor)
+  ) {
+    persistenceGeneration++;
+  } else if (sessionPersistenceActor && !nextActor) {
+    persistenceGeneration++;
+  }
+  sessionPersistenceActor = nextActor;
   if (!organizationId) return null;
   return { organizationId, isAdmin: token.claims.role === 'ADMIN' };
 }
@@ -1679,14 +1794,35 @@ const EDGE_SENSITIVE_STATE_FIELDS: ReadonlyArray<readonly [CollectionKey, string
 ];
 
 /**
- * Server outcome of a push. `pending`: no acknowledgement within the wait; `rejected`: the
- * server refused the writes (rules); `failed`: they were not persisted for any other reason.
+ * Server outcome of a push.
+ * - `confirmed`: remote ACK applied to the current session.
+ * - `pending`: no acknowledgement within the wait.
+ * - `rejected`: server refused the writes (rules / permission-denied).
+ * - `failed`: not persisted for a transient or conflict reason.
+ * - `remote_confirmed_unapplied`: Firestore committed, but the capturing session is gone —
+ *   must not mutate the active session; reconciliation is recorded for the origin identity.
+ * - `remote_uncertain`: in-flight result unknown after session invalidation — neither confirm
+ *   nor definitive reject without evidence.
  */
 export type RemotePersistenceOutcome =
   | { status: 'confirmed' }
   | { status: 'pending' }
   | { status: 'rejected'; message: string }
-  | { status: 'failed'; message: string };
+  | { status: 'failed'; message: string }
+  | {
+      status: 'remote_confirmed_unapplied';
+      message: string;
+      originUid: string;
+      originGeneration: number;
+      paths: string[];
+    }
+  | {
+      status: 'remote_uncertain';
+      message: string;
+      originUid: string;
+      originGeneration: number;
+      paths: string[];
+    };
 
 /** The root client doc has no listener; its server-derived counter is handed back after each push. */
 export type ClientRootReconcileHandler = (clientId: string, fields: { completedTasksCount: number }) => void;
@@ -1734,16 +1870,44 @@ function pushFailureOutcome(message: string): RemotePersistenceOutcome {
 
 const OUTCOME_SEVERITY: Record<RemotePersistenceOutcome['status'], number> = {
   confirmed: 0,
-  pending: 1,
-  failed: 2,
-  rejected: 3,
+  remote_confirmed_unapplied: 1,
+  pending: 2,
+  failed: 3,
+  remote_uncertain: 3,
+  rejected: 4,
 };
 
 function mostSevereOutcome(outcomes: ReadonlyArray<RemotePersistenceOutcome>): RemotePersistenceOutcome {
+  if (outcomes.length === 0) return { status: 'confirmed' };
   return outcomes.reduce<RemotePersistenceOutcome>(
     (worst, next) => (OUTCOME_SEVERITY[next.status] > OUTCOME_SEVERITY[worst.status] ? next : worst),
     { status: 'confirmed' }
   );
+}
+
+/**
+ * Flush barrier for the *active* session (e.g. `openAdminClientWorkspace`).
+ * Stale-origin remote notes and push aborts caused by session invalidation must not block
+ * the new actor and must never read as authorization to continue an unsafe transition.
+ */
+function flushBarrierOutcome(outcomes: ReadonlyArray<RemotePersistenceOutcome>): RemotePersistenceOutcome {
+  const currentGen = persistenceGeneration;
+  const actionable = outcomes.map((outcome) => {
+    if (
+      (outcome.status === 'remote_confirmed_unapplied' || outcome.status === 'remote_uncertain') &&
+      outcome.originGeneration !== currentGen
+    ) {
+      return { status: 'confirmed' as const };
+    }
+    if (
+      (outcome.status === 'rejected' || outcome.status === 'failed') &&
+      /Session invalidated/i.test(outcome.message)
+    ) {
+      return { status: 'confirmed' as const };
+    }
+    return outcome;
+  });
+  return mostSevereOutcome(actionable);
 }
 
 function createClientCapture(
@@ -2025,7 +2189,73 @@ const ADMIN_NON_UPDATABLE_KEYS: ReadonlySet<string> = new Set([
 const ADMIN_TRANSACTION_DOCS = 100;
 const TASK_DOC_PATH = /^clients\/[^/]+\/tasks\/[^/]+$/;
 
-type AdminDocIdentity = Pick<PendingAdminDoc, 'target' | 'clientId' | 'id' | 'organizationId'>;
+type AdminDocIdentity = Pick<
+  PendingAdminDoc,
+  | 'target'
+  | 'clientId'
+  | 'id'
+  | 'organizationId'
+  | 'originUid'
+  | 'originRole'
+  | 'originOrganizationId'
+  | 'originGeneration'
+>;
+
+/** Path/row coordinates used when rebuilding a reconciled local row after settle. */
+type AdminDocRef = Pick<PendingAdminDoc, 'target' | 'clientId' | 'id' | 'organizationId'>;
+
+function abandonedEchoBelongsToActor(
+  abandoned: AbandonedAdminValues,
+  actor: PersistenceActor | null
+): boolean {
+  if (!actor) return false;
+  if (abandoned.originUid !== (actor.uid ?? '')) return false;
+  const org = actor.organizationId?.trim() || null;
+  if (org && abandoned.originOrganizationId && abandoned.originOrganizationId !== org) return false;
+  return true;
+}
+
+function sealAbandonedFromIdentity(
+  path: string,
+  identity: {
+    originUid: string;
+    originOrganizationId: string | null;
+    originGeneration: number;
+  },
+  create: Record<string, unknown> | null,
+  fields: Map<string, unknown>
+): void {
+  const existing = abandonedAdminValues.get(path);
+  const quarantined: AbandonedAdminValues =
+    existing &&
+    existing.originUid === identity.originUid &&
+    existing.originGeneration === identity.originGeneration
+      ? existing
+      : {
+          create: null,
+          fields: new Map<string, unknown>(),
+          originUid: identity.originUid,
+          originOrganizationId: identity.originOrganizationId,
+          originGeneration: identity.originGeneration,
+        };
+  if (create) quarantined.create = create;
+  for (const [key, value] of fields) quarantined.fields.set(key, value);
+  abandonedAdminValues.set(path, quarantined);
+}
+
+function recordOriginReconciliation(entry: OriginRemoteReconciliation): void {
+  originRemoteReconciliations = [
+    ...originRemoteReconciliations.filter(
+      (prior) =>
+        !(
+          prior.originUid === entry.originUid &&
+          prior.originGeneration === entry.originGeneration &&
+          prior.status === entry.status
+        )
+    ),
+    entry,
+  ].slice(-50);
+}
 
 /** Records the fields of one local row that differ from the server baseline or its pending value. */
 function recordAdminRow(
@@ -2042,8 +2272,10 @@ function recordAdminRow(
   const pending = pendingAdminMutations.get(path);
   const baseline = remoteBaseline.get(path);
   const abandoned = abandonedAdminValues.get(path);
+  const echoOwned =
+    abandoned && abandonedEchoBelongsToActor(abandoned, sessionPersistenceActor) ? abandoned : null;
   if (pending?.create || (!pending && !baseline && !knownRemoteDocPaths.has(path))) {
-    if (!pending && abandoned?.create && sameFieldValue(abandoned.create, row)) return;
+    if (!pending && echoOwned?.create && sameFieldValue(echoOwned.create, row)) return;
     if (!pending?.create || !sameFieldValue(pending.create.row, row)) {
       pendingAdminMutations.set(path, { ...identity, create: { row, version }, fields: new Map() });
     }
@@ -2062,7 +2294,7 @@ function recordAdminRow(
     const confirmed = echoed?.get(key);
     const base = confirmed ? confirmed.value : baseline ? baseline[key] : NO_BASE;
     if (base !== NO_BASE && sameFieldValue(base, value) && !clearing?.has(key)) continue;
-    if (abandoned?.fields.has(key) && sameFieldValue(abandoned.fields.get(key), value)) continue;
+    if (echoOwned?.fields.has(key) && sameFieldValue(echoOwned.fields.get(key), value)) continue;
     entry.fields.set(key, { value, base, version });
   }
   if (!pending && entry.fields.size > 0) pendingAdminMutations.set(path, entry);
@@ -2071,10 +2303,17 @@ function recordAdminRow(
 /**
  * ADMIN capture at scheduling time: values are copied now, so later in-place edits and realtime
  * replacements of the live rows can neither change nor erase what this mutation persists.
+ * Requires a bound ADMIN actor with uid — unsigned captures are refused.
  */
 function captureAdminMutations(snapshot: LocalV5Snapshot, actor: PersistenceActor | null) {
+  if (!actor || actor.role !== 'ADMIN') return;
   const version = ++adminCaptureVersion;
-  const organizationId = actor?.organizationId?.trim() || null;
+  const organizationId = actor.organizationId?.trim() || null;
+  // Empty uid is allowed only when the auth token mock omits it; real sessions always bind uid.
+  const originUid = typeof actor.uid === 'string' ? actor.uid : '';
+  const originRole = actor.role;
+  const originOrganizationId = organizationId;
+  const originGeneration = persistenceGeneration;
   const clients = snapshot.clients.filter(
     (client) => !organizationId || client.organizationId === organizationId
   );
@@ -2087,6 +2326,10 @@ function captureAdminMutations(snapshot: LocalV5Snapshot, actor: PersistenceActo
       clientId: client.id,
       id,
       organizationId: organizationId ?? (client.organizationId?.trim() || null),
+      originUid,
+      originRole,
+      originOrganizationId,
+      originGeneration,
     });
     recordAdminRow(root, identity('clients', client.id), client as unknown as Record<string, unknown>, version);
     const subcollectionsOpen =
@@ -2161,7 +2404,16 @@ function dueAdminWork(path: string, upTo: number): AdminWorkItem {
   return {
     path,
     identity: entry
-      ? { target: entry.target, clientId: entry.clientId, id: entry.id, organizationId: entry.organizationId }
+      ? {
+          target: entry.target,
+          clientId: entry.clientId,
+          id: entry.id,
+          organizationId: entry.organizationId,
+          originUid: entry.originUid,
+          originRole: entry.originRole,
+          originOrganizationId: entry.originOrganizationId,
+          originGeneration: entry.originGeneration,
+        }
       : null,
     create,
     fields,
@@ -2371,7 +2623,7 @@ function applyAdminCommit(work: ReadonlyArray<AdminWorkItem>, plan: AdminPlan) {
 }
 
 /** Server baseline plus the ADMIN fields still pending; null when the server holds no such doc. */
-function reconciledAdminRow(path: string, identity: AdminDocIdentity): AdminRowReconcile {
+function reconciledAdminRow(path: string, identity: AdminDocRef): AdminRowReconcile {
   const reference = { target: identity.target, clientId: identity.clientId, id: identity.id };
   const entry = pendingAdminMutations.get(path);
   if (entry?.create) return { ...reference, row: structuredClone(entry.create.row) };
@@ -2398,7 +2650,8 @@ async function commitAdminChunk(
   clientId: string,
   paths: ReadonlyArray<string>,
   upTo: number,
-  organizationId: string | null
+  organizationId: string | null,
+  pushGen: number
 ): Promise<RemotePersistenceOutcome> {
   const firestore = await import('firebase/firestore');
   const root = clientDocPath(clientId);
@@ -2429,6 +2682,38 @@ async function commitAdminChunk(
       }
       return planned;
     });
+    // Remote TX has committed. Test gate may pause here before generation check / local ACK.
+    if (ADMIN_COMMIT_ACK_GATE_ENABLED) {
+      await pauseAfterRemoteAdminCommitAck(work.map((item) => item.path));
+    }
+    if (persistenceGeneration !== pushGen) {
+      // B: remote TX confirmed; local session moved on — do not applyAdminCommit / handlers.
+      const origin = work.find((item) => item.identity)?.identity;
+      const originUid = origin?.originUid ?? '';
+      const originOrganizationId = origin?.originOrganizationId ?? organizationId;
+      const paths = work.map((item) => item.path);
+      const message =
+        'Confirmación remota recibida tras invalidación de sesión; no aplicada al estado local vigente.';
+      recordOriginReconciliation({
+        originUid,
+        originOrganizationId,
+        originGeneration: pushGen,
+        status: 'remote_confirmed_unapplied',
+        paths,
+        message,
+      });
+      for (const item of work) {
+        const entry = pendingAdminMutations.get(item.path);
+        if (entry && entry.originGeneration === pushGen) pendingAdminMutations.delete(item.path);
+      }
+      return {
+        status: 'remote_confirmed_unapplied',
+        message,
+        originUid,
+        originGeneration: pushGen,
+        paths,
+      };
+    }
     applyAdminCommit(work, plan);
     const rootServer = plan.server.get(root);
     if (completing && rootServer && !plan.writes.some((write) => write.path === root)) {
@@ -2449,14 +2734,46 @@ async function commitAdminChunk(
     }
     return { status: 'confirmed' };
   } catch (err) {
+    if (persistenceGeneration !== pushGen) {
+      // D: TX threw after session moved on — remote result uncertain; do not claim reject or confirm.
+      const origin = work.find((item) => item.identity)?.identity;
+      const originUid = origin?.originUid ?? '';
+      const originOrganizationId = origin?.originOrganizationId ?? organizationId;
+      const paths = work.map((item) => item.path);
+      const message =
+        'Resultado remoto incierto tras invalidación de sesión; no se aplica al estado local vigente.';
+      recordOriginReconciliation({
+        originUid,
+        originOrganizationId,
+        originGeneration: pushGen,
+        status: 'remote_uncertain',
+        paths,
+        message,
+      });
+      return {
+        status: 'remote_uncertain',
+        message,
+        originUid,
+        originGeneration: pushGen,
+        paths,
+      };
+    }
     const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
     const outcome = pushFailureOutcome(message);
     if (outcome.status === 'rejected') {
       for (const item of work) {
-        const quarantined = abandonedAdminValues.get(item.path) ?? { create: null, fields: new Map<string, unknown>() };
-        if (item.create) quarantined.create = item.create.row;
-        for (const [key, field] of item.fields) quarantined.fields.set(key, field.value);
-        abandonedAdminValues.set(item.path, quarantined);
+        const fields = new Map<string, unknown>();
+        for (const [key, field] of item.fields) fields.set(key, field.value);
+        sealAbandonedFromIdentity(
+          item.path,
+          {
+            originUid: item.identity?.originUid ?? '',
+            originOrganizationId: item.identity?.originOrganizationId ?? organizationId,
+            originGeneration: item.identity?.originGeneration ?? pushGen,
+          },
+          item.create?.row ?? null,
+          fields
+        );
       }
       settleAdminWork(work);
       const rows = work.flatMap((item) =>
@@ -2475,7 +2792,50 @@ async function commitAdminChunk(
   }
 }
 
-async function runAdminPush(upTo: number): Promise<RemotePersistenceOutcome> {
+function orphanActiveAdminMutations(message: string): number {
+  if (pendingAdminMutations.size === 0) return 0;
+  const actor = sessionPersistenceActor;
+  for (const [path, entry] of pendingAdminMutations) {
+    const fields = new Map<string, unknown>();
+    for (const [key, field] of entry.fields) fields.set(key, field.value);
+    sealAbandonedFromIdentity(
+      path,
+      {
+        originUid: entry.originUid,
+        originOrganizationId: entry.originOrganizationId,
+        originGeneration: entry.originGeneration,
+      },
+      entry.create?.row ?? null,
+      fields
+    );
+  }
+  const bundle: OrphanedAdminBundle = {
+    uid: actor?.uid ?? 'unknown',
+    organizationId: actor?.organizationId?.trim() || null,
+    role: actor?.role ?? 'ADMIN',
+    generation: persistenceGeneration,
+    mutations: new Map(pendingAdminMutations),
+    message,
+  };
+  orphanedAdminMutations = bundle;
+  pendingAdminMutations.clear();
+  pushErrorHandler?.(message);
+  return bundle.mutations.size;
+}
+
+function mutationMatchesDispatchActor(entry: PendingAdminDoc, actor: PersistenceActor, pushGen: number): boolean {
+  if (entry.originGeneration !== pushGen) return false;
+  if (entry.originUid !== (actor.uid ?? '')) return false;
+  if (entry.originRole !== actor.role) return false;
+  const org = actor.organizationId?.trim() || null;
+  if (org && entry.originOrganizationId && entry.originOrganizationId !== org) return false;
+  return true;
+}
+
+async function runAdminPush(upTo: number, pushGen: number): Promise<RemotePersistenceOutcome> {
+  if (persistenceGeneration !== pushGen) {
+    return { status: 'rejected', message: 'Session invalidated before push execution.' };
+  }
   if (!readFirebaseConfig()) {
     return { status: 'failed', message: 'Configura VITE_FIREBASE_* para sincronizar.' };
   }
@@ -2483,24 +2843,25 @@ async function runAdminPush(upTo: number): Promise<RemotePersistenceOutcome> {
   if (!db) return { status: 'failed', message: 'Firestore no inicializado.' };
   const auth = await getFirebaseAuth();
   if (!auth?.currentUser) {
-    const dropped = pendingAdminMutations.size;
-    for (const [path, entry] of pendingAdminMutations) {
-      const quarantined = abandonedAdminValues.get(path) ?? { create: null, fields: new Map<string, unknown>() };
-      if (entry.create) quarantined.create = entry.create.row;
-      for (const [key, field] of entry.fields) quarantined.fields.set(key, field.value);
-      abandonedAdminValues.set(path, quarantined);
-    }
-    pendingAdminMutations.clear();
+    const dropped = orphanActiveAdminMutations(
+      `Sin sesión activa: ${pendingAdminMutations.size} cambio(s) ADMIN no se sincronizaron con el servidor.`
+    );
     adminEchoGuards.clear();
     if (dropped === 0) return { status: 'confirmed' };
-    const message = `Sin sesión activa: ${dropped} cambio(s) ADMIN no se sincronizaron con el servidor.`;
-    pushErrorHandler?.(message);
-    return { status: 'failed', message };
+    return {
+      status: 'failed',
+      message: `Sin sesión activa: ${dropped} cambio(s) ADMIN no se sincronizaron con el servidor.`,
+    };
   }
   const actor = await readPersistenceActor();
+  if (persistenceGeneration !== pushGen) {
+    return { status: 'rejected', message: 'Session invalidated while resolving persistence actor.' };
+  }
   if (actor.role === 'CLIENT') {
-    pendingAdminMutations.clear();
-    return { status: 'rejected', message: 'La sesión no tiene permisos ADMIN; cambios descartados.' };
+    orphanActiveAdminMutations(
+      'La sesión ya no tiene permisos ADMIN; cambios no enviados y aislados de la nueva sesión.'
+    );
+    return { status: 'rejected', message: 'La sesión no tiene permisos ADMIN; cambios no enviados.' };
   }
   const organizationId = actor.organizationId?.trim() || null;
   const byClient = new Map<string, Set<string>>();
@@ -2509,9 +2870,12 @@ async function runAdminPush(upTo: number): Promise<RemotePersistenceOutcome> {
     paths.add(path);
     byClient.set(clientId, paths);
   };
-  for (const [path, entry] of pendingAdminMutations) {
+  for (const [path, entry] of [...pendingAdminMutations]) {
+    if (!mutationMatchesDispatchActor(entry, actor, pushGen)) {
+      // Foreign or stale-origin work stays out of this dispatch; isolation on clear handles it.
+      continue;
+    }
     if (organizationId && entry.organizationId && entry.organizationId !== organizationId) {
-      pendingAdminMutations.delete(path);
       continue;
     }
     const due =
@@ -2529,8 +2893,18 @@ async function runAdminPush(upTo: number): Promise<RemotePersistenceOutcome> {
   for (const [clientId, paths] of byClient) {
     const list = [...paths];
     for (let start = 0; start < list.length; start += ADMIN_TRANSACTION_DOCS) {
+      if (persistenceGeneration !== pushGen) {
+        return { status: 'rejected', message: 'Session invalidated during push execution.' };
+      }
       outcomes.push(
-        await commitAdminChunk(db, clientId, list.slice(start, start + ADMIN_TRANSACTION_DOCS), upTo, organizationId)
+        await commitAdminChunk(
+          db,
+          clientId,
+          list.slice(start, start + ADMIN_TRANSACTION_DOCS),
+          upTo,
+          organizationId,
+          pushGen
+        )
       );
     }
   }
@@ -2549,8 +2923,12 @@ function hasAdminWork(): boolean {
 }
 
 function dispatchAdminPush() {
+  if (sessionPersistenceActor && sessionPersistenceActor.role !== 'ADMIN') {
+    return;
+  }
   const upTo = adminCaptureVersion;
-  const run = enqueueSnapshotImport(() => runAdminPush(upTo)).then(
+  const pushGen = persistenceGeneration;
+  const run = enqueueSnapshotImport(() => runAdminPush(upTo, pushGen)).then(
     (outcome) => outcome,
     (err: unknown): RemotePersistenceOutcome => {
       const message = err instanceof Error ? err.message : 'Error al sincronizar con Firestore.';
@@ -2580,6 +2958,7 @@ export function scheduleFirestorePush(
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     syncTimer = null;
+    if (sessionPersistenceActor && sessionPersistenceActor.role !== 'ADMIN') return;
     if (hasAdminWork()) dispatchAdminPush();
   }, 800);
 }
@@ -2642,7 +3021,13 @@ export async function flushPendingAdminPushes(timeoutMs = 10_000): Promise<Remot
       if (adminPushInFlight) {
         const outcome = await adminPushInFlight;
         outcomes.push(outcome);
-        if (outcome.status !== 'confirmed') {
+        // Stale-origin remote notes are recorded for the origin; they must not abort the
+        // active session's drain. Hard failures still stop the barrier.
+        if (
+          outcome.status !== 'confirmed' &&
+          outcome.status !== 'remote_confirmed_unapplied' &&
+          outcome.status !== 'remote_uncertain'
+        ) {
           break;
         }
       }
@@ -2652,7 +3037,7 @@ export async function flushPendingAdminPushes(timeoutMs = 10_000): Promise<Remot
         break;
       }
     }
-    return outcomes.length ? mostSevereOutcome(outcomes) : { status: 'confirmed' };
+    return outcomes.length ? flushBarrierOutcome(outcomes) : { status: 'confirmed' };
   };
 
   try {
@@ -2702,13 +3087,146 @@ export function stopFirestoreRealtimeSync() {
   detachFirestoreRealtimeListeners();
 }
 
-/** Invalida explícitamente el actor de sesión (solo en logout o cambio de usuario/auth). */
+/**
+ * Invalidates the persistence session (logout or identity/authorization change).
+ * Active pending ADMIN mutations are orphaned with an explicit error — never confirmed and
+ * never left on the dispatch queue for the next actor. Their values remain in
+ * abandonedAdminValues so an identical local echo is not re-captured under a new session.
+ */
 export function clearFirestorePersistenceSession() {
+  if (syncTimer) {
+    clearTimeout(syncTimer);
+    syncTimer = null;
+  }
+  const pendingCount = pendingAdminMutations.size;
+  if (pendingCount > 0) {
+    orphanActiveAdminMutations(
+      `${pendingCount} cambio(s) ADMIN pendientes no se enviaron: la sesión de persistencia terminó antes del ACK.`
+    );
+  }
+  persistenceGeneration++;
   sessionPersistenceActor = null;
+  pendingDocDeletes.clear();
+  pendingFieldClears.clear();
+  pendingClientCapture = null;
+  adminEchoGuards.clear();
+}
+
+/**
+ * Binds the in-memory persistence actor without bumping generation on first bind after clear.
+ * Bumps only when replacing a different uid/role/organization. Purges orphaned bundles and
+ * abandoned echo-suppress entries from other uids so the new identity cannot observe or be
+ * blocked by them. Same-uid abandoned entries are kept for legitimate echo suppression.
+ *
+ * Loss on foreign bind: orphaned mutation payloads of the prior uid are discarded (the user
+ * already received an explicit push-error at orphan time). No durable recovery — RR-01 N/A.
+ */
+export function bindSessionPersistenceActor(actor: PersistenceActor | null): void {
+  if (!actor) {
+    if (sessionPersistenceActor) persistenceGeneration++;
+    sessionPersistenceActor = null;
+    return;
+  }
+  const next: PersistenceActor = {
+    role: actor.role,
+    clientId: actor.clientId ?? null,
+    organizationId: actor.organizationId ?? null,
+    uid: actor.uid ?? null,
+  };
+  if (sessionPersistenceActor && actorIdentityKey(sessionPersistenceActor) !== actorIdentityKey(next)) {
+    persistenceGeneration++;
+  }
+  const nextUid = next.uid ?? '';
+  if (orphanedAdminMutations && orphanedAdminMutations.uid !== nextUid) {
+    orphanedAdminMutations = null;
+  }
+  for (const [path, entry] of [...abandonedAdminValues]) {
+    if (entry.originUid !== nextUid) abandonedAdminValues.delete(path);
+  }
+  sessionPersistenceActor = next;
+}
+
+export function getPersistenceGenerationForTesting(): number {
+  return persistenceGeneration;
+}
+
+export function setPersistenceGenerationForTesting(gen: number): void {
+  persistenceGeneration = gen;
 }
 
 export function hasPendingAdminMutationsForDoc(path: string): boolean {
   return pendingAdminMutations.has(path);
+}
+
+/** Test/diagnostic: orphaned (non-dispatchable) bundle from a prior session, if any. */
+export function getOrphanedAdminMutationCountForTesting(): number {
+  return orphanedAdminMutations?.mutations.size ?? 0;
+}
+
+/** Test/diagnostic: abandoned echo entries visible only when tagged for this uid. */
+export function getAbandonedAdminOriginUidForTesting(path: string): string | null {
+  return abandonedAdminValues.get(path)?.originUid ?? null;
+}
+
+/**
+ * Test/diagnostic: reconciliations for one origin uid. Never returns another identity's notes.
+ */
+export function getOriginRemoteReconciliationsForTesting(uid: string): OriginRemoteReconciliation[] {
+  return originRemoteReconciliations
+    .filter((entry) => entry.originUid === uid)
+    .map((entry) => ({ ...entry, paths: [...entry.paths] }));
+}
+
+/**
+ * When the origin identity returns in the same JS heap, paths already confirmed remotely
+ * must not be re-dispatched. Hydration from Firestore remains the authoritative reconcile
+ * after F5 (no durable local ledger — RR-01).
+ */
+export function getRemoteConfirmedUnappliedPathsForOrigin(uid: string): string[] {
+  const paths = new Set<string>();
+  for (const entry of originRemoteReconciliations) {
+    if (entry.originUid === uid && entry.status === 'remote_confirmed_unapplied') {
+      for (const path of entry.paths) paths.add(path);
+    }
+  }
+  return [...paths];
+}
+
+/**
+ * Arm the post-`runTransaction` ACK pause. No-op outside Vite test/E2E builds.
+ * Optional `matchPath` limits the pause to chunks that include that document.
+ */
+export function armAdminCommitAckGateForTesting(matchPath?: string): void {
+  if (!ADMIN_COMMIT_ACK_GATE_ENABLED) return;
+  adminCommitAckGate = {
+    armed: true,
+    matchPath: matchPath?.trim() || null,
+    paused: false,
+    paths: [],
+    release: null,
+    wait: null,
+  };
+}
+
+export function isAdminCommitAckGatePausedForTesting(): boolean {
+  return ADMIN_COMMIT_ACK_GATE_ENABLED && adminCommitAckGate?.paused === true;
+}
+
+export function getAdminCommitAckGatePathsForTesting(): string[] {
+  if (!ADMIN_COMMIT_ACK_GATE_ENABLED || !adminCommitAckGate) return [];
+  return [...adminCommitAckGate.paths];
+}
+
+export function releaseAdminCommitAckGateForTesting(): void {
+  if (!ADMIN_COMMIT_ACK_GATE_ENABLED) return;
+  adminCommitAckGate?.release?.();
+}
+
+/** Release any waiter and clear gate state (also safe on failure paths). */
+export function disarmAdminCommitAckGateForTesting(): void {
+  if (!ADMIN_COMMIT_ACK_GATE_ENABLED) return;
+  adminCommitAckGate?.release?.();
+  adminCommitAckGate = null;
 }
 
 export function getPendingAdminMutationField(path: string, field: string): unknown {

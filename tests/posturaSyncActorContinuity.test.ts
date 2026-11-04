@@ -183,14 +183,6 @@ describe('PERF-C / R-B03 — Synchronization Actor Continuity and Multi-Client L
     h.state.totalCommits = 0;
     h.state.unsubCount = 0;
 
-    const { authService } = await import('../src/services/auth');
-    authService.setCurrentUserForTesting({
-      uid: 'user_admin_01',
-      role: 'ADMIN',
-      organizationId: 'org_aurora_01',
-      clientId: null,
-    } as never);
-
     // Seed baseline tenant documents
     h.state.remote.set('clients/client_juan_001', {
       id: 'client_juan_001',
@@ -210,6 +202,15 @@ describe('PERF-C / R-B03 — Synchronization Actor Continuity and Multi-Client L
     sync.resetKnownRemoteDocPaths();
     sync.stopFirestoreRealtimeSync();
     sync.clearFirestorePersistenceSession();
+
+    const { authService } = await import('../src/services/auth');
+    authService.setCurrentUserForTesting({
+      uid: 'user_admin_01',
+      role: 'ADMIN',
+      organizationId: 'org_aurora_01',
+      clientId: null,
+    } as never);
+
     const epoch = dbService.beginAdminDirectoryLoad();
     dbService.applyAdminDirectorySnapshot(
       [
@@ -553,9 +554,12 @@ describe('PERF-C / R-B03 — Synchronization Actor Continuity and Multi-Client L
     await authService.openAdminClientWorkspace('client_juan_001');
     expect(sync.activeFirestoreListenerCount()).toBeGreaterThan(0);
 
+    const genBefore = sync.getPersistenceGenerationForTesting();
     sync.stopFirestoreRealtimeSync();
     sync.clearFirestorePersistenceSession();
     expect(sync.activeFirestoreListenerCount()).toBe(0);
+    expect(sync.getPersistenceGenerationForTesting()).toBeGreaterThan(genBefore);
+    expect(sync.hasPendingAdminMutationsForDoc('clients/client_juan_001')).toBe(false);
   });
 
   it('S15. Conservación de completedTasksCount durante cambios de cliente', async () => {
@@ -614,5 +618,47 @@ describe('PERF-C / R-B03 — Synchronization Actor Continuity and Multi-Client L
   it('S18. Comportamiento ante refresco/cierre de pestaña (límite de memoria documentado)', async () => {
     const sync = await import('../src/services/firestore/sync');
     expect(typeof sync.flushPendingAdminPushes).toBe('function');
+  });
+
+  it('G1/G2 continuity: ACK tardío tras cambio de UID no contamina la sesión vigente', async () => {
+    const { authService } = await import('../src/services/auth');
+    const { dbService } = await import('../src/services/db');
+    const sync = await import('../src/services/firestore/sync');
+    sync.setFirestoreAuthoritative(true);
+    await authService.openAdminClientWorkspace('client_juan_001');
+
+    h.state.delayCommitMs = 220;
+    dbService.importSnapshot(
+      {
+        tasks: [
+          {
+            id: 'task_g2_late',
+            clientId: 'client_juan_001',
+            organizationId: 'org_aurora_01',
+            title: 'Juan Late Continuity',
+            status: 'ASSIGNED',
+          } as never,
+        ],
+      },
+      { merge: true, skipRemote: false }
+    );
+
+    const pushJuan = sync.flushPendingAdminPushes(4000);
+    // Wait until the mock transaction delay is engaged (after actor resolve + path probe).
+    await new Promise((r) => setTimeout(r, 90));
+    h.state.userUid = 'user_admin_02';
+    authService.setCurrentUserForTesting({
+      uid: 'user_admin_02',
+      email: 'admin2@aurora.com',
+      role: 'ADMIN',
+      organizationId: 'org_aurora_01',
+      clientId: null,
+    } as never);
+    const barrier = await pushJuan;
+    expect(barrier.status).toBe('confirmed');
+    const notes = sync.getOriginRemoteReconciliationsForTesting('user_admin_01');
+    expect(notes.some((n) => n.status === 'remote_confirmed_unapplied')).toBe(true);
+    expect(sync.getOriginRemoteReconciliationsForTesting('user_admin_02')).toEqual([]);
+    expect(sync.hasPendingAdminMutationsForDoc('clients/client_juan_001/tasks/task_g2_late')).toBe(false);
   });
 });

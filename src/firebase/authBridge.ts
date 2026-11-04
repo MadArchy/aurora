@@ -6,6 +6,8 @@ import { readFirebaseConfig } from './config';
 export type FirebaseAuthListener = (user: User | null) => void;
 
 let unsubscribe: (() => void) | null = null;
+/** Bumped on rebind/unsubscribe so in-flight getIdTokenResult callbacks cannot restore stale claims. */
+let authListenerEpoch = 0;
 
 function mapFirebaseUser(
   fbUser: import('firebase/auth').User,
@@ -69,22 +71,40 @@ export async function bindFirebaseAuthState(listener: FirebaseAuthListener): Pro
   const auth = await getFirebaseAuth();
   if (!auth) return () => undefined;
 
-  const { onAuthStateChanged } = await import('firebase/auth');
+  const authModule = await import('firebase/auth');
+  /**
+   * Prefer onIdTokenChanged when the modular export is a function (real Firebase Auth).
+   * Do not treat a missing instance method as success — fall back only when the export is absent.
+   * Access via Record so incomplete ambient stubs (without onIdTokenChanged) still typecheck;
+   * runtime uses the real modular export from the installed Firebase package.
+   */
+  type AuthStateSubscribe = typeof authModule.onAuthStateChanged;
+  const idTokenChanged = (authModule as Record<string, unknown>).onIdTokenChanged;
+  const subscribeAuth: AuthStateSubscribe =
+    typeof idTokenChanged === 'function'
+      ? (idTokenChanged as AuthStateSubscribe)
+      : authModule.onAuthStateChanged;
+
   unsubscribe?.();
-  unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+  const epoch = ++authListenerEpoch;
+  unsubscribe = subscribeAuth(auth, async (fbUser: import('firebase/auth').User | null) => {
+    if (epoch !== authListenerEpoch) return;
     if (!fbUser) {
       listener(null);
       return;
     }
     try {
       const token = await fbUser.getIdTokenResult();
+      if (epoch !== authListenerEpoch) return;
       listener(mapFirebaseUser(fbUser, parsePosturaClaims(token.claims)));
     } catch {
+      if (epoch !== authListenerEpoch) return;
       listener(null);
     }
   });
 
   return () => {
+    authListenerEpoch += 1;
     unsubscribe?.();
     unsubscribe = null;
   };
