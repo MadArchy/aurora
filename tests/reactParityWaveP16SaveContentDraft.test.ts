@@ -205,12 +205,13 @@ describe('P16 §J–§P — #33 separation, rollback, invalidation, #32', () => 
     expect(read('src/ui/legacy/handlers/contentHandlers.ts')).toMatch(/saveContentDraft\(/);
   });
 
-  it('L. production handoff stays visible without a previous-interface action', () => {
+  it('L. production owns pipeline + generate natively (no dead handoff)', () => {
     const production = read('src/ui/modules/pages/ReactClientWorkspacePage.tsx');
-    expect(production).toMatch(/react-ws-production-handoff/);
-    expect(production).toMatch(/LegacyHandoff/);
-    expect(production).toMatch(/generar contenido/);
-    expect(read('src/ui/modules/pages/LegacyHandoff.tsx')).not.toMatch(/applyUiMode/);
+    expect(production).toMatch(/useContentPipelineAction/);
+    expect(production).toMatch(/useCreateContentDraft/);
+    expect(production).toMatch(/Generar contenido/);
+    expect(production).toMatch(/react-ws-production-generate-open/);
+    expect(production).not.toMatch(/react-ws-production-handoff/);
   });
 
   it('M. success invalidates only the compatibility tenant family', () => {

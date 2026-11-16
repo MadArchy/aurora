@@ -78,8 +78,8 @@ Claims (**fail-closed**, sin tenant por defecto):
 
 
 ### 4. Probar
-1. Login **manager** → si Firestore vacío, bootstrap automático del seed Juan
-2. Login **Juan** (otra ventana/incógnito) → solo sus datos
+1. Login **manager** → badge `Firebase · aurora-postura-app`; si Firestore vacío, crear cliente en **Clientes**
+2. Login cliente real (otra ventana/incógnito) → solo sus datos
 3. Editar `localStorage` en DevTools → **no** debe cambiar lo que ves tras recargar
 
 ---
@@ -89,7 +89,8 @@ Claims (**fail-closed**, sin tenant por defecto):
 - **Firestore = fuente de verdad** (no localStorage cuando Firebase activo)
 - **Login solo Firebase** (sin fallback local)
 - **Videos** → Firebase Storage si hay config; si no, IndexedDB
-- **Primer ADMIN** en Firestore vacío → sube seed demo automáticamente
+- **Firestore vacío** → cartera vacía válida; **no** se inyecta seed demo. Crear clientes desde **Clientes**.
+- Badge en shell React: **`Firebase · aurora-postura-app`** (si ves `Local · demo` o `Emulator`, no estás en datos reales)
 
 ---
 

@@ -35,6 +35,7 @@ import { Wave2Surface, type Wave2Group } from '../wave2/Wave2Surface';
 import { ReactManagerCockpitPage } from '../pages/ReactManagerCockpitPage';
 import { ReactClientPortalPage, type ClientPortalTab } from '../pages/ReactClientPortalPage';
 import { ReactClientWorkspacePage, type WorkspaceTab } from '../pages/ReactClientWorkspacePage';
+import { normalizeTab } from '../../presentation/pageTabMeta';
 
 /**
  * Which wave-2 component group, if any, belongs to a tab. A tab with no entry
@@ -129,14 +130,14 @@ export function ReactAppShell() {
 
   useEffect(() => {
     return subscribeShellNavigation((intent) => {
-      setActiveTab(intent.tab);
+      setActiveTab(normalizeTab(intent.tab));
       if (intent.clientId !== undefined) setActiveClientId(intent.clientId);
     });
   }, []);
 
   const enterClient = (clientId: string, tab = 'ws-radar') => {
     setActiveClientId(clientId);
-    setActiveTab(tab);
+    setActiveTab(normalizeTab(tab));
   };
 
   const backToPortfolio = () => {
@@ -145,18 +146,22 @@ export function ReactAppShell() {
   };
 
   const selectTab = (tab: string) => {
-    if (isAdmin && isWorkspaceTab(tab) && activeClientId === 'all') {
+    const next = normalizeTab(tab);
+    if (isAdmin && isWorkspaceTab(next) && activeClientId === 'all') {
       setActiveTab('clients');
       return;
     }
-    setActiveTab(tab);
+    setActiveTab(next);
   };
 
   const portfolio = usePortfolioBadges(isAdmin ? tenantScope : null);
   const workspace = useWorkspaceBadges(isAdmin ? null : tenantScope);
   const clientBadges = useClientBadges(isAdmin ? null : tenantScope);
   const canonicalOpportunities = useCanonicalOpportunities(isAdmin ? null : tenantScope);
-  const shellContext = useShellContext(tenantScope, null);
+  const shellContext = useShellContext(
+    tenantScope,
+    isAdmin && activeClientId !== 'all' ? activeClientId : null
+  );
 
   if (!user) return null;
 
@@ -178,6 +183,7 @@ export function ReactAppShell() {
 
   const campaigns = shellContext.data?.campaigns ?? [];
   const theses = shellContext.data?.theses ?? [];
+  const workspaceClientName = shellContext.data?.workspaceClientName?.trim() || null;
 
   const workspaceTab = WORKSPACE_TAB_BY_ID[activeTab];
   const portalTab = PORTAL_TAB_BY_ID[activeTab];
@@ -202,7 +208,7 @@ export function ReactAppShell() {
       />
       {inWorkspace ? (
         <NavGroup
-          label={`Cliente · ${activeClientId}`}
+          label={workspaceClientName || 'Cliente activo'}
           items={[
             { id: 'ws-briefing', label: 'Resumen' },
             { id: 'ws-radar', label: 'Radar' },
@@ -217,22 +223,7 @@ export function ReactAppShell() {
           activeTab={activeTab}
           onSelect={selectTab}
         />
-      ) : (
-        <NavGroup
-          label="Workspace"
-          items={[
-            { id: 'ws-radar', label: 'Radar' },
-            { id: 'ws-deliver', label: 'Entregas' },
-            { id: 'ws-briefs', label: 'Strategic Briefs' },
-            { id: 'ws-positioning', label: 'Posicionamiento' },
-            { id: 'ws-sources-react', label: 'Fuentes' },
-            { id: 'ws-tasks', label: 'Tareas' },
-            { id: 'ws-results', label: 'Resultados' },
-          ]}
-          activeTab={activeTab}
-          onSelect={selectTab}
-        />
-      )}
+      ) : null}
       <NavGroup
         label="Sistema"
         items={[{ id: 'ai-center', label: 'IA y operación' }]}
@@ -307,6 +298,12 @@ export function ReactAppShell() {
               <span className="breadcrumb-sep" aria-hidden="true">
                 /
               </span>
+              <span className="breadcrumb-current" data-testid="react-shell-workspace-name">
+                {workspaceClientName || 'Cliente'}
+              </span>
+              <span className="breadcrumb-sep" aria-hidden="true">
+                /
+              </span>
               <button type="button" className="link-btn" onClick={backToPortfolio}>
                 Volver a cartera
               </button>
@@ -360,6 +357,8 @@ export function ReactAppShell() {
             </span>
           ) : null}
 
+          <FirebaseModeBadge />
+
           <span className="topbar-divider" aria-hidden="true" />
 
           <div className="topbar-user">
@@ -409,7 +408,7 @@ export function ReactAppShell() {
         {cockpitTab && !(isWorkspaceTab(activeTab) && activeClientId === 'all') ? (
           <ReactManagerCockpitPage
             shellTab={cockpitSection}
-            onEnterClient={(clientId) => enterClient(clientId, 'ws-radar')}
+            onEnterClient={({ clientId, tab }) => enterClient(clientId, tab || 'ws-radar')}
           />
         ) : null}
         {workspaceTab && activeClientId !== 'all' ? (
@@ -430,5 +429,37 @@ export function ReactAppShell() {
         ) : null}
       </main>
     </>
+  );
+}
+
+/** Presentation-only badge from Vite public env — no Firebase SDK import (T-010-03). */
+function FirebaseModeBadge() {
+  const projectId = String(import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
+  const apiKey = String(import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
+  const enabled = Boolean(projectId && apiKey);
+  if (!enabled) {
+    return (
+      <span
+        className="status-pill status-off"
+        title="Sin Firebase: datos locales de demo"
+        data-testid="react-shell-firebase-badge"
+      >
+        Local · demo
+      </span>
+    );
+  }
+  const emulators = import.meta.env.VITE_FIREBASE_USE_EMULATORS === 'true';
+  return (
+    <span
+      className={`status-pill ${emulators ? 'status-off' : 'status-on'}`}
+      title={
+        emulators
+          ? 'Emulador local — no es datos de producción'
+          : 'Backend Firebase en la nube (datos reales)'
+      }
+      data-testid="react-shell-firebase-badge"
+    >
+      {emulators ? 'Firebase · Emulator' : `Firebase · ${projectId}`}
+    </span>
   );
 }

@@ -234,17 +234,21 @@ describe('P14 §15–§21 — hook, form, refresh, boundaries', () => {
     expect(cockpit).not.toMatch(/organizationId/);
     expect(cockpit).not.toMatch(/\bdbService\b/);
     expect(cockpit).not.toMatch(/acceptInvitation/);
-    expect(cockpit).not.toMatch(/impersonateClient/);
+    expect(cockpit).toMatch(/sessionCommands\.viewAsClient/);
+    expect(cockpit).not.toMatch(/authService\.impersonateClient/);
+    expect(cockpit).not.toMatch(/\bimpersonateClient\s*\(/);
     expect(cockpit).not.toMatch(/pushCurrentLocalToFirestore/);
   });
 
-  it('handoff removes create+invite but keeps infrastructure residuals', () => {
+  it('handoff removes create+invite; impersonate is native on Clientes', () => {
     const cockpit = read('src/ui/modules/pages/ReactManagerCockpitPage.tsx');
     expect(cockpit).not.toMatch(/crear un cliente/);
     expect(cockpit).not.toMatch(/invitarlo/);
-    expect(cockpit).toMatch(/ver la app como cliente/);
+    expect(cockpit).toMatch(/Ver como cliente/);
     expect(cockpit).not.toMatch(/subir datos a Firestore/);
-    expect(cockpit).toMatch(/generar contenido y mover el pipeline/);
+    expect(cockpit).not.toMatch(/<LegacyHandoff\b/);
+    expect(cockpit).toMatch(/react-cockpit-hoy/);
+    expect(cockpit).toMatch(/react-cockpit-clients/);
   });
 
   it('command seam has zero acceptInvitation usage from create path', () => {

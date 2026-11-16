@@ -533,12 +533,18 @@ export interface PortfolioRowRead {
   readonly displayName: string;
   readonly profession: string;
   readonly company: string;
+  readonly status: string;
   readonly attentionScore: number;
   readonly attentionReasons: readonly string[];
   readonly activeThesisCount: number;
   readonly activeThesisTitles: readonly string[];
   readonly pendingCuration: number;
   readonly unreviewedSignals: number;
+  readonly draftDeliveries: number;
+  readonly contentAwaitingManager: number;
+  readonly sourcesInError: number;
+  readonly openTasks: number;
+  readonly lastDeliveryAt: string | null;
   readonly indicators: PortfolioIndicatorStatus;
 }
 
@@ -614,14 +620,18 @@ export function readPortfolioOverview(_scope: TrustedTenantScope): PortfolioOver
       displayName: client.displayName || `${client.firstName} ${client.lastName}`.trim(),
       profession: client.profession || '',
       company: client.company || '',
+      status: client.status || 'ACTIVE',
       attentionScore: indicatorsReady ? summary.attentionScore : 0,
       attentionReasons: indicatorsReady ? [...(summary.attentionReasons ?? [])] : [],
       activeThesisCount: activeTheses.length,
       activeThesisTitles: activeTheses.map((t) => t.title),
-      pendingCuration: indicatorsReady ? dbService.getPendingCurationByClient(client.id).length : 0,
-      unreviewedSignals: indicatorsReady
-        ? dbService.getSignalsByClient(client.id).filter((s) => s.status === 'NEW').length
-        : 0,
+      pendingCuration: indicatorsReady ? summary.pendingCuration : 0,
+      unreviewedSignals: indicatorsReady ? summary.unreviewedSignals : 0,
+      draftDeliveries: indicatorsReady ? summary.draftDeliveries : 0,
+      contentAwaitingManager: indicatorsReady ? summary.contentAwaitingManager : 0,
+      sourcesInError: indicatorsReady ? summary.sourcesInError : 0,
+      openTasks: indicatorsReady ? summary.openTasks : 0,
+      lastDeliveryAt: indicatorsReady ? summary.lastDeliveryAt ?? null : null,
       indicators,
     };
   });
@@ -997,6 +1007,8 @@ export interface WorkspaceContentRow {
   readonly type: string;
   readonly platform: string;
   readonly legacyStatus: string;
+  readonly pipelineStatus: string | null;
+  readonly body: string;
   readonly claimSafety: ClaimSafetyVerdictRecord | null;
 }
 
@@ -1014,6 +1026,8 @@ export function readWorkspaceContent(scope: TrustedTenantScope): {
       type: item.type,
       platform: item.targetPlatform,
       legacyStatus: item.status,
+      pipelineStatus: item.pipelineStatus ?? null,
+      body: item.body ?? '',
       claimSafety: item.claimSafety ?? null,
     })),
   };

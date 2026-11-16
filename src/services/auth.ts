@@ -103,17 +103,12 @@ class AuthService {
       const epoch = dbService.beginAdminDirectoryLoad();
       this.markAdminLoad('postura:admin-auth-start');
       try {
-        const boot = await dbService.bootstrapFirestoreIfEmpty();
+        // Firestore is the source of truth — never auto-seed demo Juan/Elena.
+        const directory = await dbService.hydrateAdminDirectory(epoch);
         if (!dbService.isAdminLoadCurrent(epoch) || this.currentUser?.uid !== user.uid) return;
-        if (boot.bootstrapped) {
-          dbService.markAdminOperationalReady(epoch);
-        } else {
-          const directory = await dbService.hydrateAdminDirectory(epoch);
-          if (!dbService.isAdminLoadCurrent(epoch) || this.currentUser?.uid !== user.uid) return;
-          if (directory === 'error') {
-            this.notify();
-            return;
-          }
+        if (directory === 'error') {
+          this.notify();
+          return;
         }
         this.markAdminLoad('postura:admin-directory-ready');
         this.notify();

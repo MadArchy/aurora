@@ -30,7 +30,8 @@ describe('React rematerialize action ownership', () => {
     const seam = code(SEAM);
     expect(cockpit).toMatch(/useRematerializeLocalSnapshot/);
     expect(cockpit).toMatch(/react-cockpit-rematerialize/);
-    expect(cockpit).toMatch(/Subir local → Firestore/);
+    expect(cockpit).toMatch(/Sincronizar copia local/);
+    expect(cockpit).toMatch(/Herramientas avanzadas/);
     expect(hooks).toMatch(/export function useRematerializeLocalSnapshot/);
     expect(hooks).toMatch(/localSnapshotCommands\.rematerializeLocalSnapshot\(/);
     expect(seam).toMatch(/localSnapshotCommands/);
@@ -76,9 +77,10 @@ describe('React rematerialize action ownership', () => {
     const cockpit = read(COCKPIT);
     expect(cockpit).toMatch(/useCreateClientWithInvite/);
     expect(cockpit).toMatch(/react-cockpit-create-client/);
-    expect(cockpit).toMatch(/ver la app como cliente/);
-    expect(cockpit).toMatch(/generar contenido y mover el pipeline/);
+    expect(cockpit).toMatch(/Ver como cliente/);
+    expect(cockpit).toMatch(/sessionCommands\.viewAsClient/);
     expect(cockpit).not.toMatch(/subir datos a Firestore/);
+    expect(cockpit).not.toMatch(/<LegacyHandoff\b/);
   });
 });
 

@@ -81,9 +81,24 @@ import {
   useRegisterSource,
   useWorkspaceSources,
   useWorkspaceTasks,
+  useContentPipelineAction,
+  useCreateContentDraft,
+  useContentAuthorizingBriefs,
 } from '../../hooks/useWave3Data';
 import { curationDestinationToAuthorizedAction } from '../../../domain/briefConsumerCore';
 import type { CurationDestination, SourceType, TaskType } from '../../../types';
+import {
+  availablePipelineActions,
+  PIPELINE_ACTION_LABELS,
+  pipelineStatusLabel,
+  type ContentPipelineAction,
+} from '../../../domain/contentPublishCore';
+import {
+  buildLinkedInPostingKit,
+  canCreateSocialPacket,
+  createSocialPacketFromContent,
+  type SocialPacket,
+} from '../../../domain/socialPacketCore';
 import { ReactKpiWeeklyChart } from '../Kpi/ReactKpiWeeklyChart';
 import { ReactMasterDossierPanel } from '../MasterDossier/ReactMasterDossierPanel';
 import { ReactProofWallPanel } from '../ProofWall/ReactProofWallPanel';
@@ -1961,8 +1976,17 @@ function ProductionPanel({ workspaceClientId = null }: { workspaceClientId?: str
   }, [tenantScope, workspaceClientId]);
 
   const { data, isLoading, isError } = useWorkspaceContent(scope);
+  const briefs = useContentAuthorizingBriefs(scope);
+  const pipelineAction = useContentPipelineAction(scope);
+  const createDraft = useCreateContentDraft(scope);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [briefId, setBriefId] = useState('');
+  const [topic, setTopic] = useState('');
+  const [packets, setPackets] = useState<SocialPacket[]>([]);
+  const [kitCopy, setKitCopy] = useState<string | null>(null);
+  const [kitHint, setKitHint] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{
     kind: 'success' | 'error';
     text: string;
@@ -1994,6 +2018,7 @@ function ProductionPanel({ workspaceClientId = null }: { workspaceClientId?: str
   }
 
   const items = data?.items ?? [];
+  const authorizingBriefs = briefs.data ?? [];
 
   if (editingId) {
     return (
@@ -2015,14 +2040,168 @@ function ProductionPanel({ workspaceClientId = null }: { workspaceClientId?: str
     );
   }
 
+  const runPipeline = async (contentId: string, action: ContentPipelineAction) => {
+    setStatusMessage(null);
+    const result = await pipelineAction.mutateAsync({ contentId, action });
+    setStatusMessage({
+      kind: result.ok ? 'success' : 'error',
+      text: result.message || (result.ok ? 'Pipeline actualizado' : 'Error'),
+    });
+  };
+
+  const onGenerate = async (event: FormEvent) => {
+    event.preventDefault();
+    setStatusMessage(null);
+    if (!briefId.trim() || !topic.trim()) {
+      setStatusMessage({ kind: 'error', text: 'Brief y tema son obligatorios.' });
+      return;
+    }
+    const result = await createDraft.mutateAsync({
+      draftIntent: {
+        kind: 'FORM_GENERATE',
+        strategicBriefId: briefId.trim(),
+        topic: topic.trim(),
+        format: 'LINKEDIN_ARTICLE',
+      },
+    });
+    setStatusMessage({
+      kind: result.ok ? 'success' : 'error',
+      text: result.message || (result.ok ? 'Borrador generado' : 'Error'),
+    });
+    if (result.ok) {
+      setGenerateOpen(false);
+      setTopic('');
+    }
+  };
+
+  const onCreatePacket = (item: (typeof items)[number]) => {
+    if (!scope.clientId) return;
+    const result = createSocialPacketFromContent({
+      contentId: item.id,
+      clientId: scope.clientId,
+      title: item.title,
+      body: item.body,
+      claimSafety: item.claimSafety,
+      pipelineStatus: item.pipelineStatus,
+      legacyStatus: item.legacyStatus,
+    });
+    if (!result.ok) {
+      setStatusMessage({ kind: 'error', text: result.reason });
+      return;
+    }
+    setPackets((prev) => [result.packet, ...prev.filter((p) => p.contentId !== item.id)]);
+    setStatusMessage({
+      kind: 'success',
+      text: 'Packet LinkedIn creado — pendiente de aprobación del autor.',
+    });
+  };
+
+  const onApprovePacket = (packetId: string) => {
+    setPackets((prev) =>
+      prev.map((p) => {
+        if (p.id !== packetId) return p;
+        const approved = { ...p, status: 'APPROVED_FOR_POST' as const, approvedAt: new Date().toISOString() };
+        return { ...approved, status: 'READY_TO_POST' as const };
+      })
+    );
+    setStatusMessage({ kind: 'success', text: 'Packet aprobado — posting kit listo.' });
+  };
+
+  const onShowKit = (packet: SocialPacket) => {
+    const kit = buildLinkedInPostingKit(packet);
+    if (!kit) {
+      setStatusMessage({ kind: 'error', text: 'El packet aún no está listo para postear.' });
+      return;
+    }
+    setKitCopy(kit.copy);
+    setKitHint(kit.scheduledHint);
+    void navigator.clipboard?.writeText(kit.copy).then(
+      () => setStatusMessage({ kind: 'success', text: 'Copy copiado. Abre LinkedIn para publicar.' }),
+      () => setStatusMessage({ kind: 'success', text: 'Posting kit listo — copia el texto abajo.' })
+    );
+  };
+
+  const packetStatusLabel = (status: SocialPacket['status']) => {
+    if (status === 'PENDING_AUTHOR') return 'Pendiente del autor';
+    if (status === 'READY_TO_POST' || status === 'APPROVED_FOR_POST') return 'Listo para publicar';
+    if (status === 'POSTED') return 'Publicado';
+    return 'Borrador';
+  };
+
   return (
-    <div data-testid="react-ws-production">
+    <div data-testid="react-ws-production" className="production-surface">
       <div className="card-header">
         <div>
-          <h3>Pipeline editorial</h3>
-          <p>Revisa y edita entregables existentes. Generar contenido todavía no está disponible en esta interfaz.</p>
+          <h3>Producción</h3>
+          <p>Revisa, avanza el pipeline y prepara el packet de LinkedIn.</p>
         </div>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          data-testid="react-ws-production-generate-open"
+          onClick={() => setGenerateOpen((v) => !v)}
+        >
+          Generar contenido
+        </button>
       </div>
+
+      {generateOpen ? (
+        <form
+          className="card nested-card"
+          data-testid="react-ws-production-generate-form"
+          onSubmit={(event) => void onGenerate(event)}
+        >
+          <h4>Nuevo borrador</h4>
+          {authorizingBriefs.length === 0 ? (
+            <p className="empty-state small">
+              No hay Strategic Briefs autorizados. Crea y aprueba uno en Strategic Briefs antes de
+              generar.
+            </p>
+          ) : (
+            <>
+              <div className="form-group">
+                <label className="form-label" htmlFor="react-ws-gen-brief">
+                  Brief autorizado
+                </label>
+                <select
+                  id="react-ws-gen-brief"
+                  className="form-select"
+                  value={briefId}
+                  onChange={(e) => setBriefId(e.target.value)}
+                  data-testid="react-ws-production-generate-brief"
+                >
+                  <option value="">Selecciona un brief</option>
+                  {authorizingBriefs.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.strategicAngle || b.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="react-ws-gen-topic">
+                  Tema
+                </label>
+                <input
+                  id="react-ws-gen-topic"
+                  className="form-input"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  data-testid="react-ws-production-generate-topic"
+                />
+              </div>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={createDraft.isPending}
+                data-testid="react-ws-production-generate-submit"
+              >
+                {createDraft.isPending ? 'Generando…' : 'Generar borrador'}
+              </button>
+            </>
+          )}
+        </form>
+      ) : null}
 
       {statusMessage ? (
         <p
@@ -2038,62 +2217,164 @@ function ProductionPanel({ workspaceClientId = null }: { workspaceClientId?: str
         </p>
       ) : null}
 
+      {kitCopy ? (
+        <div className="posting-kit" data-testid="react-ws-production-posting-kit">
+          <h4>Kit de publicación · LinkedIn</h4>
+          <p className="posting-kit-meta">
+            Hora sugerida {kitHint || '09:30'} · Nada se publica solo: el autor controla el envío.
+          </p>
+          <pre className="posting-kit-copy">{kitCopy}</pre>
+          <div className="posting-kit-actions">
+            <a
+              className="btn btn-primary btn-sm"
+              href="https://www.linkedin.com/feed/?shareActive=true"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Abrir LinkedIn
+            </a>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                void navigator.clipboard?.writeText(kitCopy);
+                setStatusMessage({ kind: 'success', text: 'Copy copiado al portapapeles.' });
+              }}
+            >
+              Copiar texto
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {packets.length ? (
+        <ul className="content-list" data-testid="react-ws-production-packets">
+          {packets.map((packet) => (
+            <li key={packet.id} className="content-row" data-testid={`react-ws-packet-${packet.id}`}>
+              <div>
+                <strong>Packet LinkedIn</strong>
+                <p className="muted small">{packetStatusLabel(packet.status)}</p>
+              </div>
+              <div className="content-row-actions">
+                {packet.status === 'PENDING_AUTHOR' ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    data-testid={`react-ws-packet-approve-${packet.id}`}
+                    onClick={() => onApprovePacket(packet.id)}
+                  >
+                    Aprobar para publicar
+                  </button>
+                ) : null}
+                {packet.status === 'READY_TO_POST' || packet.status === 'APPROVED_FOR_POST' ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    data-testid={`react-ws-packet-kit-${packet.id}`}
+                    onClick={() => onShowKit(packet)}
+                  >
+                    Abrir kit
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {items.length ? (
         <ul className="content-list" data-testid="react-ws-production-list">
           {items.map((item) => {
             const showClaimSafety = Boolean(item.claimSafety && item.claimSafety.verdict !== 'PASS');
+            const actions = availablePipelineActions({
+              pipelineStatus: (item.pipelineStatus as ContentItemPipeline) || undefined,
+              status: item.legacyStatus as ContentItemStatus,
+            });
+            const nextAction = actions[0];
+            const packetGate = canCreateSocialPacket({
+              pipelineStatus: item.pipelineStatus,
+              legacyStatus: item.legacyStatus,
+              claimSafety: item.claimSafety,
+            });
             return (
-            <li
-              className="content-row"
-              key={item.id}
-              data-testid={`react-ws-production-row-${item.id}`}
-            >
-              <div>
-                <strong>{item.title}</strong>
-                {showClaimSafety ? <ReactClaimSafetyBadge record={item.claimSafety ?? undefined} /> : null}
-                <p className="muted small">
-                  {item.platform} · {item.type} · {item.legacyStatus}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                data-testid={`react-ws-production-edit-${item.id}`}
-                onClick={() => setEditingId(item.id)}
+              <li
+                className="content-row"
+                key={item.id}
+                data-testid={`react-ws-production-row-${item.id}`}
               >
-                Editar
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                data-testid={`react-ws-production-preview-${item.id}`}
-                onClick={() => setPreviewingId(item.id)}
-              >
-                Ver
-              </button>
-              {showClaimSafety && item.claimSafety ? (
-                <details className="claim-safety-disclosure">
-                  <summary>{item.claimSafety.findings.length} afirmación(es) señalada(s)</summary>
-                  <ReactClaimSafetyPanel record={item.claimSafety} />
-                </details>
-              ) : null}
-            </li>
+                <div>
+                  <strong>{item.title}</strong>
+                  {showClaimSafety ? <ReactClaimSafetyBadge record={item.claimSafety ?? undefined} /> : null}
+                  <p className="muted small">
+                    {item.platform} ·{' '}
+                    {item.pipelineStatus
+                      ? pipelineStatusLabel({
+                          pipelineStatus: item.pipelineStatus as ContentItemPipeline,
+                          status: item.legacyStatus as ContentItemStatus,
+                        })
+                      : item.legacyStatus}
+                  </p>
+                </div>
+                <div className="content-row-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    data-testid={`react-ws-production-edit-${item.id}`}
+                    onClick={() => setEditingId(item.id)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    data-testid={`react-ws-production-preview-${item.id}`}
+                    onClick={() => setPreviewingId(item.id)}
+                  >
+                    Ver
+                  </button>
+                  {nextAction ? (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm pipeline-next"
+                      data-testid={`react-ws-production-pipeline-${nextAction}-${item.id}`}
+                      disabled={pipelineAction.isPending}
+                      onClick={() => void runPipeline(item.id, nextAction)}
+                    >
+                      {PIPELINE_ACTION_LABELS[nextAction]}
+                    </button>
+                  ) : null}
+                  {packetGate.ok ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      data-testid={`react-ws-production-packet-${item.id}`}
+                      onClick={() => onCreatePacket(item)}
+                    >
+                      Packet LinkedIn
+                    </button>
+                  ) : null}
+                </div>
+                {showClaimSafety && item.claimSafety ? (
+                  <details className="claim-safety-disclosure">
+                    <summary>{item.claimSafety.findings.length} afirmación(es) señalada(s)</summary>
+                    <ReactClaimSafetyPanel record={item.claimSafety} />
+                  </details>
+                ) : null}
+              </li>
             );
           })}
         </ul>
       ) : (
         <p className="empty-state" data-testid="react-ws-production-empty">
-          No hay contenido existente para este cliente.
+          Aún no hay contenido. Genera un borrador o avanza una entrega desde Radar → Entregar.
         </p>
       )}
-
-      <LegacyHandoff
-        actions={['generar contenido', 'mover el pipeline']}
-        testId="react-ws-production-handoff"
-      />
     </div>
   );
 }
+
+type ContentItemPipeline = import('../../../types').ContentPipelineStatus;
+type ContentItemStatus = import('../../../types').ContentStatus;
 
 /* ------------------------------------------------------------------ *
  * Positioning — existing advice actions + click-only #21a

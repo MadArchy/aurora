@@ -20,7 +20,22 @@ const autoChecks = [
   { ok: fileHas('src/data/juanCampaignSeed.ts', /CAMP_PATENTS/), label: 'Seed campaña PI/Patentes' },
   { ok: fileHas('src/data/juanCampaignSeed.ts', /consultation_requests/), label: 'Seed KPI consultas' },
   { ok: fileHas('src/services/db.ts', /opp_cle_001/), label: 'Seed oportunidad CLE' },
-  { ok: fileHas('src/components/KpiWeeklyChart.ts', /renderKpiHomeDashboard/), label: 'Dashboard KPI en home' },
+  {
+    ok:
+      fileHas('src/components/KpiWeeklyChart.ts', /renderKpiHomeDashboard/) ||
+      fileHas('src/ui/modules/Kpi/ReactKpiWeeklyChart.tsx', /ReactKpiWeeklyChart/),
+    label: 'Dashboard KPI en home',
+  },
+  {
+    ok:
+      fileHas('src/ui/modules/pages/ReactManagerCockpitPage.tsx', /react-cockpit-hoy/) &&
+      fileHas('src/ui/modules/pages/ReactManagerCockpitPage.tsx', /react-cockpit-clients/),
+    label: 'Hoy ≠ Clientes (React cockpit)',
+  },
+  {
+    ok: fileHas('src/ui/modules/pages/ReactClientWorkspacePage.tsx', /useContentPipelineAction/),
+    label: 'Pipeline producción React',
+  },
   { ok: fileHas('src/domain/clientIsolationCore.ts', /canAccessClientResource/), label: 'Reglas aislamiento clientId' },
   { ok: fileHas('firestore.rules', /ownsSubResource|existingSubEnvelopeValid/), label: 'Reglas Firestore envelope denormalizado (T-009-14e)' },
   { ok: fileHas('src/domain/contentPublishCore.ts', /availablePipelineActions/), label: 'Acciones pipeline publicación' },

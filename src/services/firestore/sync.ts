@@ -3,6 +3,7 @@ import { getFirebaseAuth, getFirebaseFirestore } from '../../firebase/app';
 import { readFirebaseConfig } from '../../firebase/config';
 import { CLIENT_SUBCOLLECTIONS, clientDocPath } from './paths';
 import { stripNonAuthoritativeContentHistory } from '../../domain/contentHistoryPolicy';
+import { saveOutboxBundle } from './durableOutbox';
 
 type CollectionKey = keyof LocalV5Snapshot;
 
@@ -2818,6 +2819,29 @@ function orphanActiveAdminMutations(message: string): number {
     message,
   };
   orphanedAdminMutations = bundle;
+  // RR-01: durable snapshot partitioned by identity (survives F5; not re-injected into foreign actors).
+  if (actor?.uid && actor.organizationId) {
+    const entries = [...pendingAdminMutations.entries()].map(([path, entry]) => ({
+      path,
+      payload: {
+        create: entry.create ?? null,
+        fields: Object.fromEntries([...entry.fields.entries()].map(([k, f]) => [k, f.value])),
+        originUid: entry.originUid,
+        originOrganizationId: entry.originOrganizationId,
+        originGeneration: entry.originGeneration,
+      },
+      updatedAt: new Date().toISOString(),
+    }));
+    saveOutboxBundle(
+      {
+        uid: actor.uid,
+        role: actor.role,
+        organizationId: actor.organizationId,
+        clientId: actor.clientId,
+      },
+      entries
+    );
+  }
   pendingAdminMutations.clear();
   pushErrorHandler?.(message);
   return bundle.mutations.size;

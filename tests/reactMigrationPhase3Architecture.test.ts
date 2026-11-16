@@ -170,7 +170,7 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
     'createClient',
     'createInvitation',
     'createPendingAccount',
-    'impersonateClient',
+    // impersonateClient: allowed only in sessionCommands → authService (viewAsClient).
   ];
 
   it('no blocked mutator is referenced anywhere in the React layer', () => {
@@ -186,6 +186,13 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
     expect(offenders).toEqual([]);
   });
 
+  it('pages never call impersonateClient directly — only sessionCommands.viewAsClient', () => {
+    for (const file of PAGE_FILES) {
+      expect(code(file)).not.toMatch(/\bimpersonateClient\s*\(/);
+    }
+    expect(code(join(ROOT, 'src/ui/commands/commandSeam.ts'))).toMatch(/viewAsClient\(/);
+  });
+
   it('the compatibility facade still exposes no mutator', () => {
     const source = code(join(ROOT, COMPATIBILITY_FACADE));
     const exported = [...source.matchAll(/export\s+function\s+(\w+)/g)].map((match) => match[1]);
@@ -196,9 +203,8 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
   it('every blocked page action is delegated visibly rather than removed (§7)', () => {
     // Each migrated page keeps some action on the legacy surface, and each must
     // say so: a blocked action that is simply absent would be capability loss.
-    // ReactThesisEditorPage has none left: stress-test and AI proposal are native (R1 H19/H20).
+    // ReactThesisEditorPage / ReactManagerCockpitPage: critical actions are native (Fase 1).
     const pagesWithBlockedActions = [
-      'src/ui/modules/pages/ReactManagerCockpitPage.tsx',
       'src/ui/modules/pages/ReactClientPortalPage.tsx',
       'src/ui/modules/pages/ReactClientWorkspacePage.tsx',
       'src/ui/modules/pages/modals/ReactModals.tsx',
@@ -206,6 +212,10 @@ describe('AUDIT010-09 / §6 — no blocked legacy write appears behind a React p
     for (const path of pagesWithBlockedActions) {
       expect(read(join(ROOT, path))).toMatch(/LegacyHandoff/);
     }
+    // Cockpit: impersonate + create-client are native; no dead <LegacyHandoff> component.
+    expect(read(join(ROOT, 'src/ui/modules/pages/ReactManagerCockpitPage.tsx'))).not.toMatch(
+      /<LegacyHandoff\b/
+    );
   });
 });
 
@@ -373,7 +383,7 @@ describe('§17 / A38 — DOM ownership stays exclusive', () => {
     const handoff = code(join(ROOT, 'src/ui/modules/pages/LegacyHandoff.tsx'));
     expect(handoff).toMatch(/export function LegacyHandoff/);
     expect(handoff).toMatch(/data-legacy-handoff="true"/);
-    expect(handoff).toMatch(/todavía no está disponible en esta interfaz/);
+    expect(handoff).toMatch(/Próximamente/);
     expect(handoff).not.toMatch(/applyUiMode/);
     expect(handoff).not.toMatch(/interfaz anterior/);
     expect(handoff).not.toMatch(/<button/);

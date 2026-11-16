@@ -6,15 +6,8 @@
  * READ SOURCE: compatibility (`readPortfolioOverview`, `readAiCenter`).
  *
  * COMMAND: #34 CreateClientWithInvite (P14) via `clientLifecycleCommands`.
- * Remaining mutating cockpit actions stay legacy:
- *   - "Ver como cliente"           → `authService.impersonateClient` (SPEC-009)
  * COMMAND: RematerializeLocalSnapshotToFirestore via `localSnapshotCommands`.
- *   - "Redactar paper" / pipeline  → canonical gate + legacy writes
- *
- * Two legacy behaviours are deliberately not reproduced:
- *   - the directory row shows `getActiveTheses(id)[0]` and silently hides any
- *     other active thesis. This view shows the count and every title.
- *   - the panel probes `aiService.isServerGatewayAvailable()` during render.
+ * COMMAND: impersonate / open workspace via `sessionCommands`.
  */
 
 import { useEffect, useState, type FormEvent } from 'react';
@@ -25,8 +18,10 @@ import {
   usePortfolioOverview,
   useRematerializeLocalSnapshot,
 } from '../../hooks/useWave3Data';
+import { sessionCommands } from '../../commands/commandSeam';
 import { ReactTabHeader } from '../PageHeader/ReactPageHeader';
-import { LegacyHandoff, PanelState } from './LegacyHandoff';
+import { PanelState } from './LegacyHandoff';
+import type { PortfolioRowRead } from '../../data/compatibilityReads';
 
 type CockpitTab = 'portfolio' | 'clients' | 'ai';
 
@@ -53,6 +48,25 @@ const EMPTY_CREATE_CLIENT: CreateClientFields = {
   company: '',
   targetMarket: '',
 };
+
+export type EnterClientIntent = { clientId: string; tab?: string };
+
+function portfolioPrimaryAction(row: PortfolioRowRead): { tab: string; label: string } {
+  if (row.unreviewedSignals > 0) return { tab: 'ws-radar', label: 'Abrir radar' };
+  if (row.pendingCuration > 0 || row.draftDeliveries > 0) {
+    return { tab: 'ws-deliver', label: 'Continuar entrega' };
+  }
+  if (row.contentAwaitingManager > 0) return { tab: 'ws-production', label: 'Revisar producción' };
+  if (row.sourcesInError > 0) return { tab: 'ws-sources-react', label: 'Revisar fuentes' };
+  return { tab: 'ws-briefing', label: 'Ver resumen' };
+}
+
+function attentionLabel(score: number): string {
+  if (score >= 45) return 'Requiere acción';
+  if (score >= 20) return 'Revisar pronto';
+  if (score > 0) return 'Menor';
+  return 'Al día';
+}
 
 function CreateClientPanel() {
   const { tenantScope } = useSession();
@@ -286,36 +300,216 @@ function RematerializeLocalSnapshotPanel() {
   };
 
   return (
-    <div className="cockpit-rematerialize" data-testid="react-cockpit-rematerialize">
-      <button
-        type="button"
-        className="btn btn-secondary btn-sm"
-        disabled={busy || indicatorsHeld}
-        onClick={() => void submit()}
-        data-testid="react-cockpit-rematerialize-submit"
-      >
-        {busy ? 'Subiendo…' : 'Subir local → Firestore'}
-      </button>
-      {message ? (
-        <p className="muted small" role="status" data-testid="react-cockpit-rematerialize-success">
-          {message}
+    <details className="cockpit-advanced" data-testid="react-cockpit-rematerialize">
+      <summary className="muted small">Herramientas avanzadas</summary>
+      <div className="cockpit-advanced-body">
+        <p className="muted small">
+          Solo para migración de datos locales. No forma parte del flujo diario.
         </p>
-      ) : null}
-      {error ? (
-        <p className="form-error" role="alert" data-testid="react-cockpit-rematerialize-error">
-          {error}
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={busy || indicatorsHeld}
+          onClick={() => void submit()}
+          data-testid="react-cockpit-rematerialize-submit"
+        >
+          {busy ? 'Sincronizando…' : 'Sincronizar copia local'}
+        </button>
+        {message ? (
+          <p className="muted small" role="status" data-testid="react-cockpit-rematerialize-success">
+            {message}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="form-error" role="alert" data-testid="react-cockpit-rematerialize-error">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function useOpenWorkspace(onEnterClient?: (intent: EnterClientIntent) => void) {
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [openErrorId, setOpenErrorId] = useState<string | null>(null);
+
+  const open = (clientId: string, tab?: string) => {
+    if (!onEnterClient || openingId === clientId) return;
+    setOpeningId(clientId);
+    setOpenErrorId(null);
+    void sessionCommands.openAdminClientWorkspace(clientId).then((result) => {
+      setOpeningId((current) => (current === clientId ? null : current));
+      if (!result.ok) {
+        if (result.reason !== 'stale') setOpenErrorId(clientId);
+        return;
+      }
+      onEnterClient({ clientId, tab });
+    });
+  };
+
+  return { openingId, openErrorId, open };
+}
+
+/** Hoy — cola de atención (solo attentionScore > 0, salvo búsqueda). */
+function HoyPanel({ onEnterClient }: { onEnterClient?: (intent: EnterClientIntent) => void }) {
+  const { tenantScope } = useSession();
+  const { data, isLoading, isError } = usePortfolioOverview(tenantScope);
+  const [search, setSearch] = useState('');
+  const { openingId, openErrorId, open } = useOpenWorkspace(onEnterClient);
+
+  if (isLoading || data?.directoryStatus === 'LOADING') {
+    return <PanelState kind="loading" message="Cargando cola de atención…" testId="react-cockpit-loading" />;
+  }
+  if (isError || data?.directoryStatus === 'ERROR') {
+    return (
+      <PanelState
+        kind="error"
+        message="No se pudo cargar la cola de atención. La cartera no está vacía: la consulta falló."
+        testId="react-cockpit-error"
+      />
+    );
+  }
+
+  const overview = data ?? {
+    rows: [],
+    totalClients: 0,
+    needingAttention: 0,
+    totalActiveTheses: 0,
+    directoryStatus: 'READY' as const,
+    indicatorStatus: 'READY' as const,
+  };
+  const indicatorsReady = overview.indicatorStatus === 'READY';
+  const indicatorLabel =
+    overview.indicatorStatus === 'ERROR' ? 'Error' : indicatorsReady ? null : 'Pendiente';
+
+  const term = search.trim().toLowerCase();
+  const base = term
+    ? overview.rows.filter((row) =>
+        `${row.displayName} ${row.profession} ${row.company}`.toLowerCase().includes(term)
+      )
+    : overview.rows.filter((row) => row.attentionScore > 0);
+
+  const queue = [...base].sort((a, b) => {
+    const byScore = b.attentionScore - a.attentionScore;
+    if (byScore !== 0) return byScore;
+    return a.displayName.localeCompare(b.displayName, 'es');
+  });
+
+  return (
+    <div data-testid="react-cockpit-hoy" data-directory="ready" className="cockpit-hoy">
+      <section className="today-hero editorial-panel" data-testid="react-cockpit-hoy-hero">
+        <p className="section-kicker">Estado de la cartera</p>
+        <p className="today-hero-lead" data-testid="react-cockpit-hoy-lead">
+          {overview.totalClients === 0
+            ? 'Cartera vacía en Firestore. Crea el primer cliente en Clientes.'
+            : queue.length
+              ? `${queue.length} cliente${queue.length === 1 ? '' : 's'} requieren una decisión ahora.`
+              : 'Nada urgente en la cartera. Revisa Clientes o prepara la próxima entrega.'}
         </p>
-      ) : null}
+        <p className="today-hero-stats muted small">
+          <span data-testid="react-cockpit-attention">{indicatorLabel ?? overview.needingAttention}</span> con
+          atención ·{' '}
+          <span data-testid="react-cockpit-client-count">{overview.totalClients}</span> en cartera ·{' '}
+          <span data-testid="react-cockpit-theses">{indicatorLabel ?? overview.totalActiveTheses}</span> tesis
+          activas
+        </p>
+      </section>
+
+      <section className="card today-queue">
+        <div className="section-heading">
+          <div className="section-heading-copy">
+            <h2>Cola de atención</h2>
+            <p>Entra al paso que desbloquea cada cliente.</p>
+          </div>
+        </div>
+
+        <div className="form-group today-search">
+          <label className="form-label sr-only" htmlFor="react-cockpit-hoy-search">
+            Buscar en la cola
+          </label>
+          <input
+            id="react-cockpit-hoy-search"
+            type="search"
+            className="form-input"
+            placeholder="Buscar cliente…"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            data-testid="react-cockpit-search"
+          />
+        </div>
+
+        {queue.length ? (
+          <ul className="portfolio-queue portfolio-queue-list" data-testid="react-cockpit-queue">
+            {queue.map((row) => {
+              const action = portfolioPrimaryAction(row);
+              const level =
+                row.attentionScore >= 45
+                  ? 'attention-high'
+                  : row.attentionScore >= 20
+                    ? 'attention-medium'
+                    : 'attention-low';
+              return (
+                <li className={`portfolio-queue-row ${level}`} key={row.clientId}>
+                  <div className="portfolio-queue-copy">
+                    <div className="portfolio-queue-title">
+                      <strong>{row.displayName}</strong>
+                      <span className="attention-tag">{attentionLabel(row.attentionScore)}</span>
+                    </div>
+                    <p className="portfolio-queue-reason">
+                      {row.attentionReasons[0] ||
+                        `${row.unreviewedSignals} señales · ${row.pendingCuration} por decidir`}
+                    </p>
+                  </div>
+                  <div className="portfolio-queue-meta">
+                    {onEnterClient ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          data-testid={`react-cockpit-open-${row.clientId}`}
+                          disabled={openingId === row.clientId}
+                          onClick={() => open(row.clientId, action.tab)}
+                        >
+                          {openingId === row.clientId ? 'Cargando…' : action.label}
+                        </button>
+                        {openErrorId === row.clientId ? (
+                          <p
+                            className="form-error small"
+                            data-testid={`react-cockpit-open-error-${row.clientId}`}
+                          >
+                            No se pudieron cargar los datos de este cliente.
+                          </p>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="empty-state" data-testid="react-cockpit-empty">
+            {term
+              ? 'Ningún cliente coincide con la búsqueda.'
+              : overview.totalClients === 0
+                ? 'Aún no hay clientes en Firestore. Ve a Clientes y crea el primero.'
+                : 'Toda la cartera está al día. Ve a Clientes para administrar la cartera.'}
+          </p>
+        )}
+      </section>
+      <div hidden data-testid="react-cockpit-indicators" data-state={indicatorsReady ? 'ready' : 'pending'} />
     </div>
   );
 }
 
-function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) => void }) {
+/** Clientes — directorio completo + alta + impersonar. */
+function ClientsPanel({ onEnterClient }: { onEnterClient?: (intent: EnterClientIntent) => void }) {
   const { tenantScope } = useSession();
   const { data, isLoading, isError } = usePortfolioOverview(tenantScope);
   const [search, setSearch] = useState('');
-  const [openingId, setOpeningId] = useState<string | null>(null);
-  const [openErrorId, setOpenErrorId] = useState<string | null>(null);
+  const [impersonateError, setImpersonateError] = useState<string | null>(null);
+  const { openingId, openErrorId, open } = useOpenWorkspace(onEnterClient);
 
   if (isLoading || data?.directoryStatus === 'LOADING') {
     return <PanelState kind="loading" message="Cargando directorio de clientes…" testId="react-cockpit-loading" />;
@@ -349,139 +543,137 @@ function PortfolioPanel({ onEnterClient }: { onEnterClient?: (clientId: string) 
       )
     : overview.rows;
 
-  const queue = [...rows].sort((a, b) => {
+  const directory = [...rows].sort((a, b) => {
     const byScore = b.attentionScore - a.attentionScore;
     if (byScore !== 0) return byScore;
-    return b.displayName.localeCompare(a.displayName, 'es');
+    return a.displayName.localeCompare(b.displayName, 'es');
   });
 
   return (
-    <div
-      data-testid="react-cockpit-portfolio"
-      data-directory="ready"
-    >
-      <div
-        className="stat-grid"
-        data-testid="react-cockpit-indicators"
-        data-state={indicatorsReady ? 'ready' : overview.indicatorStatus === 'ERROR' ? 'error' : 'pending'}
-      >
-        <div className="stat-tile">
-          <span className="stat-value" data-testid="react-cockpit-client-count">
-            {overview.totalClients}
-          </span>
-          <span className="stat-label">Clientes</span>
-        </div>
-        <div className="stat-tile">
-          <span className="stat-value" data-testid="react-cockpit-attention">
-            {indicatorLabel ?? overview.needingAttention}
-          </span>
-          <span className="stat-label">Requieren atención</span>
-        </div>
-        <div className="stat-tile">
-          <span className="stat-value" data-testid="react-cockpit-theses">
-            {indicatorLabel ?? overview.totalActiveTheses}
-          </span>
-          <span className="stat-label">Tesis activas</span>
-        </div>
+    <div data-testid="react-cockpit-clients" data-directory="ready" className="cockpit-clients">
+      <section className="today-hero editorial-panel">
+        <p className="section-kicker">Directorio</p>
+        <p className="today-hero-lead">
+          {overview.totalClients} cliente{overview.totalClients === 1 ? '' : 's'} en cartera
+          {overview.needingAttention
+            ? ` · ${overview.needingAttention} con pendientes abiertos`
+            : ' · todos al día'}
+          .
+        </p>
+        <p className="today-hero-stats muted small">
+          <span data-testid="react-cockpit-client-count">{overview.totalClients}</span> clientes ·{' '}
+          <span data-testid="react-cockpit-attention">{indicatorLabel ?? overview.needingAttention}</span>{' '}
+          con atención ·{' '}
+          <span data-testid="react-cockpit-theses">{indicatorLabel ?? overview.totalActiveTheses}</span> tesis
+          activas
+        </p>
+      </section>
+
+      <div className="cockpit-clients-toolbar">
+        <CreateClientPanel />
       </div>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="react-cockpit-search">
-          Buscar cliente
-        </label>
-        <input
-          id="react-cockpit-search"
-          type="search"
-          className="form-input"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          data-testid="react-cockpit-search"
-        />
-      </div>
+      <section className="card today-queue">
+        <div className="section-heading">
+          <div className="section-heading-copy">
+            <h2>Cartera</h2>
+            <p>Ordenada por urgencia. Los números vienen de señales, tareas y entregas reales.</p>
+          </div>
+        </div>
 
-      {queue.length ? (
-        <ul className="portfolio-queue" data-testid="react-cockpit-queue">
-          {queue.map((row) => (
-            <li className="portfolio-queue-row" key={row.clientId}>
-              <div>
-                <strong>{row.displayName}</strong>
-                <p className="muted small">
-                  {row.profession}
-                  {row.company ? ` · ${row.company}` : ''}
-                </p>
-                <p className="muted small" data-testid={`react-cockpit-theses-${row.clientId}`}>
-                  {row.indicators !== 'READY'
-                    ? row.indicators === 'ERROR'
-                      ? 'Indicadores no disponibles'
-                      : 'Indicadores pendientes'
-                    : row.activeThesisCount === 0
-                      ? 'Sin tesis activa'
-                      : `${row.activeThesisCount} ${
-                          row.activeThesisCount === 1 ? 'tesis activa' : 'tesis activas'
-                        }: ${row.activeThesisTitles.join(' · ')}`}
-                </p>
-                {row.attentionReasons.length ? (
-                  <ul className="small">
-                    {row.attentionReasons.map((reason) => (
-                      <li key={reason}>{reason}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-              <div className="portfolio-queue-meta">
-                <span className={`badge ${indicatorsReady && row.attentionScore > 0 ? 'badge-pending' : 'badge-ready'}`}>
-                  {row.indicators === 'READY'
-                    ? `Atención ${row.attentionScore}`
-                    : row.indicators === 'ERROR'
-                      ? 'Atención no disponible'
-                      : 'Atención pendiente'}
-                </span>
-                <p className="muted small">
-                  {row.indicators === 'READY'
-                    ? `${row.unreviewedSignals} señales nuevas · ${row.pendingCuration} por decidir`
-                    : 'Señales y curación pendientes'}
-                </p>
-                {onEnterClient ? (
-                  <>
+        <div className="form-group today-search">
+          <label className="form-label sr-only" htmlFor="react-cockpit-clients-search">
+            Buscar cliente
+          </label>
+          <input
+            id="react-cockpit-clients-search"
+            type="search"
+            className="form-input"
+            placeholder="Buscar por nombre, profesión o empresa…"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            data-testid="react-cockpit-search"
+          />
+        </div>
+
+        {impersonateError ? (
+          <p className="form-error" role="alert" data-testid="react-cockpit-impersonate-error">
+            {impersonateError}
+          </p>
+        ) : null}
+
+        {directory.length ? (
+          <ul className="portfolio-queue portfolio-queue-list" data-testid="react-cockpit-directory">
+            {directory.map((row) => {
+              const action = portfolioPrimaryAction(row);
+              return (
+                <li className="portfolio-queue-row client-directory-row" key={row.clientId}>
+                  <div className="portfolio-queue-copy">
+                    <div className="portfolio-queue-title">
+                      <strong>{row.displayName}</strong>
+                      <span className={`badge ${row.status === 'ACTIVE' ? 'badge-ready' : 'badge-pending'}`}>
+                        {row.status === 'ACTIVE' ? 'Activo' : row.status}
+                      </span>
+                      {row.attentionScore > 0 ? (
+                        <span className="attention-tag">{attentionLabel(row.attentionScore)}</span>
+                      ) : null}
+                    </div>
+                    <p className="portfolio-queue-reason">
+                      {row.profession || 'Sin profesión'}
+                      {row.company ? ` · ${row.company}` : ''}
+                    </p>
+                    <p className="muted small portfolio-queue-meta" data-testid={`react-cockpit-theses-${row.clientId}`}>
+                      {row.unreviewedSignals} señales · {row.openTasks} tareas
+                      {row.activeThesisCount
+                        ? ` · ${row.activeThesisCount} tesis`
+                        : ' · sin tesis activa'}
+                    </p>
+                  </div>
+                  <div className="client-directory-actions">
+                    {onEnterClient ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        data-testid={`react-cockpit-open-${row.clientId}`}
+                        disabled={openingId === row.clientId}
+                        onClick={() => open(row.clientId, action.tab)}
+                      >
+                        {openingId === row.clientId ? 'Cargando…' : action.label}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
-                      className="btn btn-secondary btn-sm"
-                      data-testid={`react-cockpit-open-${row.clientId}`}
-                      disabled={openingId === row.clientId}
+                      className="btn btn-ghost btn-sm"
+                      data-testid={`react-cockpit-impersonate-${row.clientId}`}
                       onClick={() => {
-                        if (openingId === row.clientId) return;
-                        setOpeningId(row.clientId);
-                        setOpenErrorId(null);
-                        void import('../../../services/auth').then(({ authService }) =>
-                          authService.openAdminClientWorkspace(row.clientId)
-                        ).then((result) => {
-                          setOpeningId((current) => (current === row.clientId ? null : current));
-                          if (!result.ok) {
-                            if (result.reason !== 'stale') setOpenErrorId(row.clientId);
-                            return;
-                          }
-                          onEnterClient(row.clientId);
-                        });
+                        setImpersonateError(null);
+                        const result = sessionCommands.viewAsClient(row.clientId, row.displayName);
+                        if (!result.ok) setImpersonateError(result.message);
                       }}
                     >
-                      {openingId === row.clientId ? 'Cargando datos del cliente…' : 'Abrir workspace'}
+                      Ver como cliente
                     </button>
                     {openErrorId === row.clientId ? (
                       <p className="form-error small" data-testid={`react-cockpit-open-error-${row.clientId}`}>
-                        No se pudieron cargar los datos de este cliente. La cartera no se vació.
+                        No se pudieron cargar los datos de este cliente.
                       </p>
                     ) : null}
-                  </>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="empty-state" data-testid="react-cockpit-empty">
-          Ningún cliente coincide con la búsqueda.
-        </p>
-      )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="empty-state" data-testid="react-cockpit-empty">
+            {term
+              ? 'Ningún cliente coincide con la búsqueda.'
+              : 'Aún no hay clientes en Firestore. Crea el primero — los datos viven en la nube, no en demo local.'}
+          </p>
+        )}
+      </section>
+
+      <RematerializeLocalSnapshotPanel />
+      <div hidden data-testid="react-cockpit-indicators" data-state={indicatorsReady ? 'ready' : 'pending'} />
     </div>
   );
 }
@@ -549,7 +741,7 @@ export function ReactManagerCockpitPage({
   onEnterClient,
   shellTab = 'portfolio',
 }: {
-  onEnterClient?: (clientId: string) => void;
+  onEnterClient?: (intent: EnterClientIntent) => void;
   shellTab?: CockpitTab;
 }) {
   const { tenantScope, isAdmin } = useSession();
@@ -579,56 +771,37 @@ export function ReactManagerCockpitPage({
     );
   }
 
+  const title =
+    tab === 'portfolio' ? 'Hoy' : tab === 'clients' ? 'Clientes' : 'IA y operación';
+  const subtitle =
+    tab === 'portfolio'
+      ? 'Cola de atención. Entra al paso que desbloquea cada cliente.'
+      : tab === 'clients'
+        ? 'Directorio de la cartera. Alta, impersonación y acceso al workspace.'
+        : 'Sesión de claves, proveedor y observabilidad de corridas.';
+
   return (
     <section
       className="card cockpit-card"
       data-testid="react-manager-cockpit"
       data-authority="HYBRID"
+      data-cockpit-tab={tab}
     >
       <ReactTabHeader tab={COCKPIT_HEADER_TAB[tab]} />
       <div className="card-header">
         <div>
-          <h3>Cartera</h3>
-          <p className="muted small">Lectura de cartera, directorio y consumo de IA.</p>
-        </div>
-        <div className="tab-pills" role="tablist" aria-label="Secciones de cartera">
-          {(
-            [
-              ['portfolio', 'Hoy'],
-              ['clients', 'Clientes'],
-              ['ai', 'IA'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={tab === value}
-              className={`btn btn-sm ${tab === value ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setTab(value)}
-            >
-              {label}
-            </button>
-          ))}
+          <h3>{title}</h3>
+          <p className="muted small">{subtitle}</p>
         </div>
       </div>
 
-      <CreateClientPanel />
-      <RematerializeLocalSnapshotPanel />
-
       {tab === 'ai' ? (
         <AiCenterPanel />
+      ) : tab === 'clients' ? (
+        <ClientsPanel onEnterClient={onEnterClient} />
       ) : (
-        <PortfolioPanel onEnterClient={onEnterClient} />
+        <HoyPanel onEnterClient={onEnterClient} />
       )}
-
-      <LegacyHandoff
-        actions={[
-          'ver la app como cliente',
-          'generar contenido y mover el pipeline',
-        ]}
-        testId="react-cockpit-handoff"
-      />
     </section>
   );
 }

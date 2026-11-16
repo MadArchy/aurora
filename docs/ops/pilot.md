@@ -19,15 +19,20 @@ DoD original: [product/plan-unificado.md](../product/plan-unificado.md) §7.
 
 Ingesta de fuentes en el piloto: [http://127.0.0.1:5173/](http://127.0.0.1:5173/) (no GitHub Pages).
 
-### Si no ves cambios nuevos (plan 90 días, CLE en Inicio, etc.)
+### Modo datos reales (recomendado)
+
+Con `.env.local` y `VITE_FIREBASE_USE_EMULATORS=false`, la barra debe mostrar **`Firebase · aurora-postura-app`**.  
+Firestore es la fuente de verdad: **no** hay seed automático Juan/Elena. Si la cartera está vacía, crea el cliente en **Clientes**.
+
+`posturaReseedLocal()` **no funciona** con Firebase activo (solo modo local sin `.env`).
+
+### Si no ves cambios nuevos (solo modo local / sin Firebase)
 
 El navegador puede tener **datos viejos en localStorage**. Opciones:
 
 1. **Recarga forzada:** `Ctrl+Shift+R` en http://127.0.0.1:5173/
-2. **Reset demo (dev):** F12 → Consola → `posturaReseedLocal()` → confirma recarga
+2. **Reset demo (dev, sin Firebase):** F12 → Consola → `posturaReseedLocal()` → confirma recarga
 3. **Manual:** Application → Local Storage → borrar claves `postura_*` → recargar
-
-Tras el reset verás: plan **90 días**, tarjeta **Próximos hitos**, **Oportunidad destacada** en Inicio.
 
 ---
 
@@ -50,6 +55,17 @@ Fecha: 2026-08-22 · Ejecutor: Aurora Auto-QA / Dev · Modo: ☑ localStorage �
 **Resultado:** ☑ Apto piloto (Fase A local + Fase B Firebase) ☐ Bloqueado — P0: Ninguno
 
 **Pendiente operativo (no bloquea DoD):** activar Storage en Console + `firebase deploy --only storage` (videos en nube). Cloud Functions requiere Blaze.
+
+### Storage videos (Fase 2 ops)
+
+1. Firebase Console → Build → Storage → Get started (reglas en `storage.rules`).
+2. `firebase deploy --only storage`
+3. Verificar subida de video de tarea (Jueves video del DoD) con sesión Firebase autoritativa.
+4. Sin Storage, el piloto sigue con IndexedDB local; no bloquea UI React.
+
+### Acta React (re-correr tras Fase 1 UX)
+
+Tras separar Hoy/Clientes y cablear impersonar/pipeline, repetir filas 1, 6, 7 y 8 del DoD §7 en `npm run dev` (shell React), no solo en legacy.
 
 ---
 

@@ -215,7 +215,7 @@ class DataService {
     this.runBuiltInSeed();
   }
 
-  /** Seed demo Juan (+ Elena). Usado en local o bootstrap inicial de Firestore. */
+  /** Seed demo Juan (+ Elena). Solo modo local (sin Firebase) o tests — nunca auto-push a Firestore. */
   public runBuiltInSeed(): void {
     const orgId = 'org_aurora_01';
     const juanId = 'client_juan_001';
@@ -774,7 +774,9 @@ class DataService {
    */
   public resetLocalDemoAndReload(): void {
     if (FIREBASE_ENABLED) {
-      throw new Error('Con Firebase activo los datos vienen de Firestore. Cierra sesión y usa bootstrap o reprovisiona.');
+      throw new Error(
+        'Con Firebase activo los datos vienen de Firestore. No hay reseeds locales; crea o edita clientes en la app.'
+      );
     }
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith('postura_')) localStorage.removeItem(key);
@@ -1690,16 +1692,20 @@ class DataService {
     return true;
   }
 
-  /** Si Firestore está vacío, sube el seed demo (solo ADMIN, primera vez). */
+  /**
+   * Comprueba si Firestore tiene clientes. Nunca inyecta seed demo:
+   * con Firebase activo la cartera vacía es un estado válido (crear desde Clientes).
+   */
   public async bootstrapFirestoreIfEmpty(): Promise<{ bootstrapped: boolean; message: string }> {
     const sync = await this.loadFirestoreSync();
     const existing = await sync.listFirestoreClientIds();
     if (existing.length) {
       return { bootstrapped: false, message: 'Firestore ya contiene clientes.' };
     }
-    this.runBuiltInSeed();
-    const result = await sync.importSnapshotToFirestore(this.exportSnapshot());
-    return { bootstrapped: result.ok, message: result.message };
+    return {
+      bootstrapped: false,
+      message: 'Firestore vacío. Crea clientes desde Clientes — no se inyecta seed demo.',
+    };
   }
 
   // Client CRUD

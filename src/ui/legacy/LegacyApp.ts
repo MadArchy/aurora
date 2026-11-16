@@ -580,7 +580,13 @@ export class LegacyApp {
 export function createLegacyApp(): LegacyApp {
   if (import.meta.env.DEV) {
     (window as unknown as { posturaReseedLocal?: () => void }).posturaReseedLocal = () => {
-      dbService.resetLocalDemoAndReload();
+      try {
+        dbService.resetLocalDemoAndReload();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('[POSTURA]', message);
+        window.alert(message);
+      }
     };
   }
   return new LegacyApp();

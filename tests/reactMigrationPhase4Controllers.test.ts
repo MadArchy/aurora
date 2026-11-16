@@ -138,14 +138,16 @@ describe('T-010-402 — tab transitions (navigationController)', () => {
     // Aliases exist so old links keep working; the transition must resolve them
     // rather than activating a tab id that no longer renders anything.
     expect(resolveTabTransition('ws-curation', 'client_a')).toEqual({ ok: true, tab: 'ws-deliver' });
-    expect(resolveTabTransition('ws-tasks', 'client_a')).toEqual({ ok: true, tab: 'ws-production' });
+    // Tareas y Producción / Resultados y Resumen son superficies distintas en React shell
+    expect(resolveTabTransition('ws-tasks', 'client_a')).toEqual({ ok: true, tab: 'ws-tasks' });
+    expect(resolveTabTransition('ws-results', 'client_a')).toEqual({ ok: true, tab: 'ws-results' });
     expect(resolveTabTransition('client-feed', null)).toEqual({ ok: true, tab: 'client-home' });
   });
 
   it('resolves an alias before applying the workspace guard, not after', () => {
-    // 'ws-results' aliases to 'ws-briefing', a workspace tab. If the guard ran on
+    // 'ws-curation' aliases to 'ws-deliver', a workspace tab. If the guard ran on
     // the raw string the refusal could be skipped, so order matters.
-    const result = resolveTabTransition('ws-results', null);
+    const result = resolveTabTransition('ws-curation', null);
     expect(result.ok).toBe(false);
   });
 

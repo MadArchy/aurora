@@ -10,8 +10,9 @@ describe('navigation information architecture', () => {
   it('keeps retired manager routes compatible with the consolidated workflow', () => {
     expect(normalizeTab('ws-curation')).toBe('ws-deliver');
     expect(normalizeTab('ws-delivery')).toBe('ws-deliver');
-    expect(normalizeTab('ws-tasks')).toBe('ws-production');
-    expect(normalizeTab('ws-results')).toBe('ws-briefing');
+    // Tareas y Producción / Resultados y Resumen siguen siendo superficies distintas en React shell
+    expect(normalizeTab('ws-tasks')).toBe('ws-tasks');
+    expect(normalizeTab('ws-results')).toBe('ws-results');
   });
 
   it('keeps retired client routes compatible with the simplified portal', () => {
@@ -22,7 +23,9 @@ describe('navigation information architecture', () => {
 
   it('uses action-oriented labels for the primary destinations', () => {
     expect(PORTFOLIO_TABS.dashboard.title).toBe('Hoy');
-    expect(WORKSPACE_TABS['ws-positioning'].title).toBe('Identidad');
+    expect(WORKSPACE_TABS['ws-positioning'].title).toBe('Posicionamiento');
+    expect(WORKSPACE_TABS['ws-tasks'].title).toBe('Tareas');
+    expect(WORKSPACE_TABS['ws-production'].title).toBe('Producción');
     expect(CLIENT_TABS['client-home'].title).toBe('Esta semana');
     expect(CLIENT_TABS['client-content'].title).toBe('Revisar');
   });

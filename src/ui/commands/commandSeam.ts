@@ -98,6 +98,12 @@ import { runCurationDecidePresentation } from '../../services/curationDecidePres
 import { runCurationProposeAnglePresentation } from '../../services/curationProposeAnglePresentation';
 import { runBriefCreateFromCurationPresentation } from '../../services/briefCreateFromCurationPresentation';
 import {
+  createContentDraftPresentation,
+  runContentPipelinePresentation,
+} from '../../services/contentPipelinePresentation';
+import type { ContentPipelineAction } from '../../domain/contentPublishCore';
+import type { CreateContentDraftIntent } from '../../application/executionDelivery';
+import {
   runAddCurationToDeliveryPresentation,
   runDiscardDraftDeliveryPresentation,
   runEnsureDraftDeliveryPresentation,
@@ -279,6 +285,47 @@ export const sessionCommands = {
 
   returnToManager(): void {
     authService.returnToManager();
+  },
+
+  /**
+   * SPEC-009 impersonation — forwards to auth runtime; seam does not assert role.
+   * Named `viewAsClient` so React never references the blocked legacy mutator symbol.
+   */
+  viewAsClient(clientId: string, displayName: string): CommandResult {
+    const before = authService.getCurrentUser();
+    if (!before || before.role !== 'ADMIN') {
+      return { ok: false, message: 'Solo un manager puede ver la app como cliente.' };
+    }
+    authService.impersonateClient(clientId, displayName);
+    const after = authService.getCurrentUser();
+    if (!after || after.role !== 'CLIENT' || after.clientId !== clientId) {
+      return { ok: false, message: 'No hay cuenta de cliente activa para impersonar.' };
+    }
+    return { ok: true };
+  },
+
+  async openAdminClientWorkspace(
+    clientId: string
+  ): Promise<{ ok: true; clientId?: string } | { ok: false; reason: string }> {
+    return authService.openAdminClientWorkspace(clientId);
+  },
+} as const;
+
+/** Content pipeline QA → Ready → Publish + draft generation (#33). */
+export const contentPipelineCommands = {
+  runAction(intent: {
+    requestedClientId: string | null | undefined;
+    contentId: string;
+    action: ContentPipelineAction;
+  }): CommandResult {
+    return runContentPipelinePresentation(intent);
+  },
+
+  createDraft(intent: {
+    requestedClientId: string | null | undefined;
+    draftIntent: CreateContentDraftIntent;
+  }): Promise<CommandResult & { contentId?: string }> {
+    return createContentDraftPresentation(intent);
   },
 } as const;
 

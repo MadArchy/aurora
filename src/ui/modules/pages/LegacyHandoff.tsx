@@ -23,10 +23,10 @@ export function LegacyHandoff({
   testId: string;
 }) {
   return (
-    <p className="muted small" data-testid={testId} data-legacy-handoff="true">
+    <p className="product-note muted small" data-testid={testId} data-legacy-handoff="true">
       {actions.length === 1
-        ? `${actions[0]} todavía no está disponible en esta interfaz.`
-        : `Estas funciones todavía no están disponibles en esta interfaz: ${actions.join(', ')}.`}
+        ? `Próximamente: ${actions[0]}.`
+        : `Próximamente en esta vista: ${actions.join(', ')}.`}
     </p>
   );
 }
@@ -43,11 +43,12 @@ export function PanelState({
 }) {
   return (
     <section
-      className="card"
+      className={`card panel-state panel-state-${kind}`}
       role={kind === 'error' ? 'alert' : undefined}
       data-testid={testId}
       data-panel-state={kind}
     >
+      {kind === 'loading' ? <div className="panel-state-pulse" aria-hidden="true" /> : null}
       <p className={kind === 'empty' ? 'empty-state' : 'muted'}>{message}</p>
     </section>
   );

@@ -78,20 +78,12 @@ describe('built-in seed content pipelineStatus', () => {
     for (const content of campaign) expect(content.pipelineStatus, content.id).toBe('sent_to_client');
   });
 
-  it('PS-05: empty-tenant bootstrap exports no CLIENT_REVIEW content without pipelineStatus', async () => {
+  it('PS-05: empty-tenant bootstrap never injects demo seed into Firestore', async () => {
     const result = await dbService.bootstrapFirestoreIfEmpty();
 
-    expect(result.bootstrapped).toBe(true);
-    expect(h.exported).toHaveLength(1);
-    const contents = (h.exported[0] as { contents: ContentItem[] }).contents;
-    expect(contents.filter((c) => c.status === 'CLIENT_REVIEW' && !c.pipelineStatus)).toEqual([]);
-    const seed = contents.find((c) => c.id === 'cnt_video_script_001');
-    expect(seed).toMatchObject({
-      status: 'CLIENT_REVIEW',
-      pipelineStatus: 'sent_to_client',
-      organizationId: 'org_aurora_01',
-      clientId: 'client_juan_001',
-    });
+    expect(result.bootstrapped).toBe(false);
+    expect(result.message).toMatch(/no se inyecta seed demo/i);
+    expect(h.exported).toHaveLength(0);
   });
 
   it('PS-06: send-to-client transition still stamps sent_to_client + CLIENT_REVIEW', () => {

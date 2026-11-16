@@ -41,7 +41,7 @@ import {
   readSignalOutcomes,
   readStrategicBriefs,
 } from '../data/canonicalReads';
-import { briefCommands, clientLifecycleCommands, deliveryAckCommands, executionDeliveryCommands, localSnapshotCommands, radarCommands, signalIntakeCommands, signalOutcomeCommands, thesisAdvisoryCommands, thesisLifecycleCommands, type ThesisProposalCommandResult, type ThesisStressTestCommandResult, type ArticleReviewCommandResult, type CommandResult, type CreateBriefFromCurationCommandResult, type CreateClientWithInviteCommandResult, type CurationDecideCommandResult, type DeliveryAssemblyPresentationResult, type DeliverySendCommandResult, type PollAllActiveSourcesCommandResult, type PollRegisteredSourceCommandResult, type ProposeAngleCommandResult, type RadarBulkScoringCommandResult, type RadarContestedAttributionCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type RematerializeLocalSnapshotCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisCreateCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
+import { briefCommands, clientLifecycleCommands, contentPipelineCommands, deliveryAckCommands, executionDeliveryCommands, localSnapshotCommands, radarCommands, signalIntakeCommands, signalOutcomeCommands, thesisAdvisoryCommands, thesisLifecycleCommands, type ThesisProposalCommandResult, type ThesisStressTestCommandResult, type ArticleReviewCommandResult, type CommandResult, type CreateBriefFromCurationCommandResult, type CreateClientWithInviteCommandResult, type CurationDecideCommandResult, type DeliveryAssemblyPresentationResult, type DeliverySendCommandResult, type PollAllActiveSourcesCommandResult, type PollRegisteredSourceCommandResult, type ProposeAngleCommandResult, type RadarBulkScoringCommandResult, type RadarContestedAttributionCommandResult, type RadarDiscardCommandResult, type RadarSendToCurationCommandResult, type RematerializeLocalSnapshotCommandResult, type TaskAssignCommandResult, type TaskCancelCommandResult, type ThesisClientReviewCommandResult, type ThesisCreateCommandResult, type ThesisSaveCommandResult } from '../commands/commandSeam';
 import type { ContentStatus, ContentType, CurationDestination, SourceType, TaskType } from '../../types';
 import type { ThesisEditableFields } from '../../types';
 import type { ThesisSaveIntent } from '../../domain/thesisRevisionCore';
@@ -170,6 +170,55 @@ export function useSaveContentDraft(scope: TrustedTenantScope | null) {
         contentId: intent.contentId,
         fields: intent.fields,
         requestedTargetStatus: intent.requestedTargetStatus,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+    },
+  });
+}
+
+/** Pipeline QA → Ready → Publish (presentation adapter). */
+export function useContentPipelineAction(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    CommandResult,
+    Error,
+    { contentId: string; action: import('../../domain/contentPublishCore').ContentPipelineAction }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return contentPipelineCommands.runAction({
+        requestedClientId: scope.clientId,
+        contentId: intent.contentId,
+        action: intent.action,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok) return;
+      void queryClient.invalidateQueries({
+        queryKey: tenantInvalidationKey(scope, 'compatibility'),
+      });
+    },
+  });
+}
+
+/** #33 CreateContentDraft — generate from authorizing brief. */
+export function useCreateContentDraft(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    CommandResult & { contentId?: string },
+    Error,
+    { draftIntent: import('../../application/executionDelivery').CreateContentDraftIntent }
+  >({
+    mutationFn: async (intent) => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return contentPipelineCommands.createDraft({
+        requestedClientId: scope.clientId,
+        draftIntent: intent.draftIntent,
       });
     },
     onSuccess: (result) => {

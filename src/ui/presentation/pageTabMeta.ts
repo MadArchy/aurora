@@ -39,7 +39,7 @@ export const WORKSPACE_TABS: Record<string, TabMeta> = {
     subtitle: 'Mantenimiento de orígenes, salud de ingesta y señales manuales.',
   },
   'ws-tasks': {
-    title: 'Producción',
+    title: 'Tareas',
     subtitle: 'Trabajo editorial, tareas y estados de aprobación.',
   },
   'ws-radar': {
@@ -51,12 +51,12 @@ export const WORKSPACE_TABS: Record<string, TabMeta> = {
     subtitle: 'Decide el destino de cada señal y ármale el briefing al cliente en un solo paso.',
   },
   'ws-positioning': {
-    title: 'Identidad',
+    title: 'Posicionamiento',
     subtitle: 'El motor que decide qué se publica: audiencias, territorios, objetivos y límites por tesis.',
   },
   'ws-production': {
     title: 'Producción',
-    subtitle: 'Contenido, papers y tareas en un único flujo editorial.',
+    subtitle: 'Contenido, papers y pipeline editorial (QA → listo → publicar).',
   },
   'ws-results': {
     title: 'Resultados',
@@ -86,12 +86,14 @@ export const PORTFOLIO_TAB_IDS = Object.keys(PORTFOLIO_TABS);
 export const WORKSPACE_TAB_IDS = Object.keys(WORKSPACE_TABS);
 export const CLIENT_TAB_IDS = Object.keys(CLIENT_TABS);
 
-/** Pestañas retiradas que ahora viven fusionadas en otra vista. */
+/**
+ * Pestañas retiradas que ahora viven fusionadas en otra vista.
+ * No aliasar ws-tasks↔ws-production ni ws-results↔ws-briefing: el shell React
+ * las mantiene como superficies distintas (Tareas vs Producción; KPIs vs Resumen).
+ */
 export const TAB_ALIASES: Record<string, string> = {
   'ws-curation': 'ws-deliver',
   'ws-delivery': 'ws-deliver',
-  'ws-results': 'ws-briefing',
-  'ws-tasks': 'ws-production',
   'client-feed': 'client-home',
   'client-library': 'client-content',
 };
