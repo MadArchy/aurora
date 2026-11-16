@@ -333,6 +333,12 @@ export function ReactLogin() {
       <LoginAside />
 
       <main className="login-main">
+        <div className="login-mobile-brand">
+          <span className="brand-mark" aria-hidden="true">
+            P
+          </span>
+          <span className="brand-logo">POSTURA</span>
+        </div>
         {showInviteFlow ? (
           <InviteAcceptCard inviteToken={inviteToken} />
         ) : (

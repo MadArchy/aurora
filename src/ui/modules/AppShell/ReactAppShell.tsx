@@ -122,6 +122,7 @@ export function ReactAppShell() {
   const { user, tenantScope, isAdmin, isImpersonating } = useSession();
   const [activeTab, setActiveTab] = useState(isAdmin ? 'dashboard' : 'client-home');
   const [activeClientId, setActiveClientId] = useState('all');
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // Presentation filters. Empty string means "all" — an explicit, non-authoritative
   // absence of filter rather than an implicit first-item selection.
@@ -134,6 +135,10 @@ export function ReactAppShell() {
       if (intent.clientId !== undefined) setActiveClientId(intent.clientId);
     });
   }, []);
+
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [activeTab, activeClientId]);
 
   const enterClient = (clientId: string, tab = 'ws-radar') => {
     setActiveClientId(clientId);
@@ -290,7 +295,13 @@ export function ReactAppShell() {
         </div>
       </aside>
 
-      <header className="topbar">
+        <header className="topbar">
+        <div className="mobile-brand">
+          <span className="brand-mark" aria-hidden="true">
+            P
+          </span>
+          <span className="brand-logo">POSTURA</span>
+        </div>
         <nav className="breadcrumb" aria-label="Ubicación">
           <span className="breadcrumb-root">{isAdmin ? 'Cartera' : 'Mi espacio'}</span>
           {inWorkspace ? (
@@ -377,10 +388,11 @@ export function ReactAppShell() {
             {isImpersonating ? (
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
+                className="btn btn-ghost btn-sm topbar-return"
                 onClick={() => sessionCommands.returnToManager()}
               >
-                Volver al cockpit
+                <span className="topbar-return-full">Volver al cockpit</span>
+                <span className="topbar-return-short">Cockpit</span>
               </button>
             ) : null}
             <button
@@ -398,6 +410,24 @@ export function ReactAppShell() {
       </header>
 
       <main className="main-wrapper" data-testid="react-shell-body">
+        {inWorkspace ? (
+          <nav className="mobile-sections" aria-label="Secciones del cliente">
+            <button type="button" className="mobile-section" onClick={backToPortfolio}>
+              Cartera
+            </button>
+            {WORKSPACE_SECTIONS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`mobile-section ${activeTab === item.id ? 'active' : ''}`}
+                aria-current={activeTab === item.id ? 'page' : undefined}
+                onClick={() => selectTab(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        ) : null}
         {isAdmin && isWorkspaceTab(activeTab) && activeClientId === 'all' ? (
           <div className="card" data-testid="react-shell-workspace-guard">
             <h3>Selecciona un cliente</h3>
@@ -428,6 +458,128 @@ export function ReactAppShell() {
           />
         ) : null}
       </main>
+
+      <MobileTabBar
+        isAdmin={isAdmin}
+        activeTab={activeTab}
+        moreOpen={moreOpen}
+        attentionBadge={portfolio.data?.clientsNeedingAttention}
+        openTasks={clientBadges.data?.openTasks}
+        pendingReview={clientBadges.data?.pendingContentReview}
+        opportunityCount={canonicalOpportunities.data?.length}
+        profileIncomplete={clientBadges.data?.profileIncomplete}
+        onSelect={selectTab}
+        onToggleMore={() => setMoreOpen((open) => !open)}
+        onCloseMore={() => setMoreOpen(false)}
+      />
+    </>
+  );
+}
+
+const WORKSPACE_SECTIONS: readonly NavItem[] = [
+  { id: 'ws-briefing', label: 'Resumen' },
+  { id: 'ws-radar', label: 'Radar' },
+  { id: 'ws-deliver', label: 'Entregas' },
+  { id: 'ws-briefs', label: 'Briefs' },
+  { id: 'ws-positioning', label: 'Posición' },
+  { id: 'ws-sources-react', label: 'Fuentes' },
+  { id: 'ws-tasks', label: 'Tareas' },
+  { id: 'ws-production', label: 'Producción' },
+  { id: 'ws-results', label: 'Resultados' },
+];
+
+const CLIENT_MORE: readonly NavItem[] = [
+  { id: 'client-profile', label: 'Mi perfil' },
+  { id: 'client-thesis', label: 'Mi posicionamiento' },
+  { id: 'client-results', label: 'Resultados' },
+];
+
+function MobileTabBar({
+  isAdmin,
+  activeTab,
+  moreOpen,
+  attentionBadge,
+  openTasks,
+  pendingReview,
+  opportunityCount,
+  profileIncomplete,
+  onSelect,
+  onToggleMore,
+  onCloseMore,
+}: {
+  isAdmin: boolean;
+  activeTab: string;
+  moreOpen: boolean;
+  attentionBadge?: number;
+  openTasks?: number;
+  pendingReview?: number;
+  opportunityCount?: number;
+  profileIncomplete?: boolean;
+  onSelect: (id: string) => void;
+  onToggleMore: () => void;
+  onCloseMore: () => void;
+}) {
+  const moreActive = CLIENT_MORE.some((item) => item.id === activeTab);
+  const primary: readonly NavItem[] = isAdmin
+    ? [
+        { id: 'dashboard', label: 'Hoy', badge: attentionBadge },
+        { id: 'clients', label: 'Clientes' },
+        { id: 'ai-center', label: 'IA' },
+      ]
+    : [
+        { id: 'client-home', label: 'Semana', badge: openTasks || undefined },
+        { id: 'client-content', label: 'Revisar', badge: pendingReview || undefined },
+        { id: 'client-opps', label: 'Oportunidades', badge: opportunityCount || undefined },
+      ];
+
+  return (
+    <>
+      {!isAdmin && moreOpen ? (
+        <>
+          <button type="button" className="mobile-more-backdrop" aria-label="Cerrar menú" onClick={onCloseMore} />
+          <div className="mobile-more" role="menu" aria-label="Más secciones">
+            {CLIENT_MORE.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                className={`mobile-more-item ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => onSelect(item.id)}
+              >
+                <span>{item.label}</span>
+                {item.id === 'client-profile' && profileIncomplete ? (
+                  <span className="mobile-tab-badge">1</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+      <nav className="mobile-tabbar" aria-label="Navegación móvil">
+        {primary.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`mobile-tab ${activeTab === item.id ? 'active' : ''}`}
+            aria-current={activeTab === item.id ? 'page' : undefined}
+            onClick={() => onSelect(item.id)}
+          >
+            <span className="mobile-tab-label">{item.label}</span>
+            {item.badge ? <span className="mobile-tab-badge">{item.badge}</span> : null}
+          </button>
+        ))}
+        {!isAdmin ? (
+          <button
+            type="button"
+            className={`mobile-tab ${moreActive || moreOpen ? 'active' : ''}`}
+            aria-expanded={moreOpen}
+            aria-haspopup="menu"
+            onClick={onToggleMore}
+          >
+            <span className="mobile-tab-label">Más</span>
+          </button>
+        ) : null}
+      </nav>
     </>
   );
 }
