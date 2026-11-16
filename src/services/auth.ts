@@ -136,6 +136,16 @@ class AuthService {
   ): Promise<{ ok: true; clientId: string } | { ok: false; reason: string }> {
     const user = this.currentUser;
     if (!user || user.role !== 'ADMIN' || !user.organizationId) return { ok: false, reason: 'not-admin' };
+    // GitHub Pages and local demo have no Firebase project. The client is already
+    // in memory; waiting on a directory hydration that never starts leaves
+    // "Abrir radar" stuck on Cargando… and then fails.
+    if (!FIREBASE_ENABLED && dbService.getAdminDirectoryPhase() !== 'READY') {
+      const client = dbService.getClientById(clientId);
+      if (!client || client.organizationId !== user.organizationId) {
+        return { ok: false, reason: 'error' };
+      }
+      return { ok: true, clientId };
+    }
     const ticket = ++this.activeClientOpen;
     const epoch = dbService.getAdminLoadEpoch();
     const stillCurrent = () =>
