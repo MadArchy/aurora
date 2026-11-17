@@ -62,6 +62,7 @@ vi.mock('../src/services/executionDeliveryConsumer', () => ({
     if (addImpl) return addImpl(intent);
     return { entry: { id: 'cur_21_1' }, adviceActionId: intent.adviceActionId };
   },
+  dedupePendingAdviceCuration: vi.fn(() => ({ kept: 0, removed: 0 })),
   removeCuration: vi.fn(),
   reopenCuration: vi.fn(),
   decideCuration: vi.fn(),
@@ -118,7 +119,7 @@ function seamAdvisorBlock(): string {
   const src = code(seam);
   return src.slice(
     src.indexOf('addAdviceActionToCuration(intent'),
-    src.indexOf('removeCuration(intent')
+    src.indexOf('dedupePendingAdviceCuration(intent')
   );
 }
 
@@ -158,7 +159,9 @@ describe('C — Preparar entrega exists', () => {
   it('each existing action exposes Preparar entrega and no generate controls', () => {
     const panel = advicePanel();
     expect(panel).toMatch(/react-ws-advice-prepare-\$\{action\.id\}/);
-    expect(panel).toMatch(/busy \? 'Enviando…' : 'Preparar entrega'/);
+    expect(panel).toMatch(
+      /busy \? 'Enviando…' : alreadyPrepared \? 'Ya en la mesa' : 'Preparar entrega'/
+    );
     expect(panel).not.toMatch(/Generar consejo|Regenerar|Descubrir temas/);
     expect(panel).not.toMatch(/btn-generate-advice|btn-run-topic-agent/);
     expect(panel).toMatch(/No hay acciones de consejo para este cliente\./);
@@ -262,23 +265,24 @@ describe('J — CLIENT/unauthorized role fails closed', () => {
   });
 });
 
-describe('K — successful mutation invalidates workspace-deliver', () => {
-  it('add-advice hook invalidates only the deliver key', () => {
-    const block = hookBlock('useAddAdviceActionToCuration', 'useDecideCuration');
+describe('K — successful mutation invalidates deliver and advice', () => {
+  it('add-advice hook invalidates deliver and advice keys for already-in-curation UI', () => {
+    const block = hookBlock('useAddAdviceActionToCuration', 'useDedupePendingAdviceCuration');
     expect(block).toMatch(/tenantQueryKey\(scope, 'compatibility', 'workspace-deliver'\)/);
+    expect(block).toMatch(/tenantQueryKey\(scope, 'compatibility', 'workspace-advice'\)/);
     expect(block).not.toMatch(/tenantInvalidationKey/);
     expect(block).not.toMatch(/workspace-radar/);
-    expect(block).not.toMatch(/workspace-advice/);
     expect(block).not.toMatch(/sessionQueryKey/);
     expect(block).not.toMatch(/auditService/);
   });
 });
 
-describe('L — advice query is not invalidated unnecessarily', () => {
-  it('success path does not invalidate workspace-advice', () => {
-    const block = hookBlock('useAddAdviceActionToCuration', 'useDecideCuration');
+describe('L — advice panel reflects already-in-curation state', () => {
+  it('success path refreshes advice so Preparar entrega can show Ya en la mesa', () => {
+    const block = hookBlock('useAddAdviceActionToCuration', 'useDedupePendingAdviceCuration');
     expect(block).toMatch(/if \(!scope \|\| !result\.ok\) return/);
-    expect(block).not.toMatch(/workspace-advice/);
+    expect(block).toMatch(/workspace-advice/);
+    expect(advicePanel()).toMatch(/alreadyPrepared \? 'Ya en la mesa' : 'Preparar entrega'/);
     expect(advicePanel()).not.toMatch(/invalidateQueries/);
   });
 });

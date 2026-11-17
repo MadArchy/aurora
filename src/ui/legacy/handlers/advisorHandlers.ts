@@ -29,6 +29,11 @@ export function handleAdviceToCurationClick(
     if (error instanceof ExecutionDeliveryError && error.code === 'ADVICE_ACTION_NOT_FOUND') {
       return;
     }
+    if (error instanceof ExecutionDeliveryError && error.code === 'CURATION_ALREADY_EXISTS') {
+      host.showToast('Esta acción ya está en la mesa de curación.', 'success');
+      host.setTab('ws-curation');
+      return;
+    }
     host.showToast(
       error instanceof Error ? error.message : 'No se pudo enviar a curación',
       'warning'

@@ -2922,6 +2922,57 @@ class DataService {
     return this.curation.some((c) => c.clientId === clientId && c.signalId === signalId);
   }
 
+  /** Normalize titles so advice-sourced pending rows can be compared safely. */
+  private normalizeCurationTitle(title: string): string {
+    return title.trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  /**
+   * Advice-sourced duplicate (mirrors signal semantics): any existing row for the
+   * client with the same adviceActionId, or the same title when the row has no
+   * radar signalId — including decided/discarded until explicitly removed.
+   */
+  public findDuplicateAdviceCuration(
+    clientId: string,
+    params: { adviceActionId: string; title: string }
+  ): CurationEntry | undefined {
+    const adviceActionId = params.adviceActionId.trim();
+    const titleKey = this.normalizeCurationTitle(params.title);
+    return this.curation.find((c) => {
+      if (c.clientId !== clientId) return false;
+      if (adviceActionId && c.adviceActionId === adviceActionId) return true;
+      if (!c.signalId && this.normalizeCurationTitle(c.title) === titleKey) return true;
+      return false;
+    });
+  }
+
+  /**
+   * Collapses repeated undecided advice-sourced rows (no signalId) to one per title.
+   * Keeps the oldest entry and deletes the rest (including remote delete intents).
+   */
+  public dedupePendingAdviceCuration(clientId: string): { kept: number; removed: number } {
+    const pending = this.curation.filter(
+      (c) => c.clientId === clientId && c.destination === null && !c.signalId
+    );
+    const groups = new Map<string, CurationEntry[]>();
+    for (const entry of pending) {
+      const key = this.normalizeCurationTitle(entry.title);
+      const list = groups.get(key) ?? [];
+      list.push(entry);
+      groups.set(key, list);
+    }
+
+    const removeIds: string[] = [];
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      group.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+      for (const dup of group.slice(1)) removeIds.push(dup.id);
+    }
+
+    for (const id of removeIds) this.removeCuration(id);
+    return { kept: pending.length - removeIds.length, removed: removeIds.length };
+  }
+
   public addToCuration(
     entry: Omit<CurationEntry, 'id' | 'createdAt' | 'destination' | 'managerRationale' | 'deliveryPackageId'> &
       Partial<Pick<CurationEntry, 'destination' | 'managerRationale' | 'aiAngle'>>
@@ -3135,6 +3186,9 @@ class DataService {
   public addDeliveryItem(packageId: string, item: Omit<DeliveryItem, 'id'>): DeliveryPackage | null {
     const pkg = this.deliveries.find((d) => d.id === packageId);
     if (!pkg || pkg.status !== 'DRAFT') return null;
+    if (item.refId && pkg.items.some((existing) => existing.refId === item.refId)) {
+      return pkg;
+    }
     pkg.items.push({ ...item, id: createId('ditem') });
     this.saveAll();
     return pkg;

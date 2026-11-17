@@ -771,15 +771,6 @@ export function ReactManagerCockpitPage({
     );
   }
 
-  const title =
-    tab === 'portfolio' ? 'Hoy' : tab === 'clients' ? 'Clientes' : 'IA y operación';
-  const subtitle =
-    tab === 'portfolio'
-      ? 'Cola de atención. Entra al paso que desbloquea cada cliente.'
-      : tab === 'clients'
-        ? 'Directorio de la cartera. Alta, impersonación y acceso al workspace.'
-        : 'Sesión de claves, proveedor y observabilidad de corridas.';
-
   return (
     <section
       className="card cockpit-card"
@@ -788,12 +779,6 @@ export function ReactManagerCockpitPage({
       data-cockpit-tab={tab}
     >
       <ReactTabHeader tab={COCKPIT_HEADER_TAB[tab]} />
-      <div className="card-header">
-        <div>
-          <h3>{title}</h3>
-          <p className="muted small">{subtitle}</p>
-        </div>
-      </div>
 
       {tab === 'ai' ? (
         <AiCenterPanel />

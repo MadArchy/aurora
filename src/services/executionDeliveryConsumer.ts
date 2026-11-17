@@ -227,6 +227,14 @@ export function removeCuration(intent: {
   }
 }
 
+/** Maintenance — collapse repeated undecided advice-sourced curation rows for one client. */
+export function dedupePendingAdviceCuration(intent: {
+  requestedClientId: string | null | undefined;
+}): { kept: number; removed: number } {
+  const g = gate(intent.requestedClientId);
+  return dbService.dedupePendingAdviceCuration(g.clientId);
+}
+
 /** Registry #16-O — reopen curation (authoritative CurationEntry reload). No audit. */
 export function reopenCuration(intent: {
   requestedClientId: string | null | undefined;

@@ -46,6 +46,7 @@ vi.mock('../src/services/db', () => ({
       id === 'client_a' ? { id: 'client_a', organizationId: clientOrg } : null,
     getSignalById: () => null,
     isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
   },
 }));
 

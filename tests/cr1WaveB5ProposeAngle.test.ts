@@ -114,6 +114,7 @@ function memoryB5Ports(options: {
 
   const curation: CurationRepositoryPort = {
     isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
     addToCuration: (input) => {
       const created = {
         destination: null,
@@ -456,6 +457,7 @@ describe('CR-1 Wave B5 #15 — ProposeAngle', () => {
       composeExecutionDelivery({
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: () => baseCurationEntry(),
           getById: () => undefined,
           decideCuration: () => null,
@@ -476,6 +478,7 @@ describe('CR-1 Wave B5 #15 — ProposeAngle', () => {
       composeExecutionDelivery({
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: () => baseCurationEntry(),
           getById: () => baseCurationEntry({ signalId: 'sig_b5_1' }),
           decideCuration: () => null,
@@ -498,6 +501,7 @@ describe('CR-1 Wave B5 #15 — ProposeAngle', () => {
       composeExecutionDelivery({
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: () => baseCurationEntry(),
           getById: () => baseCurationEntry(),
           decideCuration: () => null,
@@ -572,6 +576,7 @@ describe('CR-1 Wave B5 #15 — ProposeAngle', () => {
       composeExecutionDelivery({
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: () => baseCurationEntry(),
           getById: () => baseCurationEntry(),
           decideCuration: () => null,

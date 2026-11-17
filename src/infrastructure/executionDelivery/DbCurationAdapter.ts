@@ -21,6 +21,9 @@ export function createDbCurationRepositoryPort(): CurationRepositoryPort {
     isSignalInCuration(clientId, signalId) {
       return dbService.isSignalInCuration(clientId, signalId);
     },
+    findDuplicateAdviceCuration(clientId, params) {
+      return dbService.findDuplicateAdviceCuration(clientId, params);
+    },
     addToCuration(entry) {
       return dbService.addToCuration(entry);
     },

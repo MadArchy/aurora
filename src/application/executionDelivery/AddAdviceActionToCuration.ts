@@ -29,7 +29,8 @@ export interface AddAdviceActionToCurationDeps {
 
 /**
  * CR-1 #21a — AddAdviceActionToCuration (advisor-backed path).
- * Authoritative PositioningAdvice reload; synchronous read-to-write; no Signal/#21b/AI/dedup.
+ * Authoritative PositioningAdvice reload; synchronous read-to-write; no Signal/#21b/AI.
+ * Write-time recheck blocks duplicate open advice rows (same action id or title).
  */
 export function createAddAdviceActionToCuration(deps: AddAdviceActionToCurationDeps) {
   return function addAdviceActionToCuration(
@@ -70,10 +71,22 @@ export function createAddAdviceActionToCuration(deps: AddAdviceActionToCurationD
       );
     }
 
+    const duplicate = deps.curation.findDuplicateAdviceCuration(input.trusted.clientId, {
+      adviceActionId: action.id,
+      title: action.title,
+    });
+    if (duplicate) {
+      throw new ExecutionDeliveryError(
+        'CURATION_ALREADY_EXISTS',
+        'Esta acción ya está en la mesa de curación.'
+      );
+    }
+
     try {
       const entry = deps.curation.addToCuration({
         organizationId: advice.organizationId,
         clientId: advice.clientId,
+        adviceActionId: action.id,
         title: action.title,
         snippet: `${action.why} ${action.how}`,
         score: action.impact,

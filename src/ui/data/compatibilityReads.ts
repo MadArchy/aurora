@@ -1358,11 +1358,17 @@ export interface WorkspaceAdviceActionRead {
   readonly horizon: string;
   readonly category: string;
   readonly impact: number;
+  /** True when any advice-sourced curation row already covers this action. */
+  readonly alreadyInCuration: boolean;
 }
 
 export interface WorkspaceAdviceRead {
   readonly adviceId: string | null;
   readonly actions: readonly WorkspaceAdviceActionRead[];
+}
+
+function normalizeAdviceCurationTitle(title: string): string {
+  return title.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 /** Latest persisted PositioningAdvice actions — factual read only. No generate. */
@@ -1371,6 +1377,13 @@ export function readWorkspaceAdvice(scope: TrustedTenantScope): WorkspaceAdviceR
   if (!clientId) return { adviceId: null, actions: [] };
   const advice = dbService.getLatestAdvice(clientId);
   if (!advice) return { adviceId: null, actions: [] };
+  const adviceRows = dbService.getCurationByClient(clientId).filter((entry) => !entry.signalId);
+  const adviceIds = new Set(
+    adviceRows.map((entry) => entry.adviceActionId).filter((id): id is string => Boolean(id))
+  );
+  const adviceTitles = new Set(
+    adviceRows.map((entry) => normalizeAdviceCurationTitle(entry.title))
+  );
   return {
     adviceId: advice.id,
     actions: advice.actions.map((action) => ({
@@ -1381,6 +1394,9 @@ export function readWorkspaceAdvice(scope: TrustedTenantScope): WorkspaceAdviceR
       horizon: action.horizon,
       category: action.category,
       impact: action.impact,
+      alreadyInCuration:
+        adviceIds.has(action.id) ||
+        adviceTitles.has(normalizeAdviceCurationTitle(action.title)),
     })),
   };
 }

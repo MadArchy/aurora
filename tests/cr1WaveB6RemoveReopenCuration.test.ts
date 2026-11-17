@@ -94,6 +94,7 @@ function memoryB6Ports(options: {
 
   const curation: CurationRepositoryPort = {
     isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
     addToCuration: (input) => {
       const created = {
         destination: null,
@@ -352,6 +353,7 @@ describe('CR-1 Wave B6 #16 — handler and consumer compatibility', () => {
       composeExecutionDelivery({
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: () => baseCurationEntry(),
           getById: () => undefined,
           decideCuration: () => null,
@@ -377,6 +379,7 @@ describe('CR-1 Wave B6 #16 — handler and consumer compatibility', () => {
       composeExecutionDelivery({
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: () => baseCurationEntry(),
           getById: () => undefined,
           decideCuration: () => null,
@@ -397,6 +400,7 @@ describe('CR-1 Wave B6 #16 — handler and consumer compatibility', () => {
       composeExecutionDelivery({
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: () => baseCurationEntry(),
           getById: () => undefined,
           decideCuration: () => null,
@@ -447,6 +451,7 @@ describe('CR-1 Wave B6 #16 — handler and consumer compatibility', () => {
       composeExecutionDelivery({
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: () => baseCurationEntry(),
           getById: () => baseCurationEntry(),
           decideCuration: () => null,

@@ -57,6 +57,7 @@ import {
   useAddCurationToDelivery,
   useCreateBriefFromCuration,
   useDecideCuration,
+  useDedupePendingAdviceCuration,
   useDiscardDraftDelivery,
   useEnsureDraftDelivery,
   useProposeAngle,
@@ -550,6 +551,7 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
   const updateMetadata = useUpdateDeliveryPackageMetadata(scope);
   const removeItem = useRemoveDeliveryItemFromDelivery(scope);
   const discardDraft = useDiscardDraftDelivery(scope);
+  const dedupePending = useDedupePendingAdviceCuration(scope);
   const [proposingId, setProposingId] = useState<string | null>(null);
   const [creatingBriefId, setCreatingBriefId] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -673,6 +675,21 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
       setDraftNote('');
     }
   }, [deliver.draftPackage]);
+
+  useEffect(() => {
+    if (!scope?.clientId || isLoading || dedupePending.isPending) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await dedupePending.mutateAsync();
+      if (cancelled || !result.ok || !result.removed) return;
+      setStatusMessage({ kind: 'success', text: result.message ?? 'Duplicados retirados' });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // One cleanup pass after deliver data is ready for this client.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional load/client scope only
+  }, [scope?.clientId, isLoading]);
 
   const onEnsureDraft = async () => {
     if (ensureDraft.isPending) return;
@@ -1419,7 +1436,7 @@ function SourcesPanel({ workspaceClientId = null }: { workspaceClientId?: string
         </div>
       </div>
 
-      <div className="onboarding-footer" style={{ justifyContent: 'flex-start', marginBottom: '1rem' }}>
+      <div className="source-actions">
         <button
           type="button"
           className="btn btn-primary"
@@ -2463,6 +2480,7 @@ function AdviceActionsPanel({ workspaceClientId = null }: { workspaceClientId?: 
         <ul className="advice-list" data-testid="react-ws-advice-list">
           {actions.map((action) => {
             const busy = addAdvice.isPending && busyActionId === action.id;
+            const alreadyPrepared = action.alreadyInCuration;
             return (
               <li
                 className="advice-card"
@@ -2489,10 +2507,10 @@ function AdviceActionsPanel({ workspaceClientId = null }: { workspaceClientId?: 
                   type="button"
                   className="btn btn-secondary btn-sm"
                   data-testid={`react-ws-advice-prepare-${action.id}`}
-                  disabled={busy}
+                  disabled={busy || alreadyPrepared}
                   onClick={() => void onPrepare(action.id)}
                 >
-                  {busy ? 'Enviando…' : 'Preparar entrega'}
+                  {busy ? 'Enviando…' : alreadyPrepared ? 'Ya en la mesa' : 'Preparar entrega'}
                 </button>
               </li>
             );

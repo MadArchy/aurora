@@ -75,6 +75,7 @@ import {
   addAdviceActionToCuration as addAdviceActionToCurationConsumer,
   assignClientTask,
   cancelClientTask,
+  dedupePendingAdviceCuration as dedupePendingAdviceCurationConsumer,
   removeCuration,
   reopenCuration,
   reviewClientArticle,
@@ -1237,12 +1238,38 @@ export const executionDeliveryCommands = {
       if (err instanceof ExecutionDeliveryError && err.code === 'ADVICE_ACTION_NOT_FOUND') {
         return { ok: false, message: 'El consejo ya no existe.' };
       }
+      if (err instanceof ExecutionDeliveryError && err.code === 'CURATION_ALREADY_EXISTS') {
+        return { ok: true, message: 'Esta acción ya está en la mesa de curación.' };
+      }
       return {
         ok: false,
         message:
           err instanceof ExecutionDeliveryError || err instanceof Error
             ? err.message
             : 'No se pudo enviar a curación',
+      };
+    }
+  },
+
+  /**
+   * Collapses repeated undecided advice-sourced curation rows for one client.
+   * Presentation adapter only — consumer owns the maintenance delete.
+   */
+  dedupePendingAdviceCuration(intent: {
+    requestedClientId: string | null | undefined;
+  }): CommandResult & { removed?: number } {
+    try {
+      const { removed } = dedupePendingAdviceCurationConsumer(intent);
+      if (removed === 0) return { ok: true, message: 'Sin duplicados en curación', removed: 0 };
+      return {
+        ok: true,
+        message: `Se retiraron ${removed} propuesta(s) duplicada(s) de la mesa`,
+        removed,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : 'No se pudieron limpiar duplicados',
       };
     }
   },

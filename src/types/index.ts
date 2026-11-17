@@ -1097,6 +1097,8 @@ export interface CurationEntry {
   organizationId: string;
   clientId: string;
   signalId?: string;
+  /** Provenance when the row was prepared from a PositioningAdvice action. */
+  adviceActionId?: string;
   /** Tesis que reclamó la señal; se propaga a contenido/tareas. */
   thesisId?: string;
   topicKey?: string;

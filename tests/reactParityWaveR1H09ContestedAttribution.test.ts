@@ -53,6 +53,7 @@ vi.mock('../src/services/db', () => ({
     getActiveTheses: (clientId: string) =>
       thesisStore.filter((t) => t.clientId === clientId && t.status === 'ACTIVE'),
     isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
   },
 }));
 

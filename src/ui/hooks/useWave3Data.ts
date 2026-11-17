@@ -359,6 +359,31 @@ export function useAddAdviceActionToCuration(scope: TrustedTenantScope | null) {
       void queryClient.invalidateQueries({
         queryKey: tenantQueryKey(scope, 'compatibility', 'workspace-deliver'),
       });
+      void queryClient.invalidateQueries({
+        queryKey: tenantQueryKey(scope, 'compatibility', 'workspace-advice'),
+      });
+    },
+  });
+}
+
+/** Collapse repeated undecided advice-sourced curation rows. Presentation only. */
+export function useDedupePendingAdviceCuration(scope: TrustedTenantScope | null) {
+  const queryClient = useQueryClient();
+  return useMutation<CommandResult & { removed?: number }, Error, void>({
+    mutationFn: async () => {
+      if (!scope?.clientId) return { ok: false, message: 'Cliente no resuelto' };
+      return executionDeliveryCommands.dedupePendingAdviceCuration({
+        requestedClientId: scope.clientId,
+      });
+    },
+    onSuccess: (result) => {
+      if (!scope || !result.ok || !result.removed) return;
+      void queryClient.invalidateQueries({
+        queryKey: tenantQueryKey(scope, 'compatibility', 'workspace-deliver'),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: tenantQueryKey(scope, 'compatibility', 'workspace-advice'),
+      });
     },
   });
 }

@@ -69,6 +69,7 @@ import {
   NOTIFICATION_SCROLL_DELAY_MS,
 } from '../../controllers/navigationController';
 import { readUiMode } from '../../ui/strangler/toggle';
+import { resolveServedUiMode } from '../presentation/reactExclusiveSlots';
 import {
   registerLegacyIslandController,
   type LegacyIslandMountConfig,
@@ -121,7 +122,9 @@ export class LegacyApp {
   }
 
   private isReactShellOwner(): boolean {
-    return readUiMode() === 'react';
+    // The stored request can stay `legacy` while exclusive slots still serve
+    // React. Clicks must follow the shell that is actually on screen.
+    return resolveServedUiMode(readUiMode()).served === 'react';
   }
 
   private publishShellNavigationFromLegacy(tab: string): void {

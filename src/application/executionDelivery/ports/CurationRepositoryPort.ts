@@ -16,6 +16,14 @@ export interface CurationDecisionInput {
 
 export interface CurationRepositoryPort {
   isSignalInCuration(clientId: string, signalId: string): boolean;
+  /**
+   * Advice-sourced duplicate: same adviceActionId, or same title when the
+   * existing row has no signalId (pending, decided, or discarded).
+   */
+  findDuplicateAdviceCuration(
+    clientId: string,
+    params: { adviceActionId: string; title: string }
+  ): CurationEntry | undefined;
   addToCuration(entry: CurationEntryCreateInput): CurationEntry;
   getById(id: string): CurationEntry | undefined;
   decideCuration(input: CurationDecisionInput): CurationEntry | null;

@@ -743,6 +743,9 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
       isSignalInCuration(clientId, signalId) {
         return curationEntries.some((e) => e.clientId === clientId && e.signalId === signalId);
       },
+      findDuplicateAdviceCuration() {
+        return undefined;
+      },
       addToCuration(entry) {
         persistCount += 1;
         const created: CurationEntry = {
@@ -841,6 +844,7 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
         order.push('dedup');
         return false;
       },
+      findDuplicateAdviceCuration: () => undefined,
       addToCuration() {
         order.push('persist');
         return {
@@ -963,6 +967,7 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
     const signals: SignalReadPort = { getById: () => baseSignal() };
     const curation: CurationRepositoryPort = {
       isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
       addToCuration: () => {
         throw new Error('disk full');
       },
@@ -1002,6 +1007,7 @@ describe('CR-1 Wave B1 #21a — AddSignalToCuration', () => {
         signals: { getById: () => baseSignal() },
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: (entry) =>
             ({
               id: 'cur_audit',
@@ -1190,8 +1196,18 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
       },
     };
     const curationEntries: CurationEntry[] = [];
+    const normalizeTitle = (title: string) => title.trim().toLowerCase().replace(/\s+/g, ' ');
     const curation: CurationRepositoryPort = {
       isSignalInCuration: () => false,
+      findDuplicateAdviceCuration(clientId, params) {
+        const titleKey = normalizeTitle(params.title);
+        return curationEntries.find((c) => {
+          if (c.clientId !== clientId) return false;
+          if (c.adviceActionId === params.adviceActionId) return true;
+          if (!c.signalId && normalizeTitle(c.title) === titleKey) return true;
+          return false;
+        });
+      },
       addToCuration(entry) {
         persistCount += 1;
         const created: CurationEntry = {
@@ -1272,6 +1288,7 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
     expect(result.entry.organizationId).toBe('org_ed');
     expect(result.entry.clientId).toBe('client_ed');
     expect(result.entry.createdBy).toBe('admin_01');
+    expect(result.entry.adviceActionId).toBe('adv_b2_1');
     expect(result.entry.signalId).toBeUndefined();
     expect(result.entry.thesisId).toBeUndefined();
   });
@@ -1317,6 +1334,10 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
     };
     const curation: CurationRepositoryPort = {
       isSignalInCuration: () => false,
+      findDuplicateAdviceCuration() {
+        order.push('dedup');
+        return undefined;
+      },
       addToCuration() {
         order.push('persist');
         return {
@@ -1339,7 +1360,7 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
       trusted: adminTrusted(),
       adviceActionId: 'adv_b2_1',
     });
-    expect(order).toEqual(['lookup', 'persist']);
+    expect(order).toEqual(['lookup', 'dedup', 'persist']);
   });
 
   it('cross-tenant denial when advice organization differs from trusted session', () => {
@@ -1363,6 +1384,7 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
     };
     const curation: CurationRepositoryPort = {
       isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
       addToCuration: () => {
         throw new Error('should not persist');
       },
@@ -1413,22 +1435,44 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
     expect(getPersistCount()).toBe(0);
   });
 
-  it('no Signal, #21b, AI, scoring, routing, or dedup inside use case', () => {
+  it('no Signal, #21b, AI, scoring, or routing inside use case', () => {
     const source = readFileSync(
       resolve('src/application/executionDelivery/AddAdviceActionToCuration.ts'),
       'utf8'
     );
     expect(source).not.toMatch(/scoreSignal|scoreAndRouteSignal|markSignalSaved|SignalReadPort/);
-    expect(source).not.toMatch(/isSignalInCuration|CURATION_ALREADY_EXISTS/);
+    expect(source).not.toMatch(/isSignalInCuration/);
+    expect(source).toMatch(/findDuplicateAdviceCuration|CURATION_ALREADY_EXISTS/);
     expect(source).not.toMatch(/\bawait\b|async function|aiService|generatePositioningAdvice/);
   });
 
-  it('repeat click creates two curation entries — no dedup', () => {
+  it('repeat click is blocked as CURATION_ALREADY_EXISTS — advice dedup', () => {
     const { advicePort, curation, getPersistCount } = memoryB2Ports();
     const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
     add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
+    try {
+      add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExecutionDeliveryError);
+      expect((err as ExecutionDeliveryError).code).toBe('CURATION_ALREADY_EXISTS');
+    }
+    expect(getPersistCount()).toBe(1);
+  });
+
+  it('decided advice row still blocks re-prepare — matches signal semantics', () => {
+    const { advicePort, curation, curationEntries, getPersistCount } = memoryB2Ports();
+    const add = createAddAdviceActionToCuration({ advice: advicePort, curation });
     add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
-    expect(getPersistCount()).toBe(2);
+    curationEntries[0]!.destination = 'TASK_VIDEO';
+    try {
+      add({ trusted: adminTrusted(), adviceActionId: 'adv_b2_1' });
+      expect.unreachable('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExecutionDeliveryError);
+      expect((err as ExecutionDeliveryError).code).toBe('CURATION_ALREADY_EXISTS');
+    }
+    expect(getPersistCount()).toBe(1);
   });
 
   it('persistence failure surfaces PERSISTENCE_ERROR', () => {
@@ -1438,6 +1482,7 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
     };
     const curation: CurationRepositoryPort = {
       isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
       addToCuration: () => {
         throw new Error('disk full');
       },
@@ -1467,6 +1512,7 @@ describe('CR-1 Wave B2 #21a — AddAdviceActionToCuration', () => {
         },
         curation: {
           isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
           addToCuration: (entry) =>
             ({
               id: 'cur_b2',
@@ -1604,6 +1650,7 @@ describe('CR-1 Wave B3 #14 — DecideCuration', () => {
     let decideCount = 0;
     const curation: CurationRepositoryPort = {
       isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
       addToCuration: (input) => {
         const created = {
           destination: null,
@@ -2004,6 +2051,7 @@ describe('CR-1 Wave B4 #17 — Delivery Assembly', () => {
 
     const curation: CurationRepositoryPort = {
       isSignalInCuration: () => false,
+      findDuplicateAdviceCuration: () => undefined,
       addToCuration: (input) => {
         const created = {
           destination: null,

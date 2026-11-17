@@ -18,7 +18,7 @@
  * own global sidebar or top-level tab authority in normal React mode.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSession } from '../../providers/SessionProvider';
 import {
   useCanonicalOpportunities,
@@ -411,22 +411,7 @@ export function ReactAppShell() {
 
       <main className="main-wrapper" data-testid="react-shell-body">
         {inWorkspace ? (
-          <nav className="mobile-sections" aria-label="Secciones del cliente">
-            <button type="button" className="mobile-section" onClick={backToPortfolio}>
-              Cartera
-            </button>
-            {WORKSPACE_SECTIONS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`mobile-section ${activeTab === item.id ? 'active' : ''}`}
-                aria-current={activeTab === item.id ? 'page' : undefined}
-                onClick={() => selectTab(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
+          <MobileSectionNav activeTab={activeTab} onBack={backToPortfolio} onSelect={selectTab} />
         ) : null}
         {isAdmin && isWorkspaceTab(activeTab) && activeClientId === 'all' ? (
           <div className="card" data-testid="react-shell-workspace-guard">
@@ -487,6 +472,98 @@ const WORKSPACE_SECTIONS: readonly NavItem[] = [
   { id: 'ws-production', label: 'Producción' },
   { id: 'ws-results', label: 'Resultados' },
 ];
+
+function MobileSectionNav({
+  activeTab,
+  onBack,
+  onSelect,
+}: {
+  activeTab: string;
+  onBack: () => void;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const currentId = activeTab === 'ws-sources' ? 'ws-sources-react' : activeTab;
+  const current = WORKSPACE_SECTIONS.find((item) => item.id === currentId)?.label ?? 'Cliente';
+
+  useEffect(() => {
+    setOpen(false);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeIfOutside = (event: Event) => {
+      const root = rootRef.current;
+      if (!root || (event.target instanceof Node && root.contains(event.target))) return;
+      setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', closeIfOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeIfOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div className="mobile-sections-wrap" ref={rootRef}>
+      <div className="mobile-sections-row">
+        <button type="button" className="mobile-section mobile-section-back" onClick={onBack}>
+          <span className="mobile-section-chevron" aria-hidden="true">
+            ‹
+          </span>
+          Cartera
+        </button>
+        <div className="mobile-section-picker">
+          <button
+            type="button"
+            className={`mobile-section-menu${open ? ' open' : ''}`}
+            aria-expanded={open}
+            aria-controls="mobile-section-list"
+            aria-label={`Cambiar sección, ahora ${current}`}
+            onClick={() => setOpen((value) => !value)}
+          >
+            <span className="mobile-sections-current">{current}</span>
+            <span className="mobile-section-chevron" aria-hidden="true">
+              ▾
+            </span>
+          </button>
+          {open ? (
+            <ul id="mobile-section-list" className="mobile-section-list" aria-label="Secciones del cliente">
+              {WORKSPACE_SECTIONS.map((item) => {
+                const selected = currentId === item.id;
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      aria-current={selected ? 'page' : undefined}
+                      className={selected ? 'active' : ''}
+                      onClick={() => {
+                        setOpen(false);
+                        onSelect(item.id);
+                      }}
+                    >
+                      <span>{item.label}</span>
+                      {selected ? (
+                        <span className="mobile-section-check" aria-hidden="true">
+                          ✓
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const CLIENT_MORE: readonly NavItem[] = [
   { id: 'client-profile', label: 'Mi perfil' },
