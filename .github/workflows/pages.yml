@@ -24,18 +24,44 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      # Prefer Actions secrets when present. Never export empty secrets: Vite treats
+      # empty process env as set and that forces Local · demo by wiping .env.production.
+      - name: Apply optional Firebase secrets override
+        shell: bash
+        env:
+          SECRET_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          SECRET_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          SECRET_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          SECRET_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          SECRET_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          SECRET_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          SECRET_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          SECRET_FUNCTIONS_BASE: ${{ secrets.VITE_POSTURA_FUNCTIONS_BASE }}
+        run: |
+          if [ -z "$SECRET_API_KEY" ] || [ -z "$SECRET_PROJECT_ID" ]; then
+            echo "Using committed .env.production for Firebase web config."
+            exit 0
+          fi
+          {
+            echo "VITE_FIREBASE_API_KEY=$SECRET_API_KEY"
+            echo "VITE_FIREBASE_AUTH_DOMAIN=${SECRET_AUTH_DOMAIN:-${SECRET_PROJECT_ID}.firebaseapp.com}"
+            echo "VITE_FIREBASE_PROJECT_ID=$SECRET_PROJECT_ID"
+            echo "VITE_FIREBASE_STORAGE_BUCKET=${SECRET_STORAGE_BUCKET:-${SECRET_PROJECT_ID}.appspot.com}"
+            echo "VITE_FIREBASE_MESSAGING_SENDER_ID=$SECRET_MESSAGING_SENDER_ID"
+            echo "VITE_FIREBASE_APP_ID=$SECRET_APP_ID"
+            if [ -n "$SECRET_MEASUREMENT_ID" ]; then
+              echo "VITE_FIREBASE_MEASUREMENT_ID=$SECRET_MEASUREMENT_ID"
+            fi
+            if [ -n "$SECRET_FUNCTIONS_BASE" ]; then
+              echo "VITE_POSTURA_FUNCTIONS_BASE=$SECRET_FUNCTIONS_BASE"
+            fi
+            echo "VITE_FIREBASE_USE_EMULATORS=false"
+          } > .env.production.local
+          echo "Applied non-empty Actions secrets to .env.production.local"
       - name: Build
         env:
           GITHUB_PAGES: 'true'
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           VITE_FIREBASE_USE_EMULATORS: 'false'
-          VITE_POSTURA_FUNCTIONS_BASE: ${{ secrets.VITE_POSTURA_FUNCTIONS_BASE }}
         run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
