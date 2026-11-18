@@ -16,16 +16,37 @@
  * The counter is never incremented locally on submit: the command runs, the
  * compatibility cache is invalidated and the new total is re-read. A number on
  * screen therefore always reflects recorded state (threat T-010-06).
+ *
+ * Manager workspace must pass `workspaceClientId` so the ADMIN portfolio scope
+ * narrows to the open client — otherwise the KPI query stays disabled.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSession } from '../../providers/SessionProvider';
 import { useKpiWeekly, useRegisterConsultation } from '../../hooks/useWave2Data';
+import { narrowToClient } from '../../query/tenantScope';
 
-export function ReactKpiWeeklyChart({ title = 'KPIs semanales' }: { title?: string }) {
+export function ReactKpiWeeklyChart({
+  title = 'KPIs semanales',
+  workspaceClientId = null,
+}: {
+  title?: string;
+  workspaceClientId?: string | null;
+}) {
   const { tenantScope } = useSession();
-  const { data, isLoading, isError } = useKpiWeekly(tenantScope);
-  const register = useRegisterConsultation(tenantScope);
+  const scope = useMemo(() => {
+    if (!tenantScope) return null;
+    if (tenantScope.clientId) return tenantScope;
+    const requested = workspaceClientId?.trim();
+    if (!requested || requested === 'all') return null;
+    try {
+      return narrowToClient(tenantScope, requested);
+    } catch {
+      return null;
+    }
+  }, [tenantScope, workspaceClientId]);
+  const { data, isLoading, isError } = useKpiWeekly(scope);
+  const register = useRegisterConsultation(scope);
   const [note, setNote] = useState('');
   const [message, setMessage] = useState<string | null>(null);
 
@@ -33,6 +54,14 @@ export function ReactKpiWeeklyChart({ title = 'KPIs semanales' }: { title?: stri
     return (
       <section className="card" data-testid="react-kpi-no-scope">
         <p className="muted">Sesión sin contexto de organización — no se muestran KPIs.</p>
+      </section>
+    );
+  }
+
+  if (!scope) {
+    return (
+      <section className="card" data-testid="react-kpi-no-client">
+        <p className="muted">Selecciona un cliente en el workspace para ver resultados.</p>
       </section>
     );
   }
@@ -118,7 +147,8 @@ export function ReactKpiWeeklyChart({ title = 'KPIs semanales' }: { title?: stri
         </>
       ) : (
         <p className="empty-state" data-testid="react-kpi-empty">
-          Sin datos KPI todavía.
+          Sin datos KPI todavía. Registra una consulta abajo, o carga métricas desde el
+          portal del cliente (vistas LinkedIn, visitas web, consultas).
         </p>
       )}
 

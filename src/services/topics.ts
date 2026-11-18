@@ -86,9 +86,14 @@ export function buildTopics(clientId: string, signals: Signal[], minSimilarity =
       const topSignal = members.reduce((a, b) => ((b.relevanceScore || 0) > (a.relevanceScore || 0) ? b : a));
       const key = `topic_${keywords.slice(0, 3).sort().join('_')}`;
 
+      // Prefer distinctive keywords over shared targetDomain — many signals can
+      // share one domain (e.g. "AI Adoption & Governance") and would otherwise
+      // collapse into identical topic labels / advice titles.
+      const keywordLabel = keywords.slice(0, 3).join(' · ');
+      const domainLabel = topSignal.targetDomain?.trim() || '';
       const topic: Topic = {
         key,
-        label: topSignal.targetDomain || keywords.slice(0, 3).join(' · '),
+        label: keywordLabel || domainLabel || 'Tema',
         keywords: keywords.slice(0, 8),
         clientId,
         signalIds: members.map((s) => s.id),

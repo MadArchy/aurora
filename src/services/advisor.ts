@@ -168,7 +168,11 @@ function computeHeuristicActions(input: AdvisorInput, diagnosis: ImageDiagnosis)
   }
 
   const hotTopics = topics.filter((t) => t.momentum === 'RISING' || t.momentum === 'EMERGING').slice(0, 2);
+  const seenTopicLabels = new Set<string>();
   for (const topic of hotTopics) {
+    const labelKey = topic.label.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!labelKey || seenTopicLabels.has(labelKey)) continue;
+    seenTopicLabels.add(labelKey);
     push({
       category: 'CONTENT',
       horizon: 'DAYS_30',
@@ -255,13 +259,18 @@ function computeHeuristicActions(input: AdvisorInput, diagnosis: ImageDiagnosis)
     });
   }
 
-  return actions.sort((a, b) => b.impact - a.impact).slice(0, 8);
+  const byTitle = new Map<string, AdviceAction>();
+  for (const action of actions) {
+    const key = action.title.trim().toLowerCase().replace(/\s+/g, ' ');
+    const prev = byTitle.get(key);
+    if (!prev || action.impact > prev.impact) byTitle.set(key, action);
+  }
+  return [...byTitle.values()].sort((a, b) => b.impact - a.impact).slice(0, 8);
 }
 
 function normalizeLiveActions(raw: Array<Partial<AdviceAction>>): AdviceAction[] {
-  return raw
+  const mapped = raw
     .filter((a) => a && a.title)
-    .slice(0, 8)
     .map((a) => ({
       id: createId('adv'),
       category: VALID_CATEGORIES.includes(a.category as AdviceCategory) ? (a.category as AdviceCategory) : 'CONTENT',
@@ -272,6 +281,12 @@ function normalizeLiveActions(raw: Array<Partial<AdviceAction>>): AdviceAction[]
       effortMinutes: Number.isFinite(Number(a.effortMinutes)) ? Math.max(5, Number(a.effortMinutes)) : 45,
       impact: Number.isFinite(Number(a.impact)) ? clampScore(Number(a.impact)) : 60,
     }));
+  const byTitle = new Map<string, AdviceAction>();
+  for (const action of mapped) {
+    const key = action.title.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!byTitle.has(key)) byTitle.set(key, action);
+  }
+  return [...byTitle.values()].slice(0, 8);
 }
 
 /**

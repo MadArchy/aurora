@@ -17,6 +17,7 @@ import { SessionProvider, useSession } from '../providers/SessionProvider';
 import { UiErrorBoundary } from '../providers/ErrorBoundary';
 import { ReactAppShell } from '../modules/AppShell/ReactAppShell';
 import { ReactLogin } from '../modules/Login/ReactLogin';
+import { ReactGuideMascot } from '../modules/GuideMascot/ReactGuideMascot';
 
 function reloadPage(): void {
   window.location.reload();
@@ -46,6 +47,7 @@ export function AppRoot() {
       <QueryProvider>
         <SessionProvider>
           <ShellSwitch />
+          <ReactGuideMascot />
         </SessionProvider>
       </QueryProvider>
     </UiErrorBoundary>

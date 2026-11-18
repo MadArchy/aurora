@@ -46,7 +46,7 @@
  * migrated, and the recommendation/discovery surfaces stay legacy-only.
  */
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useSession } from '../../providers/SessionProvider';
 import { narrowToClient } from '../../query/tenantScope';
 import {
@@ -666,6 +666,27 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
     sentDeliveries: [],
   };
 
+  const pendingHasDuplicateTitles = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of deliver.pending) {
+      const key = entry.signalTitle.trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    for (const n of counts.values()) {
+      if (n > 1) return true;
+    }
+    return false;
+  }, [deliver.pending]);
+
+  const dedupeAttemptedRef = useRef(false);
+  const lastPendingCountRef = useRef(0);
+
+  useEffect(() => {
+    dedupeAttemptedRef.current = false;
+    lastPendingCountRef.current = 0;
+  }, [scope?.clientId]);
+
   useEffect(() => {
     if (deliver.draftPackage) {
       setDraftTitle(deliver.draftPackage.title);
@@ -677,19 +698,39 @@ function DeliverPanel({ workspaceClientId = null }: { workspaceClientId?: string
   }, [deliver.draftPackage]);
 
   useEffect(() => {
+    // Firestore hydrate often arrives after the first deliver paint; allow another
+    // cleanup pass when the pending inbox grows with duplicate titles.
+    if (deliver.pending.length > lastPendingCountRef.current) {
+      dedupeAttemptedRef.current = false;
+    }
+    lastPendingCountRef.current = deliver.pending.length;
+
     if (!scope?.clientId || isLoading || dedupePending.isPending) return;
+    if (!pendingHasDuplicateTitles || dedupeAttemptedRef.current) return;
+
+    dedupeAttemptedRef.current = true;
     let cancelled = false;
     void (async () => {
-      const result = await dedupePending.mutateAsync();
-      if (cancelled || !result.ok || !result.removed) return;
-      setStatusMessage({ kind: 'success', text: result.message ?? 'Duplicados retirados' });
+      try {
+        const result = await dedupePending.mutateAsync();
+        if (cancelled) {
+          dedupeAttemptedRef.current = false;
+          return;
+        }
+        if (result.ok && result.removed) {
+          dedupeAttemptedRef.current = false;
+          setStatusMessage({ kind: 'success', text: result.message ?? 'Duplicados retirados' });
+        }
+      } catch {
+        if (!cancelled) dedupeAttemptedRef.current = false;
+      }
     })();
     return () => {
       cancelled = true;
     };
-    // One cleanup pass after deliver data is ready for this client.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional load/client scope only
-  }, [scope?.clientId, isLoading]);
+    // mutateAsync identity is unstable; fingerprint on client + pending duplicates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional hydrate/dedupe gate
+  }, [scope?.clientId, isLoading, pendingHasDuplicateTitles, deliver.pending.length]);
 
   const onEnsureDraft = async () => {
     if (ensureDraft.isPending) return;
@@ -2569,7 +2610,9 @@ export function ReactClientWorkspacePage({
       {tab === 'sources' ? <SourcesPanel workspaceClientId={clientId} /> : null}
       {tab === 'tasks' ? <TasksPanel workspaceClientId={clientId} /> : null}
       {tab === 'production' ? <ProductionPanel workspaceClientId={clientId} /> : null}
-      {tab === 'results' ? <ReactKpiWeeklyChart title="Resultados registrados" /> : null}
+      {tab === 'results' ? (
+        <ReactKpiWeeklyChart title="Resultados registrados" workspaceClientId={clientId} />
+      ) : null}
       {tab === 'positioning' ? (
         <>
           <ReactThesisEditorPage workspaceClientId={clientId} />

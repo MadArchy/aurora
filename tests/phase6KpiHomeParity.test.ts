@@ -68,7 +68,8 @@ describe('Phase 6 KPI Home parity — C2 / C3 capability', () => {
   });
 
   it('Home-mounted KPI uses the accepted compatibility read and trusted session scope', () => {
-    expect(code(REACT)).toMatch(/useKpiWeekly\(tenantScope\)/);
+    expect(code(REACT)).toMatch(/useKpiWeekly\(scope\)/);
+    expect(code(REACT)).toMatch(/narrowToClient/);
     expect(code(REACT)).toMatch(/useSession\(\)/);
     expect(code(HOOK)).toMatch(/readKpiWeekly/);
     expect(code(HOOK)).toMatch(/tenantQueryKey\(scope, 'compatibility', 'kpi-weekly'\)/);
@@ -80,7 +81,7 @@ describe('Phase 6 KPI Home parity — C2 / C3 capability', () => {
   });
 
   it('consultation stays on the canonical React command seam', () => {
-    expect(code(REACT)).toMatch(/useRegisterConsultation\(tenantScope\)/);
+    expect(code(REACT)).toMatch(/useRegisterConsultation\(scope\)/);
     expect(code(HOOK)).toMatch(/resultCommands\.registerConsultation/);
     expect(code(SEAM)).toMatch(/registerResultRecordIntent/);
     expect(code(REACT)).not.toMatch(/form-quick-kpi-consultation/);

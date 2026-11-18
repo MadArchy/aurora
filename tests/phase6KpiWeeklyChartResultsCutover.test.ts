@@ -85,7 +85,8 @@ describe('Phase 6 KPI Results cutover — C1 served ownership', () => {
 
 describe('Phase 6 KPI Results cutover — C2 / C3 canonical path', () => {
   it('React Results still use the accepted compatibility read', () => {
-    expect(code(REACT)).toMatch(/useKpiWeekly\(tenantScope\)/);
+    expect(code(REACT)).toMatch(/useKpiWeekly\(scope\)/);
+    expect(code(REACT)).toMatch(/narrowToClient/);
     expect(code(HOOK)).toMatch(/readKpiWeekly/);
     expect(code(READ)).toMatch(/export function readKpiWeekly\(/);
     expect(code(REACT)).not.toMatch(/from\s+['"][^'"]*services\/db['"]/);
@@ -94,7 +95,7 @@ describe('Phase 6 KPI Results cutover — C2 / C3 canonical path', () => {
   });
 
   it('React Results still use the canonical consultation command', () => {
-    expect(code(REACT)).toMatch(/useRegisterConsultation\(tenantScope\)/);
+    expect(code(REACT)).toMatch(/useRegisterConsultation\(scope\)/);
     expect(code(HOOK)).toMatch(/resultCommands\.registerConsultation/);
     expect(code(SEAM)).toMatch(/registerResultRecordIntent/);
   });

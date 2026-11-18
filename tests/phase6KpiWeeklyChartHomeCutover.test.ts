@@ -112,10 +112,11 @@ describe('Phase 6 KPI Home cutover — C1 served ownership', () => {
 
 describe('Phase 6 KPI Home cutover — C2 / C3 seams and Results coexistence', () => {
   it('React Home still uses the accepted compatibility read and consultation command', () => {
-    expect(code(REACT)).toMatch(/useKpiWeekly\(tenantScope\)/);
+    expect(code(REACT)).toMatch(/useKpiWeekly\(scope\)/);
+    expect(code(REACT)).toMatch(/narrowToClient/);
     expect(code(HOOK)).toMatch(/readKpiWeekly/);
     expect(code(READ)).toMatch(/export function readKpiWeekly\(/);
-    expect(code(REACT)).toMatch(/useRegisterConsultation\(tenantScope\)/);
+    expect(code(REACT)).toMatch(/useRegisterConsultation\(scope\)/);
     expect(code(HOOK)).toMatch(/resultCommands\.registerConsultation/);
     expect(code(SEAM)).toMatch(/registerResultRecordIntent/);
   });
