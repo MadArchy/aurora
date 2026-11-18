@@ -79,12 +79,14 @@ function highlightElement(el: Element, label: string): CoachApplyResult {
 
 function showBeacon(navTab: string | undefined, label: string): CoachApplyResult {
   const nav = navTab ? qs(`[data-tab="${navTab}"]`) : null;
-  const anchor = nav ?? qs('.sidebar-nav') ?? qs('.sidebar') ?? document.body;
+  const fallback = qs('.sidebar-nav') ?? qs('.sidebar') ?? document.body;
 
   if (nav) {
     nav.classList.add(TARGET_CLASS);
     activeTarget = nav;
     placeCallout(nav, label, 'beacon');
+  } else if (fallback) {
+    placeCallout(fallback, label, 'beacon');
   } else {
     document.getElementById(BEACON_ID)?.remove();
     const beacon = document.createElement('div');
